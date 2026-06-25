@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cambiar Tema - DeskEli</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            color: white;
+            padding: 25px 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .back-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid white;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: 600;
+            transition: 0.3s;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .intro {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 40px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .intro h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 22px;
+        }
+
+        .intro p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        .themes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .theme-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .theme-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        .theme-preview {
+            height: 150px;
+            display: flex;
+            align-items: flex-end;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* COLORES DE TEMAS */
+        .theme-blue .theme-preview {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+        }
+
+        .theme-purple .theme-preview {
+            background: linear-gradient(135deg, #9333ea 0%, #6b21a8 100%);
+        }
+
+        .theme-green .theme-preview {
+            background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+        }
+
+        .theme-red .theme-preview {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+        }
+
+        .theme-amber .theme-preview {
+            background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%);
+        }
+
+        .theme-pink .theme-preview {
+            background: linear-gradient(135deg, #ec4899 0%, #be185d 100%);
+        }
+
+        .theme-indigo .theme-preview {
+            background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+        }
+
+        .theme-teal .theme-preview {
+            background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+        }
+
+        .theme-cyan .theme-preview {
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+        }
+
+        .theme-fuchsia .theme-preview {
+            background: linear-gradient(135deg, #d946ef 0%, #a21caf 100%);
+        }
+
+        .theme-lime .theme-preview {
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+        }
+
+        .theme-sky .theme-preview {
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+        }
+
+        .theme-info {
+            padding: 20px;
+        }
+
+        .theme-name {
+            font-size: 20px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .theme-desc {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 15px;
+            min-height: 36px;
+        }
+
+        .select-btn {
+            width: 100%;
+            padding: 10px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .select-btn:hover {
+            background: #1e40af;
+            transform: translateY(-2px);
+        }
+
+        .select-btn.active {
+            background: #16a34a;
+            color: white;
+        }
+
+        .select-btn.active::before {
+            content: "✓ ";
+        }
+
+        .status-msg {
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-weight: 600;
+            display: none;
+        }
+
+        .status-msg.success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #86efac;
+            display: block;
+        }
+
+        .status-msg.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+            display: block;
+        }
+
+        .current-theme {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border-left: 4px solid #2563eb;
+        }
+
+        .current-theme strong {
+            color: #333;
+            font-size: 16px;
+        }
+
+        .current-theme span {
+            color: #2563eb;
+            font-weight: 700;
+        }
+
+        @media (max-width: 768px) {
+            .themes-grid {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .theme-preview {
+                height: 120px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div>
+                <h1>🎨 Cambiar Tema Visual</h1>
+                <p>Selecciona uno de los 12 temas disponibles</p>
+            </div>
+            <a href="/admin/dashboard" class="back-btn">← Volver al Panel</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="current-theme">
+            <strong>Tema Actual:</strong> <span id="current-theme">Azul</span>
+        </div>
+
+        <div id="status-message" class="status-msg"></div>
+
+        <div class="intro">
+            <h2>Personaliza la Apariencia de DeskEli</h2>
+            <p>
+                Cambia el color de toda la plataforma para adaptarla a la identidad visual de tu empresa.
+                El cambio se aplicará inmediatamente en todos los portales (Empleados, Técnicos, Admin).
+            </p>
+            <p style="font-size: 13px; color: #999; margin-top: 15px;">
+                💡 Haz clic en cualquier tema para seleccionarlo. El cambio se guardará automáticamente.
+            </p>
+        </div>
+
+        <div class="themes-grid">
+            <!-- AZUL -->
+            <div class="theme-card theme-blue" onclick="selectTheme('blue', 'Azul')">
+                <div class="theme-preview"></div>
+                <div class="theme-info">
+                    <div class="theme-name">Azul</div>
+                    <div class="theme-desc">Profesional y confiable - Ideal para empresas corporativas</div>
+                    <button class="select-btn" onclick="selectTheme('blue', 'Azul'); return false;">Seleccionar</button>
+                </div>
+            </div>
+
+            <!-- PÚRPURA -->
+            <div class="theme-card theme-purple" onclick="selectTheme('purple', 'Púrpura')">
+                <div class="theme-preview"></div>
+                <div class="theme-info">
+                    <div class="theme-name">Púrpura</div>
+                    <div class="theme-desc">Creativo y moderno - Perfecto para startups</div>
+                    <button class="select-btn" onclick="selectTheme('purple', 'Púrpura'); return false;">Seleccionar</button>
+                </div>
+            </div>
+
+            <!-- VERDE -->
+            <div class="theme-card theme-green" onclick="selectTheme('green', 'Verde')">
+                <div class="theme-preview"></div>
+                <div class="theme-info">
+                    <div class="theme-name">Verde</div>
+                    <div class="theme-desc">Positivo y renovador - Energético y amigable</div>
+                    <button class="select-btn" onclick="selectTheme('green', 'Verde'); return false;">Seleccionar</button>
+                </div>
+            </div>
+
+            <!-- ROJO -->
+            <div class="theme-card theme-red" onclick="selectTheme('red', 'Rojo')">
+                <div class="theme-preview"></div>
+                <div class="theme-info">
+                    <div class="theme-name">Rojo</div>
+                    <div class="theme-desc">Urgencia y acción - Atrae atención</div>
+                    <button class="select-btn" onclick="selectTheme('red', 'Rojo'); return false;">Seleccionar</button>
+                </div>
+            </div>
+
+            <!-- ÁMBAR -->
+            <div class="theme-card theme-amber" onclick="selectTheme('amber', 'Ámbar')">
+                <div class="theme-preview"></div>
+                <div class="theme-info">
+                    <div class="theme-name">Ámbar</div>
+                    <div class="theme-desc">Cálido y acogedor - Equilibrado y accesible</div>
+                    <button class="select-btn" onclick="selectTheme('amber', 'Ámbar'); return false;">Seleccionar</button>
+                </div>
+            </div>
+
+            <!-- ROSA -->
+            <div class="theme-card theme-pink" onclick="selectTheme('pink', 'Rosa')">
+                <div class="theme-preview"></div>
+                <div class="theme-info">
+                    <div class="theme-name">Rosa</div>
+                    <div class="theme-desc">Femenino y moderno - Sofisticado y elegante</div>
+                    <button class="select-btn" onclick="selectTheme('pink', 'Rosa'); return false;">Seleccionar</button>
+                </div>
+            </div>
+
+            <!-- ÍNDIGO -->
+            <div class="theme-card theme-indigo" onclick="selectTheme('indigo', 'Índigo')">
+                <div class="theme-preview"></div>
+                <div class="theme-info">
+                    <div class="theme-name">Índigo</div>
+                    <div class="theme-desc">Sofisticado y profundo - Transmite experiencia</div>
+                    <button class="select-btn" onclick="selectTheme('indigo', 'Índigo'); return false;">Seleccionar</button>
+                </div>
+            </div>
+
+            <!-- TEAL -->
+            <div class="theme-card theme-teal" onclick="selectTheme('teal', 'Teal')">
+                <div class="theme-preview"></div>
+                <div class="theme-info">
+                    <div class="theme-name">Teal</div>
+                    <div class="theme-desc">Fresco y contemporáneo - Moderno y dinámico</div>
+                    <button class="select-btn" onclick="selectTheme('teal', 'Teal'); return false;">Seleccionar</button>
+                </div>
+            </div>
+
+            <!-- CYAN -->
+            <div class="theme-card theme-cyan" onclick="selectTheme('cyan', 'Cyan')">
+                <div class="theme-preview"></div>
+                <div class="theme-info">
+                    <div class="theme-name">Cyan</div>
+                    <div class="theme-desc">Luminoso y tech - Futurista e innovador</div>
+                    <button class="select-btn" onclick="selectTheme('cyan', 'Cyan'); return false;">Seleccionar</button>
+                </div>
+            </div>
+
+            <!-- FUCHSIA -->
+            <div class="theme-card theme-fuchsia" onclick="selectTheme('fuchsia', 'Fuchsia')">
+                <div class="theme-preview"></div>
+                <div class="theme-info">
+                    <div class="theme-name">Fuchsia</div>
+                    <div class="theme-desc">Vibrante y llamativo - Atrevido y moderno</div>
+                    <button class="select-btn" onclick="selectTheme('fuchsia', 'Fuchsia'); return false;">Seleccionar</button>
+                </div>
+            </div>
+
+            <!-- LIMA -->
+            <div class="theme-card theme-lime" onclick="selectTheme('lime', 'Lima')">
+                <div class="theme-preview"></div>
+                <div class="theme-info">
+                    <div class="theme-name">Lima</div>
+                    <div class="theme-desc">Fresco y juvenil - Dinámico y energético</div>
+                    <button class="select-btn" onclick="selectTheme('lime', 'Lima'); return false;">Seleccionar</button>
+                </div>
+            </div>
+
+            <!-- SKY -->
+            <div class="theme-card theme-sky" onclick="selectTheme('sky', 'Sky')">
+                <div class="theme-preview"></div>
+                <div class="theme-info">
+                    <div class="theme-name">Sky</div>
+                    <div class="theme-desc">Luminoso y claro - Tranquilo y sereno</div>
+                    <button class="select-btn" onclick="selectTheme('sky', 'Sky'); return false;">Seleccionar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function selectTheme(themeId, themeName) {
+            // Actualizar botón visual
+            document.querySelectorAll('.select-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Enviar al servidor
+            fetch('/api/config/theme', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ theme: themeId })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showStatus(`✅ Tema "${themeName}" aplicado exitosamente`, 'success');
+                        document.getElementById('current-theme').textContent = themeName;
+
+                        // Recargar página después de 1.5 segundos para ver cambios
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1500);
+                    } else {
+                        showStatus('❌ Error al cambiar tema: ' + (data.message || 'Error desconocido'), 'error');
+                    }
+                })
+                .catch(err => {
+                    showStatus('❌ Error de conexión: ' + err.message, 'error');
+                });
+        }
+
+        function showStatus(message, type) {
+            const el = document.getElementById('status-message');
+            el.textContent = message;
+            el.className = 'status-msg ' + type;
+        }
+
+        // Cargar tema actual al iniciar
+        fetch('/api/config')
+            .then(r => r.json())
+            .then(data => {
+                if (data.theme) {
+                    document.getElementById('current-theme').textContent =
+                        data.theme.charAt(0).toUpperCase() + data.theme.slice(1);
+                    // Marcar como activo
+                    document.querySelectorAll('.theme-card').forEach(card => {
+                        if (card.classList.contains('theme-' + data.theme)) {
+                            card.querySelector('.select-btn').classList.add('active');
+                        }
+                    });
+                }
+            });
+    </script>
+</body>
+</html>

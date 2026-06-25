@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modelo de Escalación de Casos - TicketDesk Enterprise</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background: linear-gradient(135deg, #1e3a8a 0%, #7c3aed 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        .header {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: linear-gradient(90deg, #dc2626, #ea580c, #f59e0b);
+        }
+
+        .header h1 {
+            font-size: 36px;
+            color: #1e3a8a;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .section {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        }
+
+        .section h2 {
+            color: #1e3a8a;
+            font-size: 24px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 3px solid #ddd6fe;
+        }
+
+        .section h3 {
+            color: #4c1d95;
+            font-size: 18px;
+            margin: 20px 0 12px;
+        }
+
+        .section p {
+            margin-bottom: 12px;
+        }
+
+        /* ===== NIVELES DE ESCALACION ===== */
+        .level-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin: 20px 0;
+        }
+
+        .level-card {
+            padding: 20px;
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+            color: white;
+        }
+
+        .level-card.l1 { background: linear-gradient(135deg, #16a34a, #15803d); }
+        .level-card.l2 { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .level-card.l3 { background: linear-gradient(135deg, #ea580c, #c2410c); }
+        .level-card.l4 { background: linear-gradient(135deg, #dc2626, #991b1b); }
+
+        .level-card .icon {
+            font-size: 48px;
+            margin-bottom: 8px;
+        }
+
+        .level-card h4 {
+            font-size: 20px;
+            margin-bottom: 8px;
+        }
+
+        .level-card .pct {
+            font-size: 36px;
+            font-weight: 900;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .level-card .desc {
+            font-size: 13px;
+            opacity: 0.95;
+        }
+
+        /* ===== TABLAS ===== */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        th {
+            background: #1e3a8a;
+            color: white;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+        }
+
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background: #f9fafb; }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .badge-low { background: #dcfce7; color: #166534; }
+        .badge-medium { background: #fef3c7; color: #92400e; }
+        .badge-high { background: #fed7aa; color: #9a3412; }
+        .badge-critical { background: #fee2e2; color: #991b1b; }
+
+        /* ===== FLOWCHART ===== */
+        .flow {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 16px 0;
+            border-left: 5px solid #7c3aed;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            line-height: 1.5;
+            color: #4c1d95;
+        }
+
+        /* ===== INFO BOXES ===== */
+        .info-box {
+            padding: 16px 20px;
+            border-radius: 10px;
+            margin: 12px 0;
+            border-left: 5px solid;
+        }
+
+        .info-warn {
+            background: #fffbeb;
+            border-color: #f59e0b;
+            color: #78350f;
+        }
+
+        .info-danger {
+            background: #fef2f2;
+            border-color: #dc2626;
+            color: #7f1d1d;
+        }
+
+        .info-success {
+            background: #f0fdf4;
+            border-color: #16a34a;
+            color: #14532d;
+        }
+
+        .info-info {
+            background: #eff6ff;
+            border-color: #2563eb;
+            color: #1e3a8a;
+        }
+
+        /* ===== ACTORES ===== */
+        .actors-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin: 20px 0;
+        }
+
+        .actor-card {
+            background: #f3e8ff;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            border: 2px solid #c4b5fd;
+        }
+
+        .actor-card .actor-icon {
+            font-size: 48px;
+            margin-bottom: 8px;
+        }
+
+        .actor-card h4 {
+            color: #4c1d95;
+            margin-bottom: 6px;
+            font-size: 16px;
+        }
+
+        .actor-card p {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        /* ===== TIMELINE ===== */
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+            margin: 20px 0;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 10px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #c4b5fd;
+        }
+
+        .timeline-item {
+            position: relative;
+            padding: 12px 0 12px 20px;
+            margin-bottom: 8px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -24px;
+            top: 18px;
+            width: 12px;
+            height: 12px;
+            background: #7c3aed;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 0 2px #c4b5fd;
+        }
+
+        .timeline-item.critical::before { background: #dc2626; box-shadow: 0 0 0 2px #fecaca; }
+        .timeline-item.warn::before { background: #f59e0b; box-shadow: 0 0 0 2px #fde68a; }
+        .timeline-item.ok::before { background: #16a34a; box-shadow: 0 0 0 2px #86efac; }
+
+        .timeline-item-title {
+            font-weight: 700;
+            color: #4c1d95;
+            margin-bottom: 4px;
+        }
+
+        .timeline-item-desc {
+            font-size: 13px;
+            color: #6b7280;
+        }
+
+        /* ===== STATS ===== */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .stat-box {
+            background: linear-gradient(135deg, #1e3a8a, #7c3aed);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-num {
+            font-size: 32px;
+            font-weight: 900;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            text-align: center;
+            color: white;
+            padding: 30px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- HEADER -->
+    <div class="header">
+        <h1>⚠️ Modelo de Escalación de Casos</h1>
+        <p><strong>TicketDesk Enterprise v2.1</strong> · Sistema multi-tenant para 3 empresas · 8,000 empleados · 100 técnicos</p>
+        <p style="margin-top:8px;color:#666;">Documento técnico-funcional · Gobernanza de SLA y escalación automática/manual</p>
+    </div>
+
+    <!-- DEFINICIONES -->
+    <div class="section">
+        <h2>📌 1. ¿Qué es la Escalación?</h2>
+        <p>La <strong>escalación</strong> es el proceso por el cual un ticket sube de nivel de prioridad o se transfiere a un técnico de mayor experiencia cuando:</p>
+        <ul style="margin-left: 24px; margin-top: 8px;">
+            <li>El tiempo de respuesta supera umbrales definidos (SLA)</li>
+            <li>El técnico actual no tiene las habilidades requeridas</li>
+            <li>El impacto del problema crece (más usuarios afectados)</li>
+            <li>El cliente o el negocio solicita intervención urgente</li>
+        </ul>
+
+        <div class="info-box info-info">
+            <strong>Objetivo:</strong> Garantizar que ningún ticket quede sin atención y que los casos críticos se resuelvan en el tiempo comprometido (SLA).
+        </div>
+    </div>
+
+    <!-- NIVELES -->
+    <div class="section">
+        <h2>🎚️ 2. Niveles de Escalación (basado en % SLA transcurrido)</h2>
+
+        <div class="level-grid">
+            <div class="level-card l1">
+                <div class="icon">🟢</div>
+                <h4>NIVEL 0 - Normal</h4>
+                <div class="pct">0-50%</div>
+                <div class="desc">SLA dentro del rango normal. Sin acción automática.</div>
+            </div>
+
+            <div class="level-card l2">
+                <div class="icon">🟡</div>
+                <h4>NIVEL 1 - Alerta</h4>
+                <div class="pct">50-80%</div>
+                <div class="desc">Aviso visual al técnico. Barra amarilla. Notificación.</div>
+            </div>
+
+            <div class="level-card l3">
+                <div class="icon">🟠</div>
+                <h4>NIVEL 2 - Advertencia</h4>
+                <div class="pct">80-100%</div>
+                <div class="desc">Notificación a supervisor. Aparece en monitor de escalaciones.</div>
+            </div>
+
+            <div class="level-card l4">
+                <div class="icon">🔴</div>
+                <h4>NIVEL 3 - Crítico</h4>
+                <div class="pct">100%+</div>
+                <div class="desc">SLA vencido. Reasignación automática + notificación Teams + ticket bloqueado.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TIPOS DE ESCALACION -->
+    <div class="section">
+        <h2>🔀 3. Tipos de Escalación</h2>
+
+        <h3>A. Escalación Automática (por SLA)</h3>
+        <p>Un proceso en segundo plano (<strong>AgentEscalator</strong>) revisa cada 5 minutos todos los tickets activos.</p>
+
+        <div class="flow">⏱️ Ciclo del Escalator (cada 5 min)
+─────────────────────────────────────
+1. Obtener tickets con status = 'open' o 'in_progress'
+2. Calcular % SLA para cada uno:
+   pct = (ahora - creado) / sla_total * 100
+3. Aplicar acción según nivel:
+   ├─ pct ≥ 50% → Notificar técnico asignado
+   ├─ pct ≥ 80% → Alertar supervisor + WebSocket
+   ├─ pct ≥ 100% → ESCALAR PRIORIDAD a crítica
+   └─ pct ≥ 200% → Reasignar a admin + Teams + Email
+4. Registrar en audit_logs
+5. Emitir evento WebSocket en tiempo real</div>
+
+        <h3>B. Escalación Manual (por técnico/admin)</h3>
+        <p>El técnico hace click en el botón <strong>"📞 Escalar a Crítico"</strong> en el detalle del ticket. Se abre un modal donde debe:</p>
+        <ul style="margin-left: 24px;">
+            <li>Justificar con motivo (mínimo 5 caracteres)</li>
+            <li>Confirmar la escalación</li>
+        </ul>
+
+        <h3>C. Reasignación (sin cambio de prioridad)</h3>
+        <p>Cuando un técnico no tiene las habilidades requeridas, puede <strong>reasignar el ticket</strong> a otro técnico o admin con motivo justificado.</p>
+    </div>
+
+    <!-- TABLA SLA -->
+    <div class="section">
+        <h2>⏱️ 4. Tabla de SLA por Prioridad</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Prioridad</th>
+                    <th>SLA (minutos)</th>
+                    <th>SLA (horas)</th>
+                    <th>Tiempo a Nivel 1 (50%)</th>
+                    <th>Tiempo a Nivel 2 (80%)</th>
+                    <th>Tiempo a Nivel 3 (100%)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="badge badge-critical">CRÍTICA</span></td>
+                    <td>60 min</td>
+                    <td>1 h</td>
+                    <td>30 min</td>
+                    <td>48 min</td>
+                    <td>1 h ⚠️</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-high">ALTA</span></td>
+                    <td>120 min</td>
+                    <td>2 h</td>
+                    <td>1 h</td>
+                    <td>1 h 36 min</td>
+                    <td>2 h ⚠️</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-medium">MEDIA</span></td>
+                    <td>240 min</td>
+                    <td>4 h</td>
+                    <td>2 h</td>
+                    <td>3 h 12 min</td>
+                    <td>4 h ⚠️</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-low">BAJA</span></td>
+                    <td>480 min</td>
+                    <td>8 h</td>
+                    <td>4 h</td>
+                    <td>6 h 24 min</td>
+                    <td>8 h ⚠️</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="info-box info-warn">
+            <strong>⚠️ Importante:</strong> Estos tiempos son <strong>configurables</strong> desde Configuración → SLA. Cada empresa puede ajustarlos según sus políticas internas.
+        </div>
+    </div>
+
+    <!-- ACTORES -->
+    <div class="section">
+        <h2>👥 5. Actores en el Proceso de Escalación</h2>
+
+        <div class="actors-grid">
+            <div class="actor-card">
+                <div class="actor-icon">🤖</div>
+                <h4>AgentEscalator</h4>
+                <p>Daemon de IA que revisa SLA cada 5 minutos automáticamente</p>
+            </div>
+            <div class="actor-card">
+                <div class="actor-icon">🔧</div>
+                <h4>Técnico</h4>
+                <p>Puede escalar manualmente con motivo si detecta caso complejo</p>
+            </div>
+            <div class="actor-card">
+                <div class="actor-icon">👑</div>
+                <h4>Administrador</h4>
+                <p>Recibe alertas de Nivel 2-3. Puede forzar escalación o reasignación</p>
+            </div>
+            <div class="actor-card">
+                <div class="actor-icon">📊</div>
+                <h4>Gerente TI</h4>
+                <p>Recibe reportes diarios de escalaciones para análisis estratégico</p>
+            </div>
+            <div class="actor-card">
+                <div class="actor-icon">💬</div>
+                <h4>Microsoft Teams</h4>
+                <p>Canal de notificaciones automáticas para tickets críticos</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- FLUJO COMPLETO -->
+    <div class="section">
+        <h2>🔄 6. Flujo Completo de Escalación (paso a paso)</h2>
+
+        <div class="timeline">
+            <div class="timeline-item ok">
+                <div class="timeline-item-title">⏰ T+0: Ticket creado</div>
+                <div class="timeline-item-desc">Usuario reporta problema. Sistema asigna SLA según prioridad. Estado: <code>open</code></div>
+            </div>
+
+            <div class="timeline-item ok">
+                <div class="timeline-item-title">⏰ T+0 a T+5min: Auto-asignación</div>
+                <div class="timeline-item-desc">AgentClassifier clasifica + AgentAssignor busca técnico con mejor match de habilidades y menor carga. Estado: <code>in_progress</code></div>
+            </div>
+
+            <div class="timeline-item warn">
+                <div class="timeline-item-title">🟡 T+50% SLA: Aviso al técnico</div>
+                <div class="timeline-item-desc">Barra SLA del ticket se vuelve amarilla. Notificación push al técnico. Aparece en pestaña "Mi cola" destacado.</div>
+            </div>
+
+            <div class="timeline-item warn">
+                <div class="timeline-item-title">🟠 T+80% SLA: Alerta supervisor</div>
+                <div class="timeline-item-desc">Aparece en <strong>Monitor de Escalaciones</strong> del admin. Email al supervisor. Notificación WebSocket en tiempo real.</div>
+            </div>
+
+            <div class="timeline-item critical">
+                <div class="timeline-item-title">🔴 T+100% SLA: ESCALACIÓN AUTOMÁTICA</div>
+                <div class="timeline-item-desc">Prioridad sube a CRÍTICA. SLA se ajusta a 60 min. Notificación Teams. Registro en audit_logs con motivo "AUTO-ESCALATED".</div>
+            </div>
+
+            <div class="timeline-item critical">
+                <div class="timeline-item-title">🚨 T+200% SLA: ESCALACIÓN MASIVA</div>
+                <div class="timeline-item-desc">Reasignación automática a admin. Alerta push a Gerente TI. Aparece en dashboard ejecutivo. Ticket bloqueado para que solo admin pueda modificar.</div>
+            </div>
+
+            <div class="timeline-item ok">
+                <div class="timeline-item-title">✅ T+resolución: Cierre</div>
+                <div class="timeline-item-desc">Técnico marca "Resuelto". Sistema calcula tiempo total y compara con SLA original. Genera métrica de cumplimiento.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ACCIONES POR NIVEL -->
+    <div class="section">
+        <h2>⚡ 7. Acciones del Sistema por Nivel</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Nivel</th>
+                    <th>% SLA</th>
+                    <th>Acción del Sistema</th>
+                    <th>Notificación</th>
+                    <th>Visual</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="badge badge-low">0 - NORMAL</span></td>
+                    <td>0-49%</td>
+                    <td>Ninguna</td>
+                    <td>—</td>
+                    <td>Barra verde</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-medium">1 - ALERTA</span></td>
+                    <td>50-79%</td>
+                    <td>Notificar técnico</td>
+                    <td>Push web + Email</td>
+                    <td>Barra amarilla</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-high">2 - ADVERTENCIA</span></td>
+                    <td>80-99%</td>
+                    <td>Notificar supervisor</td>
+                    <td>Push + Email + Aparece en Monitor</td>
+                    <td>Barra naranja parpadeante</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-critical">3 - CRÍTICO</span></td>
+                    <td>100-199%</td>
+                    <td>Subir a prioridad CRÍTICA + SLA 60 min</td>
+                    <td>Teams + Push + Email + Audit log</td>
+                    <td>Barra roja + Banner alarma</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-critical">4 - EMERGENCIA</span></td>
+                    <td>200%+</td>
+                    <td>Reasignar a admin + Bloquear edición</td>
+                    <td>Notificar Gerente TI + Teams</td>
+                    <td>Banner rojo intermitente</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ESCALACION MANUAL -->
+    <div class="section">
+        <h2>🖱️ 8. Escalación Manual - Caso de Uso</h2>
+
+        <h3>Cuando un Técnico Escala</h3>
+        <p>El técnico Carlos está atendiendo un ticket de "Servidor SAP caído" pero al investigar descubre que requiere intervención del equipo BASIS (especialistas de mayor nivel).</p>
+
+        <div class="info-box info-info">
+            <strong>Paso 1:</strong> Carlos abre el detalle del ticket en <code>/technician/ticket/&lt;id&gt;</code>
+        </div>
+        <div class="info-box info-info">
+            <strong>Paso 2:</strong> Click en botón rojo <strong>"📞 Escalar a Crítico"</strong>
+        </div>
+        <div class="info-box info-info">
+            <strong>Paso 3:</strong> Modal aparece pidiendo motivo: <em>"Requiere equipo BASIS, supera mis habilidades"</em>
+        </div>
+        <div class="info-box info-info">
+            <strong>Paso 4:</strong> Confirmar escalación
+        </div>
+
+        <h3>Sistema Hace Automáticamente</h3>
+        <ul style="margin-left: 24px;">
+            <li>✅ Cambia prioridad: <code>alta → crítica</code></li>
+            <li>✅ Reduce SLA a <strong>60 minutos</strong></li>
+            <li>✅ Agrega nota visible al ticket con motivo + autor + fecha</li>
+            <li>✅ Registra en <code>audit_logs</code> con acción <code>escalate_priority</code></li>
+            <li>✅ Emite evento WebSocket <code>ticket_escalated</code> a la empresa</li>
+            <li>✅ Aparece en <strong>Monitor de Escalaciones</strong> del admin</li>
+        </ul>
+    </div>
+
+    <!-- ENDPOINTS -->
+    <div class="section">
+        <h2>🔌 9. Endpoints Técnicos Involucrados</h2>
+
+        <table>
+            <thead>
+                <tr><th>Endpoint</th><th>Método</th><th>Descripción</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>/api/ticket/&lt;id&gt;/escalate</code></td>
+                    <td><span class="badge badge-medium">POST</span></td>
+                    <td>Escalar a crítica manualmente (técnico/admin)</td>
+                </tr>
+                <tr>
+                    <td><code>/api/ticket/&lt;id&gt;/reassign</code></td>
+                    <td><span class="badge badge-medium">POST</span></td>
+                    <td>Reasignar a otro técnico (sin cambiar prioridad)</td>
+                </tr>
+                <tr>
+                    <td><code>/api/sla/escalate</code></td>
+                    <td><span class="badge badge-low">GET</span></td>
+                    <td>Calcular nivel de escalación de un ticket</td>
+                </tr>
+                <tr>
+                    <td><code>/api/monitor/escalations</code></td>
+                    <td><span class="badge badge-low">GET</span></td>
+                    <td>Listar tickets escalados (SLA > 80%) para admin</td>
+                </tr>
+                <tr>
+                    <td>WebSocket: <code>ticket_escalated</code></td>
+                    <td><span class="badge badge-high">EVENT</span></td>
+                    <td>Evento en tiempo real cuando ocurre escalación</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- MÉTRICAS -->
+    <div class="section">
+        <h2>📊 10. Métricas y KPIs de Escalación</h2>
+
+        <div class="stat-grid">
+            <div class="stat-box">
+                <div class="stat-num">87%</div>
+                <div class="stat-label">SLA cumplido</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-num">12</div>
+                <div class="stat-label">Escalados hoy</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-num">3</div>
+                <div class="stat-label">SLA vencidos</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-num">2.4h</div>
+                <div class="stat-label">Tiempo prom.</div>
+            </div>
+        </div>
+
+        <h3>KPIs Críticos</h3>
+        <ul style="margin-left: 24px;">
+            <li><strong>Tasa de escalación:</strong> % de tickets que llegan a Nivel 2 o superior (objetivo: &lt; 15%)</li>
+            <li><strong>Tasa de SLA cumplido:</strong> % de tickets resueltos antes del 100% del SLA (objetivo: &gt; 85%)</li>
+            <li><strong>Tiempo medio entre escalaciones:</strong> mide la efectividad del equipo</li>
+            <li><strong>Top causas de escalación:</strong> identifica patrones recurrentes</li>
+        </ul>
+    </div>
+
+    <!-- REGLAS DE NEGOCIO -->
+    <div class="section">
+        <h2>📜 11. Reglas de Negocio</h2>
+
+        <div class="info-box info-success">
+            <strong>RN-01:</strong> Un ticket solo puede ser escalado UNA VEZ por nivel. No puede ir de Nivel 0 a Nivel 3 saltando intermedios (excepto crítico manual).
+        </div>
+
+        <div class="info-box info-success">
+            <strong>RN-02:</strong> Solo técnicos y admins pueden escalar manualmente. Los empleados solo pueden cambiar la descripción del ticket.
+        </div>
+
+        <div class="info-box info-success">
+            <strong>RN-03:</strong> Toda escalación queda registrada en <code>audit_logs</code> con motivo, autor y timestamp.
+        </div>
+
+        <div class="info-box info-success">
+            <strong>RN-04:</strong> Una escalación manual requiere motivo de al menos 5 caracteres.
+        </div>
+
+        <div class="info-box info-success">
+            <strong>RN-05:</strong> Los tickets en Nivel 4 (200%+ SLA) se bloquean para edición por técnicos; solo admins pueden modificarlos.
+        </div>
+
+        <div class="info-box info-success">
+            <strong>RN-06:</strong> La segregación multi-tenant aplica: las escalaciones de Eliot NO se ven en Pash ni Primatela.
+        </div>
+
+        <div class="info-box info-success">
+            <strong>RN-07:</strong> Tickets críticos generan notificación Teams automáticamente (si webhook configurado).
+        </div>
+    </div>
+
+    <!-- DIAGRAMA FINAL -->
+    <div class="section">
+        <h2>🎯 12. Diagrama Resumen</h2>
+
+        <div class="flow">┌──────────────────────────────────────────────────────────┐
+│  CREACIÓN DEL TICKET                                      │
+│  Usuario → Ticket creado → SLA asignado por prioridad     │
+└────────────────────┬─────────────────────────────────────┘
+                     │
+                     ▼
+┌──────────────────────────────────────────────────────────┐
+│  AUTO-ASIGNACIÓN (AgentAssignor)                          │
+│  Encuentra técnico con mejor match y menor carga          │
+└────────────────────┬─────────────────────────────────────┘
+                     │
+                     ▼
+┌──────────────────────────────────────────────────────────┐
+│  MONITOREO CONTINUO (AgentEscalator c/ 5min)              │
+│  Calcula % SLA → Decide acción                            │
+└─────┬───────┬───────┬──────────────┬──────────────────┬──┘
+      │       │       │              │                  │
+      ▼       ▼       ▼              ▼                  ▼
+  ┌──────┐┌──────┐┌──────┐  ┌──────────────┐  ┌─────────────┐
+  │ 0-50%││50-80%││80-100│  │ 100%+ AUTO   │  │ 200%+ EMERG │
+  │ OK   ││ALERT ││ ADV  │  │ Subir a CRIT │  │ Reasignar   │
+  │      ││Técn. ││Super.│  │ + Teams      │  │ a admin     │
+  └──────┘└──────┘└──────┘  └──────────────┘  └─────────────┘
+                     │              │                  │
+                     └──────────────┴──────────────────┘
+                                    │
+                                    ▼
+                     ┌────────────────────────────────┐
+                     │  RESOLUCIÓN                     │
+                     │  Técnico marca "Resuelto"       │
+                     │  Sistema calcula cumplimiento   │
+                     └────────────────────────────────┘</div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+        <h3 style="color:white;">📋 Documento de Modelo de Escalación</h3>
+        <p>TicketDesk Enterprise v2.1 · Diseñado para garantizar el cumplimiento de SLA empresarial</p>
+        <p style="margin-top:10px;">Para configurar tiempos: <strong>/admin/config → SLA</strong></p>
+    </div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,19 @@
+<!-- Aplicar colores dinámicos de empresa (RF-04-02) -->
+<link rel="stylesheet" href="/theme.css">
+
+<script>
+    // Aplicar colores de empresa en tiempo real
+    fetch('/api/company-theme')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const root = document.documentElement;
+                root.style.setProperty('--primary-color', data.primary_color);
+                root.style.setProperty('--secondary-color', data.secondary_color);
+
+                // Actualizar favicon con nombre de empresa
+                document.title = `${data.company_name} - DeskEli`;
+            }
+        })
+        .catch(e => console.log('Tema de empresa no disponible'));
+</script>

@@ -1,0 +1,3221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuración - DeskEli Admin</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary: {% if current_theme == 'purple' %}#7c3aed{% elif current_theme == 'green' %}#059669{% elif current_theme == 'red' %}#dc2626{% elif current_theme == 'amber' %}#d97706{% elif current_theme == 'pink' %}#ec4899{% elif current_theme == 'indigo' %}#4f46e5{% elif current_theme == 'teal' %}#0d9488{% elif current_theme == 'cyan' %}#0891b2{% elif current_theme == 'fuchsia' %}#d946ef{% elif current_theme == 'lime' %}#84cc16{% elif current_theme == 'sky' %}#0284c7{% elif current_theme == 'orange' %}#ea580c{% else %}#2563eb{% endif %};
+            --primary-light: {% if current_theme == 'purple' %}#ddd6fe{% elif current_theme == 'green' %}#bbf7d0{% elif current_theme == 'red' %}#fecaca{% elif current_theme == 'orange' %}#fed7aa{% else %}#dbeafe{% endif %};
+            --primary-dark: {% if current_theme == 'purple' %}#5b21b6{% elif current_theme == 'green' %}#047857{% elif current_theme == 'red' %}#991b1b{% elif current_theme == 'orange' %}#c2410c{% else %}#1e40af{% endif %};
+            --primary-bg: {% if current_theme == 'purple' %}#f5f3ff{% elif current_theme == 'green' %}#f0fdf4{% elif current_theme == 'red' %}#fef2f2{% elif current_theme == 'orange' %}#fff7ed{% else %}#eff6ff{% endif %};
+            --bg: #f5f7fa;
+            --white: #ffffff;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--gray-800);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* ============== SIDEBAR PRINCIPAL ============== */
+        .sidebar {
+            width: 240px;
+            background: var(--white);
+            border-right: 1px solid var(--gray-200);
+            padding: 24px 0;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            margin-bottom: 28px;
+        }
+
+        .sidebar-title {
+            padding: 0 24px 8px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--gray-400);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 9px 24px;
+            color: var(--gray-600);
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.15s;
+            border-left: 3px solid transparent;
+        }
+
+        .sidebar-item:hover {
+            background: var(--gray-50);
+            color: var(--gray-900);
+        }
+
+        .sidebar-item.active {
+            background: var(--primary-bg);
+            color: var(--primary);
+            border-left-color: var(--primary);
+            font-weight: 600;
+        }
+
+        .sidebar-item .icon {
+            margin-right: 10px;
+            display: inline-flex;
+            width: 18px;
+            justify-content: center;
+        }
+
+        .sidebar-badge {
+            background: var(--primary);
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 12px;
+            min-width: 22px;
+            text-align: center;
+        }
+
+        .sidebar-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 10px;
+            background: var(--gray-300);
+        }
+
+        .sidebar-dot.critical { background: #ef4444; }
+        .sidebar-dot.warning { background: #f59e0b; }
+        .sidebar-dot.expired { background: #dc2626; }
+
+        /* ============== MAIN CONTENT ============== */
+        .main {
+            flex: 1;
+            padding: 32px 40px;
+        }
+
+        .main-header {
+            margin-bottom: 28px;
+        }
+
+        .main-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 4px;
+        }
+
+        .main-subtitle {
+            font-size: 13px;
+            color: var(--gray-500);
+        }
+
+        /* ============== CONFIG LAYOUT ============== */
+        .config-wrapper {
+            display: flex;
+            gap: 0;
+            background: var(--white);
+            border-radius: 14px;
+            border: 1px solid var(--gray-200);
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+
+        .config-tabs {
+            width: 200px;
+            border-right: 1px solid var(--gray-200);
+            padding: 14px 0;
+            background: var(--white);
+        }
+
+        .config-tab {
+            display: flex;
+            align-items: center;
+            padding: 10px 18px;
+            color: var(--gray-700);
+            text-decoration: none;
+            cursor: pointer;
+            font-size: 14px;
+            border-left: 3px solid transparent;
+            transition: all 0.15s;
+        }
+
+        .config-tab:hover {
+            background: var(--gray-50);
+        }
+
+        .config-tab.active {
+            background: var(--primary-bg);
+            color: var(--primary);
+            border-left-color: var(--primary);
+            font-weight: 600;
+        }
+
+        .config-tab .icon {
+            margin-right: 10px;
+            font-size: 14px;
+            width: 16px;
+            display: inline-flex;
+            justify-content: center;
+        }
+
+        /* ============== PANEL CONTENIDO ============== */
+        .config-panel {
+            flex: 1;
+            padding: 28px 32px;
+            min-height: 500px;
+        }
+
+        .config-panel-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 22px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .form-section {
+            margin-bottom: 24px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .form-section:last-child {
+            border-bottom: none;
+        }
+
+        .form-section-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--gray-500);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--gray-500);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .form-input,
+        .form-select,
+        .form-textarea {
+            width: 100%;
+            padding: 10px 14px;
+            font-size: 14px;
+            color: var(--gray-900);
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            outline: none;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+
+        .form-input:focus,
+        .form-select:focus,
+        .form-textarea:focus {
+            border-color: var(--primary);
+            background: white;
+            box-shadow: 0 0 0 3px var(--primary-light);
+            opacity: 1;
+        }
+
+        .form-input:read-only {
+            color: var(--gray-600);
+        }
+
+        .form-hint {
+            font-size: 12px;
+            color: var(--gray-500);
+            margin-top: 6px;
+        }
+
+        .form-hint a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .input-with-button {
+            display: flex;
+            gap: 8px;
+        }
+
+        .input-with-button .form-input {
+            flex: 1;
+        }
+
+        /* ============== BOTONES ============== */
+        .btn {
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            font-family: inherit;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: var(--gray-700);
+            border: 1px solid var(--gray-300);
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-50);
+        }
+
+        .btn-sm {
+            padding: 7px 14px;
+            font-size: 13px;
+        }
+
+        /* ============== MENSAJES ============== */
+        .alert {
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-top: 10px;
+        }
+
+        .alert-success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #86efac;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        /* ============== RESPONSIVE ============== */
+        @media (max-width: 1024px) {
+            .config-wrapper { flex-direction: column; }
+            .config-tabs {
+                width: 100%;
+                display: flex;
+                overflow-x: auto;
+                border-right: none;
+                border-bottom: 1px solid var(--gray-200);
+            }
+            .config-tab { border-left: none; border-bottom: 3px solid transparent; }
+            .config-tab.active { border-left: none; border-bottom-color: var(--primary); }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar { width: 64px; }
+            .sidebar-title, .sidebar-item span:not(.icon) { display: none; }
+            .main { padding: 20px; }
+        }
+
+        /* Ocultar paneles inactivos */
+        .panel-content { display: none; }
+        .panel-content.active { display: block; }
+
+        /* CUANDO SE CARGA EN IFRAME: ocultar sidebar duplicado */
+        body.in-iframe .sidebar { display: none !important; }
+        body.in-iframe .main { padding: 16px; }
+        body.in-iframe .main-header { display: none; }
+        body.in-iframe .container { display: block; }
+
+        /* IFRAMES de gestión inline */
+        .config-iframe {
+            width: 100%;
+            height: 700px;
+            border: none;
+            border-radius: 8px;
+            background: var(--white);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- ============== SIDEBAR PRINCIPAL ============== -->
+    <aside class="sidebar">
+
+        <div class="sidebar-section">
+            <div class="sidebar-title">Principal</div>
+            <a href="/admin/dashboard" class="sidebar-item">
+                <span><span class="icon">📊</span>Ejecutivo</span>
+            </a>
+            <a href="/admin/dashboard" class="sidebar-item">
+                <span><span class="icon">◆</span>Dashboard</span>
+            </a>
+            <a href="/admin/tickets" class="sidebar-item">
+                <span><span class="icon">≡</span>Tickets</span>
+                <span class="sidebar-badge">{{ tickets_count | default(0) }}</span>
+            </a>
+            <a href="/admin/dashboard#kanban" class="sidebar-item">
+                <span><span class="icon">⊞</span>Kanban</span>
+            </a>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-title">Avanzado</div>
+            <a href="/admin/dashboard#metricas" class="sidebar-item">
+                <span><span class="icon">●</span>Métricas</span>
+            </a>
+            <a href="/bot" class="sidebar-item">
+                <span><span class="icon">✉</span>Chat</span>
+            </a>
+            <a href="/admin/dashboard#conectividad" class="sidebar-item">
+                <span><span class="icon">▶</span>Conectividad</span>
+            </a>
+            <a href="/admin/dashboard#escalaciones" class="sidebar-item">
+                <span><span class="icon">▲</span>Escalaciones</span>
+                <span class="sidebar-badge">{{ escalations_count | default(0) }}</span>
+            </a>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-title">Sistema</div>
+            <a href="/admin/config" class="sidebar-item active">
+                <span><span class="icon">⚙</span>Configuración</span>
+            </a>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-title">Filtros</div>
+            <a href="/admin/tickets?priority=critical" class="sidebar-item">
+                <span><span class="sidebar-dot critical"></span>Críticos</span>
+            </a>
+            <a href="/admin/tickets?status=in_progress" class="sidebar-item">
+                <span><span class="sidebar-dot warning"></span>En progreso</span>
+            </a>
+            <a href="/admin/tickets?status=expired" class="sidebar-item">
+                <span><span class="sidebar-dot expired"></span>SLA vencido</span>
+            </a>
+        </div>
+
+        <div class="sidebar-section" style="margin-top: auto;">
+            <a href="/logout" class="sidebar-item">
+                <span><span class="icon">🚪</span>Cerrar sesión</span>
+            </a>
+        </div>
+
+    </aside>
+
+    <!-- ============== MAIN ============== -->
+    <main class="main">
+
+        <header class="main-header">
+            <h1 class="main-title">Configuración</h1>
+            <p class="main-subtitle">Sistema, equipo, IA y SLA</p>
+        </header>
+
+        <div class="config-wrapper">
+
+            <!-- ============== TABS INTERNOS ============== -->
+            <div class="config-tabs">
+                <a class="config-tab active" data-tab="general"><span class="icon">⚙</span>General</a>
+                <a class="config-tab" data-tab="equipo"><span class="icon">👥</span>Equipo</a>
+                <a class="config-tab" data-tab="roles"><span class="icon">🎭</span>Roles Personalizados</a>
+                <a class="config-tab" data-tab="ia"><span class="icon">✦</span>IA Perfiles</a>
+                <a class="config-tab" data-tab="subroles"><span class="icon">🎖️</span>Subroles</a>
+                <a class="config-tab" data-tab="sla"><span class="icon">⏱</span>SLA</a>
+                <a class="config-tab" data-tab="business"><span class="icon">📅</span>Horario Laboral</a>
+                <a class="config-tab" data-tab="correo"><span class="icon">✉</span>Correo</a>
+                <a class="config-tab" data-tab="mailboxes"><span class="icon">📥</span>Buzones</a>
+                <a class="config-tab" data-tab="reportes"><span class="icon">📨</span>Reportes Automáticos</a>
+                <a class="config-tab" data-tab="datos"><span class="icon">⚙</span>Datos</a>
+                <a class="config-tab" data-tab="backup"><span class="icon">💾</span>Backup</a>
+                <a class="config-tab" data-tab="plantillas"><span class="icon">📋</span>Plantillas</a>
+                <a class="config-tab" data-tab="tags"><span class="icon">🌐</span>Tags</a>
+                <a class="config-tab" data-tab="teams"><span class="icon">💬</span>Teams</a>
+                <a class="config-tab" data-tab="ldap"><span class="icon">🔑</span>LDAP / AD</a>
+                <a class="config-tab" data-tab="empresas"><span class="icon">🏢</span>Empresas</a>
+                <a class="config-tab" data-tab="tema"><span class="icon">🌈</span>Tema visual</a>
+                <a class="config-tab" data-tab="bot"><span class="icon">🤖</span>Soluciones Bot</a>
+            </div>
+
+            <!-- ============== PANEL CONTENIDO ============== -->
+            <div class="config-panel">
+
+                <!-- =========== GENERAL =========== -->
+                <div class="panel-content active" id="panel-general">
+                    <h2 class="config-panel-title">General</h2>
+
+                    <div class="form-group">
+                        <label class="form-label">Usuario actual</label>
+                        <input type="text" class="form-input" value="{{ session.username | default('admin') }}" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Empresa</label>
+                        <input type="text" class="form-input" id="cfg-empresa" value="{{ company_name | default('Mi Empresa S.A.') }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">API Key Anthropic (IA)</label>
+                        <input type="password" class="form-input" id="cfg-api-key" placeholder="sk-ant-..." value="">
+                        <div class="form-hint">Para asignación automática con IA. <a href="https://console.anthropic.com" target="_blank">Obtener key</a></div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title">URL del servidor para portales de empleados</div>
+                        <label class="form-label">URL del servidor API</label>
+                        <div class="input-with-button">
+                            <input type="text" class="form-input" id="cfg-server-url" value="http://192.168.1.100:5050">
+                            <button class="btn btn-secondary btn-sm" onclick="aplicarUrl()">✓ Aplicar</button>
+                        </div>
+                        <div class="form-hint">Esta URL se guarda automáticamente para que el <strong>Portal de Empleados</strong> y el <strong>Portal de Especialistas</strong> se conecten al servidor sin que el usuario tenga que configurar nada.</div>
+                    </div>
+
+                    <button class="btn btn-primary" onclick="guardarGeneral()">Guardar configuración</button>
+                    <div id="general-status"></div>
+                </div>
+
+                <!-- =========== EQUIPO =========== -->
+                <div class="panel-content" id="panel-equipo">
+                    <h2 class="config-panel-title">👥 Equipo - Gestión de Usuarios</h2>
+                    <iframe data-src="/admin/config-old#sec-equipo" class="config-iframe section-iframe" style="display:none;"></iframe>
+                </div>
+
+                <!-- =========== IA PERFILES =========== -->
+                <div class="panel-content" id="panel-ia">
+                    <h2 class="config-panel-title">✦ Perfiles de IA - Asignación Automática</h2>
+                    <p style="color:#666;margin-bottom:20px;font-size:14px;">
+                        Configura especialistas con sus habilidades para que la IA asigne tickets automáticamente.
+                        El sistema asignará tickets al técnico con mejor match de habilidades y menor carga de trabajo.
+                    </p>
+
+                    <!-- Formulario agregar nuevo especialista -->
+                    <div style="background:#f9fafb;padding:20px;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;">
+                        <h3 style="margin-bottom:15px;color:#374151;font-size:16px;">➕ Agregar / Editar Especialista</h3>
+
+                        <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px;">
+                            <div>
+                                <label style="display:block;font-size:13px;color:#666;margin-bottom:4px;">Usuario / Técnico</label>
+                                <select id="ia-user-id" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;">
+                                    <option value="">Cargando técnicos...</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:13px;color:#666;margin-bottom:4px;">Máx. tickets simultáneos</label>
+                                <input type="number" id="ia-max-tickets" value="10" min="1" max="100" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;">
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom:12px;">
+                            <label style="display:block;font-size:13px;color:#666;margin-bottom:4px;">Habilidades (selecciona o agrega)</label>
+                            <div id="skill-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;padding:8px;min-height:40px;background:white;border:1px solid #d1d5db;border-radius:6px;">
+                                <span style="color:#999;font-size:12px;">Selecciona habilidades de la lista o escribe una nueva...</span>
+                            </div>
+                            <div style="background:#eff6ff;border:1px solid #bfdbfe;padding:10px;border-radius:6px;margin-bottom:10px;font-size:12px;color:#1e40af;">
+                                💡 <strong>Dos formas de agregar habilidades:</strong>
+                                <ul style="margin:6px 0 0 18px;padding:0;">
+                                    <li><strong>📋 Lista predefinida</strong> abajo: ahora con 50+ opciones agrupadas (SAP, Infraestructura, Red, etc.). Selecciona y se agrega automáticamente.</li>
+                                    <li><strong>✏️ Manual</strong>: escribe cualquier habilidad personalizada en el campo amarillo de abajo y presiona Enter.</li>
+                                </ul>
+                            </div>
+                            <div style="margin-bottom:8px;">
+                                <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;font-weight:600;">📋 Selecciona de la lista:</label>
+                                <select id="ia-skill-preset" onchange="iaAddSkillFromPreset()" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+                                    <option value="">— Elige una habilidad para agregarla —</option>
+
+                                    <optgroup label="📊 SAP">
+                                        <option value="SAP - General">📊 SAP - General</option>
+                                        <option value="SAP - Falta de autorización">🔐 SAP - Falta de autorización</option>
+                                        <option value="SAP - Lentitud del sistema">🐢 SAP - Lentitud del sistema</option>
+                                        <option value="SAP - Problemas con TX funcional">⚙️ SAP - Problemas con TX funcional</option>
+                                        <option value="SAP - ABAP / Desarrollo">👨‍💻 SAP - ABAP / Desarrollo</option>
+                                        <option value="SAP - Impresión / Spool">🖨️ SAP - Impresión / Spool</option>
+                                        <option value="SAP - Transports / Mandantes">🔄 SAP - Transports / Mandantes</option>
+                                        <option value="SAP - BASIS / Administración">🛠 SAP - BASIS / Administración</option>
+                                        <option value="SAP - FI Finanzas">💰 SAP - FI Finanzas</option>
+                                        <option value="SAP - MM Materiales">📦 SAP - MM Materiales</option>
+                                        <option value="SAP - SD Ventas">🛒 SAP - SD Ventas</option>
+                                        <option value="SAP - HR Recursos Humanos">👥 SAP - HR Recursos Humanos</option>
+                                    </optgroup>
+
+                                    <optgroup label="🖥️ Infraestructura">
+                                        <option value="Hardware">🖥️ Hardware</option>
+                                        <option value="Servidores">🖧 Servidores</option>
+                                        <option value="Base de Datos">🗄️ Base de Datos</option>
+                                        <option value="Impresoras">🖨️ Impresoras</option>
+                                    </optgroup>
+
+                                    <optgroup label="🌐 Redes y Conectividad">
+                                        <option value="Red">🌐 Red</option>
+                                        <option value="VPN">🔒 VPN</option>
+                                        <option value="Firewall">🛡️ Firewall</option>
+                                        <option value="WiFi">📶 WiFi</option>
+                                        <option value="DNS">🔗 DNS</option>
+                                        <option value="Cisco">🌐 Cisco</option>
+                                    </optgroup>
+
+                                    <optgroup label="💻 Sistemas Operativos">
+                                        <option value="Windows">🪟 Windows</option>
+                                        <option value="Windows Server">🪟 Windows Server</option>
+                                        <option value="Linux">🐧 Linux</option>
+                                        <option value="macOS">🍎 macOS</option>
+                                    </optgroup>
+
+                                    <optgroup label="📄 Software / Aplicaciones">
+                                        <option value="Software">💻 Software (general)</option>
+                                        <option value="Office">📄 Office</option>
+                                        <option value="Email">📧 Email</option>
+                                        <option value="Outlook">📧 Outlook</option>
+                                        <option value="Teams">💬 Teams</option>
+                                        <option value="OneDrive">☁️ OneDrive</option>
+                                        <option value="SharePoint">📑 SharePoint</option>
+                                        <option value="Active Directory">👥 Active Directory</option>
+                                    </optgroup>
+
+                                    <optgroup label="🛡️ Seguridad">
+                                        <option value="Seguridad">🛡️ Seguridad (general)</option>
+                                        <option value="Antivirus">🦠 Antivirus</option>
+                                        <option value="MFA / 2FA">🔐 MFA / 2FA</option>
+                                        <option value="Permisos / Accesos">🔑 Permisos / Accesos</option>
+                                    </optgroup>
+
+                                    <optgroup label="📞 Comunicaciones">
+                                        <option value="Telefonía">📞 Telefonía</option>
+                                        <option value="Telefonía IP">📞 Telefonía IP</option>
+                                        <option value="Móvil">📱 Móvil</option>
+                                    </optgroup>
+
+                                    <optgroup label="☁️ Cloud / DevOps">
+                                        <option value="Azure">☁️ Azure</option>
+                                        <option value="AWS">☁️ AWS</option>
+                                        <option value="Docker">🐳 Docker</option>
+                                        <option value="Kubernetes">⎈ Kubernetes</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <div style="background:#fffbeb;border:2px dashed #f59e0b;padding:12px;border-radius:8px;">
+                                <label style="display:block;font-size:13px;color:#92400e;margin-bottom:6px;font-weight:700;">
+                                    ✏️ O agrega una habilidad MANUAL (cualquier nombre)
+                                </label>
+                                <div style="display:flex;gap:6px;">
+                                    <input type="text" id="ia-skill-custom" placeholder="Ej: SAP - Migración S/4HANA, Firewall Fortinet, Active Directory..."
+                                           style="flex:1;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;"
+                                           onkeydown="if(event.key==='Enter'){event.preventDefault();iaAddSkillCustom();}">
+                                    <button type="button" onclick="iaAddSkillCustom()" style="padding:10px 18px;background:#f59e0b;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;white-space:nowrap;">
+                                        ➕ Agregar manual
+                                    </button>
+                                </div>
+                                <div style="font-size:11px;color:#92400e;margin-top:6px;">
+                                    Escribí cualquier nombre de habilidad y presioná <kbd style="background:white;padding:2px 6px;border:1px solid #ccc;border-radius:3px;font-family:monospace;">Enter</kbd> o el botón ➕. Tu habilidad se sumará al perfil del técnico aunque no esté en la lista de arriba.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display:flex;gap:10px;justify-content:flex-end;">
+                            <button type="button" onclick="iaClearForm()" style="padding:10px 20px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;">Limpiar</button>
+                            <button type="button" onclick="iaSaveSpecialist()" style="padding:10px 24px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">💾 Guardar Especialista</button>
+                        </div>
+                        <div id="ia-status" style="margin-top:10px;font-size:13px;"></div>
+                    </div>
+
+                    <!-- Tabla de especialistas existentes -->
+                    <h3 style="margin-bottom:15px;color:#374151;font-size:16px;">📋 Especialistas Configurados</h3>
+                    <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
+                        <thead>
+                            <tr style="background:#f5f5f5;">
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #ddd;">Técnico</th>
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #ddd;">Habilidades</th>
+                                <th style="padding:12px;text-align:center;border-bottom:2px solid #ddd;">Max</th>
+                                <th style="padding:12px;text-align:center;border-bottom:2px solid #ddd;">Activos</th>
+                                <th style="padding:12px;text-align:center;border-bottom:2px solid #ddd;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ia-specialists-tbody">
+                            <tr><td colspan="5" style="padding:20px;text-align:center;color:#999;">Cargando especialistas...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- =========== ROLES PERSONALIZADOS =========== -->
+                <div class="panel-content" id="panel-roles">
+                    <h2 class="config-panel-title">🎭 Roles Personalizados</h2>
+                    <p style="color:#6b7280;margin-bottom:18px;font-size:13px;">
+                        Crea etiquetas de rol adicionales (Supervisor, Gerente IT, Coordinador, etc.) sobre los roles base.
+                        <strong>Cada rol personalizado hereda los permisos de su "Rol Base"</strong> (admin/technician/employee).
+                        Después podés asignarlos a cada usuario desde <strong>Equipo</strong>.
+                    </p>
+
+                    <!-- Formulario crear rol -->
+                    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin-bottom:18px;">
+                        <h3 style="margin:0 0 10px 0;font-size:14px;color:#374151;">➕ Crear / Editar rol</h3>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;">
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Clave (id) *</label>
+                                <input type="text" id="role-key" placeholder="supervisor" maxlength="30"
+                                       style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                <small style="color:#9ca3af;font-size:10px;">Solo minúsculas, números, _</small>
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Etiqueta visible *</label>
+                                <input type="text" id="role-label" placeholder="Supervisor de Mesa" maxlength="80"
+                                       style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Rol Base (permisos) *</label>
+                                <select id="role-base"
+                                        style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                    <option value="employee">👤 Empleado</option>
+                                    <option value="technician" selected>🔧 Técnico</option>
+                                    <option value="admin">👑 Admin</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Icono</label>
+                                <input type="text" id="role-icon" placeholder="👔" maxlength="4" value="👔"
+                                       style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:18px;text-align:center;">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Color</label>
+                                <input type="color" id="role-color" value="#7c3aed"
+                                       style="width:100%;height:36px;padding:2px;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;">
+                            </div>
+                        </div>
+                        <div style="margin-top:10px;">
+                            <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Descripción (opcional)</label>
+                            <input type="text" id="role-description" placeholder="Lidera el equipo de soporte de nivel 1" maxlength="255"
+                                   style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                        </div>
+                        <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:8px;">
+                            <button type="button" onclick="resetCustomRoleForm()"
+                                    style="padding:9px 16px;background:#e5e7eb;color:#1f2937;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;">Limpiar</button>
+                            <button type="button" onclick="saveCustomRole()" id="role-save-btn"
+                                    style="padding:9px 18px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;">💾 Guardar rol</button>
+                        </div>
+                        <div id="role-status" style="font-size:12px;margin-top:8px;"></div>
+                    </div>
+
+                    <!-- Lista de roles -->
+                    <h3 style="margin:0 0 10px 0;font-size:14px;color:#374151;">📋 Roles existentes</h3>
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-size:13px;">
+                            <thead>
+                                <tr style="background:#f9fafb;">
+                                    <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Etiqueta</th>
+                                    <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Clave</th>
+                                    <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Rol Base</th>
+                                    <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Descripción</th>
+                                    <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="custom-roles-tbody">
+                                <tr><td colspan="5" style="padding:20px;text-align:center;color:#999;">Cargando roles...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p style="margin-top:12px;color:#6b7280;font-size:12px;">
+                        💡 <strong>Cómo se usa:</strong> Una vez creado, el rol aparecerá en el selector de "Rol" al editar usuarios en <strong>Equipo</strong>. Los usuarios con un rol personalizado verán esa etiqueta como badge, pero los permisos del sistema se aplican según el Rol Base.
+                    </p>
+                </div>
+
+                <!-- =========== SUBROLES =========== -->
+                <div class="panel-content" id="panel-subroles">
+                    <h2 class="config-panel-title">🎖️ Subroles / Especializaciones de Técnicos</h2>
+                    <p style="color:#6b7280;margin-bottom:18px;font-size:13px;">
+                        Define las áreas de especialización que pueden tener los técnicos
+                        (Infraestructura, módulos SAP, SAP ABAP, Seguridad, etc.). Después podés asignarlos a cada usuario
+                        en <strong>Equipo</strong> o usarlos como filtros en la asignación automática de tickets.
+                    </p>
+
+                    <!-- Crear subrol -->
+                    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin-bottom:18px;">
+                        <h3 style="margin:0 0 10px 0;font-size:14px;color:#374151;">➕ Agregar Subrol Personalizado</h3>
+                        <div style="display:grid;grid-template-columns:80px 2fr 3fr auto;gap:8px;align-items:end;">
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Icono</label>
+                                <input id="srNewIcon" type="text" maxlength="3" placeholder="🔧" value="🔧"
+                                       style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;text-align:center;font-size:18px;">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Nombre *</label>
+                                <input id="srNewName" type="text" placeholder="Ej: SAP BW, Cloud AWS, Datacenter..."
+                                       style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Descripción</label>
+                                <input id="srNewDesc" type="text" placeholder="Opcional"
+                                       style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
+                            <button onclick="srCreate()" style="padding:9px 16px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;">+ Crear</button>
+                        </div>
+                        <div id="srStatus" style="font-size:12px;margin-top:8px;"></div>
+                    </div>
+
+                    <!-- Lista de subroles -->
+                    <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-size:13px;">
+                        <thead>
+                            <tr style="background:#f9fafb;">
+                                <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Icono</th>
+                                <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Nombre</th>
+                                <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Descripción</th>
+                                <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Tipo</th>
+                                <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Estado</th>
+                                <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="srTbody">
+                            <tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">Cargando subroles...</td></tr>
+                        </tbody>
+                    </table>
+                    </div>
+                </div>
+
+                <!-- =========== SLA =========== -->
+                <div class="panel-content" id="panel-sla">
+                    <h2 class="config-panel-title">⏱ Tiempos de SLA por Prioridad</h2>
+                    <div class="form-group">
+                        <label class="form-label">Baja (minutos)</label>
+                        <input type="number" class="form-input" id="sla-low" value="{{ sla_config.low | default(480) }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Media (minutos)</label>
+                        <input type="number" class="form-input" id="sla-medium" value="{{ sla_config.medium | default(240) }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Alta (minutos)</label>
+                        <input type="number" class="form-input" id="sla-high" value="{{ sla_config.high | default(120) }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Crítica (minutos)</label>
+                        <input type="number" class="form-input" id="sla-critical" value="{{ sla_config.critical | default(60) }}">
+                    </div>
+                    <button class="btn btn-primary" onclick="guardarSLA()">Guardar SLA</button>
+                    <div id="sla-status"></div>
+                </div>
+
+                <!-- =========== HORARIO LABORAL =========== -->
+                <div class="panel-content" id="panel-business">
+                    <h2 class="config-panel-title">📅 Horario Laboral para SLA</h2>
+                    <p style="color:#6b7280;margin-bottom:18px;font-size:14px;">
+                        Define qué <strong>días y horas</strong> cuentan para el SLA. Si está activo, el sistema solo
+                        consume tiempo de SLA durante el horario laboral; los fines de semana, feriados y horas fuera de jornada
+                        <strong>no descuentan</strong> tiempo. Esto evita que tickets creados un viernes a las 5pm aparezcan vencidos el lunes.
+                    </p>
+
+                    <!-- Toggle activar -->
+                    <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #bfdbfe;padding:14px;border-radius:8px;margin-bottom:18px;">
+                        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:15px;font-weight:700;color:#1e40af;">
+                            <input type="checkbox" id="bizEnabled" style="width:18px;height:18px;cursor:pointer;">
+                            🟢 Activar cálculo de SLA con horario laboral
+                        </label>
+                        <p style="font-size:12px;color:#1e40af;margin-top:6px;margin-bottom:0;">
+                            Si está <strong>desactivado</strong>, el SLA usa tiempo calendario (24/7). Si está <strong>activado</strong>, solo cuenta horas hábiles.
+                        </p>
+                    </div>
+
+                    <!-- Horario por día -->
+                    <div style="margin-bottom:18px;">
+                        <label style="display:block;font-size:13px;font-weight:700;color:#374151;margin-bottom:8px;">📆 Horario por día de la semana</label>
+                        <p style="font-size:12px;color:#6b7280;margin-bottom:10px;">Activa cada día y define su horario específico. Ejemplo: Lun-Vie 08:00-18:00, Sáb 09:00-13:00, Dom cerrado.</p>
+                        <div id="bizScheduleGrid" style="display:grid;gap:8px;"></div>
+                    </div>
+
+                    <!-- Feriados -->
+                    <div style="margin-bottom:18px;">
+                        <label style="display:block;font-size:13px;font-weight:700;color:#374151;margin-bottom:5px;">🎉 Feriados (días no laborables específicos)</label>
+                        <div style="display:flex;gap:6px;margin-bottom:8px;">
+                            <input type="date" id="bizHolidayInput" style="flex:1;padding:9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <button type="button" onclick="addHoliday()" style="padding:9px 16px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;">+ Agregar</button>
+                        </div>
+                        <div id="bizHolidaysList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+                        <p style="font-size:11px;color:#6b7280;margin-top:6px;">Ej: 25/12 Navidad, 01/01 Año Nuevo, feriados nacionales.</p>
+                    </div>
+
+                    <button onclick="saveBusinessHours()" style="padding:11px 24px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:14px;">
+                        💾 Guardar configuración
+                    </button>
+                    <div id="bizStatus" style="margin-top:10px;font-size:13px;"></div>
+
+                    <!-- Ejemplo -->
+                    <div style="margin-top:20px;background:#fffbeb;border:1px solid #f59e0b;padding:14px;border-radius:8px;font-size:13px;color:#78350f;">
+                        <strong>💡 Ejemplo práctico:</strong><br>
+                        Si el horario es <strong>Lun-Vie 08:00-18:00</strong> y se crea un ticket el <strong>viernes 17:30</strong> con SLA de 4 horas:<br>
+                        • <strong>Sin horario laboral</strong>: vence el viernes a las 21:30 (mientras nadie trabaja)<br>
+                        • <strong>Con horario laboral</strong>: vence el lunes a las 11:30 (30min restantes del viernes + 3:30h del lunes)
+                    </div>
+                </div>
+
+                <!-- =========== CORREO (Office 365 SMTP) =========== -->
+                <div class="panel-content" id="panel-correo">
+                    <h2 class="config-panel-title">📧 Notificaciones por Correo - Office 365</h2>
+                    <iframe data-src="/admin/config-old#sec-correo" class="config-iframe section-iframe" style="display:none;"></iframe>
+                </div>
+
+                <!-- =========== REPORTES AUTOMÁTICOS =========== -->
+                <div class="panel-content" id="panel-reportes">
+                    <h2 class="config-panel-title">📨 Reportes Automáticos por Email</h2>
+                    <p style="color:#6b7280;margin-bottom:14px;font-size:13px;">
+                        Configura destinatarios que recibirán automáticamente <strong>reportes ejecutivos en PDF + Excel</strong> con gráficas.
+                        Calendario: <strong>quincenal</strong> (días 1 y 15), <strong>mensual</strong> (día 1) y <strong>anual</strong> (1 de enero).
+                        Si la fecha cae fin de semana, se envía el lunes siguiente. Envío diario a las 07:00.
+                    </p>
+
+                    <!-- Formulario crear/editar destinatario -->
+                    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:18px;">
+                        <h3 style="margin:0 0 10px 0;font-size:14px;color:#374151;">➕ Agregar destinatario</h3>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Nombre *</label>
+                                <input type="text" id="rep-name" placeholder="Fernando Ramírez" maxlength="120"
+                                       style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Email *</label>
+                                <input type="email" id="rep-email" placeholder="fernando@eliot.com" maxlength="200"
+                                       style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Cargo (opcional)</label>
+                                <input type="text" id="rep-title" placeholder="Gerente TI" maxlength="120"
+                                       style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Empresa *</label>
+                                <select id="rep-company"
+                                        style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                    <option value="eliot">🏭 Manufactureras Eliot</option>
+                                    <option value="pash">🟦 Pash</option>
+                                    <option value="primatela">🟩 Primatela</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="margin-top:12px;display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:#374151;">
+                            <label style="cursor:pointer;"><input type="checkbox" id="rep-quincenal" checked> 📅 Quincenal</label>
+                            <label style="cursor:pointer;"><input type="checkbox" id="rep-mensual" checked> 📆 Mensual</label>
+                            <label style="cursor:pointer;"><input type="checkbox" id="rep-anual" checked> 🗓️ Anual</label>
+                        </div>
+                        <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:8px;">
+                            <button type="button" onclick="resetRecipientForm()"
+                                    style="padding:9px 16px;background:#e5e7eb;color:#1f2937;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;">Limpiar</button>
+                            <button type="button" onclick="saveRecipient()" id="rep-save-btn"
+                                    style="padding:9px 18px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;">💾 Guardar destinatario</button>
+                        </div>
+                        <div id="rep-status" style="font-size:12px;margin-top:8px;"></div>
+                    </div>
+
+                    <!-- Botón envío manual -->
+                    <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:14px;margin-bottom:18px;">
+                        <h3 style="margin:0 0 8px 0;font-size:14px;color:#92400e;">⚡ Enviar reporte AHORA (prueba)</h3>
+                        <p style="font-size:12px;color:#78350f;margin:0 0 10px 0;">
+                            Genera y envía un reporte inmediatamente. Útil para probar antes de esperar al día programado.
+                        </p>
+                        <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
+                            <div>
+                                <label style="font-size:11px;color:#78350f;display:block;margin-bottom:3px;">Período</label>
+                                <select id="rep-test-period"
+                                        style="padding:8px 10px;border:1px solid #fcd34d;border-radius:6px;font-size:13px;background:white;">
+                                    <option value="quincenal">📅 Quincenal (últimos 15 días)</option>
+                                    <option value="mensual">📆 Mensual (últimos 30 días)</option>
+                                    <option value="anual">🗓️ Anual (últimos 365 días)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#78350f;display:block;margin-bottom:3px;">Destinatario</label>
+                                <select id="rep-test-recipient"
+                                        style="padding:8px 10px;border:1px solid #fcd34d;border-radius:6px;font-size:13px;background:white;min-width:240px;">
+                                    <option value="">— Todos los destinatarios activos —</option>
+                                </select>
+                            </div>
+                            <button type="button" onclick="sendReportNow()"
+                                    style="padding:9px 18px;background:#f59e0b;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;">🚀 Enviar ahora</button>
+                        </div>
+                        <div id="rep-test-status" style="font-size:12px;margin-top:8px;"></div>
+                    </div>
+
+                    <!-- Lista de destinatarios -->
+                    <h3 style="margin:0 0 10px 0;font-size:14px;color:#374151;">📋 Destinatarios configurados</h3>
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-size:13px;">
+                            <thead>
+                                <tr style="background:#f9fafb;">
+                                    <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Nombre / Cargo</th>
+                                    <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Email</th>
+                                    <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Empresa</th>
+                                    <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Equipo</th>
+                                    <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Frecuencia</th>
+                                    <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Último envío</th>
+                                    <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Estado</th>
+                                    <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recipients-tbody">
+                                <tr><td colspan="8" style="padding:20px;text-align:center;color:#999;">Cargando destinatarios...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p style="margin-top:12px;color:#6b7280;font-size:12px;">
+                        💡 <strong>Importante:</strong> Para que el envío automático funcione, el sistema necesita SMTP configurado en el <code>.env</code> (SMTP_SERVER, SMTP_USER, SMTP_PASSWORD).
+                        Si SMTP está caído, los reportes quedarán sin enviar pero podrás reintentarlos manualmente desde aquí.
+                    </p>
+
+                    <!-- MODAL: Asignar equipo de trabajo -->
+                    <div id="teamModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;align-items:center;justify-content:center;">
+                        <div style="background:white;width:560px;max-width:92vw;max-height:88vh;display:flex;flex-direction:column;border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,0.35);">
+                            <div style="padding:18px 22px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">
+                                <h2 style="margin:0;color:#111827;font-size:18px;">👥 Equipo de trabajo</h2>
+                                <button onclick="closeTeamModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#6b7280;">×</button>
+                            </div>
+                            <div style="padding:14px 22px;border-bottom:1px solid #f3f4f6;background:#f9fafb;">
+                                <div id="teamRecipientLabel" style="font-size:14px;color:#374151;"></div>
+                                <p style="margin:6px 0 0;font-size:12px;color:#6b7280;">
+                                    Marca a los técnicos/admins cuyos tickets verá <strong>este destinatario</strong>.
+                                    Si no marcás ninguno, el reporte incluye <strong>toda la empresa</strong>.
+                                </p>
+                                <input type="text" id="teamSearch" placeholder="🔍 Buscar por nombre o usuario..." onkeyup="filterTeamList()"
+                                       style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-top:8px;">
+                                <div style="margin-top:8px;display:flex;gap:6px;font-size:11px;">
+                                    <button type="button" onclick="teamSelectAll(true)" style="padding:4px 10px;background:#dbeafe;color:#1e40af;border:none;border-radius:4px;cursor:pointer;font-weight:600;">✓ Seleccionar todos</button>
+                                    <button type="button" onclick="teamSelectAll(false)" style="padding:4px 10px;background:#fee2e2;color:#991b1b;border:none;border-radius:4px;cursor:pointer;font-weight:600;">✗ Quitar todos</button>
+                                    <span id="teamSelectedCount" style="margin-left:auto;font-size:12px;color:#374151;font-weight:700;">0 seleccionados</span>
+                                </div>
+                            </div>
+                            <div id="teamList" style="overflow-y:auto;flex:1;padding:8px 22px;">
+                                <p style="text-align:center;color:#999;padding:20px;">Cargando técnicos...</p>
+                            </div>
+                            <div style="padding:14px 22px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:8px;">
+                                <button onclick="closeTeamModal()" style="padding:9px 16px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Cancelar</button>
+                                <button onclick="saveTeamMembers()" id="teamSaveBtn" style="padding:9px 18px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;">💾 Guardar equipo</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- =========== DATOS =========== -->
+                <div class="panel-content" id="panel-datos">
+                    <h2 class="config-panel-title">🗄️ Base de Datos</h2>
+                    <iframe data-src="/admin/config-old#sec-datos" class="config-iframe section-iframe" style="display:none;"></iframe>
+                </div>
+
+                <!-- =========== BUZONES (Email → Ticket) =========== -->
+                <div class="panel-content" id="panel-mailboxes">
+                    <h2 class="config-panel-title">📥 Buzones de Correo (Email → Ticket)</h2>
+                    <p style="color:#6b7280;margin-bottom:14px;font-size:13px;">
+                        Configura hasta <strong>2 buzones IMAP</strong>. El sistema revisa estos correos cada N minutos y
+                        <strong>crea un ticket automáticamente</strong> por cada correo no leído.
+                    </p>
+
+                    <!-- Hints -->
+                    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;margin-bottom:18px;font-size:12px;color:#1e40af;">
+                        💡 <strong>Servidores comunes:</strong><br>
+                        • <strong>Gmail</strong>: <code>imap.gmail.com:993</code> (SSL) — Password con App Password<br>
+                        • <strong>Office 365</strong>: <code>outlook.office365.com:993</code> (SSL) — <strong>RECOMENDADO: OAuth 2.0</strong><br>
+                        • <strong>Yahoo</strong>: <code>imap.mail.yahoo.com:993</code> (SSL) — Password con App Password
+                    </div>
+
+                    <!-- Guía OAuth Microsoft 365 (desplegable) -->
+                    <details style="background:#faf5ff;border:1px solid #c4b5fd;border-radius:8px;padding:12px;margin-bottom:18px;">
+                        <summary style="cursor:pointer;font-weight:700;color:#5b21b6;font-size:13px;">
+                            🔐 Cómo configurar OAuth 2.0 para Microsoft 365 (click para expandir)
+                        </summary>
+                        <div style="margin-top:12px;font-size:12px;color:#5b21b6;line-height:1.7;">
+                            <strong>Microsoft está deshabilitando Basic Auth para IMAP.</strong> OAuth 2.0 es la única forma confiable a futuro.<br><br>
+
+                            <strong>Paso 1 — Registrar la app en Azure AD:</strong>
+                            <ol style="margin:6px 0 10px 22px;">
+                                <li>Ir a <code>portal.azure.com</code> → Microsoft Entra ID → App registrations → New registration</li>
+                                <li>Nombre: <code>DeskEli IMAP Reader</code></li>
+                                <li>Account types: <em>Accounts in this organizational directory only</em></li>
+                                <li>Redirect URI: dejar vacío</li>
+                                <li>Click <strong>Register</strong></li>
+                                <li>Copiar el <strong>Application (client) ID</strong> y el <strong>Directory (tenant) ID</strong></li>
+                            </ol>
+
+                            <strong>Paso 2 — Crear secret:</strong>
+                            <ol style="margin:6px 0 10px 22px;">
+                                <li>En la misma app → <strong>Certificates &amp; secrets</strong> → New client secret</li>
+                                <li>Descripción: "DeskEli secret", expiración: 24 meses</li>
+                                <li><strong>Copiar el "Value"</strong> inmediatamente (no se ve después)</li>
+                            </ol>
+
+                            <strong>Paso 3 — Asignar permisos API:</strong>
+                            <ol style="margin:6px 0 10px 22px;">
+                                <li><strong>API permissions</strong> → Add a permission → <strong>APIs my organization uses</strong></li>
+                                <li>Buscar: <code>Office 365 Exchange Online</code></li>
+                                <li>Application permissions → marcar <code>IMAP.AccessAsApp</code></li>
+                                <li>Click <strong>Grant admin consent</strong> (requiere admin del tenant)</li>
+                            </ol>
+
+                            <strong>Paso 4 — Habilitar la app en el buzón (PowerShell):</strong>
+                            <pre style="background:white;padding:8px;border-radius:4px;font-size:11px;overflow-x:auto;color:#1f2937;">Connect-ExchangeOnline
+New-ServicePrincipal -AppId "&lt;CLIENT_ID&gt;" -ServiceId "&lt;OBJECT_ID_DE_APP_ENTERPRISE&gt;"
+Add-MailboxPermission -Identity "cat@patprimo.com.co" -User "&lt;CLIENT_ID&gt;" -AccessRights FullAccess
+Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
+
+                            <strong>Paso 5 — Pegar los 3 valores acá abajo:</strong> Tenant ID, Client ID, Client Secret.<br>
+                            ⏰ Los cambios de Azure tardan 5-15 min en propagarse.
+                        </div>
+                    </details>
+
+                    <!-- Crear nuevo -->
+                    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px;">
+                        <h3 style="margin:0 0 12px 0;font-size:15px;color:#374151;">➕ Agregar Buzón</h3>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:10px;">
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;font-weight:600;">Nombre del buzón *</label>
+                                <input id="mbName" type="text" placeholder="Ej: Soporte General" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;font-weight:600;">Servidor IMAP *</label>
+                                <input id="mbHost" type="text" placeholder="imap.gmail.com" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;font-weight:600;">Puerto</label>
+                                <input id="mbPort" type="number" value="993" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;font-weight:600;">SSL</label>
+                                <select id="mbSSL" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                    <option value="true" selected>Sí (recomendado)</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:10px;">
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;font-weight:600;">Usuario / Email *</label>
+                                <input id="mbUser" type="text" placeholder="soporte@empresa.com" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;font-weight:600;">Tipo de autenticación</label>
+                                <select id="mbAuthType" onchange="mbToggleAuth()" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                    <option value="password" selected>🔑 Password / App Password</option>
+                                    <option value="oauth2">🔐 OAuth 2.0 (Microsoft 365)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;font-weight:600;">Carpeta</label>
+                                <input id="mbFolder" type="text" value="INBOX" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;font-weight:600;">Intervalo (min)</label>
+                                <input id="mbInterval" type="number" value="5" min="1" max="60" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
+                        </div>
+
+                        <!-- Campo Password (solo cuando auth_type=password) -->
+                        <div id="mbPassBlock" style="margin-bottom:10px;">
+                            <label style="font-size:11px;color:#6b7280;font-weight:600;">Contraseña *</label>
+                            <input id="mbPass" type="password" placeholder="App Password recomendado (16 chars sin espacios)" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                        </div>
+
+                        <!-- Campos OAuth (solo cuando auth_type=oauth2) -->
+                        <div id="mbOAuthBlock" style="display:none;margin-bottom:10px;background:#faf5ff;border:1px solid #c4b5fd;border-radius:8px;padding:12px;">
+                            <div style="font-size:11px;color:#5b21b6;font-weight:700;margin-bottom:8px;">🔐 Credenciales OAuth 2.0 — Azure AD</div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                                <div>
+                                    <label style="font-size:11px;color:#5b21b6;font-weight:600;">Tenant ID</label>
+                                    <input id="mbOAuthTenant" type="text" placeholder="00000000-0000-0000-0000-000000000000"
+                                           style="width:100%;padding:8px 10px;border:1px solid #c4b5fd;border-radius:6px;font-size:12px;font-family:monospace;background:white;">
+                                </div>
+                                <div>
+                                    <label style="font-size:11px;color:#5b21b6;font-weight:600;">Client ID (Application ID)</label>
+                                    <input id="mbOAuthClient" type="text" placeholder="00000000-0000-0000-0000-000000000000"
+                                           style="width:100%;padding:8px 10px;border:1px solid #c4b5fd;border-radius:6px;font-size:12px;font-family:monospace;background:white;">
+                                </div>
+                            </div>
+                            <div style="margin-top:10px;">
+                                <label style="font-size:11px;color:#5b21b6;font-weight:600;">Client Secret (Value, no Secret ID)</label>
+                                <input id="mbOAuthSecret" type="password" placeholder="Secret de la app — visible solo al crearlo en Azure"
+                                       style="width:100%;padding:8px 10px;border:1px solid #c4b5fd;border-radius:6px;font-size:12px;font-family:monospace;background:white;">
+                            </div>
+                            <p style="font-size:10.5px;color:#6b21a8;margin:8px 0 0;">
+                                💡 Estos 3 valores los obtenés en <code>portal.azure.com → Microsoft Entra ID → App registrations</code>.
+                                Ver guía paso a paso arriba. <strong>Asegurate de tener IMAP.AccessAsApp con admin consent.</strong>
+                            </p>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px;">
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;font-weight:600;">Prioridad por defecto</label>
+                                <select id="mbPriority" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                    <option value="low">🟢 Baja</option>
+                                    <option value="medium" selected>🟡 Media</option>
+                                    <option value="high">🟠 Alta</option>
+                                    <option value="critical">🔴 Crítica</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;font-weight:600;">Categoría por defecto</label>
+                                <input id="mbCategory" type="text" value="Email" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
+                        </div>
+                        <button onclick="mbCreate()" style="padding:10px 18px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;">➕ Agregar buzón</button>
+                        <span id="mbStatus" style="margin-left:12px;font-size:12px;"></span>
+                    </div>
+
+                    <!-- Lista de buzones -->
+                    <h3 style="margin:0 0 10px 0;font-size:15px;color:#374151;">📋 Buzones Configurados</h3>
+                    <div id="mbList">
+                        <p style="text-align:center;color:#999;padding:20px;">Cargando...</p>
+                    </div>
+
+                    <!-- MODAL: Editar buzón -->
+                    <div id="mbEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;align-items:center;justify-content:center;padding:20px;">
+                        <div style="background:white;border-radius:12px;padding:24px;max-width:760px;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:1px solid #e5e7eb;padding-bottom:10px;">
+                                <h3 style="margin:0;color:#1f2937;">✏️ Editar Buzón <span id="mbEditId" style="font-size:12px;color:#6b7280;font-weight:400;"></span></h3>
+                                <button onclick="document.getElementById('mbEditModal').style.display='none'" style="background:none;border:none;font-size:28px;cursor:pointer;color:#6b7280;line-height:1;">×</button>
+                            </div>
+
+                            <input type="hidden" id="mbEditIdField" value="">
+
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:10px;">
+                                <div>
+                                    <label style="font-size:11px;color:#6b7280;font-weight:600;">Nombre del buzón *</label>
+                                    <input id="mbEditName" type="text" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                </div>
+                                <div>
+                                    <label style="font-size:11px;color:#6b7280;font-weight:600;">Servidor IMAP *</label>
+                                    <input id="mbEditHost" type="text" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                </div>
+                                <div>
+                                    <label style="font-size:11px;color:#6b7280;font-weight:600;">Puerto</label>
+                                    <input id="mbEditPort" type="number" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                </div>
+                                <div>
+                                    <label style="font-size:11px;color:#6b7280;font-weight:600;">SSL</label>
+                                    <select id="mbEditSSL" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                        <option value="true">Sí (recomendado)</option>
+                                        <option value="false">No</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:10px;">
+                                <div>
+                                    <label style="font-size:11px;color:#6b7280;font-weight:600;">Usuario / Email *</label>
+                                    <input id="mbEditUser" type="text" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                </div>
+                                <div>
+                                    <label style="font-size:11px;color:#6b7280;font-weight:600;">Tipo de autenticación</label>
+                                    <select id="mbEditAuthType" onchange="mbEditToggleAuth()" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                        <option value="password">🔑 Password / App Password</option>
+                                        <option value="oauth2">🔐 OAuth 2.0 (Microsoft 365)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size:11px;color:#6b7280;font-weight:600;">Carpeta</label>
+                                    <input id="mbEditFolder" type="text" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                </div>
+                                <div>
+                                    <label style="font-size:11px;color:#6b7280;font-weight:600;">Intervalo (min)</label>
+                                    <input id="mbEditInterval" type="number" min="1" max="60" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                </div>
+                            </div>
+
+                            <!-- Campo password -->
+                            <div id="mbEditPassBlock" style="margin-bottom:10px;">
+                                <label style="font-size:11px;color:#6b7280;font-weight:600;">Contraseña <span id="mbEditPassNote" style="color:#9ca3af;font-weight:400;">(dejar vacío para no cambiar)</span></label>
+                                <input id="mbEditPass" type="password" placeholder="App Password recomendado (vacío = no cambiar)" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
+
+                            <!-- Campos OAuth -->
+                            <div id="mbEditOAuthBlock" style="display:none;margin-bottom:10px;background:#faf5ff;border:1px solid #c4b5fd;border-radius:8px;padding:12px;">
+                                <div style="font-size:11px;color:#5b21b6;font-weight:700;margin-bottom:8px;">🔐 Credenciales OAuth 2.0 — Azure AD</div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                                    <div>
+                                        <label style="font-size:11px;color:#5b21b6;font-weight:600;">Tenant ID</label>
+                                        <input id="mbEditOAuthTenant" type="text" placeholder="00000000-0000-0000-0000-000000000000"
+                                               style="width:100%;padding:8px 10px;border:1px solid #c4b5fd;border-radius:6px;font-size:12px;font-family:monospace;background:white;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size:11px;color:#5b21b6;font-weight:600;">Client ID</label>
+                                        <input id="mbEditOAuthClient" type="text" placeholder="00000000-0000-0000-0000-000000000000"
+                                               style="width:100%;padding:8px 10px;border:1px solid #c4b5fd;border-radius:6px;font-size:12px;font-family:monospace;background:white;">
+                                    </div>
+                                </div>
+                                <div style="margin-top:10px;">
+                                    <label style="font-size:11px;color:#5b21b6;font-weight:600;">
+                                        Client Secret <span id="mbEditOAuthSecretNote" style="color:#9ca3af;font-weight:400;">(vacío = no cambiar)</span>
+                                    </label>
+                                    <input id="mbEditOAuthSecret" type="password" placeholder="Secret value (vacío = no cambiar)"
+                                           style="width:100%;padding:8px 10px;border:1px solid #c4b5fd;border-radius:6px;font-size:12px;font-family:monospace;background:white;">
+                                </div>
+                            </div>
+
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:14px;">
+                                <div>
+                                    <label style="font-size:11px;color:#6b7280;font-weight:600;">Prioridad por defecto</label>
+                                    <select id="mbEditPriority" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                        <option value="low">🟢 Baja</option>
+                                        <option value="medium">🟡 Media</option>
+                                        <option value="high">🟠 Alta</option>
+                                        <option value="critical">🔴 Crítica</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size:11px;color:#6b7280;font-weight:600;">Categoría por defecto</label>
+                                    <input id="mbEditCategory" type="text" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                </div>
+                            </div>
+
+                            <div id="mbEditStatus" style="font-size:12px;margin-bottom:10px;"></div>
+
+                            <div style="display:flex;justify-content:flex-end;gap:8px;border-top:1px solid #e5e7eb;padding-top:14px;">
+                                <button onclick="document.getElementById('mbEditModal').style.display='none'"
+                                        style="padding:9px 18px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Cancelar</button>
+                                <button onclick="mbEditSave()"
+                                        style="padding:9px 18px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;">💾 Guardar cambios</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- =========== BACKUP =========== -->
+                <div class="panel-content" id="panel-backup">
+                    <h2 class="config-panel-title">💾 Backup y Restauración</h2>
+                    <p style="color:#666;margin-bottom:18px;font-size:14px;">
+                        Los backups son archivos comprimidos (.db.gz) de la base de datos. Se crean automáticamente cada 24h
+                        y se mantienen los últimos 30. Aquí podés crear uno manual, descargarlo, eliminarlo o restaurar.
+                    </p>
+
+                    <!-- KPIs -->
+                    <div id="backupKpis" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-bottom:20px;">
+                        <div style="background:white;border:1px solid #e5e7eb;border-left:4px solid #2563eb;padding:14px;border-radius:6px;">
+                            <div style="font-size:11px;color:#6b7280;text-transform:uppercase;font-weight:600;">📦 Backups totales</div>
+                            <div style="font-size:24px;font-weight:700;color:#2563eb;margin-top:4px;" id="bkpCount">—</div>
+                        </div>
+                        <div style="background:white;border:1px solid #e5e7eb;border-left:4px solid #16a34a;padding:14px;border-radius:6px;">
+                            <div style="font-size:11px;color:#6b7280;text-transform:uppercase;font-weight:600;">🗄️ Tamaño BD actual</div>
+                            <div style="font-size:24px;font-weight:700;color:#16a34a;margin-top:4px;" id="bkpDbSize">—</div>
+                        </div>
+                        <div style="background:white;border:1px solid #e5e7eb;border-left:4px solid #d97706;padding:14px;border-radius:6px;">
+                            <div style="font-size:11px;color:#6b7280;text-transform:uppercase;font-weight:600;">📅 Último backup</div>
+                            <div style="font-size:14px;font-weight:600;color:#d97706;margin-top:6px;" id="bkpLast">—</div>
+                        </div>
+                    </div>
+
+                    <!-- Acciones -->
+                    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px;margin-bottom:20px;">
+                        <h3 style="margin:0 0 10px 0;color:#1e40af;font-size:15px;">⚡ Acciones</h3>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                            <button onclick="bkpCreateNow()" id="bkpCreateBtn"
+                                    style="padding:10px 20px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;">
+                                💾 Crear backup ahora
+                            </button>
+                            <button onclick="bkpRefresh()"
+                                    style="padding:10px 16px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">
+                                🔄 Refrescar lista
+                            </button>
+                            <span id="bkpStatus" style="font-size:13px;color:#6b7280;"></span>
+                        </div>
+                    </div>
+
+                    <!-- Lista -->
+                    <h3 style="margin:0 0 10px 0;color:#374151;font-size:15px;">📋 Backups disponibles</h3>
+                    <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-size:13px;">
+                        <thead>
+                            <tr style="background:#f9fafb;">
+                                <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Archivo</th>
+                                <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Tamaño</th>
+                                <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Fecha</th>
+                                <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bkpTbody">
+                            <tr><td colspan="4" style="padding:30px;text-align:center;color:#999;">Cargando backups...</td></tr>
+                        </tbody>
+                    </table>
+                    </div>
+
+                    <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:14px;margin-top:20px;font-size:12px;color:#991b1b;">
+                        ⚠️ <strong>Restaurar es peligroso:</strong> sobrescribe la BD actual. Antes de restaurar, el sistema crea un backup de seguridad automáticamente. Después de restaurar, recarga el navegador y verifica el estado de los datos.
+                    </div>
+                </div>
+
+                <!-- =========== PLANTILLAS =========== -->
+                <div class="panel-content" id="panel-plantillas">
+                    <h2 class="config-panel-title">📋 Plantillas de Tickets</h2>
+                    <iframe data-src="/admin/config-old#sec-plantillas" class="config-iframe" style="display:none;"></iframe>
+                </div>
+
+                <!-- =========== TAGS =========== -->
+                <div class="panel-content" id="panel-tags">
+                    <h2 class="config-panel-title">🌐 Tags y Etiquetas</h2>
+                    <iframe data-src="/admin/config-old#sec-tags" class="config-iframe" style="display:none;"></iframe>
+                </div>
+
+                <div class="panel-content" id="panel-teams">
+                    <h2 class="config-panel-title">💬 Microsoft Teams - Webhooks</h2>
+                    <iframe data-src="/admin/config-old#sec-teams" class="config-iframe section-iframe" style="display:none;"></iframe>
+                </div>
+
+                <div class="panel-content" id="panel-ldap">
+                    <h2 class="config-panel-title">🔑 Directorio Activo (LDAP/AD)</h2>
+                    <iframe data-src="/admin/config-old#sec-ldap" class="config-iframe section-iframe" style="display:none;"></iframe>
+                </div>
+
+
+                <div class="panel-content" id="panel-empresas">
+                    <h2 class="config-panel-title">🏢 Gestión de Empresas</h2>
+                    <iframe data-src="/admin/config-old#sec-empresas" class="config-iframe" style="display:none;"></iframe>
+                </div>
+
+                <div class="panel-content" id="panel-tema">
+                    <h2 class="config-panel-title">🌈 Tema Visual - 24 Colores</h2>
+                    <p style="color: #6b7280; margin-bottom: 16px; font-size: 13px;">Selecciona un color para personalizar todo el sistema. El cambio se aplica inmediatamente.</p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-top: 12px;">
+                        <button class="theme-pill" data-theme="blue" style="padding: 14px 10px; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🔵 Azul</button>
+                        <button class="theme-pill" data-theme="indigo" style="padding: 14px 10px; background: #4f46e5; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🟣 Índigo</button>
+                        <button class="theme-pill" data-theme="purple" style="padding: 14px 10px; background: #7c3aed; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🟪 Púrpura</button>
+                        <button class="theme-pill" data-theme="violet" style="padding: 14px 10px; background: #8b5cf6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">💜 Violeta</button>
+                        <button class="theme-pill" data-theme="fuchsia" style="padding: 14px 10px; background: #d946ef; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🌸 Fucsia</button>
+                        <button class="theme-pill" data-theme="pink" style="padding: 14px 10px; background: #ec4899; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🌷 Rosa</button>
+                        <button class="theme-pill" data-theme="rose" style="padding: 14px 10px; background: #f43f5e; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🌹 Rosado</button>
+                        <button class="theme-pill" data-theme="red" style="padding: 14px 10px; background: #dc2626; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🔴 Rojo</button>
+                        <button class="theme-pill" data-theme="orange" style="padding: 14px 10px; background: #ea580c; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🟠 Naranja</button>
+                        <button class="theme-pill" data-theme="amber" style="padding: 14px 10px; background: #d97706; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🟡 Ámbar</button>
+                        <button class="theme-pill" data-theme="yellow" style="padding: 14px 10px; background: #ca8a04; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">⭐ Amarillo</button>
+                        <button class="theme-pill" data-theme="lime" style="padding: 14px 10px; background: #84cc16; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🥬 Lima</button>
+                        <button class="theme-pill" data-theme="green" style="padding: 14px 10px; background: #059669; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🟢 Verde</button>
+                        <button class="theme-pill" data-theme="emerald" style="padding: 14px 10px; background: #10b981; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">💎 Esmeralda</button>
+                        <button class="theme-pill" data-theme="teal" style="padding: 14px 10px; background: #0d9488; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🌊 Teal</button>
+                        <button class="theme-pill" data-theme="cyan" style="padding: 14px 10px; background: #0891b2; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">💧 Cian</button>
+                        <button class="theme-pill" data-theme="sky" style="padding: 14px 10px; background: #0284c7; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">☁️ Cielo</button>
+                        <button class="theme-pill" data-theme="navy" style="padding: 14px 10px; background: #1e3a8a; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">⚓ Marino</button>
+                        <button class="theme-pill" data-theme="slate" style="padding: 14px 10px; background: #475569; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🏔️ Pizarra</button>
+                        <button class="theme-pill" data-theme="gray" style="padding: 14px 10px; background: #4b5563; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">⚫ Gris</button>
+                        <button class="theme-pill" data-theme="stone" style="padding: 14px 10px; background: #78716c; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🗿 Piedra</button>
+                        <button class="theme-pill" data-theme="brown" style="padding: 14px 10px; background: #92400e; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🌰 Café</button>
+                        <button class="theme-pill" data-theme="midnight" style="padding: 14px 10px; background: #111827; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🌙 Medianoche</button>
+                        <button class="theme-pill" data-theme="coral" style="padding: 14px 10px; background: #fb7185; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 12px;">🪸 Coral</button>
+                        <button class="theme-pill" data-theme="orange_black" style="padding: 14px 10px; background: linear-gradient(135deg, #ea580c 0%, #1f2937 100%); color: white; border: 2px solid #ea580c; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 12px; box-shadow: 0 2px 6px rgba(234,88,12,0.3);">🔥 Naranja → Negro</button>
+                        <button class="theme-pill" data-theme="purple_black" style="padding: 14px 10px; background: linear-gradient(135deg, #7c3aed 0%, #1f2937 100%); color: white; border: 2px solid #7c3aed; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 12px; box-shadow: 0 2px 6px rgba(124,58,237,0.3);">🟣 Púrpura → Negro</button>
+                    </div>
+                </div>
+
+                <div class="panel-content" id="panel-bot">
+                    <h2 class="config-panel-title">🤖 Soluciones Bot - Base de Conocimiento</h2>
+                    <iframe data-src="/admin/config-old#sec-bot" class="config-iframe" style="display:none;"></iframe>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+</div>
+
+<script>
+    // Detectar si estamos en iframe y ocultar sidebar duplicado
+    if (window.self !== window.top) {
+        document.body.classList.add('in-iframe');
+    }
+
+    // ============ NAVEGACIÓN DE TABS ============
+    document.querySelectorAll('.config-tab').forEach(tab => {
+        tab.addEventListener('click', function(e) {
+            e.preventDefault();
+            const tabId = this.getAttribute('data-tab');
+
+            // Activar tab
+            document.querySelectorAll('.config-tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+
+            // Mostrar panel
+            document.querySelectorAll('.panel-content').forEach(p => p.classList.remove('active'));
+            const panel = document.getElementById('panel-' + tabId);
+            if (panel) {
+                panel.classList.add('active');
+
+                // Si tiene un iframe, cargarlo SIEMPRE con su URL específica
+                const iframe = panel.querySelector('.config-iframe');
+                if (iframe && iframe.dataset.src) {
+                    iframe.style.display = 'block';
+                    // FORZAR recarga con el src exacto (con hash) para activar single-section
+                    iframe.src = iframe.dataset.src;
+
+                    iframe.onload = function() {
+                        try {
+                            const hash = iframe.dataset.src.split('#')[1];
+                            const doc = iframe.contentDocument;
+                            if (!doc) return;
+
+                            // FORZAR aplicación de single-section
+                            if (hash) {
+                                doc.body.classList.add('single-section');
+                                doc.querySelectorAll('.config-section').forEach(s => s.classList.remove('show-only'));
+                                const target = doc.getElementById(hash);
+                                if (target) {
+                                    target.classList.add('show-only');
+                                    console.log('[panel] Sección única aplicada:', hash);
+                                }
+                            }
+
+                            // Ocultar sidebar del iframe
+                            const sidebar = doc.querySelector('.sidebar');
+                            if (sidebar) sidebar.style.display = 'none';
+                            const mainContent = doc.querySelector('.main-content');
+                            if (mainContent) {
+                                mainContent.style.width = '100%';
+                                mainContent.style.marginLeft = '0';
+                            }
+                            const pageTitle = doc.querySelector('.page-title');
+                            if (pageTitle) pageTitle.style.display = 'none';
+                        } catch(e) { console.warn('Iframe error:', e); }
+                    };
+                }
+            }
+        });
+    });
+
+    // ============ GUARDAR GENERAL ============
+    async function guardarGeneral() {
+        const data = {
+            empresa: document.getElementById('cfg-empresa').value,
+            api_key: document.getElementById('cfg-api-key').value,
+            server_url: document.getElementById('cfg-server-url').value
+        };
+        const statusEl = document.getElementById('general-status');
+        statusEl.innerHTML = '<div class="alert alert-success">⏳ Guardando...</div>';
+
+        try {
+            // Guardar varios campos usando los endpoints existentes
+            await fetch('/api/config/general', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({system_name: data.empresa})
+            });
+
+            statusEl.innerHTML = '<div class="alert alert-success">✓ Configuración guardada correctamente</div>';
+            setTimeout(() => statusEl.innerHTML = '', 3000);
+        } catch (e) {
+            statusEl.innerHTML = '<div class="alert alert-error">✗ Error: ' + e.message + '</div>';
+        }
+    }
+
+    // ============ APLICAR URL ============
+    function aplicarUrl() {
+        const url = document.getElementById('cfg-server-url').value;
+        if (!url || !url.startsWith('http')) {
+            alert('Ingresa una URL válida (http:// o https://)');
+            return;
+        }
+        // Guardar en localStorage para persistir
+        localStorage.setItem('DeskEli_server_url', url);
+        alert('✓ URL aplicada: ' + url);
+    }
+
+    // ============ GUARDAR SLA ============
+    async function guardarSLA() {
+        const data = {
+            low: document.getElementById('sla-low').value,
+            medium: document.getElementById('sla-medium').value,
+            high: document.getElementById('sla-high').value,
+            critical: document.getElementById('sla-critical').value
+        };
+        const statusEl = document.getElementById('sla-status');
+        statusEl.innerHTML = '<div class="alert alert-success">⏳ Guardando...</div>';
+
+        try {
+            const r = await fetch('/api/config/sla', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            const result = await r.json();
+            if (result.success) {
+                statusEl.innerHTML = '<div class="alert alert-success">✓ SLA guardado</div>';
+            } else {
+                statusEl.innerHTML = '<div class="alert alert-error">✗ Error</div>';
+            }
+            setTimeout(() => statusEl.innerHTML = '', 3000);
+        } catch (e) {
+            statusEl.innerHTML = '<div class="alert alert-error">✗ Error: ' + e.message + '</div>';
+        }
+    }
+
+    // ============ TEMA VISUAL ============
+    // Mapa de colores por tema
+    const THEME_COLORS_MAP = {
+        'blue':     {primary: '#2563eb', dark: '#1e40af'},
+        'indigo':   {primary: '#4f46e5', dark: '#3730a3'},
+        'purple':   {primary: '#7c3aed', dark: '#5b21b6'},
+        'violet':   {primary: '#8b5cf6', dark: '#6d28d9'},
+        'fuchsia':  {primary: '#d946ef', dark: '#a21caf'},
+        'pink':     {primary: '#ec4899', dark: '#be185d'},
+        'rose':     {primary: '#f43f5e', dark: '#be123c'},
+        'red':      {primary: '#dc2626', dark: '#991b1b'},
+        'orange':   {primary: '#ea580c', dark: '#c2410c'},
+        'amber':    {primary: '#d97706', dark: '#92400e'},
+        'yellow':   {primary: '#ca8a04', dark: '#854d0e'},
+        'lime':     {primary: '#84cc16', dark: '#65a30d'},
+        'green':    {primary: '#059669', dark: '#047857'},
+        'emerald':  {primary: '#10b981', dark: '#047857'},
+        'teal':     {primary: '#0d9488', dark: '#0f766e'},
+        'cyan':     {primary: '#0891b2', dark: '#0e7490'},
+        'sky':      {primary: '#0284c7', dark: '#0369a1'},
+        'navy':     {primary: '#1e3a8a', dark: '#1e293b'},
+        'slate':    {primary: '#475569', dark: '#334155'},
+        'gray':     {primary: '#4b5563', dark: '#374151'},
+        'stone':    {primary: '#78716c', dark: '#57534e'},
+        'brown':    {primary: '#92400e', dark: '#78350f'},
+        'midnight': {primary: '#111827', dark: '#030712'},
+        'coral':    {primary: '#fb7185', dark: '#e11d48'},
+        'orange_black': {primary: '#ea580c', dark: '#1f2937'},
+        'purple_black': {primary: '#7c3aed', dark: '#1f2937'}
+    };
+
+    document.querySelectorAll('.theme-pill').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const theme = this.getAttribute('data-theme');
+            const colors = THEME_COLORS_MAP[theme];
+
+            if (colors) {
+                // Aplicar a esta página (iframe)
+                document.documentElement.style.setProperty('--primary', colors.primary);
+                document.documentElement.style.setProperty('--primary-dark', colors.dark);
+
+                // Si estamos en iframe, aplicar también a la ventana padre (dashboard)
+                if (window.parent && window.parent !== window) {
+                    try {
+                        window.parent.document.documentElement.style.setProperty('--primary', colors.primary);
+                        window.parent.document.documentElement.style.setProperty('--primary-dark', colors.dark);
+                        window.parent.document.body.style.setProperty('--primary', colors.primary);
+                        window.parent.document.body.style.setProperty('--primary-dark', colors.dark);
+
+                        // También aplicar a OTROS iframes del padre
+                        window.parent.document.querySelectorAll('iframe').forEach(ifr => {
+                            try {
+                                if (ifr.contentDocument) {
+                                    ifr.contentDocument.documentElement.style.setProperty('--primary', colors.primary);
+                                    ifr.contentDocument.documentElement.style.setProperty('--primary-dark', colors.dark);
+                                }
+                            } catch(e) {}
+                        });
+                    } catch(e) { console.warn('No se pudo aplicar al padre:', e); }
+                }
+            }
+
+            try {
+                const r = await fetch('/api/config/theme', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({theme: theme})
+                });
+                const data = await r.json();
+                if (data.success) {
+                    // Feedback visual sin alert
+                    this.textContent = '✓ ' + this.textContent;
+                    setTimeout(() => {
+                        this.textContent = this.textContent.replace('✓ ', '');
+                    }, 1500);
+                }
+            } catch (e) {
+                console.error('Error guardando tema:', e);
+            }
+        });
+    });
+</script>
+
+<!-- ===== JS PERFILES DE IA (inline) ===== -->
+<script>
+(function() {
+    let iaSkills = [];
+    let iaEditingId = null;
+
+    function $id(id) { return document.getElementById(id); }
+
+    function iaRenderChips() {
+        const c = $id('skill-chips');
+        if (!c) return;
+        if (iaSkills.length === 0) {
+            c.innerHTML = '<span style="color:#999;font-size:12px;">Selecciona habilidades de la lista o escribe una nueva...</span>';
+            return;
+        }
+        c.innerHTML = iaSkills.map((s, i) => `
+            <span style="background:#dbeafe;color:#1e40af;padding:5px 10px;border-radius:14px;font-size:13px;display:inline-flex;align-items:center;gap:6px;">
+                ${s}
+                <button onclick="iaRemoveSkill(${i})" style="background:none;border:none;color:#1e40af;cursor:pointer;font-weight:bold;padding:0 0 0 4px;">×</button>
+            </span>
+        `).join('');
+    }
+
+    window.iaAddSkillFromPreset = function() {
+        const sel = $id('ia-skill-preset');
+        const v = (sel.value || '').trim();
+        if (!v) return;
+        if (iaSkills.indexOf(v) === -1) { iaSkills.push(v); iaRenderChips(); }
+        sel.value = '';
+    };
+
+    window.iaAddSkillCustom = function() {
+        const inp = $id('ia-skill-custom');
+        const v = (inp.value || '').trim();
+        if (!v) return;
+        if (iaSkills.indexOf(v) === -1) { iaSkills.push(v); iaRenderChips(); }
+        inp.value = '';
+    };
+
+    window.iaRemoveSkill = function(i) {
+        iaSkills.splice(i, 1);
+        iaRenderChips();
+    };
+
+    window.iaClearForm = function() {
+        iaEditingId = null;
+        $id('ia-user-id').value = '';
+        $id('ia-max-tickets').value = '10';
+        iaSkills = [];
+        iaRenderChips();
+        $id('ia-status').innerHTML = '';
+    };
+
+    async function iaLoadTechnicians() {
+        try {
+            const r = await fetch('/api/admin/team');
+            const data = await r.json();
+            if (!data.success) return;
+            const sel = $id('ia-user-id');
+            const list = (data.team || []).filter(u => u.role === 'technician' || u.role === 'admin');
+            if (list.length === 0) {
+                sel.innerHTML = '<option value="">⚠ No hay técnicos. Agrega usuarios desde "Equipo" primero.</option>';
+                return;
+            }
+            sel.innerHTML = '<option value="">Selecciona un técnico...</option>' +
+                list.map(u => `<option value="${u.id}">${u.role === 'admin' ? '👑' : '🔧'} ${u.name} (${u.username}) - ${u.role}</option>`).join('');
+        } catch (e) { console.error('iaLoadTechnicians:', e); }
+    }
+
+    async function iaLoadSpecialists() {
+        const tbody = $id('ia-specialists-tbody');
+        if (!tbody) return;
+        try {
+            const r = await fetch('/api/admin/specialists');
+            const data = await r.json();
+            if (!data.success) {
+                tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#dc2626;">Error al cargar</td></tr>';
+                return;
+            }
+            if (!data.specialists || data.specialists.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#999;">No hay especialistas configurados. Agrega uno arriba ⬆</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.specialists.map(s => {
+                const chips = (s.skills || []).map(sk =>
+                    `<span style="background:#e0e7ff;color:#3730a3;padding:3px 8px;border-radius:12px;font-size:11px;margin-right:4px;display:inline-block;margin-bottom:3px;">${sk}</span>`
+                ).join('');
+                const pct = s.max_tickets > 0 ? Math.round(s.active_tickets / s.max_tickets * 100) : 0;
+                const color = pct >= 80 ? '#dc2626' : pct >= 50 ? '#ea580c' : '#16a34a';
+                const skillsAttr = (s.skills || []).join('|').replace(/'/g, "&#39;");
+                return `
+                    <tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:12px;"><strong>${s.user_name}</strong><br><span style="font-size:11px;color:#666;">${s.username}</span></td>
+                        <td style="padding:12px;">${chips || '<span style="color:#999;font-size:12px;">Sin habilidades</span>'}</td>
+                        <td style="padding:12px;text-align:center;">${s.max_tickets}</td>
+                        <td style="padding:12px;text-align:center;">
+                            <div style="font-weight:bold;color:${color};">${s.active_tickets}</div>
+                            <div style="background:#f3f4f6;border-radius:8px;height:6px;margin-top:4px;overflow:hidden;">
+                                <div style="background:${color};height:100%;width:${Math.min(pct, 100)}%;"></div>
+                            </div>
+                        </td>
+                        <td style="padding:12px;text-align:center;">
+                            <button onclick="iaEdit(${s.id}, ${s.user_id}, '${skillsAttr}', ${s.max_tickets})" style="padding:5px 10px;background:#2563eb;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:4px;">✏️ Editar</button>
+                            <button onclick="iaDelete(${s.id}, '${(s.user_name || '').replace(/'/g, '&#39;')}')" style="padding:5px 10px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;">🗑️ Eliminar</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#dc2626;">Error: ' + e.message + '</td></tr>';
+        }
+    }
+
+    window.iaEdit = function(id, userId, skillsCsv, maxTickets) {
+        iaEditingId = id;
+        $id('ia-user-id').value = userId;
+        $id('ia-max-tickets').value = maxTickets;
+        iaSkills = skillsCsv ? skillsCsv.split('|').filter(Boolean) : [];
+        iaRenderChips();
+        $id('ia-status').innerHTML = '<span style="color:#2563eb;">📝 Editando especialista. Guarda para aplicar cambios.</span>';
+        document.getElementById('panel-ia').scrollIntoView({behavior:'smooth', block:'start'});
+    };
+
+    window.iaDelete = async function(id, name) {
+        if (!confirm('¿Eliminar perfil IA de ' + name + '?')) return;
+        try {
+            const r = await fetch('/api/admin/specialists/' + id, {method:'DELETE'});
+            const data = await r.json();
+            if (data.success) {
+                $id('ia-status').innerHTML = '<span style="color:#16a34a;">✓ Eliminado</span>';
+                iaLoadSpecialists();
+            } else {
+                $id('ia-status').innerHTML = '<span style="color:#dc2626;">✗ ' + (data.error || 'Error') + '</span>';
+            }
+        } catch (e) {
+            $id('ia-status').innerHTML = '<span style="color:#dc2626;">✗ ' + e.message + '</span>';
+        }
+    };
+
+    window.iaSaveSpecialist = async function() {
+        const userId = $id('ia-user-id').value;
+        const maxTickets = parseInt($id('ia-max-tickets').value) || 10;
+        const status = $id('ia-status');
+
+        if (!userId) {
+            status.innerHTML = '<span style="color:#dc2626;">⚠ Selecciona un técnico</span>';
+            return;
+        }
+        if (iaSkills.length === 0) {
+            status.innerHTML = '<span style="color:#dc2626;">⚠ Agrega al menos una habilidad</span>';
+            return;
+        }
+
+        status.innerHTML = '<span style="color:#6b7280;">⏳ Guardando...</span>';
+        try {
+            const r = await fetch('/api/admin/specialists', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({
+                    user_id: parseInt(userId),
+                    skills: iaSkills,
+                    max_tickets: maxTickets
+                })
+            });
+            const data = await r.json();
+            if (data.success) {
+                status.innerHTML = '<span style="color:#16a34a;">✓ Especialista guardado</span>';
+                iaClearForm();
+                iaLoadSpecialists();
+            } else {
+                status.innerHTML = '<span style="color:#dc2626;">✗ ' + (data.error || 'Error') + '</span>';
+            }
+        } catch (e) {
+            status.innerHTML = '<span style="color:#dc2626;">✗ ' + e.message + '</span>';
+        }
+    };
+
+    // Inicializar al cargar la página
+    function iaInit() {
+        if (!$id('ia-user-id')) return;
+        iaLoadTechnicians();
+        iaLoadSpecialists();
+        iaRenderChips();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', iaInit);
+    } else {
+        iaInit();
+    }
+
+    // Recargar al clickear la pestaña "ia"
+    document.addEventListener('click', function(e) {
+        const tab = e.target.closest('.config-tab');
+        if (tab && tab.getAttribute('data-tab') === 'ia') {
+            setTimeout(iaInit, 100);
+        }
+    });
+})();
+</script>
+
+<!-- ===== JS BACKUP ===== -->
+<script>
+(function() {
+    function bkpShow(msg, ok) {
+        const el = document.getElementById('bkpStatus');
+        if (!el) return;
+        el.style.color = ok ? '#16a34a' : '#dc2626';
+        el.textContent = msg;
+        if (ok) setTimeout(() => { el.textContent = ''; }, 4000);
+    }
+
+    async function bkpLoad() {
+        const tbody = document.getElementById('bkpTbody');
+        if (!tbody) return;
+        tbody.innerHTML = '<tr><td colspan="4" style="padding:20px;text-align:center;color:#999;">⏳ Cargando...</td></tr>';
+        try {
+            const r = await fetch('/api/admin/backups');
+            const data = await r.json();
+            if (!data.success) {
+                tbody.innerHTML = '<tr><td colspan="4" style="padding:20px;text-align:center;color:#dc2626;">Error</td></tr>';
+                return;
+            }
+            document.getElementById('bkpCount').textContent = data.backups.length;
+            document.getElementById('bkpDbSize').textContent = data.db_size_human || '—';
+            document.getElementById('bkpLast').textContent = data.backups[0] ? data.backups[0].created_at : 'Nunca';
+
+            if (data.backups.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="padding:30px;text-align:center;color:#999;">No hay backups todavía. Click en "💾 Crear backup ahora" para generar el primero.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.backups.map(b => `
+                <tr style="border-bottom:1px solid #f0f0f0;">
+                    <td style="padding:10px;font-family:monospace;font-size:12px;color:#374151;">📦 ${b.name}</td>
+                    <td style="padding:10px;font-size:12px;color:#6b7280;">${b.size_human}</td>
+                    <td style="padding:10px;font-size:12px;color:#374151;">${b.created_at}</td>
+                    <td style="padding:10px;text-align:center;">
+                        <a href="/api/admin/backups/${encodeURIComponent(b.name)}/download" download
+                           style="display:inline-block;padding:5px 10px;background:#2563eb;color:white;text-decoration:none;border-radius:4px;font-size:11px;margin-right:4px;font-weight:600;">⬇ Descargar</a>
+                        <button onclick="bkpRestore('${b.name.replace(/'/g, '&#39;')}')"
+                                style="padding:5px 10px;background:#d97706;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:4px;font-weight:600;">♻ Restaurar</button>
+                        <button onclick="bkpDelete('${b.name.replace(/'/g, '&#39;')}')"
+                                style="padding:5px 10px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">🗑 Eliminar</button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="4" style="padding:20px;text-align:center;color:#dc2626;">Error: ' + e.message + '</td></tr>';
+        }
+    }
+
+    window.bkpRefresh = bkpLoad;
+
+    window.bkpCreateNow = async function() {
+        const btn = document.getElementById('bkpCreateBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Creando...';
+        bkpShow('Creando backup...', true);
+        try {
+            const r = await fetch('/api/admin/backups/create', {method:'POST'});
+            const data = await r.json();
+            if (data.success) {
+                bkpShow('✓ ' + data.message, true);
+                bkpLoad();
+            } else {
+                bkpShow('✗ ' + (data.error || 'Error'), false);
+            }
+        } catch (e) {
+            bkpShow('✗ ' + e.message, false);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '💾 Crear backup ahora';
+        }
+    };
+
+    window.bkpDelete = async function(name) {
+        if (!confirm('¿Eliminar el backup "' + name + '"? Esta acción no se puede deshacer.')) return;
+        try {
+            const r = await fetch('/api/admin/backups/' + encodeURIComponent(name), {method:'DELETE'});
+            const data = await r.json();
+            if (data.success) {
+                bkpShow('✓ Backup eliminado', true);
+                bkpLoad();
+            } else {
+                bkpShow('✗ ' + (data.error || 'Error'), false);
+            }
+        } catch (e) {
+            bkpShow('✗ ' + e.message, false);
+        }
+    };
+
+    window.bkpRestore = async function(name) {
+        const confirm1 = confirm('⚠ Vas a RESTAURAR la BD desde "' + name + '".\n\nEsto sobrescribirá la base de datos actual. Se creará un backup de seguridad antes.\n\n¿Continuar?');
+        if (!confirm1) return;
+        const confirm2 = prompt('Escribe RESTAURAR (en mayúsculas) para confirmar:');
+        if (confirm2 !== 'RESTAURAR') {
+            bkpShow('Cancelado', false);
+            return;
+        }
+        bkpShow('Restaurando... NO cierres la página', true);
+        try {
+            const r = await fetch('/api/admin/backups/' + encodeURIComponent(name) + '/restore', {method:'POST'});
+            const data = await r.json();
+            if (data.success) {
+                alert('✅ ' + data.message);
+                bkpLoad();
+            } else {
+                bkpShow('✗ ' + (data.error || 'Error'), false);
+            }
+        } catch (e) {
+            bkpShow('✗ ' + e.message, false);
+        }
+    };
+
+    // Cargar al entrar al tab Backup
+    document.addEventListener('click', function(e) {
+        const tab = e.target.closest('.config-tab');
+        if (tab && tab.getAttribute('data-tab') === 'backup') {
+            setTimeout(bkpLoad, 100);
+        }
+    });
+})();
+</script>
+
+<!-- ===== JS SUBROLES ===== -->
+<script>
+(function() {
+    function srShow(msg, ok) {
+        const el = document.getElementById('srStatus');
+        if (!el) return;
+        el.style.color = ok ? '#16a34a' : '#dc2626';
+        el.textContent = msg;
+        if (ok) setTimeout(() => { el.textContent = ''; }, 4000);
+    }
+    function esc(s) {
+        if (!s) return '';
+        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function srLoad() {
+        const tbody = document.getElementById('srTbody');
+        if (!tbody) return;
+        try {
+            const r = await fetch('/api/admin/subroles');
+            const data = await r.json();
+            if (!data.success) {
+                tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#dc2626;">Error</td></tr>';
+                return;
+            }
+            if (!data.subroles.length) {
+                tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">No hay subroles. Agrega uno arriba ⬆</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.subroles.map(s => {
+                const sysTag = s.is_system
+                    ? '<span style="background:#e0e7ff;color:#3730a3;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700;">🔒 Sistema</span>'
+                    : '<span style="background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700;">Personalizado</span>';
+                const stateTag = s.is_active
+                    ? '<span style="background:#d1fae5;color:#065f46;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700;">Activo</span>'
+                    : '<span style="background:#f3f4f6;color:#6b7280;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700;">Inactivo</span>';
+                const toggleBtn = `<button onclick="srToggle(${s.id}, ${!s.is_active})" style="padding:5px 10px;background:${s.is_active?'#6b7280':'#16a34a'};color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:4px;font-weight:600;">${s.is_active?'⏸ Desactivar':'▶ Activar'}</button>`;
+                const delBtn = s.is_system
+                    ? ''
+                    : `<button onclick="srDelete(${s.id}, '${esc(s.name).replace(/'/g,'&#39;')}')" style="padding:5px 10px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">🗑</button>`;
+                return `
+                    <tr style="border-bottom:1px solid #f0f0f0;">
+                        <td style="padding:10px;text-align:center;font-size:22px;">${esc(s.icon)}</td>
+                        <td style="padding:10px;font-weight:600;color:#111827;">${esc(s.name)}</td>
+                        <td style="padding:10px;color:#6b7280;font-size:12px;">${esc(s.description || '—')}</td>
+                        <td style="padding:10px;text-align:center;">${sysTag}</td>
+                        <td style="padding:10px;text-align:center;">${stateTag}</td>
+                        <td style="padding:10px;text-align:center;white-space:nowrap;">${toggleBtn}${delBtn}</td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#dc2626;">' + e.message + '</td></tr>';
+        }
+    }
+
+    window.srCreate = async function() {
+        const name = document.getElementById('srNewName').value.trim();
+        const icon = document.getElementById('srNewIcon').value.trim() || '🔧';
+        const description = document.getElementById('srNewDesc').value.trim();
+        if (!name) { srShow('⚠ Nombre requerido', false); return; }
+        try {
+            const r = await fetch('/api/admin/subroles', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({name, icon, description})
+            });
+            const data = await r.json();
+            if (data.success) {
+                document.getElementById('srNewName').value = '';
+                document.getElementById('srNewDesc').value = '';
+                document.getElementById('srNewIcon').value = '🔧';
+                srShow('✓ ' + data.message, true);
+                srLoad();
+            } else {
+                srShow('✗ ' + (data.error || 'Error'), false);
+            }
+        } catch (e) {
+            srShow('✗ ' + e.message, false);
+        }
+    };
+
+    window.srToggle = async function(id, newActive) {
+        try {
+            const r = await fetch('/api/admin/subroles/' + id, {
+                method: 'PUT',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({is_active: newActive})
+            });
+            const data = await r.json();
+            if (data.success) {
+                srShow('✓ ' + data.message, true);
+                srLoad();
+            } else {
+                srShow('✗ ' + (data.error || 'Error'), false);
+            }
+        } catch (e) {
+            srShow('✗ ' + e.message, false);
+        }
+    };
+
+    window.srDelete = async function(id, name) {
+        if (!confirm('¿Eliminar subrol "' + name + '"? Esta acción no se puede deshacer.')) return;
+        try {
+            const r = await fetch('/api/admin/subroles/' + id, {method:'DELETE'});
+            const data = await r.json();
+            if (data.success) {
+                srShow('✓ ' + data.message, true);
+                srLoad();
+            } else {
+                srShow('✗ ' + (data.error || 'Error'), false);
+            }
+        } catch (e) {
+            srShow('✗ ' + e.message, false);
+        }
+    };
+
+    document.addEventListener('click', function(e) {
+        const tab = e.target.closest('.config-tab');
+        if (tab && tab.getAttribute('data-tab') === 'subroles') {
+            setTimeout(srLoad, 100);
+        }
+    });
+})();
+</script>
+
+<!-- ===== JS ROLES PERSONALIZADOS ===== -->
+<script>
+(function() {
+    function escR(s) {
+        if (!s) return '';
+        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function showRoleStatus(msg, ok) {
+        const el = document.getElementById('role-status');
+        if (!el) return;
+        el.innerHTML = ok
+            ? '<span style="color:#16a34a;">' + msg + '</span>'
+            : '<span style="color:#dc2626;">' + msg + '</span>';
+        if (ok) setTimeout(() => { el.innerHTML = ''; }, 4000);
+    }
+
+    window.loadCustomRoles = async function() {
+        const tbody = document.getElementById('custom-roles-tbody');
+        if (!tbody) return;
+        try {
+            const r = await fetch('/api/admin/custom-roles');
+            const d = await r.json();
+            if (!d.success) {
+                tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#dc2626;">Error al cargar</td></tr>';
+                return;
+            }
+            const roles = d.roles || [];
+            window._customRoleMap = null;
+            if (roles.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="padding:30px;text-align:center;color:#9ca3af;">Aún no hay roles personalizados. Crea uno en el formulario de arriba ⬆</td></tr>';
+                return;
+            }
+            const baseIcons = {admin: '👑', technician: '🔧', employee: '👤'};
+            const baseColors = {admin: '#fbbf24', technician: '#3b82f6', employee: '#6b7280'};
+            let html = '';
+            roles.forEach(role => {
+                const baseIcon = baseIcons[role.base_role] || '👤';
+                const baseColor = baseColors[role.base_role] || '#6b7280';
+                html += `
+                    <tr style="border-bottom:1px solid #f0f0f0;">
+                        <td style="padding:10px;">
+                            <span style="background:${role.color}20;color:${role.color};padding:4px 10px;border-radius:4px;font-size:12px;font-weight:700;">
+                                ${escR(role.icon || '👔')} ${escR(role.label)}
+                            </span>
+                        </td>
+                        <td style="padding:10px;font-family:monospace;font-size:12px;color:#6b7280;">${escR(role.key)}</td>
+                        <td style="padding:10px;">
+                            <span style="background:${baseColor}20;color:${baseColor};padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase;">${baseIcon} ${role.base_role}</span>
+                        </td>
+                        <td style="padding:10px;color:#374151;font-size:12px;">${escR(role.description || '')}</td>
+                        <td style="padding:10px;text-align:center;white-space:nowrap;">
+                            <button onclick="editCustomRole('${escR(role.key)}')" style="padding:5px 10px;background:#2563eb;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:4px;">✏️</button>
+                            <button onclick="deleteCustomRole('${escR(role.key)}', '${escR(role.label).replace(/'/g, "\\'")}')" style="padding:5px 10px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#dc2626;">Error: ' + e.message + '</td></tr>';
+        }
+    };
+
+    window.resetCustomRoleForm = function() {
+        document.getElementById('role-key').value = '';
+        document.getElementById('role-key').disabled = false;
+        document.getElementById('role-label').value = '';
+        document.getElementById('role-base').value = 'technician';
+        document.getElementById('role-icon').value = '👔';
+        document.getElementById('role-color').value = '#7c3aed';
+        document.getElementById('role-description').value = '';
+        document.getElementById('role-save-btn').textContent = '💾 Guardar rol';
+        showRoleStatus('', true);
+        window._editing_role_key = null;
+    };
+
+    window.saveCustomRole = async function() {
+        const data = {
+            key: document.getElementById('role-key').value.trim().toLowerCase(),
+            label: document.getElementById('role-label').value.trim(),
+            base_role: document.getElementById('role-base').value,
+            icon: document.getElementById('role-icon').value.trim() || '👔',
+            color: document.getElementById('role-color').value,
+            description: document.getElementById('role-description').value.trim()
+        };
+        if (!data.key || !data.label) {
+            showRoleStatus('⚠ Clave y etiqueta son obligatorias', false);
+            return;
+        }
+        try {
+            let url = '/api/admin/custom-roles';
+            let method = 'POST';
+            if (window._editing_role_key) {
+                url = '/api/admin/custom-roles/' + encodeURIComponent(window._editing_role_key);
+                method = 'PUT';
+            }
+            const r = await fetch(url, {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            const d = await r.json();
+            if (d.success) {
+                showRoleStatus('✓ ' + d.message, true);
+                resetCustomRoleForm();
+                loadCustomRoles();
+            } else {
+                showRoleStatus('✗ ' + (d.error || 'Error'), false);
+            }
+        } catch (e) {
+            showRoleStatus('✗ ' + e.message, false);
+        }
+    };
+
+    window.editCustomRole = async function(key) {
+        try {
+            const r = await fetch('/api/admin/custom-roles');
+            const d = await r.json();
+            const role = (d.roles || []).find(x => x.key === key);
+            if (!role) return;
+            document.getElementById('role-key').value = role.key;
+            document.getElementById('role-key').disabled = true;
+            document.getElementById('role-label').value = role.label;
+            document.getElementById('role-base').value = role.base_role;
+            document.getElementById('role-icon').value = role.icon || '👔';
+            document.getElementById('role-color').value = role.color || '#7c3aed';
+            document.getElementById('role-description').value = role.description || '';
+            document.getElementById('role-save-btn').textContent = '💾 Actualizar rol';
+            window._editing_role_key = key;
+            document.getElementById('panel-roles').scrollIntoView({behavior: 'smooth', block: 'start'});
+        } catch (e) {}
+    };
+
+    window.deleteCustomRole = async function(key, label) {
+        if (!confirm(`¿Eliminar el rol "${label}"?\n\nNo se puede si hay usuarios con este rol asignado.`)) return;
+        try {
+            const r = await fetch('/api/admin/custom-roles/' + encodeURIComponent(key), {method: 'DELETE'});
+            const d = await r.json();
+            if (d.success) {
+                showRoleStatus('✓ Rol eliminado', true);
+                loadCustomRoles();
+            } else {
+                alert(d.error || 'Error');
+            }
+        } catch (e) {
+            alert('Error: ' + e.message);
+        }
+    };
+
+    // Carga inicial + al cambiar de tab
+    document.addEventListener('DOMContentLoaded', loadCustomRoles);
+    document.addEventListener('click', function(e) {
+        const tab = e.target.closest('.config-tab');
+        if (tab && tab.getAttribute('data-tab') === 'roles') {
+            setTimeout(loadCustomRoles, 100);
+        }
+    });
+})();
+</script>
+
+<!-- ===== JS REPORTES AUTOMÁTICOS ===== -->
+<script>
+(function() {
+    function escRep(s) {
+        if (!s) return '';
+        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function repStatus(msg, ok) {
+        const el = document.getElementById('rep-status');
+        if (!el) return;
+        el.innerHTML = ok
+            ? '<span style="color:#16a34a;">' + msg + '</span>'
+            : '<span style="color:#dc2626;">' + msg + '</span>';
+        if (ok) setTimeout(() => { el.innerHTML = ''; }, 4000);
+    }
+    function repTestStatus(msg, ok) {
+        const el = document.getElementById('rep-test-status');
+        if (!el) return;
+        const color = ok ? '#16a34a' : '#dc2626';
+        el.innerHTML = `<span style="color:${color};">${msg}</span>`;
+    }
+
+    const COMPANIES = {
+        eliot: {label: '🏭 Eliot', color: '#dc2626'},
+        pash:  {label: '🟦 Pash', color: '#2563eb'},
+        primatela: {label: '🟩 Primatela', color: '#16a34a'}
+    };
+
+    window.loadRecipients = async function() {
+        const tbody = document.getElementById('recipients-tbody');
+        const testSel = document.getElementById('rep-test-recipient');
+        if (!tbody) return;
+        try {
+            const r = await fetch('/api/admin/report-recipients');
+            const d = await r.json();
+            if (!d.success) {
+                tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#dc2626;">Error al cargar</td></tr>';
+                return;
+            }
+            const list = d.recipients || [];
+            if (list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="padding:30px;text-align:center;color:#9ca3af;">Aún no hay destinatarios. Agrega uno en el formulario de arriba ⬆</td></tr>';
+                if (testSel) testSel.innerHTML = '<option value="">— No hay destinatarios activos —</option>';
+                return;
+            }
+            // Llenar dropdown de test
+            if (testSel) {
+                let opts = '<option value="">— Todos los destinatarios activos —</option>';
+                list.filter(x => x.is_active).forEach(x => {
+                    opts += `<option value="${x.id}">${escRep(x.name)} (${escRep(x.email)})</option>`;
+                });
+                testSel.innerHTML = opts;
+            }
+
+            let html = '';
+            list.forEach(rec => {
+                const comp = COMPANIES[rec.company] || {label: rec.company, color: '#6b7280'};
+                const freq = [];
+                if (rec.send_quincenal) freq.push('<span style="background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:600;">📅 Quincenal</span>');
+                if (rec.send_monthly)   freq.push('<span style="background:#dcfce7;color:#166534;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:600;">📆 Mensual</span>');
+                if (rec.send_annual)    freq.push('<span style="background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:600;">🗓️ Anual</span>');
+                const statusBadge = rec.is_active
+                    ? '<span style="background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;">ACTIVO</span>'
+                    : '<span style="background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;">INACTIVO</span>';
+
+                const teamBadge = (rec.team_size > 0)
+                    ? `<span style="background:#ede9fe;color:#6d28d9;padding:3px 9px;border-radius:10px;font-size:11px;font-weight:700;" title="Reporte filtrado a ${rec.team_size} técnico(s)">👥 ${rec.team_size}</span>`
+                    : `<span style="background:#f3f4f6;color:#6b7280;padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600;" title="Recibirá tickets de TODA la empresa">🏢 Toda empresa</span>`;
+
+                html += `
+                    <tr style="border-bottom:1px solid #f0f0f0;">
+                        <td style="padding:10px;">
+                            <div style="font-weight:600;color:#1f2937;">${escRep(rec.name)}</div>
+                            <div style="font-size:11px;color:#6b7280;">${escRep(rec.title) || '—'}</div>
+                        </td>
+                        <td style="padding:10px;font-size:12px;color:#374151;">${escRep(rec.email)}</td>
+                        <td style="padding:10px;">
+                            <span style="background:${comp.color}20;color:${comp.color};padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;">${comp.label}</span>
+                        </td>
+                        <td style="padding:10px;text-align:center;">${teamBadge}</td>
+                        <td style="padding:10px;text-align:center;">${freq.join(' ') || '<span style="color:#9ca3af;font-size:11px;">Ninguna</span>'}</td>
+                        <td style="padding:10px;text-align:center;font-size:11px;color:#6b7280;">${rec.last_sent_at || 'Nunca'}</td>
+                        <td style="padding:10px;text-align:center;">${statusBadge}</td>
+                        <td style="padding:10px;text-align:center;white-space:nowrap;">
+                            <button onclick="openTeamModal(${rec.id})" title="Asignar equipo de trabajo" style="padding:5px 10px;background:#7c3aed;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">👥</button>
+                            <button onclick="editRecipient(${rec.id})" style="padding:5px 10px;background:#2563eb;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">✏️</button>
+                            <button onclick="toggleRecipientActive(${rec.id}, ${!rec.is_active})" style="padding:5px 10px;background:${rec.is_active ? '#6b7280' : '#16a34a'};color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">${rec.is_active ? '⏸' : '▶'}</button>
+                            <button onclick="sendReportToOne(${rec.id}, '${escRep(rec.email)}')" title="Enviar ahora" style="padding:5px 10px;background:#f59e0b;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">📤</button>
+                            <button onclick="deleteRecipient(${rec.id}, '${escRep(rec.name).replace(/'/g, "\\'")}')" style="padding:5px 10px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#dc2626;">Error: ' + e.message + '</td></tr>';
+        }
+    };
+
+    window.resetRecipientForm = function() {
+        document.getElementById('rep-name').value = '';
+        document.getElementById('rep-email').value = '';
+        document.getElementById('rep-title').value = '';
+        document.getElementById('rep-company').value = 'eliot';
+        document.getElementById('rep-quincenal').checked = true;
+        document.getElementById('rep-mensual').checked = true;
+        document.getElementById('rep-anual').checked = true;
+        document.getElementById('rep-save-btn').textContent = '💾 Guardar destinatario';
+        repStatus('', true);
+        window._editing_recipient_id = null;
+    };
+
+    window.saveRecipient = async function() {
+        const data = {
+            name: document.getElementById('rep-name').value.trim(),
+            email: document.getElementById('rep-email').value.trim(),
+            title: document.getElementById('rep-title').value.trim(),
+            company: document.getElementById('rep-company').value,
+            send_quincenal: document.getElementById('rep-quincenal').checked,
+            send_monthly: document.getElementById('rep-mensual').checked,
+            send_annual: document.getElementById('rep-anual').checked,
+        };
+        if (!data.name || !data.email || !data.company) {
+            repStatus('⚠ Nombre, email y empresa son obligatorios', false);
+            return;
+        }
+        try {
+            let url = '/api/admin/report-recipients';
+            let method = 'POST';
+            if (window._editing_recipient_id) {
+                url = '/api/admin/report-recipients/' + window._editing_recipient_id;
+                method = 'PUT';
+            }
+            const r = await fetch(url, {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            const d = await r.json();
+            if (d.success) {
+                repStatus('✓ ' + d.message, true);
+                resetRecipientForm();
+                loadRecipients();
+            } else {
+                repStatus('✗ ' + (d.error || 'Error'), false);
+            }
+        } catch (e) {
+            repStatus('✗ ' + e.message, false);
+        }
+    };
+
+    window.editRecipient = async function(id) {
+        try {
+            const r = await fetch('/api/admin/report-recipients');
+            const d = await r.json();
+            const rec = (d.recipients || []).find(x => x.id === id);
+            if (!rec) return;
+            document.getElementById('rep-name').value = rec.name;
+            document.getElementById('rep-email').value = rec.email;
+            document.getElementById('rep-title').value = rec.title || '';
+            document.getElementById('rep-company').value = rec.company;
+            document.getElementById('rep-quincenal').checked = rec.send_quincenal;
+            document.getElementById('rep-mensual').checked = rec.send_monthly;
+            document.getElementById('rep-anual').checked = rec.send_annual;
+            document.getElementById('rep-save-btn').textContent = '💾 Actualizar';
+            window._editing_recipient_id = id;
+            document.getElementById('panel-reportes').scrollIntoView({behavior: 'smooth'});
+        } catch (e) {}
+    };
+
+    window.toggleRecipientActive = async function(id, newState) {
+        try {
+            await fetch('/api/admin/report-recipients/' + id, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({is_active: newState})
+            });
+            loadRecipients();
+        } catch (e) { alert('Error: ' + e.message); }
+    };
+
+    window.deleteRecipient = async function(id, name) {
+        if (!confirm(`¿Eliminar el destinatario "${name}"?`)) return;
+        try {
+            const r = await fetch('/api/admin/report-recipients/' + id, {method: 'DELETE'});
+            const d = await r.json();
+            if (d.success) {
+                loadRecipients();
+            } else {
+                alert(d.error || 'Error');
+            }
+        } catch (e) { alert('Error: ' + e.message); }
+    };
+
+    window.sendReportNow = async function() {
+        const period = document.getElementById('rep-test-period').value;
+        const recId = document.getElementById('rep-test-recipient').value;
+        repTestStatus('⏳ Generando reportes y enviando... (esto puede tardar 10-30 segundos)', true);
+        try {
+            const body = {period_type: period};
+            if (recId) body.recipient_id = parseInt(recId);
+            const r = await fetch('/api/admin/reports/send-now', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+            const d = await r.json();
+            if (d.success) {
+                const okCount = d.results.filter(x => x.success).length;
+                const failCount = d.results.length - okCount;
+                let html = `✅ ${okCount} enviado(s)`;
+                if (failCount > 0) html += `, <span style="color:#dc2626;">${failCount} falló(eron)</span>`;
+                html += '<ul style="margin:6px 0 0 18px;">';
+                d.results.forEach(rs => {
+                    const icon = rs.success ? '✓' : '✗';
+                    const color = rs.success ? '#16a34a' : '#dc2626';
+                    html += `<li style="color:${color};">${icon} ${escRep(rs.email)} [${escRep(rs.company)}]: ${escRep(rs.message)}</li>`;
+                });
+                html += '</ul>';
+                document.getElementById('rep-test-status').innerHTML = html;
+                loadRecipients();
+            } else {
+                repTestStatus('✗ ' + (d.error || 'Error'), false);
+            }
+        } catch (e) {
+            repTestStatus('✗ ' + e.message, false);
+        }
+    };
+
+    window.sendReportToOne = async function(id, email) {
+        if (!confirm(`Enviar reporte quincenal AHORA a ${email}?`)) return;
+        try {
+            const r = await fetch('/api/admin/reports/send-now', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({period_type: 'quincenal', recipient_id: id})
+            });
+            const d = await r.json();
+            if (d.success && d.results && d.results[0] && d.results[0].success) {
+                alert(`✓ Reporte enviado a ${email}`);
+                loadRecipients();
+            } else {
+                const err = (d.results && d.results[0]) ? d.results[0].message : (d.error || 'Error');
+                alert(`✗ Falló: ${err}`);
+            }
+        } catch (e) { alert('Error: ' + e.message); }
+    };
+
+    // ========= MODAL DE EQUIPO =========
+    let _teamUsers = [];
+    let _teamRecipientId = null;
+    let _teamSelected = new Set();
+
+    window.openTeamModal = async function(rid) {
+        _teamRecipientId = rid;
+        _teamSelected = new Set();
+        const modal = document.getElementById('teamModal');
+        modal.style.display = 'flex';
+        document.getElementById('teamList').innerHTML = '<p style="text-align:center;color:#999;padding:20px;">Cargando técnicos...</p>';
+        document.getElementById('teamRecipientLabel').textContent = '';
+        document.getElementById('teamSearch').value = '';
+        try {
+            const r = await fetch('/api/admin/report-recipients/' + rid + '/team');
+            const d = await r.json();
+            if (!d.success) {
+                document.getElementById('teamList').innerHTML = '<p style="color:#dc2626;text-align:center;padding:20px;">Error: ' + (d.error || 'desconocido') + '</p>';
+                return;
+            }
+            _teamUsers = d.users || [];
+            _teamSelected = new Set(d.team_user_ids || []);
+            const rec = d.recipient || {};
+            document.getElementById('teamRecipientLabel').innerHTML =
+                `<strong>${escRep(rec.name)}</strong> · Empresa: <span style="color:#7c3aed;text-transform:uppercase;font-weight:700;">${escRep(rec.company)}</span>`;
+            renderTeamList();
+        } catch (e) {
+            document.getElementById('teamList').innerHTML = '<p style="color:#dc2626;text-align:center;padding:20px;">Error: ' + e.message + '</p>';
+        }
+    };
+
+    window.closeTeamModal = function() {
+        document.getElementById('teamModal').style.display = 'none';
+    };
+
+    function renderTeamList() {
+        const list = document.getElementById('teamList');
+        const search = (document.getElementById('teamSearch').value || '').toLowerCase();
+        const filtered = _teamUsers.filter(u =>
+            !search || u.name.toLowerCase().includes(search) || (u.username || '').toLowerCase().includes(search)
+        );
+        if (filtered.length === 0) {
+            list.innerHTML = '<p style="color:#9ca3af;text-align:center;padding:20px;">No hay técnicos/admins en esta empresa.</p>';
+            updateSelectedCount();
+            return;
+        }
+        let html = '';
+        filtered.forEach(u => {
+            const checked = _teamSelected.has(u.id) ? 'checked' : '';
+            const roleIcon = u.role === 'admin' ? '👑' : '🔧';
+            const inactive = u.is_active ? '' : '<span style="color:#dc2626;font-size:10px;font-weight:700;margin-left:6px;">(INACTIVO)</span>';
+            const roleLabel = u.role_label ? `<span style="background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;margin-left:6px;">${escRep(u.role_label)}</span>` : '';
+            html += `
+                <label style="display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid #f3f4f6;cursor:pointer;${u.is_active ? '' : 'opacity:0.55;'}" onmouseover="this.style.background='#faf5ff'" onmouseout="this.style.background='white'">
+                    <input type="checkbox" data-uid="${u.id}" ${checked} onchange="toggleTeamMember(${u.id}, this.checked)" style="width:16px;height:16px;cursor:pointer;">
+                    <div style="flex:1;">
+                        <div style="font-weight:600;color:#1f2937;font-size:13px;">${roleIcon} ${escRep(u.name)} ${inactive}</div>
+                        <div style="font-size:11px;color:#6b7280;">@${escRep(u.username)} · ${escRep(u.email)} ${roleLabel}</div>
+                    </div>
+                </label>
+            `;
+        });
+        list.innerHTML = html;
+        updateSelectedCount();
+    }
+
+    window.filterTeamList = renderTeamList;
+
+    window.toggleTeamMember = function(uid, checked) {
+        if (checked) _teamSelected.add(uid);
+        else _teamSelected.delete(uid);
+        updateSelectedCount();
+    };
+
+    window.teamSelectAll = function(select) {
+        const search = (document.getElementById('teamSearch').value || '').toLowerCase();
+        _teamUsers.forEach(u => {
+            const matches = !search || u.name.toLowerCase().includes(search) || (u.username || '').toLowerCase().includes(search);
+            if (matches) {
+                if (select) _teamSelected.add(u.id);
+                else _teamSelected.delete(u.id);
+            }
+        });
+        renderTeamList();
+    };
+
+    function updateSelectedCount() {
+        const el = document.getElementById('teamSelectedCount');
+        if (el) el.textContent = `${_teamSelected.size} seleccionado${_teamSelected.size !== 1 ? 's' : ''}`;
+    }
+
+    window.saveTeamMembers = async function() {
+        if (!_teamRecipientId) return;
+        const btn = document.getElementById('teamSaveBtn');
+        btn.disabled = true; btn.textContent = '⏳ Guardando...';
+        try {
+            const r = await fetch('/api/admin/report-recipients/' + _teamRecipientId + '/team', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({team_user_ids: Array.from(_teamSelected)})
+            });
+            const d = await r.json();
+            if (d.success) {
+                closeTeamModal();
+                loadRecipients();
+            } else {
+                alert(d.error || 'Error');
+            }
+        } catch (e) {
+            alert('Error: ' + e.message);
+        } finally {
+            btn.disabled = false; btn.textContent = '💾 Guardar equipo';
+        }
+    };
+
+    // Carga inicial + al cambiar de tab
+    document.addEventListener('DOMContentLoaded', loadRecipients);
+    document.addEventListener('click', function(e) {
+        const tab = e.target.closest('.config-tab');
+        if (tab && tab.getAttribute('data-tab') === 'reportes') {
+            setTimeout(loadRecipients, 100);
+        }
+    });
+})();
+</script>
+
+<!-- ===== JS MAILBOXES ===== -->
+<script>
+(function() {
+    function mbShow(msg, ok) {
+        const el = document.getElementById('mbStatus');
+        if (!el) return;
+        el.innerHTML = ok ? '<span style="color:#16a34a;">' + msg + '</span>' : '<span style="color:#dc2626;">' + msg + '</span>';
+        if (ok) setTimeout(() => { el.innerHTML = ''; }, 5000);
+    }
+    function escMb(s) {
+        if (!s) return '';
+        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function mbLoad() {
+        const list = document.getElementById('mbList');
+        try {
+            const r = await fetch('/api/admin/mailboxes');
+            const data = await r.json();
+            if (!data.success) {
+                list.innerHTML = '<p style="color:#dc2626;padding:20px;text-align:center;">Error</p>';
+                return;
+            }
+            if (!data.mailboxes.length) {
+                list.innerHTML = '<div style="text-align:center;padding:30px;color:#999;background:#f9fafb;border-radius:8px;border:2px dashed #d1d5db;">No hay buzones configurados. Agrega uno arriba ⬆</div>';
+                return;
+            }
+            list.innerHTML = data.mailboxes.map(m => {
+                const statusBadge = m.is_active
+                    ? '<span style="background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">ACTIVO</span>'
+                    : '<span style="background:#f3f4f6;color:#6b7280;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">PAUSADO</span>';
+                const healthBadge = !m.last_check_at
+                    ? '<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;">Nunca verificado</span>'
+                    : m.last_status === 'ok'
+                        ? '<span style="background:#dbeafe;color:#1e40af;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;">✓ OK · ' + escMb(m.last_check_at) + '</span>'
+                        : '<span style="background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;" title="' + escMb(m.last_error||'') + '">⚠ Error</span>';
+                return `
+                    <div style="background:white;border:1px solid #e5e7eb;border-left:4px solid ${m.is_active?'#16a34a':'#9ca3af'};border-radius:8px;padding:16px;margin-bottom:12px;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+                            <div style="flex:1;min-width:280px;">
+                                <div style="font-size:16px;font-weight:700;color:#111827;margin-bottom:4px;">
+                                    📥 ${escMb(m.name)} ${statusBadge}
+                                </div>
+                                <div style="font-size:12px;color:#6b7280;">
+                                    <strong>Servidor:</strong> ${escMb(m.imap_host)}:${m.imap_port} ${m.use_ssl ? '🔒 SSL' : '⚠ Sin SSL'}<br>
+                                    <strong>Usuario:</strong> ${escMb(m.imap_user)} · <strong>Carpeta:</strong> ${escMb(m.folder)}<br>
+                                    <strong>Polling:</strong> cada ${m.poll_interval_minutes} min · <strong>Prioridad por defecto:</strong> ${escMb(m.default_priority)} · <strong>Categoría:</strong> ${escMb(m.default_category)}
+                                </div>
+                                <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+                                    ${healthBadge}
+                                    <span style="background:#e0e7ff;color:#3730a3;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;">🎫 ${m.tickets_created} tickets creados</span>
+                                </div>
+                                ${m.last_error ? `<div style="margin-top:6px;font-size:11px;color:#dc2626;font-family:monospace;background:#fef2f2;padding:6px 8px;border-radius:4px;">${escMb(m.last_error)}</div>` : ''}
+                            </div>
+                            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                                <button onclick="mbTest(${m.id})" style="padding:6px 12px;background:#2563eb;color:white;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;">🔌 Probar</button>
+                                <button onclick="mbEdit(${m.id})" style="padding:6px 12px;background:#0ea5e9;color:white;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;">✏️ Editar</button>
+                                <button onclick="mbSync(${m.id})" style="padding:6px 12px;background:#7c3aed;color:white;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;">🔄 Sincronizar</button>
+                                <button onclick="mbToggle(${m.id}, ${!m.is_active})" style="padding:6px 12px;background:${m.is_active?'#6b7280':'#16a34a'};color:white;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;">${m.is_active?'⏸ Pausar':'▶ Activar'}</button>
+                                <button onclick="mbDelete(${m.id}, '${escMb(m.name).replace(/'/g,'&#39;')}')" style="padding:6px 12px;background:#dc2626;color:white;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;">🗑️ Eliminar</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } catch (e) {
+            list.innerHTML = '<p style="color:#dc2626;padding:20px;text-align:center;">' + e.message + '</p>';
+        }
+    }
+
+    // Toggle entre Password / OAuth
+    window.mbToggleAuth = function() {
+        const at = document.getElementById('mbAuthType').value;
+        document.getElementById('mbPassBlock').style.display  = at === 'password' ? '' : 'none';
+        document.getElementById('mbOAuthBlock').style.display = at === 'oauth2'   ? '' : 'none';
+    };
+
+    window.mbCreate = async function() {
+        const authType = document.getElementById('mbAuthType').value;
+        const data = {
+            name: document.getElementById('mbName').value.trim(),
+            imap_host: document.getElementById('mbHost').value.trim(),
+            imap_port: parseInt(document.getElementById('mbPort').value) || 993,
+            use_ssl: document.getElementById('mbSSL').value === 'true',
+            imap_user: document.getElementById('mbUser').value.trim(),
+            folder: document.getElementById('mbFolder').value.trim() || 'INBOX',
+            poll_interval_minutes: parseInt(document.getElementById('mbInterval').value) || 5,
+            default_priority: document.getElementById('mbPriority').value,
+            default_category: document.getElementById('mbCategory').value.trim() || 'Email',
+            auth_type: authType,
+        };
+
+        if (authType === 'oauth2') {
+            data.oauth_tenant_id = document.getElementById('mbOAuthTenant').value.trim();
+            data.oauth_client_id = document.getElementById('mbOAuthClient').value.trim();
+            data.oauth_client_secret = document.getElementById('mbOAuthSecret').value.trim();
+            data.imap_password = '';  // ignorado en OAuth
+            if (!data.name || !data.imap_host || !data.imap_user || !data.oauth_tenant_id || !data.oauth_client_id || !data.oauth_client_secret) {
+                mbShow('⚠ Para OAuth completá nombre, host, usuario, tenant, client ID y client secret', false);
+                return;
+            }
+        } else {
+            data.imap_password = document.getElementById('mbPass').value;
+            if (!data.name || !data.imap_host || !data.imap_user || !data.imap_password) {
+                mbShow('⚠ Completa los campos obligatorios', false);
+                return;
+            }
+        }
+
+        try {
+            const r = await fetch('/api/admin/mailboxes', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify(data)
+            });
+            const res = await r.json();
+            if (res.success) {
+                mbShow('✓ ' + res.message, true);
+                ['mbName','mbHost','mbUser','mbPass','mbCategory','mbOAuthTenant','mbOAuthClient','mbOAuthSecret']
+                    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+                document.getElementById('mbFolder').value = 'INBOX';
+                document.getElementById('mbPort').value = 993;
+                document.getElementById('mbInterval').value = 5;
+                document.getElementById('mbAuthType').value = 'password';
+                mbToggleAuth();
+                mbLoad();
+            } else {
+                mbShow('✗ ' + (res.error || 'Error'), false);
+            }
+        } catch (e) {
+            mbShow('✗ ' + e.message, false);
+        }
+    };
+
+    // ───── EDITAR BUZÓN EXISTENTE ─────
+    window.mbEditToggleAuth = function() {
+        const at = document.getElementById('mbEditAuthType').value;
+        document.getElementById('mbEditPassBlock').style.display  = at === 'password' ? '' : 'none';
+        document.getElementById('mbEditOAuthBlock').style.display = at === 'oauth2'   ? '' : 'none';
+    };
+
+    window.mbEdit = async function(id) {
+        try {
+            const r = await fetch('/api/admin/mailboxes');
+            const data = await r.json();
+            if (!data.success) { alert('Error al cargar buzones'); return; }
+            const mb = (data.mailboxes || []).find(x => x.id === id);
+            if (!mb) { alert('Buzón no encontrado'); return; }
+
+            // Llenar el formulario
+            document.getElementById('mbEditIdField').value = mb.id;
+            document.getElementById('mbEditId').textContent = '(ID #' + mb.id + ')';
+            document.getElementById('mbEditName').value = mb.name || '';
+            document.getElementById('mbEditHost').value = mb.imap_host || '';
+            document.getElementById('mbEditPort').value = mb.imap_port || 993;
+            document.getElementById('mbEditSSL').value = mb.use_ssl ? 'true' : 'false';
+            document.getElementById('mbEditUser').value = mb.imap_user || '';
+            document.getElementById('mbEditFolder').value = mb.folder || 'INBOX';
+            document.getElementById('mbEditInterval').value = mb.poll_interval_minutes || 5;
+            document.getElementById('mbEditPriority').value = mb.default_priority || 'medium';
+            document.getElementById('mbEditCategory').value = mb.default_category || 'Email';
+            document.getElementById('mbEditAuthType').value = mb.auth_type || 'password';
+            document.getElementById('mbEditOAuthTenant').value = mb.oauth_tenant_id || '';
+            document.getElementById('mbEditOAuthClient').value = mb.oauth_client_id || '';
+
+            // Limpiar campos sensibles (vacíos = no cambiar)
+            document.getElementById('mbEditPass').value = '';
+            document.getElementById('mbEditOAuthSecret').value = '';
+
+            // Notas según si ya tiene credenciales guardadas
+            document.getElementById('mbEditPassNote').textContent = mb.has_password
+                ? '(ya hay una guardada — dejar vacío para no cambiar)'
+                : '(no hay contraseña guardada todavía)';
+            document.getElementById('mbEditOAuthSecretNote').textContent = mb.has_oauth_secret
+                ? '(ya hay uno guardado — vacío = no cambiar)'
+                : '(no hay secret guardado todavía)';
+
+            // Toggle visibilidad de auth blocks
+            mbEditToggleAuth();
+
+            // Limpiar status
+            document.getElementById('mbEditStatus').innerHTML = '';
+
+            // Mostrar modal
+            document.getElementById('mbEditModal').style.display = 'flex';
+        } catch (e) {
+            alert('Error: ' + e.message);
+        }
+    };
+
+    window.mbEditSave = async function() {
+        const id = document.getElementById('mbEditIdField').value;
+        if (!id) return;
+        const statusEl = document.getElementById('mbEditStatus');
+        statusEl.innerHTML = '<span style="color:#6b7280;">⏳ Guardando...</span>';
+
+        const authType = document.getElementById('mbEditAuthType').value;
+        const data = {
+            name: document.getElementById('mbEditName').value.trim(),
+            imap_host: document.getElementById('mbEditHost').value.trim(),
+            imap_port: parseInt(document.getElementById('mbEditPort').value) || 993,
+            use_ssl: document.getElementById('mbEditSSL').value === 'true',
+            imap_user: document.getElementById('mbEditUser').value.trim(),
+            folder: document.getElementById('mbEditFolder').value.trim() || 'INBOX',
+            poll_interval_minutes: parseInt(document.getElementById('mbEditInterval').value) || 5,
+            default_priority: document.getElementById('mbEditPriority').value,
+            default_category: document.getElementById('mbEditCategory').value.trim() || 'Email',
+            auth_type: authType,
+            oauth_tenant_id: document.getElementById('mbEditOAuthTenant').value.trim(),
+            oauth_client_id: document.getElementById('mbEditOAuthClient').value.trim(),
+        };
+        // Solo enviar contraseña/secret si hay nuevo valor (sino el backend conserva el actual)
+        const newPass = document.getElementById('mbEditPass').value;
+        if (newPass) data.imap_password = newPass;
+        const newSecret = document.getElementById('mbEditOAuthSecret').value;
+        if (newSecret) data.oauth_client_secret = newSecret;
+
+        if (!data.name || !data.imap_host || !data.imap_user) {
+            statusEl.innerHTML = '<span style="color:#dc2626;">⚠ Nombre, host y usuario son obligatorios</span>';
+            return;
+        }
+
+        try {
+            const r = await fetch('/api/admin/mailboxes/' + id, {
+                method: 'PUT',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify(data)
+            });
+            const res = await r.json();
+            if (res.success) {
+                statusEl.innerHTML = '<span style="color:#16a34a;">✓ ' + res.message + '</span>';
+                setTimeout(() => {
+                    document.getElementById('mbEditModal').style.display = 'none';
+                    mbLoad();
+                }, 600);
+            } else {
+                statusEl.innerHTML = '<span style="color:#dc2626;">✗ ' + (res.error || 'Error') + '</span>';
+            }
+        } catch (e) {
+            statusEl.innerHTML = '<span style="color:#dc2626;">✗ ' + e.message + '</span>';
+        }
+    };
+
+    window.mbTest = async function(id) {
+        // Mostrar modal de diagnóstico ANTES de la prueba
+        _showMbTestModal('⏳ Probando conexión...', null, null, null);
+        try {
+            const r = await fetch('/api/admin/mailboxes/' + id + '/test', {method:'POST'});
+            const data = await r.json();
+            if (data.success) {
+                _showMbTestModal(
+                    'success',
+                    {
+                        title: '✅ Conexión exitosa',
+                        message: data.message,
+                        unread: data.unread, total: data.total
+                    },
+                    null,
+                    data.context
+                );
+            } else {
+                _showMbTestModal('error', null, data.diagnosis, data.context);
+            }
+        } catch (e) {
+            _showMbTestModal('error', null, {
+                category: 'Error de red', title: '❌ No se pudo contactar al servidor DeskEli',
+                explanation: e.message,
+                next_steps: ['Verificá tu conexión a internet y que el servidor de DeskEli esté corriendo.'],
+                raw: ''
+            }, null);
+        }
+    };
+
+    // Modal de diagnóstico de buzones
+    function _showMbTestModal(state, success, diag, context) {
+        let modal = document.getElementById('mbTestModal');
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.id = 'mbTestModal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+        let bodyHtml = '';
+        if (state === '⏳ Probando conexión...') {
+            bodyHtml = '<div style="text-align:center;padding:30px;font-size:16px;color:#374151;">⏳ Probando conexión...</div>';
+        } else if (state === 'success') {
+            const s = success || {};
+            bodyHtml = `
+                <div style="background:linear-gradient(135deg,#d1fae5,#a7f3d0);padding:18px;border-radius:8px;margin-bottom:14px;">
+                    <div style="font-size:20px;font-weight:800;color:#065f46;">${s.title}</div>
+                    <div style="font-size:13px;color:#047857;margin-top:6px;">${(s.message||'').replace(/</g,'&lt;')}</div>
+                </div>
+                <div style="background:#f0fdf4;padding:14px;border-radius:6px;border:1px solid #6ee7b7;">
+                    <div style="font-size:13px;color:#065f46;"><strong>📬 ${s.unread||0}</strong> correos no leídos de <strong>${s.total||0}</strong> totales en la carpeta.</div>
+                </div>`;
+        } else {
+            // error
+            const d = diag || {};
+            const steps = (d.next_steps || []).map(s => `<div style="padding:8px 10px;background:white;border-left:3px solid #2563eb;border-radius:4px;margin-bottom:6px;font-size:12.5px;color:#1f2937;font-family:${s.startsWith('  ') || s.includes('PowerShell') || s.includes('Connect-') || s.includes('Set-') || s.includes('Add-') ? 'Consolas, monospace' : 'inherit'};white-space:pre-wrap;">${(s).replace(/</g,'&lt;')}</div>`).join('');
+            bodyHtml = `
+                <div style="background:linear-gradient(135deg,#fee2e2,#fecaca);padding:14px;border-radius:8px;margin-bottom:14px;">
+                    <div style="font-size:11px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">
+                        ${(d.category||'Error').replace(/</g,'&lt;')}
+                    </div>
+                    <div style="font-size:17px;font-weight:800;color:#7f1d1d;margin-bottom:6px;">
+                        ${(d.title||'Error').replace(/</g,'&lt;')}
+                    </div>
+                    <div style="font-size:13px;color:#991b1b;line-height:1.55;">
+                        ${(d.explanation||'').replace(/</g,'&lt;')}
+                    </div>
+                </div>
+                ${steps ? `
+                <div style="margin-bottom:14px;">
+                    <div style="font-size:12px;font-weight:700;color:#1e3a8a;margin-bottom:8px;">🎯 PASOS PARA SOLUCIONAR:</div>
+                    ${steps}
+                </div>` : ''}
+                ${d.raw ? `
+                <details style="margin-top:10px;">
+                    <summary style="cursor:pointer;font-size:12px;color:#6b7280;font-weight:600;">🔧 Detalle técnico (para soporte)</summary>
+                    <pre style="background:#1f2937;color:#f3f4f6;padding:10px;border-radius:4px;font-size:11px;margin-top:6px;white-space:pre-wrap;word-break:break-word;">${(d.raw||'').replace(/</g,'&lt;')}</pre>
+                </details>` : ''}
+            `;
+        }
+
+        // Contexto (datos del buzón)
+        let ctxHtml = '';
+        if (context) {
+            ctxHtml = `
+                <details style="margin-top:14px;">
+                    <summary style="cursor:pointer;font-size:12px;color:#6b7280;font-weight:600;">📋 Datos del buzón probados</summary>
+                    <div style="background:#f9fafb;padding:10px;border-radius:4px;margin-top:6px;font-size:12px;color:#374151;font-family:monospace;">
+                        Host: ${context.host}<br>
+                        Puerto: ${context.port}<br>
+                        SSL: ${context.ssl ? 'Sí' : 'No'}<br>
+                        Usuario: ${context.user}<br>
+                        Carpeta: ${context.folder}<br>
+                        Autenticación: ${context.auth_type}
+                    </div>
+                </details>`;
+        }
+
+        modal.innerHTML = `
+            <div style="background:white;border-radius:12px;padding:24px;max-width:680px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:1px solid #e5e7eb;padding-bottom:10px;">
+                    <h3 style="margin:0;color:#1f2937;">🔬 Diagnóstico del Buzón</h3>
+                    <button onclick="document.getElementById('mbTestModal').remove()" style="background:none;border:none;font-size:28px;cursor:pointer;color:#6b7280;line-height:1;">×</button>
+                </div>
+                ${bodyHtml}
+                ${ctxHtml}
+                <div style="display:flex;justify-content:flex-end;margin-top:18px;">
+                    <button onclick="document.getElementById('mbTestModal').remove()" style="padding:9px 18px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;">Entendido</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    }
+
+    window.mbSync = async function(id) {
+        if (!confirm('¿Sincronizar ahora? El sistema leerá los correos no leídos y creará tickets.')) return;
+        try {
+            const r = await fetch('/api/admin/mailboxes/' + id + '/sync', {method:'POST'});
+            const data = await r.json();
+            if (data.success) {
+                alert('✓ ' + data.message);
+                mbLoad();
+            } else {
+                alert('✗ ' + data.error);
+            }
+        } catch (e) { alert('✗ ' + e.message); }
+    };
+
+    window.mbToggle = async function(id, newActive) {
+        try {
+            const r = await fetch('/api/admin/mailboxes/' + id, {
+                method: 'PUT',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({is_active: newActive})
+            });
+            const data = await r.json();
+            if (data.success) mbLoad();
+            else alert('✗ ' + data.error);
+        } catch (e) { alert('✗ ' + e.message); }
+    };
+
+    window.mbDelete = async function(id, name) {
+        if (!confirm('¿Eliminar el buzón "' + name + '"?\nSe perderá todo el histórico de correos procesados.')) return;
+        try {
+            const r = await fetch('/api/admin/mailboxes/' + id, {method:'DELETE'});
+            const data = await r.json();
+            if (data.success) {
+                mbShow('✓ ' + data.message, true);
+                mbLoad();
+            } else {
+                alert('✗ ' + data.error);
+            }
+        } catch (e) { alert('✗ ' + e.message); }
+    };
+
+    document.addEventListener('click', function(e) {
+        const tab = e.target.closest('.config-tab');
+        if (tab && tab.getAttribute('data-tab') === 'mailboxes') {
+            setTimeout(mbLoad, 100);
+        }
+    });
+})();
+</script>
+
+<!-- ===== JS HORARIO LABORAL ===== -->
+<script>
+(function() {
+    const DAYS = [
+        {iso: 1, label: 'Lunes', short: 'Lun'},
+        {iso: 2, label: 'Martes', short: 'Mar'},
+        {iso: 3, label: 'Miércoles', short: 'Mié'},
+        {iso: 4, label: 'Jueves', short: 'Jue'},
+        {iso: 5, label: 'Viernes', short: 'Vie'},
+        {iso: 6, label: 'Sábado', short: 'Sáb'},
+        {iso: 7, label: 'Domingo', short: 'Dom'}
+    ];
+    let _schedule = {
+        1: {enabled: true, start: '08:00', end: '18:00'},
+        2: {enabled: true, start: '08:00', end: '18:00'},
+        3: {enabled: true, start: '08:00', end: '18:00'},
+        4: {enabled: true, start: '08:00', end: '18:00'},
+        5: {enabled: true, start: '08:00', end: '18:00'},
+        6: {enabled: false, start: '09:00', end: '13:00'},
+        7: {enabled: false, start: '08:00', end: '18:00'}
+    };
+    let _holidays = [];
+
+    function renderSchedule() {
+        const cont = document.getElementById('bizScheduleGrid');
+        if (!cont) return;
+        cont.innerHTML = DAYS.map(d => {
+            const day = _schedule[d.iso] || {enabled: false, start: '08:00', end: '18:00'};
+            const active = day.enabled;
+            const inputsDisabled = active ? '' : 'disabled';
+            const inputOpacity = active ? '1' : '0.5';
+            return `
+                <div style="display:grid;grid-template-columns:120px 60px 1fr 1fr;gap:10px;align-items:center;background:white;border:1px solid ${active?'#bfdbfe':'#e5e7eb'};border-left:4px solid ${active?'#2563eb':'#9ca3af'};padding:10px 14px;border-radius:6px;">
+                    <div style="font-weight:700;color:${active?'#111827':'#9ca3af'};">${d.label}</div>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:${active?'#065f46':'#6b7280'};">
+                        <input type="checkbox" ${active?'checked':''} onchange="bizDayToggle(${d.iso}, this.checked)" style="width:16px;height:16px;cursor:pointer;">
+                        ${active ? '✓' : 'Off'}
+                    </label>
+                    <div style="display:flex;align-items:center;gap:6px;opacity:${inputOpacity};">
+                        <span style="font-size:12px;color:#6b7280;">Desde:</span>
+                        <input type="time" value="${day.start}" ${inputsDisabled} onchange="bizDayTime(${d.iso}, 'start', this.value)" style="padding:6px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;width:100%;">
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;opacity:${inputOpacity};">
+                        <span style="font-size:12px;color:#6b7280;">Hasta:</span>
+                        <input type="time" value="${day.end}" ${inputsDisabled} onchange="bizDayTime(${d.iso}, 'end', this.value)" style="padding:6px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;width:100%;">
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    window.bizDayToggle = function(iso, enabled) {
+        _schedule[iso].enabled = enabled;
+        renderSchedule();
+    };
+    window.bizDayTime = function(iso, field, val) {
+        _schedule[iso][field] = val;
+    };
+
+    function renderHolidays() {
+        const cont = document.getElementById('bizHolidaysList');
+        if (!cont) return;
+        if (_holidays.length === 0) {
+            cont.innerHTML = '<span style="color:#9ca3af;font-size:12px;font-style:italic;">Sin feriados configurados</span>';
+            return;
+        }
+        cont.innerHTML = _holidays.sort().map((h, i) => `
+            <span style="background:#fef3c7;border:1px solid #f59e0b;color:#92400e;padding:4px 10px;border-radius:14px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px;">
+                🎉 ${h}
+                <button type="button" onclick="removeHoliday(${i})" style="background:none;border:none;color:#92400e;cursor:pointer;font-weight:bold;padding:0 0 0 4px;font-size:14px;">×</button>
+            </span>
+        `).join('');
+    }
+
+    window.addHoliday = function() {
+        const inp = document.getElementById('bizHolidayInput');
+        const val = inp.value.trim();
+        if (!val) return;
+        if (!_holidays.includes(val)) _holidays.push(val);
+        inp.value = '';
+        renderHolidays();
+    };
+
+    window.removeHoliday = function(idx) {
+        _holidays.splice(idx, 1);
+        renderHolidays();
+    };
+
+    async function loadBusinessHours() {
+        try {
+            const r = await fetch('/api/config/business-hours');
+            const data = await r.json();
+            if (!data.success) return;
+            document.getElementById('bizEnabled').checked = !!data.enabled;
+            if (data.schedule) {
+                for (let iso = 1; iso <= 7; iso++) {
+                    const day = data.schedule[String(iso)] || data.schedule[iso];
+                    if (day) {
+                        _schedule[iso] = {
+                            enabled: !!day.enabled,
+                            start: day.start || '08:00',
+                            end: day.end || '18:00'
+                        };
+                    }
+                }
+            }
+            _holidays = (data.holidays || '').split(',').map(h => h.trim()).filter(Boolean);
+            renderSchedule();
+            renderHolidays();
+        } catch (e) {
+            console.error('loadBusinessHours:', e);
+        }
+    }
+
+    window.saveBusinessHours = async function() {
+        const payload = {
+            enabled: document.getElementById('bizEnabled').checked,
+            schedule: _schedule,
+            holidays: _holidays.join(',')
+        };
+        const status = document.getElementById('bizStatus');
+        status.innerHTML = '<span style="color:#6b7280;">⏳ Guardando...</span>';
+        try {
+            const r = await fetch('/api/config/business-hours', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await r.json();
+            if (data.success) {
+                status.innerHTML = '<span style="color:#16a34a;font-weight:700;">✓ ' + data.message + '</span>';
+                setTimeout(() => { status.innerHTML = ''; }, 4000);
+            } else {
+                status.innerHTML = '<span style="color:#dc2626;">✗ ' + (data.error || 'Error') + '</span>';
+            }
+        } catch (e) {
+            status.innerHTML = '<span style="color:#dc2626;">✗ ' + e.message + '</span>';
+        }
+    };
+
+    document.addEventListener('click', function(e) {
+        const tab = e.target.closest('.config-tab');
+        if (tab && tab.getAttribute('data-tab') === 'business') {
+            setTimeout(loadBusinessHours, 100);
+        }
+    });
+
+    // Cargar también al inicio
+    document.addEventListener('DOMContentLoaded', () => {
+        if (document.getElementById('bizEnabled')) loadBusinessHours();
+    });
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pitch - TicketDesk Enterprise | Jonathan Qutian</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%);
+            min-height: 100vh;
+            color: white;
+            overflow-x: hidden;
+        }
+
+        /* ====== TIMER GLOBAL ====== */
+        .global-timer {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            padding: 12px 20px;
+            border-radius: 30px;
+            font-size: 18px;
+            font-weight: bold;
+            z-index: 1000;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .timer-controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 8px;
+            z-index: 1000;
+        }
+
+        .timer-btn {
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        .timer-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: scale(1.05);
+        }
+
+        .timer-btn.active {
+            background: #16a34a;
+            border-color: #16a34a;
+        }
+
+        /* ====== PROGRESO ====== */
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 5px;
+            background: linear-gradient(90deg, #fbbf24, #f59e0b, #16a34a);
+            width: 0%;
+            transition: width 0.5s;
+            z-index: 1001;
+        }
+
+        /* ====== CONTAINER ====== */
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 80px 30px 60px;
+        }
+
+        /* ====== HERO ====== */
+        .hero {
+            text-align: center;
+            padding: 60px 20px 50px;
+            margin-bottom: 50px;
+        }
+
+        .hero h1 {
+            font-size: 64px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #fbbf24, #ec4899, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 15px;
+            line-height: 1.1;
+        }
+
+        .hero .subtitle {
+            font-size: 24px;
+            opacity: 0.9;
+            margin-bottom: 30px;
+        }
+
+        .hero .meta {
+            display: inline-flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .meta-badge {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 14px;
+        }
+
+        /* ====== SECCIONES ====== */
+        .section {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 45px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            position: relative;
+            transition: all 0.4s;
+            scroll-margin-top: 100px;
+        }
+
+        .section.active {
+            transform: scale(1.02);
+            box-shadow: 0 30px 80px rgba(251, 191, 36, 0.3);
+            border-color: rgba(251, 191, 36, 0.5);
+        }
+
+        .section.done {
+            opacity: 0.7;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .section-time {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .time-badge {
+            font-size: 36px;
+            font-weight: 900;
+            color: #fbbf24;
+            text-shadow: 0 2px 12px rgba(251, 191, 36, 0.5);
+        }
+
+        .time-label {
+            font-size: 13px;
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: -5px;
+        }
+
+        .section-title {
+            font-size: 32px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .word-count {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid rgba(251, 191, 36, 0.3);
+        }
+
+        /* ====== CONTENIDO DEL PITCH ====== */
+        .pitch-text {
+            font-size: 22px;
+            line-height: 1.7;
+            color: rgba(255, 255, 255, 0.95);
+            font-weight: 400;
+        }
+
+        .pitch-text strong {
+            color: #fbbf24;
+            font-weight: 700;
+        }
+
+        .pitch-text em {
+            color: #f0abfc;
+            font-style: italic;
+        }
+
+        .pitch-text .highlight-number {
+            background: linear-gradient(135deg, #ec4899, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 800;
+            font-size: 1.1em;
+        }
+
+        .pitch-text p {
+            margin-bottom: 18px;
+        }
+
+        .pitch-text p:last-child {
+            margin-bottom: 0;
+        }
+
+        .pause-note {
+            display: inline-block;
+            background: rgba(245, 158, 11, 0.2);
+            color: #fbbf24;
+            padding: 8px 16px;
+            border-radius: 12px;
+            font-size: 16px;
+            margin-top: 20px;
+            border: 1px dashed rgba(251, 191, 36, 0.4);
+        }
+
+        /* ====== SECCIÓN PROGRESS ====== */
+        .section-progress {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 24px 24px 0 0;
+            overflow: hidden;
+        }
+
+        .section-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #fbbf24, #16a34a);
+            width: 0%;
+            transition: width 1s linear;
+        }
+
+        /* ====== STATS ====== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .stat-pill {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 18px 20px;
+            border-radius: 16px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-pill-num {
+            font-size: 30px;
+            font-weight: 900;
+            color: #fbbf24;
+            line-height: 1;
+            margin-bottom: 5px;
+        }
+
+        .stat-pill-label {
+            font-size: 12px;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* ====== CIERRE ====== */
+        .closing {
+            text-align: center;
+            padding: 70px 30px;
+            background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(236, 72, 153, 0.15));
+            border-radius: 24px;
+            margin-top: 50px;
+            border: 2px solid rgba(251, 191, 36, 0.3);
+        }
+
+        .closing h2 {
+            font-size: 42px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #fbbf24, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .closing p {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+
+        .signature {
+            margin-top: 30px;
+            font-size: 22px;
+            font-weight: 700;
+            color: #fbbf24;
+        }
+
+        /* ====== ANIMACIONES ====== */
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 30px 80px rgba(251, 191, 36, 0.3); }
+            50% { box-shadow: 0 30px 100px rgba(251, 191, 36, 0.6); }
+        }
+
+        .section.active {
+            animation: pulse-glow 2s infinite;
+        }
+
+        @keyframes count-up {
+            from { transform: scale(0.5); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .time-badge.counting {
+            animation: count-up 0.3s ease-out;
+        }
+
+        /* ====== RESPONSIVE ====== */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 40px; }
+            .section { padding: 30px 25px; }
+            .section-title { font-size: 22px; }
+            .pitch-text { font-size: 17px; }
+            .time-badge { font-size: 28px; }
+            .timer-controls { left: 10px; }
+            .global-timer { right: 10px; }
+        }
+
+        /* ====== PRINT ====== */
+        @media print {
+            body { background: white; color: black; }
+            .global-timer, .timer-controls, .progress-bar { display: none; }
+            .section { break-inside: avoid; background: white !important; color: black !important; border: 1px solid #ddd; }
+            .pitch-text { color: black; }
+            .pitch-text strong { color: #b45309; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Barra de progreso global -->
+<div class="progress-bar" id="progressBar"></div>
+
+<!-- Controles de timer -->
+<div class="timer-controls">
+    <button class="timer-btn" id="btnStart" onclick="startPitch()">▶️ Iniciar Pitch</button>
+    <button class="timer-btn" onclick="resetPitch()">🔄 Reiniciar</button>
+    <button class="timer-btn" onclick="window.print()">🖨️ Imprimir</button>
+</div>
+
+<!-- Timer global -->
+<div class="global-timer">
+    ⏱️ <span id="globalTime">0:00</span> / 3:00
+</div>
+
+<div class="container">
+
+    <!-- HERO -->
+    <div class="hero">
+        <h1>🎫 TicketDesk<br>Enterprise</h1>
+        <p class="subtitle">Pitch de 3 minutos</p>
+        <div class="meta">
+            <div class="meta-badge">👤 Jonathan Qutian</div>
+            <div class="meta-badge">🏗️ Ingeniero Infraestructura</div>
+            <div class="meta-badge">⏱️ 180 segundos</div>
+            <div class="meta-badge">🎯 ~420 palabras</div>
+        </div>
+    </div>
+
+    <!-- SECCIÓN 1: PROBLEMA -->
+    <div class="section" id="section-1" data-duration="30">
+        <div class="section-progress"><div class="section-progress-fill" id="progress-1"></div></div>
+        <div class="section-header">
+            <div class="section-time">
+                <div>
+                    <div class="time-badge">30s</div>
+                    <div class="time-label">Segundos</div>
+                </div>
+                <div>
+                    <div class="section-title">¿Cuál es mi problema? 🔴</div>
+                </div>
+            </div>
+            <div class="word-count">~70 palabras</div>
+        </div>
+
+        <div class="pitch-text">
+            <p>"Imaginen tres empresas: <strong>Manufacturas Eliot</strong>, <strong>Pash</strong> y <strong>Primatela</strong>. Juntas tienen <span class="highlight-number">8,000 empleados</span> que día a día reportan problemas técnicos —desde un Outlook que no abre hasta un servidor SAP caído— por <em>correo, WhatsApp y llamadas</em>."</p>
+
+            <p>"Los <span class="highlight-number">100 técnicos de TI</span> pierden tiempo persiguiendo tickets desordenados, sin medir tiempos de respuesta, sin saber qué se resolvió primero."</p>
+
+            <p><strong>"El caos cuesta dinero, frustra usuarios y oculta los problemas reales."</strong></p>
+
+            <div class="pause-note">⏸️ Pausa breve para impacto</div>
+        </div>
+    </div>
+
+    <!-- SECCIÓN 2: QUÉ CONSTRUÍ -->
+    <div class="section" id="section-2" data-duration="45">
+        <div class="section-progress"><div class="section-progress-fill" id="progress-2"></div></div>
+        <div class="section-header">
+            <div class="section-time">
+                <div>
+                    <div class="time-badge">45s</div>
+                    <div class="time-label">Segundos</div>
+                </div>
+                <div>
+                    <div class="section-title">¿Qué construí? 🛠️</div>
+                </div>
+            </div>
+            <div class="word-count">~105 palabras</div>
+        </div>
+
+        <div class="pitch-text">
+            <p>"Construí <strong>TicketDesk Enterprise</strong>, una plataforma web <em>multi-empresa</em> que centraliza todo el soporte técnico."</p>
+
+            <p>"Tiene <strong>tres portales</strong>: uno para <em>empleados</em> que crean tickets, uno para <em>técnicos</em> con su cola de trabajo y SLA, y uno para <em>administradores</em> con dashboards, Kanban interactivo, métricas en tiempo real y monitor de servidores con <strong>alarmas automáticas</strong>."</p>
+
+            <p>"Incluye un bot llamado <strong>Eli</strong> que responde preguntas frecuentes desde una base de conocimiento de <span class="highlight-number">56 soluciones</span>, un sistema de <span class="highlight-number">4 agentes de IA</span> que clasifican, asignan y escalan tickets automáticamente, integración con <em>Active Directory</em> y <em>Microsoft Teams</em>, y un buscador instantáneo que encuentra cualquier ticket en milisegundos."</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-pill"><div class="stat-pill-num">3</div><div class="stat-pill-label">Portales</div></div>
+            <div class="stat-pill"><div class="stat-pill-num">4</div><div class="stat-pill-label">Agentes IA</div></div>
+            <div class="stat-pill"><div class="stat-pill-num">56</div><div class="stat-pill-label">Soluciones Bot</div></div>
+            <div class="stat-pill"><div class="stat-pill-num">∞</div><div class="stat-pill-label">Multi-Empresa</div></div>
+        </div>
+    </div>
+
+    <!-- SECCIÓN 3: CÓMO CON IA -->
+    <div class="section" id="section-3" data-duration="45">
+        <div class="section-progress"><div class="section-progress-fill" id="progress-3"></div></div>
+        <div class="section-header">
+            <div class="section-time">
+                <div>
+                    <div class="time-badge">45s</div>
+                    <div class="time-label">Segundos</div>
+                </div>
+                <div>
+                    <div class="section-title">¿Cómo lo construí con IA? 🤖</div>
+                </div>
+            </div>
+            <div class="word-count">~110 palabras</div>
+        </div>
+
+        <div class="pitch-text">
+            <p>"<strong>Trabajé en pareja con Claude</strong>, la inteligencia artificial de Anthropic, durante todo el proyecto."</p>
+
+            <p>"Primero usé IA para la fase de <em>especificación</em>: análisis de requisitos, historias de usuario, diseño de arquitectura. Claude transformó entrevistas con <span class="highlight-number">20 stakeholders</span> en <strong>14 unidades de software</strong> construibles."</p>
+
+            <p>"Después, <em>codificando</em>: cada endpoint, cada modelo, cada algoritmo lo construí dialogando con la IA. Le pedía: 'agrega edición de servidores con alarmas', y juntos iteramos hasta dejarlo funcional."</p>
+
+            <p>"Finalmente, <em>integré IA en el producto mismo</em>: el bot Eli usa <strong>Claude Haiku</strong> para responder cuando no hay match en la base local. <strong>Es IA construyendo IA.</strong> El desarrollo fue <span class="highlight-number">10x más rápido</span> que solo."</p>
+        </div>
+    </div>
+
+    <!-- SECCIÓN 4: LOGROS -->
+    <div class="section" id="section-4" data-duration="30">
+        <div class="section-progress"><div class="section-progress-fill" id="progress-4"></div></div>
+        <div class="section-header">
+            <div class="section-time">
+                <div>
+                    <div class="time-badge">30s</div>
+                    <div class="time-label">Segundos</div>
+                </div>
+                <div>
+                    <div class="section-title">¿Qué logré? 🏆</div>
+                </div>
+            </div>
+            <div class="word-count">~70 palabras</div>
+        </div>
+
+        <div class="pitch-text">
+            <p>"<em>Lo medible:</em> <span class="highlight-number">80+</span> endpoints API, <span class="highlight-number">15</span> modelos de base de datos, <span class="highlight-number">3,200</span> líneas de código limpio, <span class="highlight-number">34</span> plantillas de tickets, <span class="highlight-number">56</span> soluciones del bot, <span class="highlight-number">36</span> tags predefinidos."</p>
+
+            <p>"<em>Lo importante:</em> propagación en tiempo real <strong>bajo 3 segundos</strong>, búsqueda full-text <strong>bajo 200 milisegundos</strong>, seguridad multi-tenant garantizada, bot con respuestas instantáneas, y <strong>un solo comando</strong> para desplegar todo con Docker."</p>
+
+            <p><strong>"No es un prototipo. Es un sistema operacional, escalable y listo para producción."</strong></p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-pill"><div class="stat-pill-num">80+</div><div class="stat-pill-label">APIs</div></div>
+            <div class="stat-pill"><div class="stat-pill-num">3,200</div><div class="stat-pill-label">LOC</div></div>
+            <div class="stat-pill"><div class="stat-pill-num">&lt;3s</div><div class="stat-pill-label">Real-time</div></div>
+            <div class="stat-pill"><div class="stat-pill-num">&lt;200ms</div><div class="stat-pill-label">Search</div></div>
+        </div>
+    </div>
+
+    <!-- SECCIÓN 5: QUIÉN SOY Y QUÉ SIGUE -->
+    <div class="section" id="section-5" data-duration="30">
+        <div class="section-progress"><div class="section-progress-fill" id="progress-5"></div></div>
+        <div class="section-header">
+            <div class="section-time">
+                <div>
+                    <div class="time-badge">30s</div>
+                    <div class="time-label">Segundos</div>
+                </div>
+                <div>
+                    <div class="section-title">¿Quién soy y qué sigue? 🚀</div>
+                </div>
+            </div>
+            <div class="word-count">~65 palabras</div>
+        </div>
+
+        <div class="pitch-text">
+            <p>"Soy <strong>Jonathan Qutian</strong>, <em>Ingeniero de Infraestructura</em> apasionado por construir software que resuelve problemas reales."</p>
+
+            <p>"<strong>¿Qué sigue?</strong> Pilotear con una empresa real, migrar a <em>PostgreSQL</em> para escalar, integrar más fuentes de datos con <em>AWS</em>, agregar reportes ejecutivos con visualizaciones interactivas, y publicar TicketDesk como <strong>producto SaaS</strong> para que cualquier organización mediana lo use."</p>
+
+            <p><strong>"Si tienes una empresa con caos en su soporte técnico, hablemos. Gracias."</strong> 🎤⬇️</p>
+        </div>
+    </div>
+
+    <!-- CIERRE -->
+    <div class="closing">
+        <h2>🎯 Misión Cumplida</h2>
+        <p>3 minutos · 5 secciones · 1 historia poderosa</p>
+        <div class="signature">— Jonathan Qutian · Ingeniero de Infraestructura</div>
+    </div>
+
+</div>
+
+<script>
+    let totalSeconds = 0;
+    let isRunning = false;
+    let intervalId = null;
+    let currentSection = 0;
+    const sections = [
+        { id: 1, duration: 30, name: 'Problema' },
+        { id: 2, duration: 45, name: 'Construcción' },
+        { id: 3, duration: 45, name: 'IA' },
+        { id: 4, duration: 30, name: 'Logros' },
+        { id: 5, duration: 30, name: 'Cierre' }
+    ];
+    const TOTAL = 180; // 3 minutos
+
+    function startPitch() {
+        if (isRunning) {
+            pausePitch();
+            return;
+        }
+        isRunning = true;
+        document.getElementById('btnStart').textContent = '⏸️ Pausar';
+        document.getElementById('btnStart').classList.add('active');
+
+        // Scroll a la primera sección
+        document.getElementById('section-1').scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        intervalId = setInterval(tick, 1000);
+    }
+
+    function pausePitch() {
+        isRunning = false;
+        clearInterval(intervalId);
+        document.getElementById('btnStart').textContent = '▶️ Continuar';
+        document.getElementById('btnStart').classList.remove('active');
+    }
+
+    function resetPitch() {
+        isRunning = false;
+        clearInterval(intervalId);
+        totalSeconds = 0;
+        currentSection = 0;
+
+        document.getElementById('btnStart').textContent = '▶️ Iniciar Pitch';
+        document.getElementById('btnStart').classList.remove('active');
+        document.getElementById('globalTime').textContent = '0:00';
+        document.getElementById('progressBar').style.width = '0%';
+
+        sections.forEach(s => {
+            document.getElementById(`section-${s.id}`).classList.remove('active', 'done');
+            document.getElementById(`progress-${s.id}`).style.width = '0%';
+        });
+    }
+
+    function tick() {
+        totalSeconds++;
+
+        // Actualizar timer global
+        const m = Math.floor(totalSeconds / 60);
+        const s = totalSeconds % 60;
+        document.getElementById('globalTime').textContent = `${m}:${s.toString().padStart(2, '0')}`;
+
+        // Barra de progreso global
+        const globalPct = (totalSeconds / TOTAL) * 100;
+        document.getElementById('progressBar').style.width = Math.min(globalPct, 100) + '%';
+
+        // Calcular en qué sección estamos
+        let elapsed = 0;
+        let activeSection = null;
+        for (let i = 0; i < sections.length; i++) {
+            if (totalSeconds <= elapsed + sections[i].duration) {
+                activeSection = i;
+                break;
+            }
+            elapsed += sections[i].duration;
+        }
+
+        if (activeSection !== null && activeSection !== currentSection) {
+            // Marcar la anterior como done
+            if (currentSection >= 0 && currentSection < sections.length) {
+                const prevSection = document.getElementById(`section-${sections[currentSection].id}`);
+                prevSection.classList.remove('active');
+                prevSection.classList.add('done');
+                document.getElementById(`progress-${sections[currentSection].id}`).style.width = '100%';
+            }
+
+            currentSection = activeSection;
+            const newSection = document.getElementById(`section-${sections[activeSection].id}`);
+            newSection.classList.add('active');
+            newSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Actualizar progreso de sección activa
+        if (activeSection !== null) {
+            const sectionElapsed = totalSeconds - elapsed;
+            const sectionPct = (sectionElapsed / sections[activeSection].duration) * 100;
+            document.getElementById(`progress-${sections[activeSection].id}`).style.width = sectionPct + '%';
+        }
+
+        // Sonido de alerta a los 3 minutos
+        if (totalSeconds === TOTAL) {
+            pausePitch();
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.setValueAtTime(880, ctx.currentTime);
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 1);
+            } catch(e) {}
+
+            // Marcar última sección como done
+            const lastSec = document.getElementById(`section-${sections[sections.length - 1].id}`);
+            lastSec.classList.remove('active');
+            lastSec.classList.add('done');
+        }
+
+        if (totalSeconds >= TOTAL) {
+            clearInterval(intervalId);
+        }
+    }
+
+    // Atajos de teclado
+    document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+            e.preventDefault();
+            startPitch();
+        } else if (e.key === 'r' || e.key === 'R') {
+            resetPitch();
+        }
+    });
+</script>
+
+</body>
+</html>

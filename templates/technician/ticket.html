@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ ticket.title }} - Tecnico</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; }
+        .header { background: linear-gradient(135deg, #2563eb 0%, #6d28d9 100%); color: white; padding: 20px; }
+        .container { max-width: 1000px; margin: 30px auto; padding: 0 20px; display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
+        .ticket-main { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); }
+        .ticket-sidebar { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); height: fit-content; }
+        .ticket-id { color: #2563eb; font-weight: 600; margin-bottom: 8px; }
+        .ticket-title { font-size: 24px; font-weight: bold; color: #333; margin-bottom: 20px; }
+        .section-title { font-weight: 600; color: #333; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #e0e0e0; }
+        .description { color: #666; line-height: 1.6; margin-bottom: 20px; }
+        .bot-box { background: #f0f9ff; border: 2px solid #0284c7; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
+        .bot-title { font-weight: 600; color: #0c4a6e; margin-bottom: 8px; }
+        .bot-item { color: #0c4a6e; margin-bottom: 6px; font-size: 14px; }
+        .messages { margin-top: 20px; max-height: 400px; overflow-y: auto; }
+        .message { margin-bottom: 12px; padding: 10px; border-left: 3px solid #2563eb; background: #f3e8ff; border-radius: 4px; }
+        .message-author { font-weight: 600; color: #2563eb; margin-bottom: 4px; font-size: 13px; }
+        .sidebar-item { margin-bottom: 20px; }
+        .sidebar-label { font-weight: 600; color: #999; font-size: 12px; text-transform: uppercase; margin-bottom: 6px; }
+        .sidebar-value { color: #333; font-weight: 600; }
+        .action-buttons { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; }
+        .btn { padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.3s; }
+        .btn-primary { background: #2563eb; color: white; }
+        .btn-primary:hover { background: #6d28d9; }
+        .back-btn { background: #e0e0e0; color: #333; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; margin-bottom: 20px; text-decoration: none; display: inline-block; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div style="max-width: 1000px; margin: 0 auto; width: 100%;"><h1>Detalle del Ticket</h1></div>
+    </div>
+
+    <div class="container">
+        <div>
+            <a href="{{ url_for('technician_dashboard') }}" class="back-btn">Volver</a>
+
+            <div class="ticket-main">
+                <div class="ticket-id">{{ ticket.ticket_number }}</div>
+                <div class="ticket-title">{{ ticket.title }}</div>
+
+                <div class="section-title">Descripcion</div>
+                <p class="description">{{ ticket.description }}</p>
+
+                <div class="bot-box">
+                    <div class="bot-title">Analisis de IA</div>
+                    <div class="bot-item"><strong>Tipo:</strong> {{ bot_suggestion.issue_type }} ({{ bot_suggestion.confidence }}% confianza)</div>
+                    <div class="bot-item"><strong>Solucion:</strong> {{ bot_suggestion.solution }}</div>
+                </div>
+
+                {% if ticket.messages %}
+                    <div class="section-title">Conversacion</div>
+                    <div class="messages">
+                        {% for msg in ticket.messages %}
+                            <div class="message">
+                                <div class="message-author">{{ msg.user.name }}</div>
+                                <div class="message-text">{{ msg.text }}</div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="ticket-sidebar">
+            <div class="sidebar-item">
+                <div class="sidebar-label">Estado</div>
+                <div class="sidebar-value">{% if ticket.status == 'open' %}Abierto{% elif ticket.status == 'in_progress' %}En Progreso{% else %}Resuelto{% endif %}</div>
+            </div>
+            <div class="sidebar-item">
+                <div class="sidebar-label">Prioridad</div>
+                <div class="sidebar-value">{{ ticket.priority.upper() }}</div>
+            </div>
+            <div class="sidebar-item">
+                <div class="sidebar-label">SLA Restante</div>
+                <div class="sidebar-value">{{ ticket.sla_remaining }}m</div>
+            </div>
+            <div class="action-buttons">
+                <button class="btn btn-primary">Marcar como Resuelto</button>
+            </div>
+        </div>
+    </div>
+
+{% include 'search_widget.html' %}
+</body>
+</html>

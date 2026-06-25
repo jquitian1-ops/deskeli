@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual del Portal de Empleados — DeskEli</title>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, sans-serif;
+        background: #f9fafb;
+        color: #1f2937;
+        line-height: 1.6;
+    }
+
+    /* TOP BAR */
+    .topbar {
+        position: sticky; top: 0; z-index: 100;
+        background: linear-gradient(135deg, #1f2937, #7c3aed);
+        color: white;
+        padding: 16px 28px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .topbar-logo {
+        width: 52px; height: 52px;
+        border-radius: 50%;
+        border: 2px solid white;
+        background: white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        object-fit: cover;
+    }
+    .hero-logo {
+        display: block;
+        width: 160px; height: 160px;
+        margin: 18px auto 24px;
+        border-radius: 50%;
+        border: 4px solid #7c3aed;
+        background: white;
+        box-shadow: 0 8px 24px rgba(124,58,237,0.3);
+        object-fit: cover;
+        animation: heroFloat 3s ease-in-out infinite;
+    }
+    @keyframes heroFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-8px); }
+    }
+    .eli-avatar {
+        width: 80px; height: 80px;
+        border-radius: 50%;
+        border: 3px solid #7c3aed;
+        background: white;
+        box-shadow: 0 4px 12px rgba(124,58,237,0.3);
+        object-fit: cover;
+        float: right;
+        margin-left: 16px;
+    }
+    .topbar h1 { font-size: 20px; font-weight: 800; }
+    .topbar .subtitle { font-size: 12px; opacity: 0.85; }
+    .topbar-actions { display: flex; gap: 8px; align-items: center; }
+    .btn-action {
+        padding: 8px 14px; border: none; border-radius: 6px;
+        background: rgba(255,255,255,0.15); color: white;
+        font-size: 13px; font-weight: 600; cursor: pointer;
+        transition: all 0.2s;
+    }
+    .btn-action:hover { background: rgba(255,255,255,0.28); transform: translateY(-1px); }
+
+    /* LAYOUT */
+    .layout { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 64px); }
+
+    /* SIDEBAR */
+    .sidebar {
+        background: white;
+        border-right: 1px solid #e5e7eb;
+        padding: 24px 18px;
+        position: sticky; top: 64px;
+        height: calc(100vh - 64px);
+        overflow-y: auto;
+    }
+    .sidebar h3 {
+        font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
+        color: #6b7280; margin: 14px 0 6px;
+    }
+    .sidebar a {
+        display: block;
+        padding: 9px 14px;
+        margin-bottom: 3px;
+        color: #374151;
+        text-decoration: none;
+        border-radius: 6px;
+        font-size: 13.5px;
+        transition: all 0.15s;
+        border-left: 3px solid transparent;
+    }
+    .sidebar a:hover { background: #faf5ff; color: #7c3aed; }
+    .sidebar a.active { background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #5b21b6; font-weight: 700; border-left-color: #7c3aed; }
+
+    .search-box {
+        margin-bottom: 18px;
+    }
+    .search-box input {
+        width: 100%; padding: 9px 12px;
+        border: 1px solid #e5e7eb; border-radius: 6px;
+        font-size: 13px;
+    }
+    .search-box input:focus { outline: none; border-color: #7c3aed; }
+
+    /* MAIN CONTENT */
+    .content { padding: 32px 48px; max-width: 1100px; }
+
+    section { display: none; }
+    section.active { display: block; animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from {opacity:0; transform:translateY(8px);} to {opacity:1; transform:translateY(0);} }
+
+    section h2 {
+        font-size: 28px; color: #1f2937; margin-bottom: 8px;
+        display: flex; align-items: center; gap: 12px;
+    }
+    section h2 .step-badge {
+        background: linear-gradient(135deg, #7c3aed, #2563eb);
+        color: white; font-size: 14px; padding: 4px 12px;
+        border-radius: 14px; font-weight: 700;
+    }
+    section > p.lead {
+        font-size: 16px; color: #6b7280; margin-bottom: 24px;
+    }
+
+    section h3 { margin: 24px 0 10px; color: #111827; font-size: 18px; }
+
+    /* CARDS */
+    .card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 18px 22px;
+        margin-bottom: 16px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .card.tip { background: linear-gradient(135deg, #eff6ff, #dbeafe); border-color: #93c5fd; }
+    .card.warn { background: linear-gradient(135deg, #fef3c7, #fde68a); border-color: #f59e0b; }
+    .card.success { background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-color: #6ee7b7; }
+    .card.danger { background: linear-gradient(135deg, #fee2e2, #fecaca); border-color: #fca5a5; }
+    .card-title { font-weight: 700; color: #1f2937; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+
+    /* STEPS */
+    .steps { counter-reset: step; margin: 14px 0; }
+    .step {
+        position: relative; padding: 14px 18px 14px 56px;
+        background: white; border: 1px solid #e5e7eb;
+        border-radius: 8px; margin-bottom: 10px;
+        counter-increment: step;
+    }
+    .step::before {
+        content: counter(step);
+        position: absolute; left: 16px; top: 14px;
+        width: 28px; height: 28px;
+        background: linear-gradient(135deg, #7c3aed, #2563eb);
+        color: white; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 800; font-size: 14px;
+    }
+    .step-title { font-weight: 700; color: #1f2937; margin-bottom: 4px; }
+    .step-desc { font-size: 14px; color: #4b5563; }
+
+    /* MOCKUP BOXES */
+    .mockup {
+        background: white;
+        border: 2px dashed #d1d5db;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 14px 0;
+        font-family: 'Segoe UI', sans-serif;
+        position: relative;
+    }
+    .mockup::before {
+        content: "👁 Vista del Portal";
+        position: absolute; top: -10px; left: 14px;
+        background: #f9fafb; padding: 0 8px;
+        font-size: 11px; color: #6b7280; font-weight: 700;
+    }
+
+    /* KEYBOARD */
+    kbd {
+        display: inline-block;
+        padding: 3px 8px;
+        background: #f3f4f6; border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-family: monospace; font-size: 12px;
+        font-weight: 700; color: #374151;
+        box-shadow: 0 1px 0 #d1d5db;
+    }
+
+    /* TABLE */
+    table {
+        width: 100%; border-collapse: collapse;
+        margin: 14px 0;
+        background: white;
+        border-radius: 8px; overflow: hidden;
+        border: 1px solid #e5e7eb;
+    }
+    th, td {
+        padding: 10px 14px; text-align: left;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 13.5px;
+    }
+    th {
+        background: #f9fafb;
+        font-weight: 700; color: #374151;
+        font-size: 12px; text-transform: uppercase; letter-spacing: 0.3px;
+    }
+
+    /* PRIORITY BADGES */
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+    .badge-crit { background: #fee2e2; color: #991b1b; }
+    .badge-high { background: #ffedd5; color: #9a3412; }
+    .badge-med { background: #fef3c7; color: #92400e; }
+    .badge-low { background: #d1fae5; color: #065f46; }
+    .badge-open { background: #dbeafe; color: #1e40af; }
+    .badge-prog { background: #fef3c7; color: #92400e; }
+    .badge-resolved { background: #d1fae5; color: #065f46; }
+
+    /* QUIZ */
+    .quiz-q {
+        background: white; border: 1px solid #e5e7eb; border-radius: 10px;
+        padding: 18px; margin-bottom: 14px;
+    }
+    .quiz-options { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+    .quiz-options button {
+        padding: 10px 14px; text-align: left;
+        background: #f9fafb; border: 1.5px solid #e5e7eb;
+        border-radius: 6px; cursor: pointer;
+        font-size: 13.5px; transition: all 0.15s;
+    }
+    .quiz-options button:hover { border-color: #7c3aed; background: #faf5ff; }
+    .quiz-options button.correct { background: #d1fae5; border-color: #16a34a; color: #065f46; font-weight: 700; }
+    .quiz-options button.incorrect { background: #fee2e2; border-color: #dc2626; color: #991b1b; }
+    .quiz-feedback { margin-top: 10px; font-size: 13px; padding: 10px; border-radius: 6px; display: none; }
+    .quiz-feedback.show { display: block; }
+    .quiz-feedback.ok { background: #ecfdf5; color: #065f46; border: 1px solid #6ee7b7; }
+    .quiz-feedback.nope { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+    /* NAVIGATION ARROWS */
+    .nav-arrows {
+        display: flex; justify-content: space-between;
+        margin-top: 40px; padding-top: 24px;
+        border-top: 1px solid #e5e7eb;
+    }
+    .nav-arrows button {
+        padding: 12px 22px; border: none;
+        background: linear-gradient(135deg, #7c3aed, #2563eb);
+        color: white; border-radius: 8px;
+        font-size: 14px; font-weight: 700; cursor: pointer;
+    }
+    .nav-arrows button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(124,58,237,0.3); }
+    .nav-arrows button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* PROGRESS */
+    .progress {
+        position: fixed; top: 64px; left: 280px; right: 0;
+        height: 3px; background: #e5e7eb;
+        z-index: 50;
+    }
+    .progress-bar {
+        height: 100%; background: linear-gradient(90deg, #7c3aed, #2563eb);
+        transition: width 0.3s;
+    }
+
+    /* MOBILE */
+    @media (max-width: 900px) {
+        .layout { grid-template-columns: 1fr; }
+        .sidebar { position: static; height: auto; }
+        .content { padding: 24px 18px; }
+        .progress { left: 0; }
+    }
+
+    /* PRINT */
+    @media print {
+        .topbar, .sidebar, .nav-arrows, .progress { display: none; }
+        .content { padding: 0; max-width: 100%; }
+        section { display: block !important; page-break-after: always; }
+    }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <div style="display:flex;align-items:center;gap:14px;">
+        <img src="/static/eli.png" alt="DeskEli" class="topbar-logo"
+             onerror="this.style.display='none'">
+        <div>
+            <h1>📘 Manual del Portal de Empleados</h1>
+            <div class="subtitle">DeskEli — Sistema de gestión de incidencias TI</div>
+        </div>
+    </div>
+    <div class="topbar-actions">
+        <button class="btn-action" onclick="window.print()">🖨 Imprimir</button>
+        <a class="btn-action" href="/login" style="text-decoration:none;">🚀 Ir al sistema</a>
+    </div>
+</div>
+
+<div class="progress"><div class="progress-bar" id="progressBar" style="width: 10%;"></div></div>
+
+<div class="layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="search-box">
+            <input type="text" id="searchBox" placeholder="🔍 Buscar tema..." onkeyup="filterSidebar()">
+        </div>
+
+        <h3>Inicio</h3>
+        <a href="#bienvenida" onclick="showSection('bienvenida')" class="active">🏁 Bienvenida</a>
+        <a href="#login" onclick="showSection('login')">🔐 Iniciar sesión</a>
+
+        <h3>Uso diario</h3>
+        <a href="#dashboard" onclick="showSection('dashboard')">📊 El dashboard</a>
+        <a href="#crear" onclick="showSection('crear')">➕ Crear un ticket</a>
+        <a href="#prioridad" onclick="showSection('prioridad')">🎯 Elegir prioridad</a>
+        <a href="#adjuntos" onclick="showSection('adjuntos')">📎 Adjuntar archivos</a>
+
+        <h3>Eli (Asistente IA)</h3>
+        <a href="#bot" onclick="showSection('bot')">🤖 Chatear con Eli</a>
+
+        <h3>Seguimiento</h3>
+        <a href="#ver-tickets" onclick="showSection('ver-tickets')">📂 Ver mis tickets</a>
+        <a href="#detalle" onclick="showSection('detalle')">💬 Detalle y chat</a>
+        <a href="#estados" onclick="showSection('estados')">🔄 Estados</a>
+
+        <h3>Extras</h3>
+        <a href="#trucos" onclick="showSection('trucos')">💡 Trucos</a>
+        <a href="#faq" onclick="showSection('faq')">❓ Preguntas frecuentes</a>
+        <a href="#quiz" onclick="showSection('quiz')">🎓 Pon a prueba lo aprendido</a>
+    </aside>
+
+    <!-- CONTENT -->
+    <main class="content">
+
+        <!-- BIENVENIDA -->
+        <section id="bienvenida" class="active">
+            <img src="/static/eli.png" alt="DeskEli" class="hero-logo" onerror="this.style.display='none'">
+            <h2 style="justify-content:center;text-align:center;">🏁 Bienvenida al Portal de Empleados</h2>
+            <p class="lead" style="text-align:center;">Este manual te enseña a usar <strong>DeskEli</strong> paso a paso: desde reportar un problema hasta hacer seguimiento a la solución.</p>
+
+            <div class="card tip">
+                <div class="card-title">💡 ¿Qué es DeskEli?</div>
+                <p>Es el sistema centralizado donde reportás problemas de TI (computador, red, SAP, accesos, etc.) y el equipo técnico te responde, asigna a un especialista y resuelve.</p>
+            </div>
+
+            <h3>¿Qué vas a aprender en este manual?</h3>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-title">Cómo iniciar sesión</div>
+                    <div class="step-desc">Acceso con tu correo corporativo desde cualquier navegador.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Cómo crear un ticket completo</div>
+                    <div class="step-desc">Categoría, plantilla, prioridad, descripción y adjuntos.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Cómo chatear con Eli (el bot IA)</div>
+                    <div class="step-desc">Soluciones inmediatas sin esperar a un técnico.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Cómo dar seguimiento</div>
+                    <div class="step-desc">Ver el estado, hablar con el técnico, recibir notificaciones.</div>
+                </div>
+            </div>
+
+            <div class="card success">
+                <div class="card-title">⏱ Tiempo estimado del manual</div>
+                <p>Leerlo completo: <strong>10–15 minutos</strong>. Recomendamos hacerlo de corrido la primera vez y volver a las secciones puntuales cuando necesites.</p>
+            </div>
+
+            <div class="nav-arrows">
+                <button disabled>← Anterior</button>
+                <button onclick="showSection('login')">Siguiente → 🔐 Iniciar sesión</button>
+            </div>
+        </section>
+
+        <!-- LOGIN -->
+        <section id="login">
+            <h2><span class="step-badge">Paso 1</span> 🔐 Iniciar sesión</h2>
+            <p class="lead">Acceso con tu <strong>correo electrónico corporativo</strong> y tu contraseña.</p>
+
+            <h3>Cómo entrar</h3>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-title">Abrí el navegador</div>
+                    <div class="step-desc">Usá <strong>Chrome</strong> o <strong>Microsoft Edge</strong> (versión 100 o superior).</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Andá a la dirección del sistema</div>
+                    <div class="step-desc">Tu equipo de TI te pasó la URL. Generalmente algo como <code>http://192.168.1.100:5050</code> o <code>https://deskeli.empresa.com</code>.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Seleccioná tu empresa</div>
+                    <div class="step-desc">Click en el botón de tu empresa (Manufactureras Eliot, Pash o Primatela).</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Ingresá tu correo</div>
+                    <div class="step-desc">Tu correo corporativo completo, ej: <code>juan.perez@manufacturaseliot.com</code>.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Ingresá tu contraseña</div>
+                    <div class="step-desc">La que te dio el equipo de TI. Si no la sabés, contactalos.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Click en <strong>Ingresar</strong></div>
+                    <div class="step-desc">Vas a entrar directo al Portal de Empleados.</div>
+                </div>
+            </div>
+
+            <div class="mockup">
+                <div style="text-align:center;">
+                    <div style="font-size:32px; margin-bottom: 8px;">🟣 DeskEli</div>
+                    <div style="color:#6b7280; font-size:12px; margin-bottom: 14px;">v2.1 — Sistema de Gestión de Incidencias</div>
+                    <div style="text-align:left; max-width:300px; margin:0 auto;">
+                        <label style="font-size:12px;color:#374151;font-weight:700;">Selecciona tu Empresa</label>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0 12px;">
+                            <button style="padding:8px;background:#7c3aed;color:white;border:none;border-radius:4px;font-size:12px;">🟣 Eliot</button>
+                            <button style="padding:8px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">🔵 Pash</button>
+                        </div>
+                        <label style="font-size:12px;color:#374151;font-weight:700;">📧 Correo</label>
+                        <input type="text" value="tu.correo@empresa.com" disabled style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:4px;margin:4px 0 10px;font-size:12px;">
+                        <label style="font-size:12px;color:#374151;font-weight:700;">Contraseña</label>
+                        <input type="password" value="••••••••" disabled style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:4px;margin:4px 0 10px;font-size:12px;">
+                        <button style="width:100%;padding:10px;background:linear-gradient(135deg,#7c3aed,#2563eb);color:white;border:none;border-radius:6px;font-weight:700;">Ingresar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card warn">
+                <div class="card-title">⚠ Si te bloqueaste</div>
+                <p>Tras varios intentos fallidos la cuenta puede quedar bloqueada. Contactá al equipo de TI o usá <strong>"¿Olvidaste tu contraseña?"</strong> si está habilitado.</p>
+            </div>
+
+            <div class="card danger">
+                <div class="card-title">🚫 "Sesión cerrada por el administrador"</div>
+                <p>Si ves este aviso al iniciar, significa que un admin terminó tu sesión activa (por seguridad o mantenimiento). Iniciá sesión normalmente otra vez.</p>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('bienvenida')">← Bienvenida</button>
+                <button onclick="showSection('dashboard')">Siguiente → 📊 El dashboard</button>
+            </div>
+        </section>
+
+        <!-- DASHBOARD -->
+        <section id="dashboard">
+            <h2><span class="step-badge">Paso 2</span> 📊 El Dashboard</h2>
+            <p class="lead">Es la pantalla principal del Portal de Empleados. Acá ves tus tickets y podés crear nuevos.</p>
+
+            <h3>Las 4 áreas principales</h3>
+            <table>
+                <tr><th>Área</th><th>Qué hace</th></tr>
+                <tr><td>🎟️ <strong>Encabezado</strong></td><td>Tu nombre, tu empresa y el botón <strong>Salir</strong>.</td></tr>
+                <tr><td>➕ <strong>+ Crear Nuevo Ticket</strong></td><td>Botón grande verde para reportar un problema nuevo.</td></tr>
+                <tr><td>📋 <strong>Lista de mis tickets</strong></td><td>Todos los tickets que abriste, con su estado actual.</td></tr>
+                <tr><td>💬 <strong>Eli (chat IA)</strong></td><td>Icono morado abajo a la derecha. Click para chatear y resolver dudas.</td></tr>
+            </table>
+
+            <div class="card tip">
+                <div class="card-title">💡 Tickets recientes primero</div>
+                <p>Los tickets se ordenan por fecha — los más recientes arriba. Podés clickear cualquiera para ver su detalle.</p>
+            </div>
+
+            <h3>Iconos de estado</h3>
+            <table>
+                <tr><th>Icono</th><th>Estado</th><th>Qué significa</th></tr>
+                <tr><td>📂</td><td><span class="badge badge-open">Abierto</span></td><td>Tu ticket llegó, está esperando que un técnico lo tome.</td></tr>
+                <tr><td>🔄</td><td><span class="badge badge-prog">En Progreso</span></td><td>Un técnico ya lo está trabajando.</td></tr>
+                <tr><td>✅</td><td><span class="badge badge-resolved">Resuelto</span></td><td>El técnico cree que está solucionado. Si confirmás, pasa a "Cerrado".</td></tr>
+            </table>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('login')">← Login</button>
+                <button onclick="showSection('crear')">Siguiente → ➕ Crear ticket</button>
+            </div>
+        </section>
+
+        <!-- CREAR -->
+        <section id="crear">
+            <h2><span class="step-badge">Paso 3</span> ➕ Crear un Ticket</h2>
+            <p class="lead">El formulario tiene <strong>4 pasos numerados</strong> que te guían paso a paso. Es rápido y no te perdés.</p>
+
+            <h3>Cómo abrir el formulario</h3>
+            <p>En el Dashboard, click en el botón verde <strong>+ Crear Nuevo Ticket</strong>.</p>
+
+            <h3>Los 4 pasos del formulario</h3>
+
+            <div class="card" style="border-left: 4px solid #16a34a;">
+                <div class="card-title">1️⃣ Categoría del problema</div>
+                <p>Elegí el área del problema. Es lo primero porque <strong>determina qué plantillas vas a ver abajo</strong>.</p>
+                <table>
+                    <tr><th>Si el problema es...</th><th>Categoría</th></tr>
+                    <tr><td>El computador no enciende, monitor roto</td><td>🖥️ Hardware</td></tr>
+                    <tr><td>Programa que no funciona, Windows</td><td>💻 Software</td></tr>
+                    <tr><td>Internet, WiFi, VPN, lento</td><td>🌐 Red / Conectividad</td></tr>
+                    <tr><td>Outlook, correo no llega/no envía</td><td>📧 Email / Outlook</td></tr>
+                    <tr><td>Impresoras, no imprime</td><td>🖨️ Impresoras</td></tr>
+                    <tr><td>Lentitud SAP, error SAP, transacciones</td><td>📊 SAP</td></tr>
+                    <tr><td>Contraseña olvidada, no puedo entrar</td><td>🔑 Accesos / Contraseñas</td></tr>
+                    <tr><td>Teléfono fijo, llamadas</td><td>📞 Telefonía</td></tr>
+                </table>
+            </div>
+
+            <div class="card" style="border-left: 4px solid #2563eb;">
+                <div class="card-title">2️⃣ Subcategoría / Plantilla específica</div>
+                <p>Una vez elegida la categoría, se habilita el segundo dropdown <strong>con plantillas pre-armadas</strong>. Por ejemplo si elegís "SAP" ves: SAP lentitud, SAP autorización, SAP ABAP, etc.</p>
+                <p><strong>Es opcional:</strong> si no encontrás una plantilla que aplique, dejala vacía y completá manualmente.</p>
+                <div class="card tip" style="margin-top:10px;">
+                    <strong>¿Para qué sirven las plantillas?</strong>
+                    <p>Te muestran un formulario con campos específicos para que no se te olvide ningún dato importante (versión del software, mensaje de error, etc.).</p>
+                </div>
+            </div>
+
+            <div class="card" style="border-left: 4px solid #ea580c;">
+                <div class="card-title">3️⃣ Título del problema</div>
+                <p>Breve, máximo 200 caracteres. Ejemplo: <em>"WiFi no conecta en oficina 5to piso"</em>.</p>
+                <p style="color:#dc2626;font-size:13px;">⚠ Es <strong>obligatorio</strong> y mínimo 5 caracteres.</p>
+            </div>
+
+            <div class="card" style="border-left: 4px solid #7c3aed;">
+                <div class="card-title">4️⃣ Descripción / Notas adicionales</div>
+                <p>Detalles del problema. Cuanta más información, mejor. Por ejemplo:</p>
+                <ul style="margin: 6px 0 6px 22px;">
+                    <li>¿Qué estabas haciendo cuando ocurrió?</li>
+                    <li>¿Cuál es el mensaje de error exacto?</li>
+                    <li>¿Cuándo empezó?</li>
+                    <li>¿Afecta solo a vos o a más personas?</li>
+                </ul>
+                <div class="card tip" style="margin-top:10px;">
+                    <strong>🖼 Tip:</strong> Podés <strong>pegar imágenes directamente con <kbd>Ctrl</kbd>+<kbd>V</kbd></strong> en este campo. Se adjuntan automáticamente.
+                </div>
+            </div>
+
+            <div class="card success">
+                <div class="card-title">✅ Finalizar</div>
+                <p>Después de los 4 pasos, seleccionás <strong>prioridad</strong> (próxima sección) y <strong>Crear Ticket</strong>. ¡Listo!</p>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('dashboard')">← Dashboard</button>
+                <button onclick="showSection('prioridad')">Siguiente → 🎯 Prioridad</button>
+            </div>
+        </section>
+
+        <!-- PRIORIDAD -->
+        <section id="prioridad">
+            <h2><span class="step-badge">Paso 4</span> 🎯 Elegir la Prioridad</h2>
+            <p class="lead">Determina qué tan rápido te van a atender. <strong>Elegirla bien es responsabilidad tuya.</strong></p>
+
+            <h3>Las 4 prioridades</h3>
+            <table>
+                <tr><th>Nivel</th><th>Cuándo usarla</th><th>Tiempo aprox.</th></tr>
+                <tr>
+                    <td><span class="badge badge-low">🟢 BAJA</span></td>
+                    <td>Mejoras, consultas, dudas. Puede esperar. <em>Ej: "Quiero instalar otro programa"</em></td>
+                    <td>~24 horas</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-med">🟡 MEDIA</span></td>
+                    <td>Problema que te molesta pero podés trabajar. <em>Ej: "Outlook lento"</em></td>
+                    <td>~8 horas</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-high">🟠 ALTA</span></td>
+                    <td>Te bloquea para trabajar. <em>Ej: "No puedo acceder a SAP"</em></td>
+                    <td>~4 horas</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-crit">🔴 CRÍTICA</span></td>
+                    <td>Emergencia: caída de sistema, afecta a muchas personas. <em>Ej: "El servidor SAP está caído"</em></td>
+                    <td>~1 hora</td>
+                </tr>
+            </table>
+
+            <div class="card danger">
+                <div class="card-title">⚠ Importante: NO uses CRÍTICA si no aplica</div>
+                <p>Si marcás todo como crítico cuando no lo es, el equipo de TI no puede priorizar bien las emergencias reales. <strong>El uso indebido puede ser auditado.</strong></p>
+            </div>
+
+            <div class="card tip">
+                <div class="card-title">💡 ¿En la duda?</div>
+                <p>Si no sabés qué nivel poner, usá <strong>Media</strong> (es el valor por defecto). El técnico puede reclasificarlo después.</p>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('crear')">← Crear ticket</button>
+                <button onclick="showSection('adjuntos')">Siguiente → 📎 Adjuntos</button>
+            </div>
+        </section>
+
+        <!-- ADJUNTOS -->
+        <section id="adjuntos">
+            <h2><span class="step-badge">Paso 5</span> 📎 Adjuntar Archivos e Imágenes</h2>
+            <p class="lead">Las capturas y archivos ayudan al técnico a entender el problema. Hay 2 formas de adjuntar.</p>
+
+            <h3>Forma 1: Botón "Elegir archivos"</h3>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-title">En la sección 📎 Adjuntar, click en <strong>"Elegir archivos"</strong></div>
+                    <div class="step-desc">Se abre el explorador de Windows.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Seleccioná uno o varios archivos</div>
+                    <div class="step-desc">Mantené <kbd>Ctrl</kbd> presionado para elegir varios.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Aparecerán abajo como vista previa</div>
+                    <div class="step-desc">Podés quitarlos con la "X" si te equivocaste.</div>
+                </div>
+            </div>
+
+            <h3>Forma 2: Pegar capturas con <kbd>Ctrl</kbd>+<kbd>V</kbd> 🚀</h3>
+            <div class="card tip">
+                <div class="card-title">💡 La forma más rápida</div>
+                <ol style="margin-left: 22px;">
+                    <li>Tomá una captura con <kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> (recortador de Windows)</li>
+                    <li>Click dentro del campo <strong>Descripción</strong> del ticket</li>
+                    <li>Presioná <kbd>Ctrl</kbd>+<kbd>V</kbd></li>
+                    <li>La imagen se agrega automáticamente como adjunto ✓</li>
+                </ol>
+            </div>
+
+            <h3>Tipos de archivo permitidos</h3>
+            <table>
+                <tr><th>Categoría</th><th>Extensiones</th></tr>
+                <tr><td>📄 Documentos</td><td>PDF, DOC, DOCX, TXT</td></tr>
+                <tr><td>📊 Excel</td><td>XLS, XLSX, CSV</td></tr>
+                <tr><td>🖼 Imágenes</td><td>PNG, JPG, JPEG, GIF, BMP, WEBP</td></tr>
+                <tr><td>📊 Presentaciones</td><td>PPT, PPTX</td></tr>
+                <tr><td>📦 Comprimidos</td><td>ZIP, RAR</td></tr>
+                <tr><td>📋 Logs / Emails</td><td>LOG, MSG, EML</td></tr>
+            </table>
+
+            <div class="card warn">
+                <div class="card-title">⚠ Límites</div>
+                <ul style="margin-left: 22px;">
+                    <li>Máximo <strong>25 MB</strong> por archivo</li>
+                    <li>No se permiten <strong>EXE, BAT, JS</strong> u otros ejecutables (seguridad)</li>
+                </ul>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('prioridad')">← Prioridad</button>
+                <button onclick="showSection('bot')">Siguiente → 🤖 Eli (IA)</button>
+            </div>
+        </section>
+
+        <!-- BOT ELI -->
+        <section id="bot">
+            <img src="/static/eli.png" alt="Eli" class="eli-avatar" onerror="this.style.display='none'">
+            <h2>🤖 Eli — Tu Asistente IA</h2>
+            <p class="lead">Antes de crear un ticket, podés preguntarle a <strong>Eli</strong>. Es un bot que conoce las soluciones más comunes y te puede ayudar al instante.</p>
+            <div style="clear:both;"></div>
+
+            <h3>Cómo abrir el chat</h3>
+            <p>En el Dashboard, click en el ícono morado del robot 🟣 abajo a la derecha. Se abre una ventana de chat.</p>
+
+            <h3>Para qué sirve Eli</h3>
+            <table>
+                <tr><th>Sirve PARA ✅</th><th>NO sirve para ❌</th></tr>
+                <tr><td>Resetear contraseñas (paso a paso)</td><td>Conectarse remotamente a tu PC</td></tr>
+                <tr><td>Configurar Outlook</td><td>Aprobar permisos en SAP</td></tr>
+                <tr><td>Solucionar problemas comunes de WiFi</td><td>Casos muy específicos del puesto</td></tr>
+                <tr><td>Guías de instalación de software</td><td>Reemplazar al técnico humano</td></tr>
+                <tr><td>FAQs comunes (más de 100 respuestas)</td><td>Solicitar nuevo hardware</td></tr>
+            </table>
+
+            <h3>Cómo usar Eli efectivamente</h3>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-title">Describí el problema en lenguaje natural</div>
+                    <div class="step-desc">Ejemplo: <em>"no me deja entrar a SAP"</em> o <em>"olvidé mi contraseña de Windows"</em>.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Eli te responde en segundos</div>
+                    <div class="step-desc">Con pasos numerados que podés seguir.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Si te resolvió → click "Sí, me ayudó"</div>
+                    <div class="step-desc">Se crea un ticket cerrado para registro.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Si NO te resolvió → click "No, crear ticket"</div>
+                    <div class="step-desc">Se crea un ticket abierto y se asigna a un especialista, con TODA la conversación guardada.</div>
+                </div>
+            </div>
+
+            <div class="card tip">
+                <div class="card-title">💡 La ventaja oculta</div>
+                <p>Aunque Eli no te resuelva, <strong>cuando creás el ticket desde el chat, el técnico ve la conversación entera</strong>. Eso le ahorra preguntarte cosas que ya le dijiste a Eli.</p>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('adjuntos')">← Adjuntos</button>
+                <button onclick="showSection('ver-tickets')">Siguiente → 📂 Ver mis tickets</button>
+            </div>
+        </section>
+
+        <!-- VER TICKETS -->
+        <section id="ver-tickets">
+            <h2>📂 Ver Mis Tickets</h2>
+            <p class="lead">Una vez creado el ticket, podés hacer seguimiento desde el Dashboard.</p>
+
+            <h3>La lista de tus tickets</h3>
+            <p>En el Dashboard verás todos tus tickets ordenados por fecha. Cada fila muestra:</p>
+            <table>
+                <tr><th>Columna</th><th>Qué muestra</th></tr>
+                <tr><td>N°</td><td>Identificador único, ej: <code>TKT-ELIOT-00045</code></td></tr>
+                <tr><td>Título</td><td>El asunto que vos pusiste al crear</td></tr>
+                <tr><td>Estado</td><td>📂 Abierto / 🔄 En Progreso / ✅ Resuelto</td></tr>
+                <tr><td>Prioridad</td><td>🟢 Baja / 🟡 Media / 🟠 Alta / 🔴 Crítica</td></tr>
+                <tr><td>Asignado a</td><td>El técnico que está trabajando tu caso</td></tr>
+                <tr><td>SLA</td><td>Tiempo restante (verde/amarillo/rojo según urgencia)</td></tr>
+                <tr><td>Fecha</td><td>Cuándo lo creaste</td></tr>
+            </table>
+
+            <h3>Buscar entre tus tickets</h3>
+            <p>Usá la <strong>🔍 caja de búsqueda</strong> en la parte superior para filtrar por número, título o palabra clave.</p>
+
+            <div class="card tip">
+                <div class="card-title">🚀 Búsqueda global con <kbd>Ctrl</kbd>+<kbd>K</kbd></div>
+                <p>Desde cualquier pantalla podés presionar <kbd>Ctrl</kbd>+<kbd>K</kbd> para abrir el buscador rápido y saltar directo a un ticket por número.</p>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('bot')">← Eli</button>
+                <button onclick="showSection('detalle')">Siguiente → 💬 Detalle del ticket</button>
+            </div>
+        </section>
+
+        <!-- DETALLE -->
+        <section id="detalle">
+            <h2>💬 Detalle del Ticket y Chat con el Técnico</h2>
+            <p class="lead">Click en cualquier ticket de la lista para abrir su detalle completo.</p>
+
+            <h3>Qué encontrás en el detalle</h3>
+            <table>
+                <tr><th>Sección</th><th>Para qué sirve</th></tr>
+                <tr><td>📋 <strong>Info del ticket</strong></td><td>Número, título, descripción, categoría, prioridad, estado, SLA, técnico asignado.</td></tr>
+                <tr><td>💬 <strong>Chat / Conversación</strong></td><td>Mensajes entre vos y el técnico. Acá te avisan, te piden datos, te explican la solución.</td></tr>
+                <tr><td>📎 <strong>Adjuntos</strong></td><td>Archivos e imágenes que vos o el técnico subieron.</td></tr>
+                <tr><td>📜 <strong>Historial</strong></td><td>Línea de tiempo: cuándo se creó, cuándo se asignó, cuándo se resolvió.</td></tr>
+            </table>
+
+            <h3>Cómo agregar un mensaje al chat</h3>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-title">Escribí en el campo de mensaje al pie</div>
+                    <div class="step-desc">Podés escribir lo que necesites comunicar al técnico.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Pegá capturas si hace falta</div>
+                    <div class="step-desc">Como en el formulario de creación, <kbd>Ctrl</kbd>+<kbd>V</kbd> funciona acá también.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Click en <strong>Enviar</strong></div>
+                    <div class="step-desc">El técnico ve el mensaje en tiempo real y recibe notificación.</div>
+                </div>
+            </div>
+
+            <div class="card success">
+                <div class="card-title">✅ Si el técnico marca el ticket como Resuelto</div>
+                <p>Te avisa por chat y/o email. Si la solución es correcta, no hace falta hacer nada — el ticket pasa a <strong>Cerrado</strong> automáticamente tras unos días. Si NO te resolvió, escribí en el chat y el ticket se reabre.</p>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('ver-tickets')">← Ver tickets</button>
+                <button onclick="showSection('estados')">Siguiente → 🔄 Estados</button>
+            </div>
+        </section>
+
+        <!-- ESTADOS -->
+        <section id="estados">
+            <h2>🔄 Estados del Ticket</h2>
+            <p class="lead">El ticket pasa por varios estados desde que lo creás hasta que se cierra. Entender qué significa cada uno te ayuda a saber qué esperar.</p>
+
+            <h3>Línea de tiempo típica</h3>
+            <table>
+                <tr><th>Estado</th><th>Qué pasa</th><th>Quién actúa</th></tr>
+                <tr>
+                    <td><span class="badge badge-open">📂 Abierto</span></td>
+                    <td>El ticket recién se creó. Está esperando que un técnico lo tome.</td>
+                    <td>Sistema (auto-asignación)</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-prog">🔄 En Progreso</span></td>
+                    <td>Un técnico ya está trabajando tu caso. Puede pedirte info, conectarse, etc.</td>
+                    <td>Técnico</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-resolved">✅ Resuelto</span></td>
+                    <td>El técnico cree que solucionó. Esperá unas horas — si no respondés, pasa a Cerrado.</td>
+                    <td>Técnico → Vos confirmás</td>
+                </tr>
+                <tr>
+                    <td>🔒 Cerrado</td>
+                    <td>El ticket está finalizado. Quedan en historial pero ya no se modifica.</td>
+                    <td>Sistema (auto-cierre)</td>
+                </tr>
+            </table>
+
+            <h3>Estados especiales</h3>
+            <div class="card warn">
+                <div class="card-title">⏰ SLA Vencido</div>
+                <p>Si el técnico no responde dentro del tiempo prometido por la prioridad, el sistema marca el ticket con <strong>⏰ SLA Vencido</strong> en rojo y automáticamente <strong>alerta a los supervisores</strong>.</p>
+            </div>
+
+            <div class="card tip">
+                <div class="card-title">🔁 Ticket Reabierto</div>
+                <p>Si un ticket pasó a Resuelto pero la solución no funcionó, escribí en el chat. El sistema lo vuelve a poner como "En Progreso" y avisa al técnico.</p>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('detalle')">← Detalle</button>
+                <button onclick="showSection('trucos')">Siguiente → 💡 Trucos</button>
+            </div>
+        </section>
+
+        <!-- TRUCOS -->
+        <section id="trucos">
+            <h2>💡 Trucos y Atajos</h2>
+            <p class="lead">Cosas que pocos saben y te ahorran tiempo.</p>
+
+            <div class="card tip">
+                <div class="card-title">⌨ Atajos de teclado</div>
+                <table style="margin-top:8px;">
+                    <tr><th>Atajo</th><th>Hace</th></tr>
+                    <tr><td><kbd>Ctrl</kbd>+<kbd>K</kbd></td><td>Abrir búsqueda global de tickets</td></tr>
+                    <tr><td><kbd>Ctrl</kbd>+<kbd>V</kbd> en descripción</td><td>Pegar imagen como adjunto</td></tr>
+                    <tr><td><kbd>Esc</kbd></td><td>Cerrar diálogos y modales</td></tr>
+                    <tr><td><kbd>Enter</kbd> en chat</td><td>Enviar mensaje al técnico</td></tr>
+                </table>
+            </div>
+
+            <div class="card tip">
+                <div class="card-title">📋 Plantillas: tu mejor amigo</div>
+                <p>Cuando elegís categoría → si hay una plantilla específica para tu problema, <strong>úsala</strong>. Tiene los campos exactos que el técnico necesita y te ahorra ida y vuelta.</p>
+            </div>
+
+            <div class="card tip">
+                <div class="card-title">🤖 Probá Eli antes de crear ticket</div>
+                <p>El 40% de los problemas comunes (contraseñas, configuraciones, errores típicos) se resuelven en 30 segundos con Eli. Vale la pena el intento.</p>
+            </div>
+
+            <div class="card tip">
+                <div class="card-title">📧 Notificaciones por correo</div>
+                <p>Recibís un email cada vez que:</p>
+                <ul style="margin-left:22px;">
+                    <li>Tu ticket es asignado a un técnico</li>
+                    <li>El técnico te responde por chat</li>
+                    <li>El ticket se marca como resuelto</li>
+                </ul>
+            </div>
+
+            <div class="card tip">
+                <div class="card-title">🎯 Sé específico en el título</div>
+                <p>Mal: <em>"No funciona"</em>. Mejor: <em>"Outlook no muestra mails nuevos desde hace 1 hora"</em>. La especificidad acelera la resolución.</p>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('estados')">← Estados</button>
+                <button onclick="showSection('faq')">Siguiente → ❓ Preguntas frecuentes</button>
+            </div>
+        </section>
+
+        <!-- FAQ -->
+        <section id="faq">
+            <h2>❓ Preguntas Frecuentes</h2>
+            <p class="lead">Las dudas más comunes de los empleados que arrancan con DeskEli.</p>
+
+            <div class="card">
+                <div class="card-title">🤔 ¿Cómo recupero mi contraseña?</div>
+                <p>Contactá al equipo de TI directamente. Pronto se va a habilitar reseteo por autoservicio.</p>
+            </div>
+            <div class="card">
+                <div class="card-title">🤔 ¿Puedo modificar un ticket después de crearlo?</div>
+                <p>El título y descripción no, pero podés <strong>agregar más información en el chat</strong>. Si querés cambiar la prioridad, pedile al técnico que la actualice.</p>
+            </div>
+            <div class="card">
+                <div class="card-title">🤔 ¿Cuánto tiempo tarda el técnico en responder?</div>
+                <p>Depende de la prioridad: 🔴 Crítica ~1h, 🟠 Alta ~4h, 🟡 Media ~8h, 🟢 Baja ~24h. Estos son los SLAs estándar — pueden variar según la empresa.</p>
+            </div>
+            <div class="card">
+                <div class="card-title">🤔 ¿Puedo cancelar un ticket?</div>
+                <p>Sí, escribí en el chat <em>"Por favor cerrar — ya se solucionó"</em> y el técnico lo cierra. No se elimina, queda en historial.</p>
+            </div>
+            <div class="card">
+                <div class="card-title">🤔 ¿Veo tickets de mis compañeros?</div>
+                <p>No. Como empleado solo ves tus propios tickets. Esto es por privacidad — los técnicos y admins sí ven todos.</p>
+            </div>
+            <div class="card">
+                <div class="card-title">🤔 ¿Funciona desde casa con VPN?</div>
+                <p>Sí, mientras tengas conexión al sistema (vía VPN o si está expuesto en internet). Preguntale a TI por la URL externa si aplica.</p>
+            </div>
+            <div class="card">
+                <div class="card-title">🤔 Mi navegador es viejo, ¿funciona?</div>
+                <p>Necesitás Chrome o Edge versión <strong>100 o superior</strong>. Internet Explorer NO está soportado.</p>
+            </div>
+            <div class="card">
+                <div class="card-title">🤔 ¿Puedo escribir desde el celular?</div>
+                <p>Sí, el sistema es responsive. Algunas funciones (pegar imagen con Ctrl+V) no aplican en móvil pero podés adjuntar fotos directo.</p>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('trucos')">← Trucos</button>
+                <button onclick="showSection('quiz')">Siguiente → 🎓 Quiz</button>
+            </div>
+        </section>
+
+        <!-- QUIZ -->
+        <section id="quiz">
+            <h2>🎓 Pon a Prueba lo Aprendido</h2>
+            <p class="lead">5 preguntas rápidas. Click en la respuesta correcta. ¡Sin truco!</p>
+
+            <div class="quiz-q">
+                <div style="font-weight:700;">1. Mi WiFi no anda en la oficina. ¿Qué categoría elijo?</div>
+                <div class="quiz-options">
+                    <button onclick="quizAnswer(this, false, 1)">🖥️ Hardware</button>
+                    <button onclick="quizAnswer(this, true, 1)">🌐 Red / Conectividad</button>
+                    <button onclick="quizAnswer(this, false, 1)">📞 Telefonía</button>
+                </div>
+                <div class="quiz-feedback" id="qfb1"></div>
+            </div>
+
+            <div class="quiz-q">
+                <div style="font-weight:700;">2. Olvidé mi contraseña corporativa. ¿Cuál es el camino más rápido?</div>
+                <div class="quiz-options">
+                    <button onclick="quizAnswer(this, false, 2)">Crear ticket con prioridad CRÍTICA</button>
+                    <button onclick="quizAnswer(this, true, 2)">Preguntarle a Eli (chat IA) primero</button>
+                    <button onclick="quizAnswer(this, false, 2)">Reiniciar el computador</button>
+                </div>
+                <div class="quiz-feedback" id="qfb2"></div>
+            </div>
+
+            <div class="quiz-q">
+                <div style="font-weight:700;">3. ¿Qué hace <kbd>Ctrl</kbd>+<kbd>V</kbd> en el campo Descripción?</div>
+                <div class="quiz-options">
+                    <button onclick="quizAnswer(this, false, 3)">Cierra el ticket</button>
+                    <button onclick="quizAnswer(this, true, 3)">Pega una imagen como adjunto automáticamente</button>
+                    <button onclick="quizAnswer(this, false, 3)">Pega el texto pero sin formato</button>
+                </div>
+                <div class="quiz-feedback" id="qfb3"></div>
+            </div>
+
+            <div class="quiz-q">
+                <div style="font-weight:700;">4. El servidor SAP de producción se cayó y nadie puede facturar. ¿Qué prioridad?</div>
+                <div class="quiz-options">
+                    <button onclick="quizAnswer(this, false, 4)">🟢 Baja</button>
+                    <button onclick="quizAnswer(this, false, 4)">🟡 Media</button>
+                    <button onclick="quizAnswer(this, true, 4)">🔴 Crítica</button>
+                </div>
+                <div class="quiz-feedback" id="qfb4"></div>
+            </div>
+
+            <div class="quiz-q">
+                <div style="font-weight:700;">5. El técnico marcó mi ticket como ✅ Resuelto pero el problema sigue. ¿Qué hago?</div>
+                <div class="quiz-options">
+                    <button onclick="quizAnswer(this, false, 5)">Crear un ticket nuevo</button>
+                    <button onclick="quizAnswer(this, true, 5)">Escribir en el chat del mismo ticket diciendo que no se resolvió</button>
+                    <button onclick="quizAnswer(this, false, 5)">Esperar 24 horas a ver si se arregla solo</button>
+                </div>
+                <div class="quiz-feedback" id="qfb5"></div>
+            </div>
+
+            <div id="quizResult" style="display:none;margin-top:24px;padding:18px;border-radius:10px;text-align:center;font-size:18px;font-weight:700;"></div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('faq')">← FAQ</button>
+                <button onclick="showSection('bienvenida')">🏁 Volver al inicio</button>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<script>
+    const sections = ['bienvenida','login','dashboard','crear','prioridad','adjuntos','bot','ver-tickets','detalle','estados','trucos','faq','quiz'];
+
+    function showSection(id) {
+        // Hide all
+        document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+        // Show target
+        const target = document.getElementById(id);
+        if (target) {
+            target.classList.add('active');
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        }
+        // Update sidebar
+        document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+        const link = document.querySelector(`.sidebar a[href="#${id}"]`);
+        if (link) link.classList.add('active');
+        // Update progress
+        const idx = sections.indexOf(id);
+        const pct = ((idx + 1) / sections.length) * 100;
+        document.getElementById('progressBar').style.width = pct + '%';
+        // Update URL hash
+        try { history.replaceState(null, '', '#' + id); } catch(e) {}
+    }
+
+    function filterSidebar() {
+        const q = document.getElementById('searchBox').value.toLowerCase();
+        document.querySelectorAll('.sidebar a').forEach(a => {
+            const text = a.textContent.toLowerCase();
+            a.style.display = !q || text.includes(q) ? '' : 'none';
+        });
+    }
+
+    // QUIZ
+    let quizScore = 0;
+    let quizAnswered = new Set();
+    function quizAnswer(btn, isCorrect, qNum) {
+        if (quizAnswered.has(qNum)) return;
+        quizAnswered.add(qNum);
+        const parent = btn.parentElement;
+        const feedback = document.getElementById('qfb' + qNum);
+        // Mark all wrong/right
+        parent.querySelectorAll('button').forEach(b => b.disabled = true);
+        if (isCorrect) {
+            btn.classList.add('correct');
+            feedback.textContent = '✅ ¡Correcto!';
+            feedback.className = 'quiz-feedback show ok';
+            quizScore++;
+        } else {
+            btn.classList.add('incorrect');
+            const correct = Array.from(parent.querySelectorAll('button')).find(b => b.onclick.toString().includes('true'));
+            if (correct) correct.classList.add('correct');
+            feedback.textContent = '❌ Respuesta incorrecta. La respuesta correcta está en verde.';
+            feedback.className = 'quiz-feedback show nope';
+        }
+        // If all answered, show score
+        if (quizAnswered.size === 5) {
+            const result = document.getElementById('quizResult');
+            result.style.display = 'block';
+            if (quizScore === 5) {
+                result.style.background = '#d1fae5'; result.style.color = '#065f46';
+                result.innerHTML = `🏆 ¡PERFECTO! ${quizScore}/5 — Dominás el portal completamente.`;
+            } else if (quizScore >= 3) {
+                result.style.background = '#fef3c7'; result.style.color = '#92400e';
+                result.innerHTML = `👍 Muy bien — ${quizScore}/5. Repasá las secciones de las preguntas que fallaste.`;
+            } else {
+                result.style.background = '#fee2e2'; result.style.color = '#991b1b';
+                result.innerHTML = `📚 ${quizScore}/5 — Te recomiendo releer el manual desde el inicio.`;
+            }
+        }
+    }
+
+    // Load section from URL hash on start
+    document.addEventListener('DOMContentLoaded', () => {
+        const hash = window.location.hash.replace('#','');
+        if (hash && sections.includes(hash)) {
+            showSection(hash);
+        } else {
+            showSection('bienvenida');
+        }
+    });
+</script>
+
+</body>
+</html>

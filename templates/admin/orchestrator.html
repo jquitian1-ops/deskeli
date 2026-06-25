@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orchestrator - DeskEli Admin</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, sans-serif; background: #f5f7fa; }
+
+        .container { display: flex; min-height: 100vh; }
+
+        .sidebar {
+            width: 280px;
+            background: #2c3e50;
+            color: white;
+            padding: 20px 0;
+            overflow-y: auto;
+        }
+
+        .sidebar-logo { padding: 0 20px; margin-bottom: 30px; font-weight: 700; }
+        .sidebar-section { margin-bottom: 30px; }
+        .sidebar-title { padding: 0 20px; font-size: 12px; color: #95a5a6; font-weight: 700; margin-bottom: 10px; }
+        .sidebar-item {
+            display: block;
+            padding: 12px 20px;
+            color: #ecf0f1;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        .sidebar-item:hover { background: #34495e; }
+        .sidebar-item.active { background: #3498db; }
+
+        .main-content { flex: 1; display: flex; flex-direction: column; }
+
+        .header-top {
+            background: white;
+            padding: 20px 40px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .breadcrumb { color: #666; font-size: 14px; }
+        .header-right { display: flex; gap: 15px; align-items: center; }
+        .mode-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .mode-badge.llm { background: #dcfce7; color: #166534; }
+        .mode-badge.rules { background: #fef3c7; color: #92400e; }
+
+        .content {
+            padding: 40px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .page-title { font-size: 28px; font-weight: 700; margin-bottom: 40px; color: #333; display: flex; align-items: center; gap: 15px; }
+
+        .status-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left: 4px solid #3498db;
+        }
+
+        .card.classifier { border-left-color: #3498db; }
+        .card.assignor { border-left-color: #2ecc71; }
+        .card.responder { border-left-color: #f39c12; }
+        .card.escalator { border-left-color: #e74c3c; }
+
+        .card-title { font-size: 16px; font-weight: 700; margin-bottom: 15px; color: #333; }
+        .card-stat { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px; }
+        .card-stat-value { font-weight: 700; color: #2c3e50; }
+
+        .metrics-table {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #2563eb;
+            color: #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 700;
+            border-bottom: 2px solid #e0e0e0;
+            color: #333;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        tr:hover { background: #f8f9fa; }
+
+        .confidence-bar {
+            background: #e0e0e0;
+            border-radius: 4px;
+            height: 6px;
+            width: 100px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            background: linear-gradient(to right, #3498db, #2ecc71);
+            height: 100%;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-success { background: #dcfce7; color: #166534; }
+        .status-error { background: #fee2e2; color: #991b1b; }
+
+        .auto-refresh {
+            color: #666;
+            font-size: 13px;
+            margin-top: 40px;
+            padding: 15px;
+            background: #f0f4ff;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .loading { opacity: 0.6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="sidebar-logo">🤖 Orchestrator</div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-title">Navegación</div>
+                <a href="/admin/dashboard" class="sidebar-item">📈 Dashboard</a>
+                <a href="/admin/tickets" class="sidebar-item">🎫 Tickets</a>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-title">Sistema</div>
+                <a href="/admin/orchestrator" class="sidebar-item active">🤖 Orchestrator</a>
+                <a href="/admin/config" class="sidebar-item">⚙️ Configuración</a>
+            </div>
+
+            <div class="sidebar-section" style="margin-top: auto;">
+                <a href="/logout" class="sidebar-item">🚪 Cerrar Sesión</a>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
+            <div class="header-top">
+                <div class="breadcrumb">Dashboard / Orchestrator</div>
+                <div class="header-right">
+                    {% if orchestrator_data.use_llm %}
+                        <div class="mode-badge llm">✅ {{ orchestrator_data.mode }}</div>
+                    {% else %}
+                        <div class="mode-badge rules">⚙️ {{ orchestrator_data.mode }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="content">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:24px;">
+                    <h1 class="page-title" style="margin:0;">🤖 Agent Orchestrator</h1>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <span style="font-size:12px;color:#6b7280;">Período:</span>
+                        <button class="orch-period-btn" data-period="day"   onclick="setOrchPeriod('day')">📅 Día</button>
+                        <button class="orch-period-btn" data-period="week"  onclick="setOrchPeriod('week')">📆 Semana</button>
+                        <button class="orch-period-btn" data-period="month" onclick="setOrchPeriod('month')">🗓️ Mes</button>
+                        <button class="orch-period-btn" data-period="year"  onclick="setOrchPeriod('year')">📊 Año</button>
+                        <button class="orch-period-btn active" data-period="all"   onclick="setOrchPeriod('all')">∞ Todo</button>
+                    </div>
+                </div>
+                <style>
+                    .orch-period-btn {
+                        padding: 7px 14px;
+                        background: #f3f4f6;
+                        color: #374151;
+                        border: 1px solid #d1d5db;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        font-size: 12px;
+                        transition: all 0.15s;
+                    }
+                    .orch-period-btn:hover { background: #e5e7eb; }
+                    .orch-period-btn.active {
+                        background: linear-gradient(135deg, #7c3aed, #2563eb);
+                        color: white;
+                        border-color: #5b21b6;
+                        box-shadow: 0 2px 6px rgba(124,58,237,0.3);
+                    }
+                </style>
+                <div id="orch-period-label" style="margin-bottom:14px;font-size:13px;color:#6b7280;font-style:italic;">
+                    Cargando…
+                </div>
+
+                <!-- KPIs principales (con período aplicado) -->
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:25px;">
+                    <div style="padding:14px;background:linear-gradient(135deg,#dbeafe,#bfdbfe);border-radius:8px;text-align:center;">
+                        <div style="font-size:11px;color:#1e3a8a;font-weight:700;">🎯 TOTAL CLASIFICADOS</div>
+                        <div id="kpi-classified" style="font-size:28px;font-weight:800;color:#1e3a8a;">0</div>
+                    </div>
+                    <div style="padding:14px;background:linear-gradient(135deg,#d1fae5,#a7f3d0);border-radius:8px;text-align:center;">
+                        <div style="font-size:11px;color:#065f46;font-weight:700;">👤 ASIGNADOS AUTO</div>
+                        <div id="kpi-assigned" style="font-size:28px;font-weight:800;color:#065f46;">0</div>
+                    </div>
+                    <div style="padding:14px;background:linear-gradient(135deg,#fef3c7,#fde68a);border-radius:8px;text-align:center;">
+                        <div style="font-size:11px;color:#92400e;font-weight:700;">💬 RESPUESTAS</div>
+                        <div id="kpi-responded" style="font-size:28px;font-weight:800;color:#92400e;">0</div>
+                    </div>
+                    <div style="padding:14px;background:linear-gradient(135deg,#fee2e2,#fecaca);border-radius:8px;text-align:center;">
+                        <div style="font-size:11px;color:#991b1b;font-weight:700;">⚠️ ESCALADOS</div>
+                        <div id="kpi-escalated" style="font-size:28px;font-weight:800;color:#991b1b;">0</div>
+                    </div>
+                    <div style="padding:14px;background:linear-gradient(135deg,#ede9fe,#ddd6fe);border-radius:8px;text-align:center;">
+                        <div style="font-size:11px;color:#5b21b6;font-weight:700;">✓ TASA ÉXITO</div>
+                        <div id="kpi-success" style="font-size:28px;font-weight:800;color:#5b21b6;">0%</div>
+                    </div>
+                    <div style="padding:14px;background:linear-gradient(135deg,#fef9c3,#fef08a);border-radius:8px;text-align:center;">
+                        <div style="font-size:11px;color:#854d0e;font-weight:700;">🤖 USO LLM</div>
+                        <div id="kpi-llm" style="font-size:28px;font-weight:800;color:#854d0e;">0%</div>
+                    </div>
+                </div>
+
+                <!-- Gráfica de tendencia stacked por agente -->
+                <div style="background:white;padding:20px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.08);margin-bottom:25px;">
+                    <h3 style="margin:0 0 10px;font-size:14px;color:#374151;">📈 Tendencia de acciones por agente</h3>
+                    <div style="position:relative;height:260px;">
+                        <canvas id="orchTrendChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- TARJETAS DE ESTADO DE AGENTES -->
+                <div class="status-cards">
+                    <!-- Classifier -->
+                    <div class="card classifier">
+                        <div class="card-title">📋 Clasificador</div>
+                        <div class="card-stat">
+                            <span>Ejecuciones:</span>
+                            <span class="card-stat-value" id="classifier-runs">{{ orchestrator_data.status_by_agent.classifier.total_runs | default(0) }}</span>
+                        </div>
+                        <div class="card-stat">
+                            <span>Errores:</span>
+                            <span class="card-stat-value" id="classifier-errors">{{ orchestrator_data.status_by_agent.classifier.errors | default(0) }}</span>
+                        </div>
+                        <div class="card-stat">
+                            <span>Último:</span>
+                            <span class="card-stat-value" id="classifier-last" style="font-size: 12px;">
+                                {{ orchestrator_data.status_by_agent.classifier.last_success | default('nunca') }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Assignor -->
+                    <div class="card assignor">
+                        <div class="card-title">👤 Asignador</div>
+                        <div class="card-stat">
+                            <span>Ejecuciones:</span>
+                            <span class="card-stat-value" id="assignor-runs">{{ orchestrator_data.status_by_agent.assignor.total_runs | default(0) }}</span>
+                        </div>
+                        <div class="card-stat">
+                            <span>Errores:</span>
+                            <span class="card-stat-value" id="assignor-errors">{{ orchestrator_data.status_by_agent.assignor.errors | default(0) }}</span>
+                        </div>
+                        <div class="card-stat">
+                            <span>Último:</span>
+                            <span class="card-stat-value" id="assignor-last" style="font-size: 12px;">
+                                {{ orchestrator_data.status_by_agent.assignor.last_success | default('nunca') }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Responder -->
+                    <div class="card responder">
+                        <div class="card-title">💬 Respondedor</div>
+                        <div class="card-stat">
+                            <span>Ejecuciones:</span>
+                            <span class="card-stat-value" id="responder-runs">{{ orchestrator_data.status_by_agent.responder.total_runs | default(0) }}</span>
+                        </div>
+                        <div class="card-stat">
+                            <span>Errores:</span>
+                            <span class="card-stat-value" id="responder-errors">{{ orchestrator_data.status_by_agent.responder.errors | default(0) }}</span>
+                        </div>
+                        <div class="card-stat">
+                            <span>Último:</span>
+                            <span class="card-stat-value" id="responder-last" style="font-size: 12px;">
+                                {{ orchestrator_data.status_by_agent.responder.last_success | default('nunca') }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Escalator -->
+                    <div class="card escalator">
+                        <div class="card-title">⚠️ Escalador</div>
+                        <div class="card-stat">
+                            <span>Ejecuciones:</span>
+                            <span class="card-stat-value" id="escalator-runs">{{ orchestrator_data.status_by_agent.escalator.total_runs | default(0) }}</span>
+                        </div>
+                        <div class="card-stat">
+                            <span>Errores:</span>
+                            <span class="card-stat-value" id="escalator-errors">{{ orchestrator_data.status_by_agent.escalator.errors | default(0) }}</span>
+                        </div>
+                        <div class="card-stat">
+                            <span>Estado:</span>
+                            <span class="card-stat-value" id="escalator-status" style="color: {% if orchestrator_data.escalator_running %}#16a34a{% else %}#991b1b{% endif %};">
+                                {% if orchestrator_data.escalator_running %}Activo{% else %}Inactivo{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MÉTRICAS 24H -->
+                <div class="metrics-table">
+                    <div class="section-title">📊 Métricas últimas 24 horas</div>
+                    <table id="metrics-table">
+                        <thead>
+                            <tr>
+                                <th>Agente</th>
+                                <th>Total</th>
+                                <th>Exitosos</th>
+                                <th>Tasa éxito</th>
+                                <th>Con LLM</th>
+                                <th>Confianza promedio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for agent, stats in orchestrator_data.stats_24h.items() %}
+                            <tr>
+                                <td><strong>{{ agent | title }}</strong></td>
+                                <td>{{ stats.total }}</td>
+                                <td>{{ stats.success }}</td>
+                                <td>
+                                    {% if stats.total > 0 %}
+                                        {{ "%.1f" | format((stats.success / stats.total) * 100) }}%
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                                <td>{{ stats.llm_used }}</td>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <div class="confidence-bar">
+                                            <div class="confidence-fill" style="width: {{ stats.avg_confidence }}%;"></div>
+                                        </div>
+                                        <span>{{ stats.avg_confidence }}%</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- ACCIONES RECIENTES -->
+                <div class="metrics-table">
+                    <div class="section-title">🔍 Últimas 20 decisiones</div>
+                    <table id="actions-table">
+                        <thead>
+                            <tr>
+                                <th>Hora</th>
+                                <th>Ticket</th>
+                                <th>Agente</th>
+                                <th>Acción</th>
+                                <th>Confianza</th>
+                                <th>Modo</th>
+                                <th>Duración</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for action in orchestrator_data.recent_actions %}
+                            <tr>
+                                <td>{{ action.created_at }}</td>
+                                <td><a href="/admin/tickets?ticket_id={{ action.ticket_id }}" style="color: #2563eb; text-decoration: none;">#{{ action.ticket_id }}</a></td>
+                                <td><strong>{{ action.agent | title }}</strong></td>
+                                <td>{{ action.action }}</td>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <div class="confidence-bar">
+                                            <div class="confidence-fill" style="width: {{ action.confidence }}%;"></div>
+                                        </div>
+                                        <span>{{ action.confidence }}%</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if action.used_llm %}
+                                        <span style="color: #16a34a; font-weight: 600;">LLM</span>
+                                    {% else %}
+                                        <span style="color: #92400e; font-weight: 600;">Reglas</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ action.duration_ms }}ms</td>
+                                <td>
+                                    {% if action.success %}
+                                        <span class="status-badge status-success">✅ Éxito</span>
+                                    {% else %}
+                                        <span class="status-badge status-error">❌ Error</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" style="text-align: center; color: #999; padding: 30px;">
+                                    Sin acciones registradas aún
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- AUTO-REFRESH INFO -->
+                <div class="auto-refresh">
+                    ⏟ Actualizando cada 30 segundos... <span id="refresh-counter">30</span>s
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart.js (si no estuviera ya cargado) -->
+    <script src="/static/chart.min.js"></script>
+
+    <script>
+        let refreshCounter = 30;
+        let _orchPeriod = 'all';
+        let _orchTrendChart = null;
+
+        function setOrchPeriod(period) {
+            _orchPeriod = period;
+            document.querySelectorAll('.orch-period-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.period === period);
+            });
+            updateDashboard();
+            refreshCounter = 30;
+        }
+
+        function _safe(obj, path, def) {
+            try {
+                return path.split('.').reduce((o, k) => (o == null ? def : o[k]), obj) ?? def;
+            } catch(e) { return def; }
+        }
+
+        function updateDashboard() {
+            fetch('/api/admin/orchestrator/status?period=' + encodeURIComponent(_orchPeriod))
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) return;
+                    const d = data.data || {};
+
+                    // Label
+                    const labelEl = document.getElementById('orch-period-label');
+                    if (labelEl) {
+                        labelEl.textContent = `Mostrando: ${d.period_label || '—'} · ${d.total_actions || 0} acción(es) registradas`;
+                    }
+
+                    // KPIs principales del período
+                    document.getElementById('kpi-classified').textContent = d.total_classified || 0;
+                    document.getElementById('kpi-assigned').textContent = d.total_assigned || 0;
+                    document.getElementById('kpi-responded').textContent = d.total_responded || 0;
+                    document.getElementById('kpi-escalated').textContent = d.total_escalated || 0;
+                    document.getElementById('kpi-success').textContent = (d.success_rate || 0) + '%';
+                    document.getElementById('kpi-llm').textContent = (d.llm_pct || 0) + '%';
+
+                    // Status cards (estado del proceso, no del período)
+                    const sba = d.status_by_agent || {};
+                    document.getElementById('classifier-runs').textContent = _safe(sba, 'classifier.total_runs', 0);
+                    document.getElementById('classifier-errors').textContent = _safe(sba, 'classifier.errors', 0);
+                    document.getElementById('assignor-runs').textContent = _safe(sba, 'assignor.total_runs', 0);
+                    document.getElementById('assignor-errors').textContent = _safe(sba, 'assignor.errors', 0);
+                    document.getElementById('responder-runs').textContent = _safe(sba, 'responder.total_runs', 0);
+                    document.getElementById('responder-errors').textContent = _safe(sba, 'responder.errors', 0);
+                    document.getElementById('escalator-runs').textContent = _safe(sba, 'escalator.total_runs', 0);
+                    document.getElementById('escalator-errors').textContent = _safe(sba, 'escalator.errors', 0);
+
+                    // Estado escalador
+                    const escalatorStatus = document.getElementById('escalator-status');
+                    if (escalatorStatus) {
+                        if (d.escalator_running) {
+                            escalatorStatus.textContent = 'Activo';
+                            escalatorStatus.style.color = '#16a34a';
+                        } else {
+                            escalatorStatus.textContent = 'Inactivo';
+                            escalatorStatus.style.color = '#991b1b';
+                        }
+                    }
+
+                    // Gráfica de tendencia stacked por agente
+                    renderOrchTrendChart(d.trend_stacked || {});
+
+                    // Actualizar tabla de acciones recientes (reemplazo dinámico)
+                    updateRecentActionsTable(d.recent_actions || []);
+
+                    refreshCounter = 30;
+                })
+                .catch(e => console.error('Error actualizando orchestrator:', e));
+        }
+
+        function updateRecentActionsTable(actions) {
+            const tbody = document.querySelector('#actions-table tbody');
+            if (!tbody) return;
+            if (!actions || actions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#999;padding:30px;">Sin acciones en el período seleccionado</td></tr>';
+                return;
+            }
+            let html = '';
+            actions.forEach(a => {
+                const successBadge = a.success
+                    ? '<span class="status-badge status-success">✅ Éxito</span>'
+                    : '<span class="status-badge status-error">❌ Error</span>';
+                const llmBadge = a.used_llm
+                    ? '<span style="color:#16a34a;font-weight:600;">LLM</span>'
+                    : '<span style="color:#92400e;font-weight:600;">Reglas</span>';
+                const conf = a.confidence || 0;
+                html += `
+                    <tr>
+                        <td>${a.created_at || '—'}</td>
+                        <td><a href="/admin/ticket/${a.ticket_id}" style="color:#2563eb;text-decoration:none;">#${a.ticket_id}</a></td>
+                        <td><strong>${(a.agent_name || a.agent || '').replace(/^./, c=>c.toUpperCase())}</strong></td>
+                        <td>${a.action_type || a.action || ''}</td>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <div class="confidence-bar"><div class="confidence-fill" style="width:${conf}%;"></div></div>
+                                <span>${conf}%</span>
+                            </div>
+                        </td>
+                        <td>${llmBadge}</td>
+                        <td>${a.duration_ms || 0}ms</td>
+                        <td>${successBadge}</td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        }
+
+        function renderOrchTrendChart(stacked) {
+            const ctx = document.getElementById('orchTrendChart');
+            if (!ctx || typeof Chart === 'undefined') return;
+            const labels = stacked.labels || [];
+            if (_orchTrendChart) {
+                try { _orchTrendChart.destroy(); } catch(e) {}
+                _orchTrendChart = null;
+            }
+            if (labels.length === 0) {
+                const c2d = ctx.getContext('2d');
+                c2d.clearRect(0, 0, ctx.width, ctx.height);
+                c2d.fillStyle = '#9ca3af';
+                c2d.font = '13px sans-serif';
+                c2d.textAlign = 'center';
+                c2d.fillText('Sin datos en el período seleccionado', ctx.width / 2, ctx.height / 2);
+                return;
+            }
+            _orchTrendChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {label: '📋 Classifier', data: stacked.classifier || [], backgroundColor: '#3498db'},
+                        {label: '👤 Assignor',   data: stacked.assignor   || [], backgroundColor: '#2ecc71'},
+                        {label: '💬 Responder',  data: stacked.responder  || [], backgroundColor: '#f39c12'},
+                        {label: '⚠️ Escalator',  data: stacked.escalator  || [], backgroundColor: '#e74c3c'},
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
+                    }
+                }
+            });
+        }
+
+        // Polling cada 30s
+        setInterval(() => {
+            refreshCounter--;
+            if (refreshCounter <= 0) {
+                updateDashboard();
+            }
+            const cnt = document.getElementById('refresh-counter');
+            if (cnt) cnt.textContent = refreshCounter;
+        }, 1000);
+
+        // Update inicial
+        updateDashboard();
+    </script>
+</body>
+</html>

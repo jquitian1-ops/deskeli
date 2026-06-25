@@ -1,0 +1,30 @@
+# E2E Testing Requirements for TicketDesk Enterprise
+# Install with: pip install -r tests/e2e/requirements-e2e.txt
+
+# Core testing frameworks
+pytest==7.4.3
+pytest-timeout==2.2.0
+pytest-xdist==3.5.0
+
+# Playwright browser automation
+playwright==1.40.0
+
+# Reporting and logging
+pytest-html==4.1.1
+pytest-json-report==1.5.0
+allure-pytest==2.13.2
+
+# Utilities
+python-dotenv==1.0.0
+faker==21.0.0
+
+# Optional: for API testing alongside E2E
+requests==2.31.0
+httpx==0.25.2
+
+# Optional: for performance monitoring
+pytest-benchmark==4.0.0
+
+# Optional: for screenshot comparison (visual regression)
+pytest-imagine==0.3.2
+pillow==10.1.0

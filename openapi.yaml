@@ -1,0 +1,113 @@
+openapi: 3.0.0
+info:
+  title: TicketDesk Enterprise v2.1 API
+  description: API REST para gestión de incidencias con soporte multi-empresa
+  version: 2.1.0
+  contact:
+    name: TicketDesk Support
+    email: support@ticketdesk.local
+
+servers:
+  - url: http://localhost:5050
+    description: Servidor local de desarrollo
+
+paths:
+  /api/health:
+    get:
+      summary: Health check del servidor
+      tags: [Health]
+      responses:
+        200:
+          description: Servidor saludable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  app:
+                    type: string
+                  version:
+                    type: string
+
+  /api/search:
+    get:
+      summary: Búsqueda global de tickets
+      tags: [Search]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Resultados de búsqueda
+        401:
+          description: No autenticado
+
+  /api/admin/tickets/create:
+    post:
+      summary: Crear nuevo ticket (solo admin)
+      tags: [Tickets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                category:
+                  type: string
+                priority:
+                  type: string
+      responses:
+        200:
+          description: Ticket creado
+        401:
+          description: No autorizado
+
+  /api/ticket/{id}/time:
+    get:
+      summary: Obtener tiempo trabajado
+      tags: [Time Tracking]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+    post:
+      summary: Guardar tiempo trabajado
+      tags: [Time Tracking]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+
+  /api/system/metrics:
+    get:
+      summary: Métricas del sistema
+      tags: [Admin]
+      responses:
+        200:
+          description: Métricas del sistema
+        401:
+          description: No autenticado
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []

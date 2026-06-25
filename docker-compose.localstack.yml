@@ -1,0 +1,254 @@
+version: '3.8'
+
+services:
+  # ========================================================================
+  # LocalStack - AWS Mock Service
+  # ========================================================================
+  localstack:
+    image: localstack/localstack:latest
+    container_name: ticketdesk-localstack
+    restart: always
+    ports:
+      - "4566:4566"          # LocalStack API Gateway
+      - "4571:4571"          # Lambda/Logs
+      - "4572:4572"          # S3
+      - "4573:4573"          # Dynamodb
+      - "4574:4574"          # Kinesis
+      - "4575:4575"          # SQS
+      - "4576:4576"          # SNS
+      - "4577:4577"          # CloudFormation
+      - "4578:4578"          # SES
+      - "4579:4579"          # Route53
+      - "4580:4580"          # CloudWatch
+      - "4581:4581"          # RDS
+      - "4582:4582"          # Glue
+      - "4583:4583"          # Batch
+      - "4584:4584"          # EC2
+      - "4585:4585"          # ALB/ELB
+      - "4586:4586"          # CloudFront
+      - "4587:4587"          # ECS/Fargate
+      - "4588:4588"          # VPC
+      - "4589:4589"          # Secrets Manager
+      - "4590:4590"          # IAM
+    environment:
+      # LocalStack Configuration
+      - SERVICES=ec2,ecs,rds,s3,elb,elbv2,cloudformation,iam,cloudwatch,logs,sqs,sns,secretsmanager
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - LOCALSTACK_HOSTNAME=localstack
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+
+      # Docker configuration
+      - DOCKER_NETWORK=ticketdesk-localstack-network
+
+    volumes:
+      - "${TMPDIR:-.}/localstack:/tmp/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./scripts/localstack-init.sh:/etc/localstack/init-aws.d/init.sh:ro"
+    networks:
+      - ticketdesk-localstack-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ========================================================================
+  # PostgreSQL Database (LocalStack RDS Target)
+  # ========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: ticketdesk-postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=ticketdesk
+      - POSTGRES_PASSWORD=ticketdesk123
+      - POSTGRES_DB=ticketdesk
+      - POSTGRES_INITDB_ARGS=-c max_connections=200 -c shared_buffers=256MB
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - ticketdesk-localstack-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketdesk"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================================================================
+  # Redis Cache
+  # ========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: ticketdesk-redis
+    restart: always
+    command: redis-server --appendonly yes --requirepass ticketdesk123
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - ticketdesk-localstack-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================================================================
+  # TicketDesk Flask Application (Development)
+  # ========================================================================
+  ticketdesk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ticketdesk-app
+    restart: always
+    ports:
+      - "5050:5050"
+    environment:
+      # Flask Config
+      - FLASK_ENV=development
+      - FLASK_APP=app.py
+      - PYTHONUNBUFFERED=1
+
+      # Security
+      - SECRET_KEY=localstack-dev-secret-key-change-in-prod
+
+      # Database (Use PostgreSQL via Docker)
+      - DATABASE_URL=postgresql://ticketdesk:ticketdesk123@postgres:5432/ticketdesk
+      - DATABASE_TIMEOUT=30000
+      - DATABASE_POOL_SIZE=10
+      - DATABASE_MAX_OVERFLOW=20
+
+      # Redis Cache
+      - REDIS_URL=redis://:ticketdesk123@redis:6379/0
+      - REDIS_ENABLED=true
+
+      # AWS LocalStack Configuration
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ENDPOINT_URL_RDS=http://localstack:4566
+      - AWS_ENDPOINT_URL_S3=http://localstack:4566
+      - AWS_ENDPOINT_URL_ECS=http://localstack:4566
+      - AWS_ENDPOINT_URL_CLOUDWATCH=http://localstack:4566
+      - AWS_ENDPOINT_URL_LOGS=http://localstack:4566
+      - AWS_ENDPOINT_URL_SECRETSMANAGER=http://localstack:4566
+
+      # LDAP (Mock)
+      - LDAP_ENABLED=false
+      - LDAP_MOCK_MODE=true
+
+      # Claude API (Anthropic - Optional)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+
+      # Teams Webhooks (Optional)
+      - TEAMS_WEBHOOK_CRITICAL=${TEAMS_WEBHOOK_CRITICAL:-}
+      - TEAMS_WEBHOOK_GENERAL=${TEAMS_WEBHOOK_GENERAL:-}
+
+      # Backups
+      - BACKUP_DIR=/app/backups
+      - BACKUP_RETENTION_DAYS=30
+
+      # Server
+      - HOST=0.0.0.0
+      - PORT=5050
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+
+    volumes:
+      # Code
+      - .:/app
+
+      # Database
+      - ./instance:/app/instance
+
+      # Backups
+      - ./backups:/app/backups
+
+      # Logs
+      - ./logs:/app/logs
+
+      # Statics
+      - ./static:/app/static
+      - ./templates:/app/templates
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+
+    networks:
+      - ticketdesk-localstack-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # ========================================================================
+  # Nginx Reverse Proxy
+  # ========================================================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: ticketdesk-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-ticketdesk.conf:/etc/nginx/conf.d/ticketdesk.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - ticketdesk
+    networks:
+      - ticketdesk-localstack-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ========================================================================
+  # LocalStack Admin UI (Optional)
+  # ========================================================================
+  localstack-ui:
+    image: localstack/localstack-ui:latest
+    container_name: ticketdesk-localstack-ui
+    restart: always
+    ports:
+      - "4571:4571"
+    environment:
+      - LOCALSTACK_HOSTNAME=localstack
+      - LOCALSTACK_API_ENDPOINT=http://localstack:4566
+    depends_on:
+      - localstack
+    networks:
+      - ticketdesk-localstack-network
+
+networks:
+  ticketdesk-localstack-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

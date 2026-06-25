@@ -1,0 +1,1243 @@
+openapi: 3.0.0
+info:
+  title: TicketDesk Enterprise v2.1 API
+  description: |
+    API REST completa para gestión de incidencias de TI con soporte multi-empresa.
+
+    **Autenticación:** JWT Bearer Token (obtenido en POST /login)
+
+    **Rate Limiting:** 120 requests/minuto por IP
+
+    **Segregación:** Todos los endpoints filtran automáticamente por company_id del usuario
+  version: 2.1.0
+  contact:
+    name: TicketDesk Support
+    email: support@ticketdesk.local
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:5050
+    description: Servidor local de desarrollo
+  - url: http://192.168.1.100:5050
+    description: Servidor interno
+  - url: https://ticketdesk.example.com
+    description: Servidor de producción
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Autenticación
+    description: Login y manejo de sesiones
+  - name: Empresas
+    description: Gestión de empresas y multi-tenancy
+  - name: Tickets
+    description: CRUD de tickets y operaciones relacionadas
+  - name: Búsqueda
+    description: Búsqueda global y filtrado avanzado
+  - name: Reportes
+    description: Dashboards, métricas y análisis
+  - name: Configuración
+    description: Temas, SLA, plantillas
+  - name: Admin
+    description: Administración de usuarios, webhooks, servidores
+  - name: Bot
+    description: Asistente IA con base de conocimiento
+  - name: Health
+    description: Monitoreo y health checks
+
+paths:
+  /login:
+    post:
+      tags: [Autenticación]
+      summary: Autenticar usuario
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, company]
+              properties:
+                username:
+                  type: string
+                  example: john
+                password:
+                  type: string
+                  example: demo
+                company:
+                  type: string
+                  enum: [eliot, pash, primatela]
+                  example: eliot
+      responses:
+        200:
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  token:
+                    type: string
+                    description: JWT token de 24 horas
+                  user:
+                    $ref: '#/components/schemas/User'
+        401:
+          description: Credenciales inválidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /logout:
+    get:
+      tags: [Autenticación]
+      summary: Cerrar sesión
+      operationId: logout
+      responses:
+        200:
+          description: Sesión cerrada
+        401:
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/companies:
+    get:
+      tags: [Empresas]
+      summary: Listar todas las empresas
+      operationId: listCompanies
+      responses:
+        200:
+          description: Lista de empresas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  companies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Company'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/company/{company_code}:
+    get:
+      tags: [Empresas]
+      summary: Obtener detalles de una empresa
+      operationId: getCompany
+      parameters:
+        - in: path
+          name: company_code
+          required: true
+          schema:
+            type: string
+            enum: [eliot, pash, primatela]
+      responses:
+        200:
+          description: Detalles de empresa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /api/admin/companies:
+    get:
+      tags: [Empresas]
+      summary: Listar empresas (admin)
+      operationId: adminListCompanies
+      responses:
+        200:
+          description: Lista de empresas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  companies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Company'
+        403:
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [Empresas]
+      summary: Crear nueva empresa (admin)
+      operationId: createCompany
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name]
+              properties:
+                code:
+                  type: string
+                  example: nuevaempresa
+                name:
+                  type: string
+                  example: Nueva Empresa S.A.
+                icon:
+                  type: string
+                  example: 🏢
+                primary_color:
+                  type: string
+                  pattern: '^#[0-9A-Fa-f]{6}$'
+                  example: '#2563eb'
+                secondary_color:
+                  type: string
+                  pattern: '^#[0-9A-Fa-f]{6}$'
+                  example: '#1e40af'
+      responses:
+        201:
+          description: Empresa creada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  company:
+                    $ref: '#/components/schemas/Company'
+        403:
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/companies/{company_id}:
+    put:
+      tags: [Empresas]
+      summary: Actualizar empresa (admin)
+      operationId: updateCompany
+      parameters:
+        - in: path
+          name: company_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                primary_color:
+                  type: string
+                  pattern: '^#[0-9A-Fa-f]{6}$'
+                secondary_color:
+                  type: string
+                  pattern: '^#[0-9A-Fa-f]{6}$'
+      responses:
+        200:
+          description: Empresa actualizada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  company:
+                    $ref: '#/components/schemas/Company'
+        403:
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/tickets/create:
+    post:
+      tags: [Tickets]
+      summary: Crear nuevo ticket
+      operationId: createTicket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description, category, priority]
+              properties:
+                title:
+                  type: string
+                  maxLength: 200
+                  example: Impresora no funciona
+                description:
+                  type: string
+                  example: La impresora de piso 3 no está imprimiendo
+                category:
+                  type: string
+                  example: Hardware
+                priority:
+                  type: string
+                  enum: [low, medium, high, critical]
+                  example: high
+      responses:
+        201:
+          description: Ticket creado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  ticket:
+                    $ref: '#/components/schemas/Ticket'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/admin/tickets/{ticket_id}/edit:
+    post:
+      tags: [Tickets]
+      summary: Editar ticket existente
+      operationId: updateTicket
+      parameters:
+        - in: path
+          name: ticket_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                status:
+                  type: string
+                  enum: [open, in_progress, resolved]
+                priority:
+                  type: string
+                  enum: [low, medium, high, critical]
+                assignee_id:
+                  type: integer
+      responses:
+        200:
+          description: Ticket actualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  ticket:
+                    $ref: '#/components/schemas/Ticket'
+        409:
+          description: Conflicto de edición (versión mismatch)
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /api/admin/tickets/{ticket_id}/delete:
+    post:
+      tags: [Tickets]
+      summary: Eliminar ticket
+      operationId: deleteTicket
+      parameters:
+        - in: path
+          name: ticket_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Ticket eliminado
+        403:
+          $ref: '#/components/responses/Forbidden'
+
+  /api/ticket/{ticket_id}/escalate:
+    post:
+      tags: [Tickets]
+      summary: Escalar ticket a crítica
+      operationId: escalateTicket
+      parameters:
+        - in: path
+          name: ticket_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  example: Cliente muy enojado
+      responses:
+        200:
+          description: Ticket escalado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  ticket:
+                    $ref: '#/components/schemas/Ticket'
+        403:
+          $ref: '#/components/responses/Forbidden'
+
+  /api/ticket/{ticket_id}/reassign:
+    post:
+      tags: [Tickets]
+      summary: Reasignar ticket a otro técnico
+      operationId: reassignTicket
+      parameters:
+        - in: path
+          name: ticket_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_assignee_id]
+              properties:
+                new_assignee_id:
+                  type: integer
+                reason:
+                  type: string
+      responses:
+        200:
+          description: Ticket reasignado
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /api/ticket/{ticket_id}/time:
+    get:
+      tags: [Tickets]
+      summary: Obtener tiempo trabajado
+      operationId: getTicketTime
+      parameters:
+        - in: path
+          name: ticket_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Información de tiempo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket_id:
+                    type: integer
+                  total_minutes:
+                    type: integer
+                  total_hours:
+                    type: number
+                  sessions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        start_time:
+                          type: string
+                          format: date-time
+                        end_time:
+                          type: string
+                          format: date-time
+                        minutes:
+                          type: integer
+
+    post:
+      tags: [Tickets]
+      summary: Registrar tiempo trabajado
+      operationId: recordTicketTime
+      parameters:
+        - in: path
+          name: ticket_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [minutes]
+              properties:
+                minutes:
+                  type: integer
+                  minimum: 1
+                description:
+                  type: string
+      responses:
+        200:
+          description: Tiempo registrado
+
+  /api/ticket/{ticket_id}/history:
+    get:
+      tags: [Tickets]
+      summary: Obtener historial de cambios
+      operationId: getTicketHistory
+      parameters:
+        - in: path
+          name: ticket_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Historial de ticket
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket_id:
+                    type: integer
+                  history:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        action:
+                          type: string
+                        user:
+                          type: string
+                        timestamp:
+                          type: string
+                          format: date-time
+                        changes:
+                          type: object
+
+  /api/ticket/{ticket_id}/rating:
+    post:
+      tags: [Tickets]
+      summary: Calificar resolución de ticket
+      operationId: rateTicket
+      parameters:
+        - in: path
+          name: ticket_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating]
+              properties:
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                comment:
+                  type: string
+      responses:
+        200:
+          description: Calificación registrada
+
+  /api/search:
+    get:
+      tags: [Búsqueda]
+      summary: Búsqueda global de tickets (Ctrl+K)
+      operationId: searchTickets
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+            example: impresora
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        200:
+          description: Resultados de búsqueda
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Ticket'
+                  total:
+                    type: integer
+                  took_ms:
+                    type: integer
+
+  /api/tickets/filter:
+    post:
+      tags: [Búsqueda]
+      summary: Filtrado avanzado de tickets
+      operationId: filterTickets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: array
+                  items:
+                    type: string
+                priority:
+                  type: array
+                  items:
+                    type: string
+                category:
+                  type: string
+                assignee_id:
+                  type: integer
+                created_after:
+                  type: string
+                  format: date-time
+                created_before:
+                  type: string
+                  format: date-time
+                sort_by:
+                  type: string
+                  default: created_at
+                sort_order:
+                  type: string
+                  enum: [asc, desc]
+                limit:
+                  type: integer
+                  default: 20
+                offset:
+                  type: integer
+                  default: 0
+      responses:
+        200:
+          description: Tickets filtrados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tickets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Ticket'
+                  total:
+                    type: integer
+
+  /api/reports/dashboard:
+    get:
+      tags: [Reportes]
+      summary: Obtener métricas del dashboard
+      operationId: getDashboardMetrics
+      responses:
+        200:
+          description: Métricas del sistema
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: object
+                    properties:
+                      total_tickets:
+                        type: integer
+                      open_tickets:
+                        type: integer
+                      in_progress:
+                        type: integer
+                      resolved:
+                        type: integer
+                  by_priority:
+                    type: object
+                  by_status:
+                    type: object
+                  sla_health:
+                    type: object
+                  team_performance:
+                    type: array
+
+  /api/system/metrics:
+    get:
+      tags: [Reportes]
+      summary: Métricas del sistema
+      operationId: getSystemMetrics
+      responses:
+        200:
+          description: Métricas operacionales
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tickets:
+                    type: object
+                  users:
+                    type: object
+                  system:
+                    type: object
+                    properties:
+                      uptime_hours:
+                        type: number
+                      database_size_mb:
+                        type: number
+                      last_backup:
+                        type: string
+                        format: date-time
+
+  /api/config/sla:
+    post:
+      tags: [Configuración]
+      summary: Configurar tiempos SLA
+      operationId: configureSLA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                low:
+                  type: integer
+                  description: Minutos para prioridad baja
+                medium:
+                  type: integer
+                high:
+                  type: integer
+                critical:
+                  type: integer
+      responses:
+        200:
+          description: SLA configurado
+
+  /api/config/theme:
+    post:
+      tags: [Configuración]
+      summary: Cambiar tema visual
+      operationId: setTheme
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [theme]
+              properties:
+                theme:
+                  type: string
+                  enum: [blue, purple, green, red, amber, pink, indigo, teal, cyan, fuchsia, lime, sky]
+      responses:
+        200:
+          description: Tema actualizado
+
+  /api/company-theme:
+    get:
+      tags: [Configuración]
+      summary: Obtener tema de empresa actual
+      operationId: getCompanyTheme
+      responses:
+        200:
+          description: Información de tema
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  company:
+                    type: string
+                  company_name:
+                    type: string
+                  primary_color:
+                    type: string
+                  secondary_color:
+                    type: string
+                  icon:
+                    type: string
+
+  /api/export/excel:
+    get:
+      tags: [Reportes]
+      summary: Exportar tickets a Excel
+      operationId: exportExcel
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: priority
+          schema:
+            type: string
+      responses:
+        200:
+          description: Archivo Excel
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /api/export/csv:
+    get:
+      tags: [Reportes]
+      summary: Exportar tickets a CSV
+      operationId: exportCSV
+      responses:
+        200:
+          description: Archivo CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /api/admin/sessions:
+    get:
+      tags: [Admin]
+      summary: Listar sesiones activas
+      operationId: listActiveSessions
+      responses:
+        200:
+          description: Sesiones activas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        user_id:
+                          type: integer
+                        username:
+                          type: string
+                        login_time:
+                          type: string
+                          format: date-time
+                        last_activity:
+                          type: string
+                          format: date-time
+                        ip_address:
+                          type: string
+
+  /api/admin/sessions/{user_id}/kick:
+    post:
+      tags: [Admin]
+      summary: Expulsar usuario de sesión
+      operationId: kickUserSession
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        200:
+          description: Usuario expulsado
+
+  /api/admin/webhooks:
+    get:
+      tags: [Admin]
+      summary: Listar webhooks
+      operationId: listWebhooks
+      responses:
+        200:
+          description: Webhooks configurados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  webhooks:
+                    type: array
+                    items:
+                      type: object
+
+    post:
+      tags: [Admin]
+      summary: Crear nuevo webhook
+      operationId: createWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, url, events]
+              properties:
+                name:
+                  type: string
+                url:
+                  type: string
+                  format: uri
+                events:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        201:
+          description: Webhook creado
+
+  /api/admin/webhooks/{webhook_id}:
+    delete:
+      tags: [Admin]
+      summary: Eliminar webhook
+      operationId: deleteWebhook
+      parameters:
+        - in: path
+          name: webhook_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Webhook eliminado
+
+  /api/admin/servers:
+    get:
+      tags: [Admin]
+      summary: Listar servidores monitoreados
+      operationId: listServers
+      responses:
+        200:
+          description: Servidores
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  servers:
+                    type: array
+                    items:
+                      type: object
+
+    post:
+      tags: [Admin]
+      summary: Agregar servidor a monitorear
+      operationId: addServer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, ip, port]
+              properties:
+                name:
+                  type: string
+                ip:
+                  type: string
+                  format: ipv4
+                port:
+                  type: integer
+      responses:
+        201:
+          description: Servidor agregado
+
+  /api/admin/servers/{server_id}:
+    delete:
+      tags: [Admin]
+      summary: Eliminar servidor del monitoreo
+      operationId: deleteServer
+      parameters:
+        - in: path
+          name: server_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Servidor eliminado
+
+  /api/bot/ask:
+    post:
+      tags: [Bot]
+      summary: Consultar bot de IA
+      operationId: askBot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question:
+                  type: string
+                ticket_id:
+                  type: integer
+      responses:
+        200:
+          description: Respuesta del bot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  answer:
+                    type: string
+                  source:
+                    type: string
+                  related_tickets:
+                    type: array
+                    items:
+                      type: integer
+        503:
+          description: Bot no disponible
+
+  /api/notifications/push-subscribe:
+    post:
+      tags: [Notificaciones]
+      summary: Registrar para push notifications
+      operationId: subscribePush
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscription]
+              properties:
+                subscription:
+                  type: object
+      responses:
+        200:
+          description: Suscripción registrada
+
+  /api/templates:
+    get:
+      tags: [Configuración]
+      summary: Obtener plantillas de tickets
+      operationId: getTemplates
+      responses:
+        200:
+          description: Plantillas disponibles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      type: object
+
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Health check del servidor
+      operationId: healthCheck
+      responses:
+        200:
+          description: Servidor saludable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, error]
+                  app:
+                    type: string
+                  version:
+                    type: string
+                  database:
+                    type: string
+                  uptime_seconds:
+                    type: integer
+                  timestamp:
+                    type: string
+                    format: date-time
+        503:
+          description: Servidor no saludable
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtenido en POST /login
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [admin, technician, employee]
+        company:
+          type: string
+        is_active:
+          type: boolean
+        last_login:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    Company:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        name:
+          type: string
+        icon:
+          type: string
+        primary_color:
+          type: string
+        secondary_color:
+          type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    Ticket:
+      type: object
+      properties:
+        id:
+          type: integer
+        ticket_number:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, resolved]
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+        company:
+          type: string
+        creator_id:
+          type: integer
+        assignee_id:
+          type: integer
+        sla_minutes:
+          type: integer
+        sla_deadline:
+          type: string
+          format: date-time
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+        error:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Solicitud inválida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: No autenticado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Permiso denegado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Conflicto (edición concurrente)
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+              error:
+                type: string
+              current_version:
+                type: integer

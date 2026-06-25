@@ -1,0 +1,52 @@
+# ============================================================================
+# Systemd Service Unit - TicketDesk Scheduler (Background Jobs)
+# Ubicar en: /etc/systemd/system/ticketdesk-scheduler.service
+# ============================================================================
+
+[Unit]
+Description=TicketDesk Scheduler - Background Jobs & SLA Monitoring
+Documentation=https://ticketdesk.tuempresa.com
+After=network.target postgresql.service
+PartOf=ticketdesk.service
+
+[Service]
+Type=simple
+User=ticketdesk
+WorkingDirectory=/opt/ticketdesk
+Environment="FLASK_APP=app.py"
+Environment="FLASK_ENV=production"
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=/opt/ticketdesk/.env
+
+# Comando de inicio
+ExecStart=/usr/bin/python3 /opt/ticketdesk/scheduler.py
+
+# Auto-restart
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=5
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/ticketdesk/instance /var/log/ticketdesk
+
+# Resource limits
+LimitNOFILE=65535
+LimitNPROC=32768
+
+# Process management
+KillMode=mixed
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ticketdesk-scheduler
+
+[Install]
+WantedBy=ticketdesk.service

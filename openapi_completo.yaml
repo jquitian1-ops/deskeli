@@ -1,0 +1,1282 @@
+openapi: 3.0.0
+info:
+  title: TicketDesk Enterprise API
+  description: Sistema completo de gestión de incidencias TI para 3 empresas, 8,000 empleados
+  version: 2.1.0
+  contact:
+    name: Soporte TicketDesk
+    email: support@ticketdesk.local
+  license:
+    name: Propietario
+    url: https://ticketdesk.local/license
+
+servers:
+  - url: http://localhost:5050
+    description: Servidor de desarrollo
+  - url: http://192.168.1.50:5050
+    description: Servidor de producción
+
+security:
+  - cookieAuth: []
+  - bearerAuth: []
+
+paths:
+  /login:
+    post:
+      summary: Autenticar usuario contra LDAP/BD local
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - company
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: juan@empresa.com
+                password:
+                  type: string
+                  format: password
+                  example: SecurePassword123
+                company:
+                  type: string
+                  enum: [eliot, pash, primatela]
+                  example: eliot
+      responses:
+        200:
+          description: Login exitoso, sesión creada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  user:
+                    $ref: '#/components/schemas/User'
+                  redirect:
+                    type: string
+                    example: /employee/dashboard
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        400:
+          $ref: '#/components/responses/BadRequest'
+
+  /logout:
+    get:
+      summary: Terminar sesión y revocar JWT
+      tags:
+        - Autenticación
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Logout exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+  /api/companies:
+    get:
+      summary: Listar todas las empresas disponibles
+      tags:
+        - Empresas
+      responses:
+        200:
+          description: Lista de empresas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  companies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Company'
+
+  /api/company/{company_code}:
+    get:
+      summary: Obtener detalles de empresa específica
+      tags:
+        - Empresas
+      parameters:
+        - name: company_code
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [eliot, pash, primatela]
+      responses:
+        200:
+          description: Detalles de empresa
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  company:
+                    $ref: '#/components/schemas/CompanyDetail'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /api/tickets:
+    get:
+      summary: Listar tickets del usuario (paginado)
+      tags:
+        - Tickets
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_progress, resolved, closed]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [low, medium, high, critical]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [created_at, priority, sla_remaining]
+      responses:
+        200:
+          description: Lista de tickets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+                  tickets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TicketSummary'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/tickets/create:
+    post:
+      summary: Crear nuevo ticket
+      tags:
+        - Tickets
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - description
+                - priority
+                - category
+              properties:
+                title:
+                  type: string
+                  minLength: 5
+                  maxLength: 100
+                  example: No puedo acceder a SAP
+                description:
+                  type: string
+                  maxLength: 5000
+                  example: Desde esta mañana no puedo ingresar al sistema SAP PRD
+                priority:
+                  type: string
+                  enum: [low, medium, high, critical]
+                category:
+                  type: string
+                  example: access
+                related_system:
+                  type: string
+                  example: SAP
+                attachments:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        201:
+          description: Ticket creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  ticket:
+                    $ref: '#/components/schemas/Ticket'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/tickets/{ticket_id}:
+    get:
+      summary: Obtener detalles completos de ticket
+      tags:
+        - Tickets
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Detalles del ticket
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  ticket:
+                    $ref: '#/components/schemas/TicketDetail'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Actualizar ticket (con bloqueo optimista)
+      tags:
+        - Tickets
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - version
+              properties:
+                title:
+                  type: string
+                status:
+                  type: string
+                  enum: [open, in_progress, resolved, closed]
+                priority:
+                  type: string
+                  enum: [low, medium, high, critical]
+                assignee_id:
+                  type: integer
+                version:
+                  type: integer
+                  description: Número de versión actual (para bloqueo optimista)
+      responses:
+        200:
+          description: Ticket actualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  ticket:
+                    type: object
+        409:
+          description: Conflicto de versión (edición concurrente)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  error:
+                    type: string
+                  current_version:
+                    type: integer
+                  latest_ticket:
+                    $ref: '#/components/schemas/TicketDetail'
+
+  /api/tickets/{ticket_id}/comments:
+    get:
+      summary: Obtener comentarios del ticket
+      tags:
+        - Comentarios
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        200:
+          description: Lista de comentarios
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  total:
+                    type: integer
+                  comments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Comment'
+
+    post:
+      summary: Agregar comentario a ticket
+      tags:
+        - Comentarios
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+      responses:
+        201:
+          description: Comentario creado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  comment:
+                    $ref: '#/components/schemas/Comment'
+
+  /api/tickets/{ticket_id}/assign:
+    post:
+      summary: Asignar ticket a técnico
+      tags:
+        - Tickets
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - assignee_id
+              properties:
+                assignee_id:
+                  type: integer
+      responses:
+        200:
+          description: Ticket asignado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  assigned_to:
+                    type: string
+
+  /api/tickets/{ticket_id}/reassign:
+    post:
+      summary: Reasignar ticket con motivo (RF-02-08)
+      tags:
+        - Tickets
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - assignee_id
+                - reason
+              properties:
+                assignee_id:
+                  type: integer
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+      responses:
+        200:
+          description: Ticket reasignado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  reassigned_to:
+                    type: string
+
+  /api/tickets/{ticket_id}/escalate:
+    post:
+      summary: Escalar ticket a prioridad Crítica (RF-02-07)
+      tags:
+        - Tickets
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        200:
+          description: Ticket escalado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  priority:
+                    type: string
+                    example: critical
+
+  /api/tickets/{ticket_id}/rating:
+    post:
+      summary: Guardar calificación y resolver ticket (RF-01-09)
+      tags:
+        - Tickets
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - rating
+              properties:
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                feedback:
+                  type: string
+      responses:
+        200:
+          description: Ticket resuelto
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  status:
+                    type: string
+
+  /api/tickets/{ticket_id}/history:
+    get:
+      summary: Obtener historial de cambios (RF-01-08)
+      tags:
+        - Tickets
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Historial de cambios
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  history:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        action:
+                          type: string
+                        description:
+                          type: string
+                        created_at:
+                          type: string
+                          format: date-time
+
+  /api/tickets/{ticket_id}/time:
+    get:
+      summary: Obtener tiempo trabajado en ticket
+      tags:
+        - Tickets
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Tiempo trabajado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  seconds:
+                    type: integer
+                  formatted:
+                    type: string
+
+    post:
+      summary: Registrar tiempo trabajado (acumula)
+      tags:
+        - Tickets
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - seconds
+              properties:
+                seconds:
+                  type: integer
+                  minimum: 0
+      responses:
+        200:
+          description: Tiempo registrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  total_seconds:
+                    type: integer
+
+  /api/search:
+    get:
+      summary: Búsqueda global FTS5 (Ctrl+K) - RF-02-09
+      tags:
+        - Búsqueda
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Término de búsqueda
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        200:
+          description: Resultados de búsqueda
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  query:
+                    type: string
+                  results:
+                    type: object
+                    properties:
+                      tickets:
+                        type: array
+                        items:
+                          type: object
+                      comments:
+                        type: array
+                        items:
+                          type: object
+
+  /api/tickets/filter:
+    post:
+      summary: Filtros avanzados para cola de técnicos
+      tags:
+        - Búsqueda
+      security:
+        - cookieAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                priority:
+                  type: string
+                category:
+                  type: string
+                assignee_id:
+                  type: integer
+                critical_sla:
+                  type: boolean
+      responses:
+        200:
+          description: Tickets filtrados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  tickets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TicketSummary'
+
+  /api/me:
+    get:
+      summary: Obtener perfil del usuario autenticado
+      tags:
+        - Usuario
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Perfil del usuario
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  user:
+                    $ref: '#/components/schemas/UserProfile'
+
+    put:
+      summary: Actualizar perfil del usuario
+      tags:
+        - Usuario
+      security:
+        - cookieAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                department:
+                  type: string
+                phone:
+                  type: string
+      responses:
+        200:
+          description: Perfil actualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /api/admin/dashboard:
+    get:
+      summary: Datos del dashboard administrativo
+      tags:
+        - Administrador
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Datos del dashboard
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  company:
+                    type: string
+                  stats:
+                    type: object
+
+  /api/admin/sessions:
+    get:
+      summary: Listar sesiones activas
+      tags:
+        - Administrador
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Sesiones activas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  sessions:
+                    type: array
+                    items:
+                      type: object
+
+  /api/admin/sessions/{user_id}/kick:
+    post:
+      summary: Desconectar usuario por admin
+      tags:
+        - Administrador
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        200:
+          description: Usuario desconectado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /api/admin/audit-logs:
+    get:
+      summary: Obtener logs de auditoría (RF-04-01)
+      tags:
+        - Administrador
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: entity_type
+          in: query
+          schema:
+            type: string
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 7
+      responses:
+        200:
+          description: Logs de auditoría
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  logs:
+                    type: array
+                    items:
+                      type: object
+
+  /api/health:
+    get:
+      summary: Estado de salud del sistema
+      tags:
+        - Monitoreo
+      responses:
+        200:
+          description: Estado del sistema
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  service:
+                    type: string
+                  version:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+                  components:
+                    type: object
+
+  /api/system/metrics:
+    get:
+      summary: Métricas detalladas del sistema
+      tags:
+        - Monitoreo
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Métricas del sistema
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  tickets:
+                    type: object
+                  users:
+                    type: object
+
+  /api/bot/ask:
+    post:
+      summary: Consultar al bot (Claude API)
+      tags:
+        - Bot
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - question
+              properties:
+                question:
+                  type: string
+                context:
+                  type: string
+                system:
+                  type: string
+      responses:
+        200:
+          description: Respuesta del bot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  answer:
+                    type: string
+                  confidence:
+                    type: number
+
+  /api/export/excel:
+    get:
+      summary: Exportar tickets a Excel
+      tags:
+        - Exportación
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: priority
+          in: query
+          schema:
+            type: string
+      responses:
+        200:
+          description: Archivo Excel
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /api/export/csv:
+    get:
+      summary: Exportar tickets a CSV
+      tags:
+        - Exportación
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Archivo CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          type: string
+          enum: [employee, technician, admin]
+        company:
+          type: string
+        department:
+          type: string
+
+    UserProfile:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          properties:
+            avatar_url:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+            last_login:
+              type: string
+              format: date-time
+
+    Company:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        name:
+          type: string
+        icon:
+          type: string
+        color:
+          type: string
+
+    CompanyDetail:
+      allOf:
+        - $ref: '#/components/schemas/Company'
+        - type: object
+          properties:
+            ldap_server:
+              type: string
+            ldap_base_dn:
+              type: string
+            users_count:
+              type: integer
+            technicians_count:
+              type: integer
+            tickets_total:
+              type: integer
+
+    Ticket:
+      type: object
+      properties:
+        id:
+          type: integer
+        ticket_number:
+          type: string
+          example: TKT-202605-0523
+        title:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, resolved, closed]
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+        created_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+        company:
+          type: string
+
+    TicketSummary:
+      allOf:
+        - $ref: '#/components/schemas/Ticket'
+        - type: object
+          properties:
+            category:
+              type: string
+            assignee:
+              type: string
+            sla_deadline:
+              type: string
+              format: date-time
+            sla_remaining_seconds:
+              type: integer
+            comments_count:
+              type: integer
+
+    TicketDetail:
+      allOf:
+        - $ref: '#/components/schemas/TicketSummary'
+        - type: object
+          properties:
+            description:
+              type: string
+            related_system:
+              type: string
+            created_by:
+              type: object
+            assignee:
+              type: object
+            updated_at:
+              type: string
+              format: date-time
+            resolved_at:
+              type: string
+              format: date-time
+            time_worked_seconds:
+              type: integer
+            comments:
+              type: array
+              items:
+                $ref: '#/components/schemas/Comment'
+            version:
+              type: integer
+            rating:
+              type: integer
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        author:
+          type: string
+        text:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        attachments:
+          type: array
+          items:
+            type: string
+
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Sesión HTTP creada en login
+
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT obtenido en login
+
+  responses:
+    BadRequest:
+      description: Solicitud inválida
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+              error:
+                type: string
+
+    Unauthorized:
+      description: Autenticación requerida o fallida
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+              error:
+                type: string
+
+    Forbidden:
+      description: Acceso denegado
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+              error:
+                type: string
+
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+              error:
+                type: string
+
+tags:
+  - name: Autenticación
+    description: Login, logout, manejo de sesiones
+  - name: Empresas
+    description: Información de empresas y configuración
+  - name: Tickets
+    description: CRUD de tickets, asignación, SLA
+  - name: Comentarios
+    description: Gestión de comentarios en tickets
+  - name: Búsqueda
+    description: Búsqueda FTS5 y filtros avanzados
+  - name: Usuario
+    description: Perfil y configuración personal
+  - name: Administrador
+    description: Dashboard, audit logs, gestión de usuarios
+  - name: Monitoreo
+    description: Salud del sistema y métricas
+  - name: Bot
+    description: Integración Claude API para autoservicio
+  - name: Exportación
+    description: Exportar datos a Excel/CSV

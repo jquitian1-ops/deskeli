@@ -1,0 +1,14 @@
+# Test dependencies for TicketDesk Enterprise v2.1
+
+# Core testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+pytest-flask>=1.3.0
+
+# Mocking and fixtures
+responses>=0.22.0
+factory-boy>=3.2.0
+
+# Code quality
+coverage>=7.0.0

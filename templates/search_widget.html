@@ -1,0 +1,320 @@
+<!-- Search Widget (Ctrl+K) - Global -->
+<div id="search-overlay" class="search-overlay" style="display: none;">
+    <div class="search-modal">
+        <div class="search-header">
+            <input
+                id="search-input"
+                type="text"
+                placeholder="Buscar tickets (Escribe para buscar)..."
+                class="search-input"
+                autofocus
+            >
+            <span class="search-hint">ESC para cerrar</span>
+        </div>
+        <div id="search-results" class="search-results">
+            <div class="search-placeholder">Comienza a escribir para buscar...</div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .search-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        z-index: 10000;
+        padding-top: 100px;
+        backdrop-filter: blur(4px);
+    }
+
+    .search-modal {
+        background: white;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 600px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+        max-height: 70vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .search-header {
+        padding: 20px;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .search-input {
+        flex: 1;
+        border: none;
+        font-size: 16px;
+        outline: none;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .search-hint {
+        color: #999;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 8px;
+        background: #f0f0f0;
+        border-radius: 4px;
+    }
+
+    .search-results {
+        overflow-y: auto;
+        flex: 1;
+        max-height: 400px;
+    }
+
+    .search-result-item {
+        padding: 15px 20px;
+        border-bottom: 1px solid #f0f0f0;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .search-result-item:hover {
+        background: #f9f9f9;
+    }
+
+    .search-result-main {
+        flex: 1;
+    }
+
+    .search-result-ticket {
+        font-weight: 700;
+        color: #2563eb;
+        font-size: 12px;
+        margin-bottom: 4px;
+    }
+
+    .search-result-title {
+        font-weight: 600;
+        color: #333;
+        font-size: 14px;
+        margin-bottom: 4px;
+    }
+
+    .search-result-meta {
+        font-size: 12px;
+        color: #999;
+        display: flex;
+        gap: 10px;
+    }
+
+    .search-result-status {
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .status-open { background: #e0e7ff; color: #3730a3; }
+    .status-in_progress { background: #fef3c7; color: #92400e; }
+    .status-resolved { background: #d1fae5; color: #065f46; }
+
+    .priority-low { color: #10b981; }
+    .priority-medium { color: #f59e0b; }
+    .priority-high { color: #ef4444; }
+    .priority-critical { color: #dc2626; font-weight: 700; }
+
+    .search-placeholder {
+        padding: 40px 20px;
+        text-align: center;
+        color: #999;
+        font-size: 14px;
+    }
+
+    .search-empty {
+        padding: 40px 20px;
+        text-align: center;
+        color: #999;
+        font-size: 14px;
+    }
+
+    .search-loading {
+        padding: 20px;
+        text-align: center;
+        color: #2563eb;
+        font-size: 13px;
+    }
+
+    @media (max-width: 640px) {
+        .search-overlay {
+            padding-top: 20px;
+        }
+
+        .search-modal {
+            max-width: 95vw;
+            max-height: 80vh;
+        }
+
+        .search-hint {
+            display: none;
+        }
+    }
+</style>
+
+<script>
+    const searchOverlay = document.getElementById('search-overlay');
+    const searchInput = document.getElementById('search-input');
+    const searchResults = document.getElementById('search-results');
+
+    let searchTimeout;
+
+    // Open search on Ctrl+K or Cmd+K
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            openSearch();
+        }
+
+        // Close on ESC
+        if (e.key === 'Escape' && searchOverlay.style.display !== 'none') {
+            closeSearch();
+        }
+    });
+
+    function openSearch() {
+        searchOverlay.style.display = 'flex';
+        searchInput.focus();
+        searchInput.value = '';
+        searchResults.innerHTML = '<div class="search-placeholder">Comienza a escribir para buscar...</div>';
+    }
+
+    function closeSearch() {
+        searchOverlay.style.display = 'none';
+        searchInput.value = '';
+    }
+
+    // Close when clicking overlay background
+    searchOverlay.addEventListener('click', (e) => {
+        if (e.target === searchOverlay) {
+            closeSearch();
+        }
+    });
+
+    // Search as user types
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+
+        const query = e.target.value.trim();
+
+        if (!query) {
+            searchResults.innerHTML = '<div class="search-placeholder">Comienza a escribir para buscar...</div>';
+            return;
+        }
+
+        if (query.length < 2) {
+            return;
+        }
+
+        searchResults.innerHTML = '<div class="search-loading">Buscando...</div>';
+
+        searchTimeout = setTimeout(() => {
+            fetch(`/api/search?q=${encodeURIComponent(query)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.results.length === 0) {
+                        searchResults.innerHTML = `<div class="search-empty">No se encontraron resultados para "${query}"</div>`;
+                        return;
+                    }
+
+                    let html = '';
+                    data.results.forEach(ticket => {
+                        const statusClass = `status-${ticket.status}`;
+                        const priorityClass = `priority-${ticket.priority}`;
+
+                        html += `
+                            <div class="search-result-item" onclick="navigateToTicket(${ticket.id})">
+                                <div class="search-result-main">
+                                    <div class="search-result-ticket">${ticket.ticket_number}</div>
+                                    <div class="search-result-title">${ticket.title}</div>
+                                    <div class="search-result-meta">
+                                        <span class="search-result-status ${statusClass}">${ticket.status.toUpperCase()}</span>
+                                        <span class="search-result-status ${priorityClass}">${ticket.priority.toUpperCase()}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    searchResults.innerHTML = html;
+                })
+                .catch(err => {
+                    searchResults.innerHTML = '<div class="search-empty">Error al buscar. Intenta de nuevo.</div>';
+                    console.error(err);
+                });
+        }, 300);
+    });
+
+    function navigateToTicket(ticketId) {
+        closeSearch();
+        // Detectar rol del usuario y navegar al portal correcto
+        const role = document.body.dataset.userRole || 'employee';
+        const url = `/${role}/ticket/${ticketId}`;
+        window.location.href = url;
+    }
+</script>
+
+<!-- ===== INTERCEPTOR DE EXPULSIÓN POR ADMIN ===== -->
+<script>
+(function() {
+    // Wrap global fetch para detectar respuestas de force-logout
+    if (window._forcedLogoutInterceptorInstalled) return;
+    window._forcedLogoutInterceptorInstalled = true;
+
+    const originalFetch = window.fetch.bind(window);
+
+    async function _handleForcedLogout() {
+        if (window._forcedLogoutShown) return;
+        window._forcedLogoutShown = true;
+        try {
+            alert(
+                '🚫 Sesión cerrada por el administrador\n\n' +
+                'Un administrador finalizó tu sesión activa. ' +
+                'Si crees que es un error, contactá al equipo de TI.\n\n' +
+                'Vas a ser redirigido a la pantalla de inicio de sesión.'
+            );
+        } catch(e) {}
+        window.location.href = '/login?forced_logout=1';
+    }
+
+    window.fetch = function(...args) {
+        return originalFetch(...args).then(async response => {
+            // Solo verificar respuestas 401 con content-type JSON
+            if (response.status === 401) {
+                const ctype = (response.headers.get('content-type') || '').toLowerCase();
+                if (ctype.includes('json')) {
+                    // Clonar para no consumir el body original
+                    try {
+                        const cloned = response.clone();
+                        const data = await cloned.json();
+                        if (data && data.forced_logout === true) {
+                            _handleForcedLogout();
+                        }
+                    } catch(e) {
+                        // Si no es JSON parseable, ignorar
+                    }
+                }
+            }
+            return response;
+        }).catch(err => {
+            throw err;
+        });
+    };
+})();
+</script>

@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal de Empleados - DeskEli</title>
+    {% include 'company_theme.html' %}
+    <style>
+        :root {
+            --theme-primary: {{ theme_color | default('#2563eb') }};
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--theme-primary) 0%, var(--theme-primary) 100%);
+            color: white;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            filter: saturate(1.1);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+        }
+
+        .header-right {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .company-badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid white;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .section h2 {
+            font-size: 18px;
+            color: #333;
+        }
+
+        .btn-create {
+            background: #2563eb;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-create:hover {
+            background: #1e40af;
+            transform: translateY(-2px);
+        }
+
+        .ticket-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .ticket-item:hover {
+            border-color: #2563eb;
+            background: #f0f4ff;
+        }
+
+        .ticket-info {
+            flex: 1;
+        }
+
+        .ticket-id {
+            display: inline-block;
+            font-weight: 700;
+            color: #2563eb;
+            background: #eff6ff;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 6px;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 0.5px;
+        }
+
+        .ticket-title {
+            color: #333;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .ticket-details {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .ticket-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-open {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-in-progress {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-resolved {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .sla-timer {
+            text-align: right;
+        }
+
+        .sla-time {
+            font-weight: 600;
+            font-size: 14px;
+            color: #d97706;
+            margin-bottom: 4px;
+        }
+
+        .sla-bar {
+            width: 100px;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .sla-fill {
+            height: 100%;
+            background: #d97706;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .chat-widget {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            font-family: inherit;
+            z-index: 9999;
+        }
+
+        .chat-button {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: white;
+            color: white;
+            border: 3px solid #2563eb;
+            cursor: pointer;
+            padding: 0;
+            overflow: hidden;
+            font-size: 28px;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chat-button:hover {
+            background: #1e40af;
+            transform: scale(1.1);
+        }
+
+        .chat-window {
+            position: absolute;
+            bottom: 80px;
+            right: 0;
+            width: 350px;
+            height: 450px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 40px rgba(0, 0, 0, 0.16);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-window.active {
+            display: flex;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            color: white;
+            padding: 14px 16px;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chat-header img.eli-header-img {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 2px solid white;
+            object-fit: cover;
+            background: white;
+        }
+
+        .chat-msg.bot {
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+        }
+
+        .chat-msg.bot img.eli-msg-img {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: white;
+            border: 2px solid #e5e7eb;
+            flex-shrink: 0;
+        }
+
+        /* ============== BOTONES DE ACCIÓN DEL CHAT ============== */
+        .action-banner {
+            background: linear-gradient(135deg, #f3e8ff 0%, #e0e7ff 100%);
+            border: 2px solid #c4b5fd;
+            border-radius: 12px;
+            padding: 14px;
+            margin: 12px 0;
+            box-shadow: 0 4px 12px rgba(124,58,237,0.15);
+        }
+
+        .action-banner-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #5b21b6;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .action-buttons-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 12px 8px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            color: white;
+            transition: all 0.2s;
+            text-align: center;
+            line-height: 1.3;
+        }
+
+        .action-btn-yes {
+            background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+        }
+
+        .action-btn-yes:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(22,163,74,0.4);
+        }
+
+        .action-btn-no {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        }
+
+        .action-btn-no:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(220,38,38,0.4);
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .chat-msg {
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .chat-msg.bot {
+            background: #f0f4ff;
+            color: #1e40af;
+            align-self: flex-start;
+        }
+
+        .chat-msg.user {
+            background: #2563eb;
+            color: white;
+            align-self: flex-end;
+        }
+
+        .chat-footer {
+            padding: 12px;
+            border-top: 1px solid #e0e0e0;
+            background: #f9f9f9;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 8px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .chat-input button {
+            padding: 8px 12px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .chat-input button:hover {
+            background: #1e40af;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .bot-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            border-left: 4px solid #2563eb;
+        }
+
+        .bot-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2563eb;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .bot-message {
+            background: #f0f4ff;
+            padding: 12px;
+            border-radius: 6px;
+            color: #1e40af;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+
+        .bot-message:last-child {
+            margin-bottom: 0;
+        }
+
+        .bot-suggestion {
+            background: #dbeafe;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #0c4a6e;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div style="display:flex;align-items:center;gap:14px;">
+                <img src="/static/deskeli-logo.png"
+                     onerror="this.onerror=null;this.src='/static/eli.png';"
+                     alt="DeskEli"
+                     style="width:56px;height:56px;border-radius:50%;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.25);object-fit:cover;">
+                <div>
+                    <h1 style="margin:0;">🎟️ Portal de Empleados</h1>
+                    <p style="font-size: 14px; opacity: 0.9; margin:0;">Bienvenido, {{ session.name }}</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="company-badge">{{ company.icon }} {{ company.name }}</div>
+                <a href="/logout" class="logout-btn">Salir</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.open }}</div>
+                <div class="stat-label">Abiertos</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.in_progress }}</div>
+                <div class="stat-label">En Progreso</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.resolved }}</div>
+                <div class="stat-label">Resueltos</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h2>Mis Tickets</h2>
+                <a href="/employee/create" class="btn-create">+ Crear Nuevo Ticket</a>
+            </div>
+
+            {% if tickets %}
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;padding:12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
+                    <input type="text" id="empSearch" placeholder="🔍 Buscar por número, título, prioridad, estado, asignado..."
+                           onkeyup="filterEmpTickets()"
+                           style="flex:1;min-width:240px;padding:10px 14px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+                    <select id="empStatusFilter" onchange="filterEmpTickets()"
+                            style="padding:10px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+                        <option value="">Todos los estados</option>
+                        <option value="open">Abierto</option>
+                        <option value="in_progress">En Progreso</option>
+                        <option value="resolved">Resuelto</option>
+                    </select>
+                    <select id="empPriorityFilter" onchange="filterEmpTickets()"
+                            style="padding:10px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+                        <option value="">Todas las prioridades</option>
+                        <option value="critical">🔴 Crítica</option>
+                        <option value="high">🟠 Alta</option>
+                        <option value="medium">🟡 Media</option>
+                        <option value="low">🟢 Baja</option>
+                    </select>
+                    <span id="empSearchCount" style="font-size:12px;color:#6b7280;"></span>
+                </div>
+
+                <div id="empTicketsList">
+                {% for ticket in tickets %}
+                    {% set _search = (ticket.ticket_number ~ ' ' ~ ticket.title ~ ' ' ~ ticket.priority ~ ' ' ~ ticket.status ~ ' ' ~ (ticket.assignee.name if ticket.assignee else 'sin asignar') ~ ' ' ~ (ticket.category or '')) | lower %}
+                    <a href="/employee/ticket/{{ ticket.id }}" style="text-decoration: none; color: inherit;"
+                       class="emp-ticket-row" data-search="{{ _search }}" data-status="{{ ticket.status }}" data-priority="{{ ticket.priority or '' }}">
+                        <div class="ticket-item">
+                            <div class="ticket-info">
+                                <div class="ticket-id">🎫 {{ ticket.ticket_number or ('TKT-' + ticket.id|string) }}</div>
+                                <div class="ticket-title">{{ ticket.title }}</div>
+                                <div class="ticket-details">
+                                    Asignado a: <strong>{{ ticket.assignee.name if ticket.assignee else 'Sin asignar' }}</strong> |
+                                    Creado: {{ ticket.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                    {% if ticket.priority %}
+                                        | Prioridad:
+                                        {% if ticket.priority == 'critical' %}<span style="color:#dc2626;font-weight:700;">🔴 Crítica</span>
+                                        {% elif ticket.priority == 'high' %}<span style="color:#ea580c;font-weight:600;">🟠 Alta</span>
+                                        {% elif ticket.priority == 'medium' %}<span style="color:#f59e0b;font-weight:600;">🟡 Media</span>
+                                        {% else %}<span style="color:#16a34a;font-weight:600;">🟢 Baja</span>{% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="ticket-status">
+                                <span class="status-badge status-{{ ticket.status }}">
+                                    {% if ticket.status == 'open' %}Abierto
+                                    {% elif ticket.status == 'in_progress' %}En Progreso
+                                    {% else %}Resuelto
+                                    {% endif %}
+                                </span>
+                                {% if ticket.status != 'resolved' %}
+                                    <div class="sla-timer">
+                                        <div class="sla-time">{{ ticket.sla_remaining }}m</div>
+                                        <div class="sla-bar">
+                                            {% set sla_pct = [(ticket.sla_remaining / (ticket.sla_minutes or 120) * 100) if ticket.sla_minutes else 100, 100] | min %}
+                                            {% set sla_color = '#16a34a' if sla_pct > 50 else ('#d97706' if sla_pct > 0 else '#dc2626') %}
+                                            <div class="sla-fill" style="width: {{ sla_pct }}%; background: {{ sla_color }};"></div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+                </div>
+                <div id="empEmptyResults" style="display:none;text-align:center;padding:30px;color:#999;background:#f9fafb;border-radius:8px;">
+                    No se encontraron tickets con esos criterios
+                </div>
+
+                <script>
+                function filterEmpTickets() {
+                    const q = (document.getElementById('empSearch').value || '').trim().toLowerCase();
+                    const statusFilter = document.getElementById('empStatusFilter').value;
+                    const priorityFilter = document.getElementById('empPriorityFilter').value;
+                    const rows = document.querySelectorAll('.emp-ticket-row');
+                    let visible = 0;
+                    rows.forEach(row => {
+                        const text = row.getAttribute('data-search') || '';
+                        const status = row.getAttribute('data-status') || '';
+                        const priority = row.getAttribute('data-priority') || '';
+                        const matchText = !q || text.indexOf(q) !== -1;
+                        const matchStatus = !statusFilter || status === statusFilter;
+                        const matchPriority = !priorityFilter || priority === priorityFilter;
+                        const show = matchText && matchStatus && matchPriority;
+                        row.style.display = show ? '' : 'none';
+                        if (show) visible++;
+                    });
+                    const total = rows.length;
+                    const countEl = document.getElementById('empSearchCount');
+                    const emptyEl = document.getElementById('empEmptyResults');
+                    if (q || statusFilter || priorityFilter) {
+                        countEl.textContent = visible + ' de ' + total;
+                        emptyEl.style.display = visible === 0 ? 'block' : 'none';
+                    } else {
+                        countEl.textContent = '';
+                        emptyEl.style.display = 'none';
+                    }
+                }
+                </script>
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <p>No tienes tickets. ¡Qué bueno!</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="chat-widget">
+        <button class="chat-button" onclick="toggleChat()" title="Hablar con Eli">
+            <img src="/static/eli.png" alt="Eli" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentElement.innerHTML='AI';this.parentElement.style.fontSize='28px';this.parentElement.style.background='#2563eb';this.parentElement.style.color='white';">
+        </button>
+
+        <div class="chat-window" id="chatWindow">
+            <div class="chat-header">
+                <img src="/static/eli.png" alt="Eli" class="eli-header-img" onerror="this.style.display='none'">
+                <div>
+                    <div>Eli - Asistente IA</div>
+                    <div style="font-size:11px;opacity:0.9;font-weight:400;">En línea</div>
+                </div>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="chat-msg bot">
+                    <img src="/static/eli.png" alt="Eli" class="eli-msg-img" onerror="this.style.display='none'">
+                    <div>¡Hola! Soy Eli 👋, tu asistente inteligente. Puedo ayudarte a diagnosticar problemas y sugerir soluciones.</div>
+                </div>
+                <div class="chat-msg bot">
+                    <img src="/static/eli.png" alt="Eli" class="eli-msg-img" onerror="this.style.display='none'">
+                    <div>Crea un ticket con tu problema y recibirás análisis automático basado en IA.</div>
+                </div>
+                <div class="chat-msg bot">
+                    <img src="/static/eli.png" alt="Eli" class="eli-msg-img" onerror="this.style.display='none'">
+                    <div>¿En qué te puedo ayudar hoy?</div>
+                </div>
+            </div>
+
+            <!-- BOTONES PERMANENTES DE ACCIÓN -->
+            <div class="permanent-actions" id="permanentActions" style="
+                display: flex;
+                gap: 8px;
+                padding: 10px 12px;
+                background: linear-gradient(135deg, #f3e8ff 0%, #e0e7ff 100%);
+                border-top: 2px solid #c4b5fd;
+            ">
+                <button onclick="actionResolved()" style="
+                    flex: 1;
+                    padding: 10px 6px;
+                    background: linear-gradient(135deg, #16a34a, #15803d);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    font-weight: 700;
+                    box-shadow: 0 2px 6px rgba(22,163,74,0.3);
+                ">
+                    ✓ Solucionado<br><span style="font-size:10px;opacity:0.9;font-weight:normal;">Cerrar ticket</span>
+                </button>
+                <button onclick="actionCreateTicket()" style="
+                    flex: 1;
+                    padding: 10px 6px;
+                    background: linear-gradient(135deg, #dc2626, #b91c1c);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    font-weight: 700;
+                    box-shadow: 0 2px 6px rgba(220,38,38,0.3);
+                ">
+                    📋 Crear ticket<br><span style="font-size:10px;opacity:0.9;font-weight:normal;">Asignar especialista</span>
+                </button>
+            </div>
+
+            <div class="chat-footer">
+                <div class="chat-input">
+                    <input type="text" id="chatInput" placeholder="Escribe aqui..." />
+                    <button onclick="sendMessage()">Enviar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Versión de los botones para confirmar carga
+        console.log('🎯 Chat Eli v3.0 - Botones permanentes activos');
+
+        function toggleChat() {
+            const chatWindow = document.getElementById('chatWindow');
+            chatWindow.classList.toggle('active');
+            if (chatWindow.classList.contains('active')) {
+                document.getElementById('chatInput').focus();
+            }
+        }
+
+        // Historial de la conversación
+        let chatHistory = [];
+
+        // ========== ACCIONES PERMANENTES ==========
+        async function actionResolved() {
+            if (chatHistory.length === 0) {
+                alert('⚠️ Primero conversa con Eli sobre tu problema, después marca como solucionado.');
+                return;
+            }
+            if (!confirm('¿Tu problema fue solucionado?\nSe creará un ticket cerrado con la conversación como registro.')) return;
+
+            const messagesDiv = document.getElementById('chatMessages');
+            const lastUserMsg = chatHistory.filter(m => m.role === 'user').pop();
+            const title = lastUserMsg ? lastUserMsg.text.substring(0, 80) : 'Consulta resuelta por bot';
+            const conversation = chatHistory.map(m => `[${m.role.toUpperCase()}] ${m.text}`).join('\n\n');
+
+            const loading = document.createElement('div');
+            loading.style.cssText = 'background:#dcfce7;color:#166534;padding:10px;margin:8px 0;border-radius:8px;text-align:center;font-size:12px;';
+            loading.textContent = '⏳ Creando ticket cerrado...';
+            messagesDiv.appendChild(loading);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            try {
+                const r = await fetch('/api/bot/ticket-from-chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        title: title,
+                        conversation: conversation,
+                        resolved: true,
+                        category: 'General',
+                        priority: 'low'
+                    })
+                });
+                const data = await r.json();
+                loading.remove();
+
+                if (data.success) {
+                    const ok = document.createElement('div');
+                    ok.style.cssText = 'background:linear-gradient(135deg,#dcfce7,#bbf7d0);color:#166534;padding:14px;margin:10px 0;border-radius:10px;text-align:center;border:2px solid #86efac;font-weight:600;';
+                    ok.innerHTML = `✅ <strong>¡Perfecto!</strong><br>
+                        Ticket <strong>${data.ticket_number}</strong> creado y cerrado.<br>
+                        <small style="font-weight:normal;">Tu consulta queda registrada.</small>`;
+                    messagesDiv.appendChild(ok);
+                    chatHistory = [];
+                } else {
+                    alert('Error: ' + (data.error || 'desconocido'));
+                }
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } catch (e) {
+                loading.remove();
+                alert('Error: ' + e.message);
+            }
+        }
+
+        async function actionCreateTicket() {
+            if (chatHistory.length === 0) {
+                alert('⚠️ Primero conversa con Eli sobre tu problema, después crea el ticket.');
+                return;
+            }
+            if (!confirm('¿No se solucionó tu problema?\nSe creará un ticket y se asignará a un especialista con la conversación.')) return;
+
+            const messagesDiv = document.getElementById('chatMessages');
+            const lastUserMsg = chatHistory.filter(m => m.role === 'user').pop();
+            const title = lastUserMsg ? lastUserMsg.text.substring(0, 80) : 'Necesito ayuda';
+            const conversation = chatHistory.map(m => `[${m.role.toUpperCase()}] ${m.text}`).join('\n\n');
+
+            const loading = document.createElement('div');
+            loading.style.cssText = 'background:#fef3c7;color:#78350f;padding:10px;margin:8px 0;border-radius:8px;text-align:center;font-size:12px;';
+            loading.textContent = '⏳ Creando ticket y asignando especialista...';
+            messagesDiv.appendChild(loading);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            try {
+                const r = await fetch('/api/bot/ticket-from-chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        title: title,
+                        conversation: conversation,
+                        resolved: false,
+                        category: 'General',
+                        priority: 'medium'
+                    })
+                });
+                const data = await r.json();
+                loading.remove();
+
+                if (data.success) {
+                    const ok = document.createElement('div');
+                    ok.style.cssText = 'background:linear-gradient(135deg,#fef3c7,#fde68a);color:#78350f;padding:14px;margin:10px 0;border-radius:10px;text-align:center;border:2px solid #fcd34d;font-weight:600;';
+                    ok.innerHTML = `📋 <strong>Ticket creado</strong><br>
+                        <span style="font-size:14px;">${data.ticket_number}</span><br>
+                        ${data.assigned_to ? '👤 Asignado a: <strong>' + data.assigned_to + '</strong>' : '⏳ Pendiente de asignación'}<br>
+                        <small style="font-weight:normal;">La conversación se incluyó en el ticket.</small>`;
+                    messagesDiv.appendChild(ok);
+                    chatHistory = [];
+                } else {
+                    alert('Error: ' + (data.error || 'desconocido'));
+                }
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } catch (e) {
+                loading.remove();
+                alert('Error: ' + e.message);
+            }
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const messagesDiv = document.getElementById('chatMessages');
+
+            // Eliminar botones previos (si los hubo) para que solo el último mensaje los tenga
+            removeActionButtons();
+
+            const userMsg = document.createElement('div');
+            userMsg.className = 'chat-msg user';
+            userMsg.textContent = message;
+            messagesDiv.appendChild(userMsg);
+
+            // Guardar en historial
+            chatHistory.push({ role: 'user', text: message });
+
+            input.value = '';
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            // Mensaje "escribiendo..."
+            const typing = document.createElement('div');
+            typing.className = 'chat-msg bot typing-indicator';
+            typing.innerHTML = '<img src="/static/eli.png" alt="Eli" class="eli-msg-img" onerror="this.style.display=\'none\'"><div style="flex:1;font-style:italic;color:#666;">Eli está escribiendo...</div>';
+            messagesDiv.appendChild(typing);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            // Enviar al bot backend
+            fetch('/api/bot/ask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question: message })
+            })
+            .then(r => r.json())
+            .then(data => {
+                // Quitar "escribiendo..."
+                typing.remove();
+
+                addBotMessage(data.answer);
+                chatHistory.push({ role: 'bot', text: data.answer });
+
+                // Mostrar info de la fuente
+                if (data.source_label) {
+                    const infoMsg = document.createElement('div');
+                    infoMsg.className = 'source-info';
+                    infoMsg.style.cssText = 'font-size:10px;color:#666;text-align:center;padding:4px 0;font-style:italic;';
+                    infoMsg.textContent = data.source_label;
+                    messagesDiv.appendChild(infoMsg);
+                }
+
+                // === MOSTRAR BOTONES DE ACCIÓN ===
+                showActionButtons(data);
+
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            })
+            .catch(e => {
+                typing.remove();
+                console.error(e);
+                addBotMessage('Error al conectar con el bot. Por favor, crea un ticket directamente.');
+                showActionButtons({ source: 'fallback' });
+            });
+        }
+
+        function removeActionButtons() {
+            document.querySelectorAll('.action-banner').forEach(el => el.remove());
+        }
+
+        function showActionButtons(data) {
+            data = data || {};
+            const messagesDiv = document.getElementById('chatMessages');
+            if (!messagesDiv) return;
+
+            // Eliminar banners anteriores
+            removeActionButtons();
+
+            const banner = document.createElement('div');
+            banner.className = 'action-banner';
+
+            const title = document.createElement('div');
+            title.className = 'action-banner-title';
+            const isKB = (data.source === 'kb');
+            title.textContent = isKB
+                ? '💡 ¿Esta respuesta solucionó tu problema?'
+                : '🤔 ¿La respuesta te resolvió el problema?';
+            banner.appendChild(title);
+
+            const row = document.createElement('div');
+            row.className = 'action-buttons-row';
+
+            // BOTÓN VERDE: SOLUCIONADO
+            const btnYes = document.createElement('button');
+            btnYes.className = 'action-btn action-btn-yes';
+            btnYes.innerHTML = '✓ Sí,<br>solucionado';
+            btnYes.onclick = function() { markResolved(data); };
+            row.appendChild(btnYes);
+
+            // BOTÓN ROJO: CREAR TICKET
+            const btnNo = document.createElement('button');
+            btnNo.className = 'action-btn action-btn-no';
+            btnNo.innerHTML = '📋 No,<br>crear ticket';
+            btnNo.onclick = function() { createTicketFromConversation(data); };
+            row.appendChild(btnNo);
+
+            banner.appendChild(row);
+            messagesDiv.appendChild(banner);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        async function markResolved(data) {
+            removeActionButtons();
+            const messagesDiv = document.getElementById('chatMessages');
+
+            // Mostrar mensaje de confirmación
+            const confirm = document.createElement('div');
+            confirm.className = 'chat-msg bot';
+            confirm.innerHTML = '<img src="/static/eli.png" alt="Eli" class="eli-msg-img" onerror="this.style.display=\'none\'"><div style="flex:1;color:#16a34a;font-weight:600;">⏳ Creando ticket de resolución...</div>';
+            messagesDiv.appendChild(confirm);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            try {
+                const conversation = chatHistory.map(m => `[${m.role.toUpperCase()}] ${m.text}`).join('\n\n');
+                const lastUserMsg = chatHistory.filter(m => m.role === 'user').pop();
+                const title = lastUserMsg ? lastUserMsg.text.substring(0, 80) : 'Consulta resuelta por bot';
+
+                const r = await fetch('/api/bot/ticket-from-chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: title,
+                        conversation: conversation,
+                        resolved: true,
+                        category: data.kb_category || 'General',
+                        priority: 'low'
+                    })
+                });
+                const result = await r.json();
+                confirm.remove();
+
+                if (result.success) {
+                    const ok = document.createElement('div');
+                    ok.style.cssText = 'background:#dcfce7;color:#166534;padding:12px;border-radius:8px;margin:8px 0;text-align:center;font-size:13px;font-weight:600;border:1px solid #86efac;';
+                    ok.innerHTML = `✅ <strong>¡Excelente!</strong><br>
+                        Ticket <strong>${result.ticket_number}</strong> creado y cerrado automáticamente.<br>
+                        <small style="font-weight:normal;">Tu consulta queda registrada para futuras referencias.</small>`;
+                    messagesDiv.appendChild(ok);
+                    chatHistory = []; // limpiar historial
+                } else {
+                    addBotMessage('No pude crear el ticket: ' + (result.error || 'Error desconocido'));
+                }
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } catch (e) {
+                confirm.remove();
+                addBotMessage('Error: ' + e.message);
+            }
+        }
+
+        async function createTicketFromConversation(data) {
+            removeActionButtons();
+            const messagesDiv = document.getElementById('chatMessages');
+
+            const confirm = document.createElement('div');
+            confirm.className = 'chat-msg bot';
+            confirm.innerHTML = '<img src="/static/eli.png" alt="Eli" class="eli-msg-img" onerror="this.style.display=\'none\'"><div style="flex:1;color:#dc2626;font-weight:600;">⏳ Creando ticket y asignando especialista...</div>';
+            messagesDiv.appendChild(confirm);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            try {
+                const conversation = chatHistory.map(m => `[${m.role.toUpperCase()}] ${m.text}`).join('\n\n');
+                const lastUserMsg = chatHistory.filter(m => m.role === 'user').pop();
+                const title = lastUserMsg ? lastUserMsg.text.substring(0, 80) : 'Necesito ayuda';
+
+                const r = await fetch('/api/bot/ticket-from-chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: title,
+                        conversation: conversation,
+                        resolved: false,
+                        category: data.kb_category || 'General',
+                        priority: 'medium'
+                    })
+                });
+                const result = await r.json();
+                confirm.remove();
+
+                if (result.success) {
+                    const ok = document.createElement('div');
+                    ok.style.cssText = 'background:#fef3c7;color:#78350f;padding:12px;border-radius:8px;margin:8px 0;text-align:center;font-size:13px;font-weight:600;border:1px solid #fcd34d;';
+                    ok.innerHTML = `📋 <strong>Ticket creado</strong><br>
+                        Número: <strong>${result.ticket_number}</strong><br>
+                        ${result.assigned_to ? 'Asignado a: <strong>' + result.assigned_to + '</strong>' : 'Pendiente de asignación'}<br>
+                        <small style="font-weight:normal;">Toda la conversación se incluyó en el ticket.</small>`;
+                    messagesDiv.appendChild(ok);
+                    chatHistory = [];
+                } else {
+                    addBotMessage('No pude crear el ticket: ' + (result.error || 'Error'));
+                }
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } catch (e) {
+                confirm.remove();
+                addBotMessage('Error: ' + e.message);
+            }
+        }
+
+        function addBotMessage(text) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const botMsg = document.createElement('div');
+            botMsg.className = 'chat-msg bot';
+
+            const img = document.createElement('img');
+            img.src = '/static/eli.png';
+            img.alt = 'Eli';
+            img.className = 'eli-msg-img';
+            img.onerror = function() { this.style.display = 'none'; };
+            botMsg.appendChild(img);
+
+            const textDiv = document.createElement('div');
+            textDiv.innerHTML = String(text || '').replace(/\n/g, '<br>');
+            textDiv.style.flex = '1';
+            botMsg.appendChild(textDiv);
+
+            messagesDiv.appendChild(botMsg);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            input.value = '';
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function createTicketFromBot(title, description, category, priority) {
+            if (confirm('¿Crear un ticket con esta información?')) {
+                window.location.href = `/employee/create?title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}&category=${encodeURIComponent(category)}&priority=${encodeURIComponent(priority)}`;
+            }
+        }
+
+        document.getElementById('chatInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+
+    {% include 'search_widget.html' %}
+</body>
+</html>

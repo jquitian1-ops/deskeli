@@ -1,0 +1,54 @@
+# ============================================================================
+# Systemd Service Unit - TicketDesk Enterprise v2.1
+# Ubicar en: /etc/systemd/system/ticketdesk.service
+# Comando: systemctl start ticketdesk
+# ============================================================================
+
+[Unit]
+Description=TicketDesk Enterprise v2.1 - IT Service Management System
+Documentation=https://ticketdesk.tuempresa.com
+After=network.target postgresql.service
+Wants=ticketdesk-scheduler.service
+
+[Service]
+Type=simple
+User=ticketdesk
+WorkingDirectory=/opt/ticketdesk
+Environment="FLASK_APP=app.py"
+Environment="FLASK_ENV=production"
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=/opt/ticketdesk/.env
+
+# Comando de inicio
+ExecStart=/usr/bin/python3 /opt/ticketdesk/app.py
+
+# Auto-restart
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=5
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/ticketdesk/backups /opt/ticketdesk/instance /var/log/ticketdesk
+
+# Resource limits
+LimitNOFILE=65535
+LimitNPROC=32768
+
+# Process management
+KillMode=mixed
+KillSignal=SIGINT
+TimeoutStartSec=30
+TimeoutStopSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ticketdesk
+
+[Install]
+WantedBy=multi-user.target

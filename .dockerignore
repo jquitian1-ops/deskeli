@@ -1,0 +1,95 @@
+# ============================================================================
+# .dockerignore - DeskEli / TicketDesk Enterprise
+# Excluye del contexto de build cosas que NO deben ir a la imagen
+# ============================================================================
+
+# Git
+.git/
+.gitignore
+.github/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Entornos virtuales
+venv/
+.venv/
+env/
+ENV/
+
+# Secretos y configuración local — NUNCA al build
+.env
+.env.*
+*.secret
+
+# Bases de datos locales (vienen del volumen en runtime)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+instance/
+
+# Datos operacionales (vienen de volúmenes)
+uploads/
+attachments/
+backups/
+exports/
+logs/
+*.log
+*.log.*
+
+# IDEs / editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Terraform / LocalStack (no son parte del runtime)
+terraform/
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+
+# Docker
+Dockerfile.dev
+docker-compose*.yml
+.dockerignore
+
+# Documentos pesados / archivos no usados en runtime
+*.zip
+*.tar.gz
+*.7z
+_archive/
+docs/_archive/
+TICKETS-MANUFACTURAS/
+
+# Tests
+tests/
+test_*.py
+
+# Notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Reportes generados
+reports_output/
+*.xlsx.tmp

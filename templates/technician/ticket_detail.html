@@ -1,0 +1,1571 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalle de Ticket - Técnico</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            color: white;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 24px auto;
+            padding: 0 28px;
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .container { grid-template-columns: 1fr; padding: 0 16px; }
+        }
+
+        .ticket-main {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .ticket-sidebar {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            height: fit-content;
+        }
+
+        .ticket-id {
+            color: #7c3aed;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .ticket-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .description {
+            color: #1f2937;
+            line-height: 1.7;
+            margin-bottom: 20px;
+            font-size: 14px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-left: 4px solid #2563eb;
+            padding: 16px 20px;
+            border-radius: 6px;
+            white-space: normal;
+            word-wrap: break-word;
+        }
+        .description strong {
+            color: #111827;
+            font-weight: 700;
+        }
+        .description em { color: #4b5563; font-style: italic; }
+        .description .ticket-hr {
+            border: none;
+            border-top: 1px dashed #d1d5db;
+            margin: 14px 0;
+        }
+        .description a { color: #2563eb; }
+        .description br { line-height: 1.8; }
+
+        .bot-box {
+            background: #f0f9ff;
+            border: 2px solid #0284c7;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .bot-title {
+            font-weight: 600;
+            color: #0c4a6e;
+            margin-bottom: 8px;
+        }
+
+        .bot-item {
+            color: #0c4a6e;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .messages {
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .message {
+            margin-bottom: 12px;
+            padding: 10px;
+            border-left: 3px solid #7c3aed;
+            background: #f3e8ff;
+            border-radius: 4px;
+        }
+
+        .message-author {
+            font-weight: 600;
+            color: #7c3aed;
+            margin-bottom: 4px;
+            font-size: 13px;
+        }
+
+        .message-text {
+            color: #333;
+            font-size: 14px;
+        }
+
+        .sidebar-item {
+            margin-bottom: 20px;
+        }
+
+        .sidebar-label {
+            font-weight: 600;
+            color: #999;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .sidebar-value {
+            color: #333;
+            font-weight: 600;
+        }
+
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #7c3aed;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #6d28d9;
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .back-btn {
+            background: #e0e0e0;
+            color: #333;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .timer-box {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        }
+
+        .timer-display {
+            font-size: 48px;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 3px;
+            margin: 15px 0;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .timer-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+
+        .timer-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 15px;
+            justify-content: center;
+        }
+
+        .timer-btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+
+        .timer-btn-start {
+            background: #10b981;
+            color: white;
+        }
+
+        .timer-btn-start:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        .timer-btn-pause {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .timer-btn-pause:hover {
+            background: #d97706;
+            transform: translateY(-2px);
+        }
+
+        .timer-btn-stop {
+            background: #ef4444;
+            color: white;
+        }
+
+        .timer-btn-stop:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+        }
+
+        .timer-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .timer-info {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 10px;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .modal-text {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .stars {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .star {
+            font-size: 48px;
+            cursor: pointer;
+            opacity: 0.3;
+            transition: all 0.2s;
+        }
+
+        .star:hover,
+        .star.active {
+            opacity: 1;
+            transform: scale(1.2);
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .modal-buttons button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .modal-btn-submit {
+            background: #10b981;
+            color: white;
+        }
+
+        .modal-btn-submit:hover {
+            background: #059669;
+        }
+
+        .modal-btn-cancel {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .modal-btn-cancel:hover {
+            background: #d0d0d0;
+        }
+
+        .rating-label {
+            font-size: 12px;
+            color: #999;
+            margin-top: 10px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 20px;
+            margin-top: 30px;
+        }
+
+        .tab-btn {
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.3s;
+        }
+
+        .tab-btn.active {
+            color: #7c3aed;
+            border-bottom-color: #7c3aed;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .history-item {
+            padding: 15px;
+            border-left: 3px solid #7c3aed;
+            background: #f3e8ff;
+            border-radius: 4px;
+            margin-bottom: 12px;
+        }
+
+        .history-time {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 4px;
+        }
+
+        .history-action {
+            font-weight: 600;
+            color: #7c3aed;
+            margin-bottom: 4px;
+        }
+
+        .history-description {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .timeout-warning {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10001;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .timeout-warning.active {
+            display: flex;
+        }
+
+        .timeout-content {
+            background: white;
+            padding: 50px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 450px;
+        }
+
+        .timeout-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .timeout-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #dc2626;
+            margin-bottom: 10px;
+        }
+
+        .timeout-text {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .timeout-countdown {
+            font-size: 48px;
+            font-weight: bold;
+            color: #dc2626;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 30px;
+            letter-spacing: 3px;
+        }
+
+        .timeout-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .timeout-buttons button {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .timeout-btn-extend {
+            background: #10b981;
+            color: white;
+        }
+
+        .timeout-btn-extend:hover {
+            background: #059669;
+        }
+
+        .timeout-btn-logout {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .timeout-btn-logout:hover {
+            background: #d0d0d0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div style="max-width: 100%; margin: 0 auto; width: 100%; padding: 0 28px;">
+            <h1>👨‍💼 Detalle del Ticket</h1>
+        </div>
+    </div>
+
+    <div class="container">
+        <div>
+            <a href="{% if user and user.role == 'admin' %}/admin/dashboard#tab=8{% else %}/technician/dashboard{% endif %}" class="back-btn">← Volver</a>
+
+            <div class="ticket-main">
+                <div class="ticket-id" style="font-size:13px;letter-spacing:0.5px;color:#7c3aed;font-weight:700;">
+                    🎫 {{ ticket.ticket_number or ('#' ~ ticket.id) }}
+                </div>
+                <div class="ticket-title">{{ ticket.title }}</div>
+
+                <div class="section-title">Descripción</div>
+                <div class="description">{{ ticket.description | ticket_md }}</div>
+
+                <div class="bot-box">
+                    <div class="bot-title">🤖 Análisis de IA</div>
+                    <div class="bot-item"><strong>Tipo de Problema:</strong> {{ bot_suggestion.issue_type }} ({{ bot_suggestion.confidence }}% confianza)</div>
+                    <div class="bot-item"><strong>Solución Sugerida:</strong> {{ bot_suggestion.solution }}</div>
+                    <div class="bot-item"><strong>Artículos KB:</strong>
+                        {% for article in bot_suggestion.kb_articles %}
+                            <a href="#" style="color: #0284c7;">{{ article }}</a>
+                            {% if not loop.last %}<span>,</span>{% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- TABS: Conversación, Subtareas e Historial RF-01-08 -->
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchTab('conversation')">💬 Conversación</button>
+                    <button class="tab-btn" onclick="switchTab('subtasks')">✅ Subtareas <span id="subtaskBadge" style="background:#e5e7eb;color:#374151;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:4px;">0</span></button>
+                    <button class="tab-btn" onclick="switchTab('history')">📋 Historial</button>
+                </div>
+
+                <div id="conversation" class="tab-content active">
+                    {% if ticket.messages %}
+                        <div class="messages">
+                            {% for msg in messages %}
+                                <div class="message">
+                                    <div class="message-author">{{ msg.user.name if msg.user else 'Usuario' }}</div>
+                                    <div class="message-text" style="white-space:normal;word-wrap:break-word;line-height:1.6;">{{ msg.text | ticket_md }}</div>
+                                    <div class="message-time">{{ msg.created_at.strftime('%H:%M') if msg.created_at else '' }}</div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p style="color: #999; text-align: center; padding: 20px;">Sin mensajes</p>
+                    {% endif %}
+                </div>
+
+                <div id="subtasks" class="tab-content">
+                    <div style="margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <div style="font-size: 13px; color: #555;">
+                                <strong><span id="subtaskProgress">0</span>%</strong> resuelto
+                                (<span id="subtaskDone">0</span>/<span id="subtaskTotal">0</span> sub-casos)
+                            </div>
+                            <span id="subtaskStatusMsg" style="font-size: 12px; color: #16a34a;"></span>
+                        </div>
+                        <div style="background:#e5e7eb;height:8px;border-radius:4px;overflow:hidden;">
+                            <div id="subtaskBar" style="background:#7c3aed;height:100%;width:0%;transition:width 0.3s;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Formulario crear sub-caso -->
+                    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin-bottom:16px;">
+                        <div style="font-weight:600;color:#374151;margin-bottom:10px;font-size:13px;">➕ Nuevo sub-caso asociado a este ticket</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                            <input id="newSubtaskTitle" type="text" placeholder="Título del sub-caso *"
+                                   style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;grid-column:1/-1;">
+                            <select id="newSubtaskPriority" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;">
+                                <option value="low">🟢 Baja</option>
+                                <option value="medium" selected>🟡 Media</option>
+                                <option value="high">🟠 Alta</option>
+                                <option value="critical">🔴 Crítica</option>
+                            </select>
+                            <select id="newSubtaskAssignee" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;">
+                                <option value="">— Sin asignar —</option>
+                            </select>
+                            <input id="newSubtaskCategory" type="text" placeholder="Categoría (opcional)"
+                                   style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;grid-column:1/-1;">
+                            <textarea id="newSubtaskDescription" placeholder="Descripción (opcional)" rows="2"
+                                      style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;grid-column:1/-1;font-family:inherit;resize:vertical;"></textarea>
+                            <div style="grid-column:1/-1;">
+                                <label style="font-size:12px;color:#6b7280;display:block;margin-bottom:4px;font-weight:600;">📎 Documentos adjuntos (opcional, máx 25MB c/u)</label>
+                                <input id="newSubtaskFiles" type="file" multiple
+                                       accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp,.zip,.rar,.7z,.log,.msg,.eml"
+                                       onchange="updateFileLabel()"
+                                       style="width:100%;padding:6px;border:1px dashed #d1d5db;border-radius:6px;background:white;cursor:pointer;font-size:13px;">
+                                <div id="newSubtaskFilesLabel" style="font-size:11px;color:#6b7280;margin-top:4px;"></div>
+                            </div>
+                        </div>
+                        <button onclick="createSubtask()"
+                                style="padding:8px 16px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">
+                            ➕ Crear sub-caso
+                        </button>
+                    </div>
+
+                    <div id="subtasksList">
+                        <p style="color:#999;text-align:center;padding:20px;">Cargando sub-casos...</p>
+                    </div>
+                </div>
+
+                <div id="history" class="tab-content">
+                    <div id="historyContainer">
+                        <p style="color: #999; text-align: center; padding: 20px;">Cargando historial...</p>
+                    </div>
+                </div>
+
+                {% if ticket.status != 'resolved' %}
+                    <div class="section-title" style="margin-top: 20px;">Enviar Mensaje</div>
+                    <form method="POST" action="/api/ticket/{{ ticket.id }}/message" style="display: grid; gap: 10px;">
+                        <textarea name="text" style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-family: inherit;" rows="3" placeholder="Tu mensaje al cliente..." required></textarea>
+                        <button type="submit" style="background: #7c3aed; color: white; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Enviar</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="ticket-sidebar">
+            <!-- CRONÓMETRO RF-02-05 -->
+            <div class="timer-box">
+                <div class="timer-label">⏱️ Tiempo Trabajado</div>
+                <div class="timer-display" id="timerDisplay">00:00:00</div>
+                <div class="timer-buttons">
+                    <button class="timer-btn timer-btn-start" id="timerStart" onclick="startTimer()">▶ Iniciar</button>
+                    <button class="timer-btn timer-btn-pause" id="timerPause" onclick="pauseTimer()" disabled>⏸ Pausa</button>
+                    <button class="timer-btn timer-btn-stop" id="timerStop" onclick="stopTimer()" disabled>⏹ Guardar</button>
+                </div>
+                <div class="timer-info">
+                    Total: <span id="totalTime">0h 0m</span>
+                </div>
+            </div>
+
+            <!-- DATOS DE CONTACTO DEL SOLICITANTE -->
+            <div class="sidebar-item" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #93c5fd;border-radius:8px;padding:12px;margin-bottom:14px;">
+                <div style="font-size:11px;font-weight:800;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">
+                    👤 Datos del solicitante
+                </div>
+                {% if ticket.creator %}
+                <div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:6px;">
+                    {{ ticket.creator.name }}
+                </div>
+                <div style="font-size:11.5px;color:#374151;margin-bottom:8px;">
+                    📧 {{ ticket.creator.email }}
+                </div>
+                {% endif %}
+                {% if ticket.user_area %}
+                <div style="font-size:11px;color:#1e40af;margin-top:4px;">
+                    <strong>🏢 Área:</strong> {{ ticket.user_area }}
+                </div>
+                {% endif %}
+                {% if ticket.user_location %}
+                <div style="font-size:11px;color:#1e40af;margin-top:4px;">
+                    <strong>📍 Ubicación:</strong> {{ ticket.user_location }}
+                </div>
+                {% endif %}
+                {% if ticket.user_phone %}
+                <div style="font-size:11px;color:#1e40af;margin-top:4px;">
+                    <strong>📞 Contacto:</strong> <a href="tel:{{ ticket.user_phone }}" style="color:#1d4ed8;text-decoration:none;">{{ ticket.user_phone }}</a>
+                </div>
+                {% endif %}
+                {% if not ticket.user_area and not ticket.user_location and not ticket.user_phone %}
+                <div style="font-size:11px;color:#6b7280;font-style:italic;">
+                    (Sin datos de contacto registrados — ticket creado antes de la actualización)
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="sidebar-item">
+                <div class="sidebar-label">Estado</div>
+                <div class="sidebar-value">
+                    {% if ticket.status == 'open' %}Abierto
+                    {% elif ticket.status == 'in_progress' %}En Progreso
+                    {% else %}Resuelto
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="sidebar-item">
+                <div class="sidebar-label">Prioridad</div>
+                <div class="sidebar-value">
+                    {% if ticket.priority == 'high' %}🔴 Alta
+                    {% elif ticket.priority == 'medium' %}🟡 Media
+                    {% else %}🟢 Baja
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="sidebar-item">
+                <div class="sidebar-label">SLA Restante</div>
+                <div class="sidebar-value" style="color: {% if ticket.sla_remaining < 30 %}#dc2626{% else %}#16a34a{% endif %};">
+                    {{ ticket.sla_remaining }}m
+                </div>
+            </div>
+
+            <div class="sidebar-item">
+                <div class="sidebar-label">Asignado a</div>
+                <div class="sidebar-value" style="font-size: 13px;">
+                    {% if ticket.assignee %}👤 {{ ticket.assignee.name }}{% else %}<span style="color:#999;">Sin asignar</span>{% endif %}
+                </div>
+            </div>
+
+            {% if assignment_info and assignment_info.by %}
+            <div class="sidebar-item">
+                <div class="sidebar-label">Asignado por</div>
+                <div class="sidebar-value" style="font-size: 13px;">
+                    {% if assignment_info.source == 'manual' %}✋ {% elif assignment_info.source == 'orchestrator' %}🤖 {% elif assignment_info.source == 'sistema' %}⚙️ {% else %}📝 {% endif %}{{ assignment_info.by }}
+                </div>
+                {% if assignment_info.when %}
+                <div style="font-size:11px;color:#9ca3af;margin-top:2px;">{{ assignment_info.when }}</div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="sidebar-item">
+                <div class="sidebar-label">Reportado</div>
+                <div class="sidebar-value" style="font-size: 13px;">{{ ticket.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+            </div>
+
+            <div class="action-buttons">
+                {% if ticket.status in ('resolved', 'closed') %}
+                    <div style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;padding:12px;text-align:center;color:#6b7280;font-size:13px;">
+                        🔒 <strong>Ticket {{ 'cerrado' if ticket.status == 'closed' else 'resuelto' }}</strong><br>
+                        <span style="font-size:11px;">No se pueden modificar asignación, prioridad ni estado.</span>
+                    </div>
+                {% else %}
+                    <button class="btn btn-primary" onclick="resolveTicket()">✅ Marcar como Resuelto</button>
+                    <button class="btn btn-warning" onclick="reassignTicket()" style="background:#f59e0b;color:white;">🔄 Reasignar</button>
+                    <button class="btn btn-secondary" onclick="escalateTicket()" style="background:#dc2626;color:white;">📞 Escalar a Crítico</button>
+                {% endif %}
+            </div>
+            <div id="action-status" style="margin-top:10px;padding:0;"></div>
+        </div>
+    </div>
+
+    <!-- MODAL ESCALAR -->
+    <div id="escalateModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:white;padding:30px;border-radius:12px;width:90%;max-width:500px;">
+            <h2 style="margin-bottom:15px;color:#dc2626;">📞 Escalar Ticket a CRÍTICO</h2>
+            <p style="color:#666;margin-bottom:15px;font-size:14px;">
+                Este ticket pasará a prioridad <strong>CRÍTICA</strong> con SLA de <strong>60 minutos</strong>.
+                Esta acción notifica al equipo y queda en el log de auditoría.
+            </p>
+            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">Motivo de la escalación:</label>
+            <textarea id="escalateReason" rows="3" placeholder="Ej: Problema afecta a producción / Cliente VIP / SLA por vencer / Requiere especialista nivel 3..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-family:inherit;margin-bottom:15px;"></textarea>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button onclick="closeEscalate()" style="padding:10px 20px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;">Cancelar</button>
+                <button onclick="confirmEscalate()" style="padding:10px 20px;background:#dc2626;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">🚨 Confirmar Escalación</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL REASIGNAR -->
+    <div id="reassignModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:white;padding:30px;border-radius:12px;width:90%;max-width:500px;">
+            <h2 style="margin-bottom:15px;color:#f59e0b;">🔄 Reasignar Ticket</h2>
+            <p style="color:#666;margin-bottom:15px;font-size:14px;">Asigna este ticket a otro especialista del equipo.</p>
+            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">Nuevo asignado:</label>
+            <select id="reassignTo" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;margin-bottom:15px;">
+                <option value="">Cargando técnicos...</option>
+            </select>
+            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">Motivo:</label>
+            <textarea id="reassignReason" rows="3" placeholder="Ej: Requiere especialista en SAP / No tengo experiencia en este tema..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-family:inherit;margin-bottom:15px;"></textarea>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button onclick="closeReassign()" style="padding:10px 20px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;">Cancelar</button>
+                <button onclick="confirmReassign()" style="padding:10px 20px;background:#f59e0b;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">🔄 Confirmar Reasignación</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const TICKET_ID = {{ ticket.id }};
+
+        function showActionStatus(msg, type) {
+            const el = document.getElementById('action-status');
+            const colors = {success: '#16a34a', error: '#dc2626', info: '#2563eb'};
+            const bg = {success: '#dcfce7', error: '#fee2e2', info: '#dbeafe'};
+            el.style.cssText = `padding:10px;border-radius:6px;background:${bg[type]};color:${colors[type]};font-weight:600;font-size:13px;text-align:center;`;
+            el.textContent = msg;
+            setTimeout(() => { el.style.padding = '0'; el.textContent = ''; el.style.background = ''; }, 4000);
+        }
+
+        // ========== ESCALAR ==========
+        function escalateTicket() {
+            document.getElementById('escalateReason').value = '';
+            document.getElementById('escalateModal').style.display = 'flex';
+        }
+
+        function closeEscalate() {
+            document.getElementById('escalateModal').style.display = 'none';
+        }
+
+        async function confirmEscalate() {
+            const reason = document.getElementById('escalateReason').value.trim();
+            if (!reason || reason.length < 5) {
+                alert('Debes indicar un motivo de al menos 5 caracteres');
+                return;
+            }
+            try {
+                const r = await fetch(`/api/ticket/${TICKET_ID}/escalate`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({reason: reason})
+                });
+                const data = await r.json();
+                if (data.success) {
+                    closeEscalate();
+                    showActionStatus('🚨 ' + (data.message || 'Ticket escalado a CRÍTICO'), 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    alert('Error: ' + (data.error || 'desconocido'));
+                }
+            } catch (e) {
+                alert('Error de conexión: ' + e.message);
+            }
+        }
+
+        // ========== REASIGNAR ==========
+        async function reassignTicket() {
+            const sel = document.getElementById('reassignTo');
+            sel.innerHTML = '<option value="">Cargando técnicos...</option>';
+            document.getElementById('reassignReason').value = '';
+            document.getElementById('reassignModal').style.display = 'flex';
+
+            try {
+                const r = await fetch('/api/technicians?ticket_id=' + TICKET_ID);
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const data = await r.json();
+
+                if (data.success && data.technicians && data.technicians.length > 0) {
+                    sel.innerHTML = '<option value="">Selecciona un técnico...</option>';
+                    // Excluir al usuario actual de la lista
+                    data.technicians.forEach(t => {
+                        const icon = t.role === 'admin' ? '👑' : '🔧';
+                        const label = `${icon} ${t.name} (@${t.username})`;
+                        sel.innerHTML += `<option value="${t.id}">${label}</option>`;
+                    });
+                } else {
+                    sel.innerHTML = '<option value="">No hay otros técnicos disponibles</option>';
+                }
+            } catch (e) {
+                console.error('Error cargando técnicos:', e);
+                sel.innerHTML = '<option value="">Error: ' + e.message + '</option>';
+            }
+        }
+
+        function closeReassign() {
+            document.getElementById('reassignModal').style.display = 'none';
+        }
+
+        async function confirmReassign() {
+            const assigneeId = document.getElementById('reassignTo').value;
+            const reason = document.getElementById('reassignReason').value.trim();
+            if (!assigneeId) {
+                alert('Selecciona un técnico');
+                return;
+            }
+            if (!reason || reason.length < 5) {
+                alert('Indica un motivo de al menos 5 caracteres');
+                return;
+            }
+            try {
+                const r = await fetch(`/api/ticket/${TICKET_ID}/reassign`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({assignee_id: parseInt(assigneeId), reason: reason})
+                });
+                const data = await r.json();
+                if (data.success) {
+                    closeReassign();
+                    showActionStatus('🔄 ' + (data.message || 'Ticket reasignado'), 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    alert('Error: ' + (data.error || 'desconocido'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        // Cerrar modales con ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeEscalate();
+                closeReassign();
+            }
+        });
+    </script>
+
+<!-- MODAL TIMEOUT RF-01-13 -->
+<div class="timeout-warning" id="timeoutWarning">
+    <div class="timeout-content">
+        <div class="timeout-icon">⏰</div>
+        <div class="timeout-title">¡Tu sesión está por expirar!</div>
+        <div class="timeout-text">Por razones de seguridad, tu sesión se cerrará en:</div>
+
+        <div class="timeout-countdown" id="countdownDisplay">60</div>
+
+        <div class="timeout-text">segundos de inactividad</div>
+
+        <div class="timeout-buttons">
+            <button class="timeout-btn-extend" onclick="extendSession()">Continuar Trabajando</button>
+            <button class="timeout-btn-logout" onclick="window.location.href='/logout'">Cerrar Sesión</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL RATING RF-01-09 -->
+<div class="modal-overlay" id="ratingModal">
+    <div class="modal-content" style="max-width:560px;">
+        <div class="modal-title">✅ Marcar Ticket como Resuelto</div>
+        <div class="modal-text" style="margin-bottom:14px;">Documenta cómo se resolvió el problema. El usuario recibirá esta solución por correo y será él quien la califique.</div>
+
+        <div style="text-align:left;margin-bottom:14px;">
+            <label style="display:block;font-size:13px;font-weight:700;color:#374151;margin-bottom:6px;">
+                💡 ¿Cómo solucionaste el problema? <span style="color:#dc2626;">*</span>
+            </label>
+            <textarea id="resolutionMessage" rows="5" maxlength="2000"
+                      placeholder="Describe los pasos que seguiste para resolver el caso. Esta información queda en la conversación del ticket, se le envía por correo al usuario y sirve para futuros casos similares."
+                      style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>
+            <div id="resolutionCount" style="font-size:11px;color:#6b7280;margin-top:3px;text-align:right;">0 caracteres</div>
+            <div id="resolutionError" style="display:none;color:#dc2626;font-size:13px;margin-top:4px;font-weight:600;">
+                ⚠ Debes informar cómo resolviste el problema antes de cerrar el ticket.
+            </div>
+        </div>
+
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;padding:10px;border-radius:6px;font-size:12px;color:#1e40af;margin-bottom:14px;">
+            ℹ️ <strong>La calificación con estrellas</strong> la dará el usuario final cuando reciba el correo de notificación con tu solución. Tú solo documentas la solución.
+        </div>
+
+        <div class="modal-buttons" style="margin-top:16px;">
+            <button class="modal-btn-submit" onclick="submitResolution()" id="submitRating">✅ Marcar como resuelto</button>
+            <button class="modal-btn-cancel" onclick="closeRatingModal()">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+{% include 'search_widget.html' %}
+
+<script src="/static/timeout.js"></script>
+<script>
+    // CRONÓMETRO RF-02-05
+    let timerInterval = null;
+    let totalSeconds = 0;
+    let isRunning = false;
+    const ticketId = {{ ticket.id }};
+
+    // Cargar tiempo guardado si existe
+    function loadSavedTime() {
+        fetch(`/api/ticket/${ticketId}/time`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    totalSeconds = data.seconds || 0;
+                    updateDisplay();
+                }
+            });
+    }
+
+    function startTimer() {
+        if (isRunning) return;
+        isRunning = true;
+        document.getElementById('timerStart').disabled = true;
+        document.getElementById('timerPause').disabled = false;
+        document.getElementById('timerStop').disabled = false;
+
+        timerInterval = setInterval(() => {
+            totalSeconds++;
+            updateDisplay();
+        }, 1000);
+    }
+
+    function pauseTimer() {
+        if (!isRunning) return;
+        isRunning = false;
+        clearInterval(timerInterval);
+        document.getElementById('timerStart').disabled = false;
+        document.getElementById('timerStart').textContent = '▶ Reanudar';
+    }
+
+    function stopTimer() {
+        if (timerInterval) clearInterval(timerInterval);
+        isRunning = false;
+
+        // Guardar en servidor
+        fetch(`/api/ticket/${ticketId}/time`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ seconds: totalSeconds })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('⏱️ Tiempo guardado: ' + formatTime(totalSeconds));
+                totalSeconds = 0;
+                updateDisplay();
+                document.getElementById('timerStart').disabled = false;
+                document.getElementById('timerPause').disabled = true;
+                document.getElementById('timerStop').disabled = true;
+                document.getElementById('timerStart').textContent = '▶ Iniciar';
+            }
+        });
+    }
+
+    function updateDisplay() {
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const secs = totalSeconds % 60;
+
+        document.getElementById('timerDisplay').textContent =
+            String(hours).padStart(2, '0') + ':' +
+            String(minutes).padStart(2, '0') + ':' +
+            String(secs).padStart(2, '0');
+
+        document.getElementById('totalTime').textContent =
+            `${hours}h ${minutes}m`;
+    }
+
+    function formatTime(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        return `${h}h ${m}m`;
+    }
+
+    // Cargar al iniciar
+    loadSavedTime();
+
+    // RATING RF-01-09
+    let currentRating = 0;
+
+    function setRating(stars) {
+        currentRating = stars;
+        const starElements = document.querySelectorAll('.star');
+        starElements.forEach((star, index) => {
+            if (index < stars) {
+                star.classList.add('active');
+            } else {
+                star.classList.remove('active');
+            }
+        });
+        document.getElementById('ratingLabel').textContent = `Calificación: ${stars}/5`;
+        document.getElementById('submitRating').disabled = false;
+    }
+
+    function resolveTicket() {
+        document.getElementById('ratingModal').classList.add('active');
+        // Limpiar estado previo
+        document.getElementById('resolutionMessage').value = '';
+        document.getElementById('resolutionError').style.display = 'none';
+        document.getElementById('resolutionCount').textContent = '0 caracteres';
+        setTimeout(() => document.getElementById('resolutionMessage').focus(), 100);
+    }
+
+    // Contador de caracteres en vivo + ocultar error al escribir
+    document.addEventListener('DOMContentLoaded', () => {
+        const ta = document.getElementById('resolutionMessage');
+        if (ta) {
+            ta.addEventListener('input', () => {
+                document.getElementById('resolutionCount').textContent = ta.value.length + ' caracteres';
+                if (ta.value.trim().length >= 10) {
+                    document.getElementById('resolutionError').style.display = 'none';
+                }
+            });
+        }
+    });
+
+    async function submitResolution() {
+        const resolutionEl = document.getElementById('resolutionMessage');
+        const errorEl = document.getElementById('resolutionError');
+        const resolution = (resolutionEl.value || '').trim();
+
+        // Validar solución obligatoria
+        if (resolution.length < 10) {
+            errorEl.textContent = resolution.length === 0
+                ? '⚠ Debes informar cómo resolviste el problema antes de cerrar el ticket.'
+                : '⚠ La descripción es muy corta (mínimo 10 caracteres). Detalla cómo resolviste el caso.';
+            errorEl.style.display = 'block';
+            resolutionEl.focus();
+            resolutionEl.style.borderColor = '#dc2626';
+            return;
+        }
+        resolutionEl.style.borderColor = '#d1d5db';
+
+        const submitBtn = document.getElementById('submitRating');
+        submitBtn.disabled = true;
+        submitBtn.textContent = '⏳ Guardando...';
+
+        try {
+            const r = await fetch(`/api/ticket/${ticketId}/resolve`, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({resolution: resolution})
+            });
+            const data = await r.json();
+            if (data.success) {
+                let msg = '✅ Ticket marcado como resuelto\n💡 Solución registrada en la conversación';
+                if (data.email_sent) msg += '\n📧 Correo enviado al usuario para que califique la solución';
+                alert(msg);
+                closeRatingModal();
+                // Redirigir al dashboard correcto según el rol (admin va a admin, técnico a technician)
+                const userRole = "{{ user.role if user else 'technician' }}";
+                if (userRole === 'admin') {
+                    window.location.href = '/admin/dashboard#tab=8';
+                } else {
+                    window.location.href = '/technician/dashboard';
+                }
+            } else {
+                alert('✗ Error: ' + (data.error || 'No se pudo cerrar el ticket'));
+                submitBtn.disabled = false;
+                submitBtn.textContent = '✅ Marcar como resuelto';
+            }
+        } catch (e) {
+            alert('✗ Error de conexión: ' + e.message);
+            submitBtn.disabled = false;
+            submitBtn.textContent = '✅ Marcar como resuelto';
+        }
+    }
+
+    function closeRatingModal() {
+        document.getElementById('ratingModal').classList.remove('active');
+        document.getElementById('resolutionMessage').value = '';
+        document.getElementById('resolutionError').style.display = 'none';
+        document.getElementById('submitRating').disabled = false;
+        document.getElementById('submitRating').textContent = '✅ Marcar como resuelto';
+    }
+
+    // HISTORIAL RF-01-08
+    function switchTab(tabName) {
+        // Ocultar tabs
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+
+        // Mostrar tab seleccionado
+        document.getElementById(tabName).classList.add('active');
+        event.target.classList.add('active');
+
+        // Cargar historial si es necesario
+        if (tabName === 'history') {
+            loadHistory();
+        } else if (tabName === 'subtasks') {
+            loadSubtasks();
+        }
+    }
+
+    // ========== SUBTAREAS ==========
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    let _subtaskTechnicians = [];
+
+    function loadSubtasks() {
+        fetch(`/api/ticket/${ticketId}/subtasks`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) {
+                    document.getElementById('subtasksList').innerHTML = '<p style="color:#dc2626;text-align:center;padding:20px;">Error al cargar sub-casos</p>';
+                    return;
+                }
+                _subtaskTechnicians = data.technicians || [];
+                fillAssigneeSelect('newSubtaskAssignee', '');
+                renderSubtasks(data);
+            })
+            .catch(() => {
+                document.getElementById('subtasksList').innerHTML = '<p style="color:#dc2626;text-align:center;padding:20px;">Error de conexión</p>';
+            });
+    }
+
+    function fillAssigneeSelect(selectId, selectedId) {
+        const sel = document.getElementById(selectId);
+        if (!sel) return;
+        sel.innerHTML = '<option value="">— Sin asignar —</option>' +
+            _subtaskTechnicians.map(t => `<option value="${t.id}" ${String(t.id)===String(selectedId)?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
+    }
+
+    function priorityBadge(p) {
+        const map = {
+            critical: {bg:'#fee2e2', fg:'#991b1b', label:'🔴 Crítica'},
+            high:     {bg:'#ffedd5', fg:'#9a3412', label:'🟠 Alta'},
+            medium:   {bg:'#fef3c7', fg:'#92400e', label:'🟡 Media'},
+            low:      {bg:'#d1fae5', fg:'#065f46', label:'🟢 Baja'}
+        };
+        const c = map[p] || map.medium;
+        return `<span style="background:${c.bg};color:${c.fg};padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">${c.label}</span>`;
+    }
+
+    function statusBadge(s) {
+        const map = {
+            open:        {bg:'#dbeafe', fg:'#1e40af', label:'📂 Abierto'},
+            in_progress: {bg:'#fef3c7', fg:'#92400e', label:'🔄 En Progreso'},
+            resolved:    {bg:'#d1fae5', fg:'#065f46', label:'✅ Resuelto'}
+        };
+        const c = map[s] || map.open;
+        return `<span style="background:${c.bg};color:${c.fg};padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">${c.label}</span>`;
+    }
+
+    function slaPill(s) {
+        if (s.sla_remaining === null || s.sla_remaining === undefined) return '';
+        if (s.status === 'resolved') {
+            return `<span style="color:#6b7280;font-size:12px;">SLA: cerrado</span>`;
+        }
+        if (s.sla_expired) {
+            return `<span style="color:#dc2626;font-weight:700;font-size:12px;">⏰ SLA VENCIDO</span>`;
+        }
+        const m = s.sla_remaining;
+        const color = m < 30 ? '#dc2626' : (m < 120 ? '#d97706' : '#16a34a');
+        const txt = m >= 60 ? `${Math.floor(m/60)}h ${m%60}m` : `${m}m`;
+        return `<span style="color:${color};font-weight:600;font-size:12px;">⏱ ${txt} restantes</span>`;
+    }
+
+    function fmtTimeWorked(seconds) {
+        const s = seconds || 0;
+        const h = Math.floor(s / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        if (h > 0) return `${h}h ${m}m`;
+        return `${m}m`;
+    }
+
+    function renderSubtasks(data) {
+        const list = document.getElementById('subtasksList');
+        document.getElementById('subtaskTotal').textContent = data.total;
+        document.getElementById('subtaskDone').textContent = data.done;
+        document.getElementById('subtaskProgress').textContent = data.progress;
+        document.getElementById('subtaskBar').style.width = data.progress + '%';
+        document.getElementById('subtaskBadge').textContent = data.total;
+
+        if (data.subtasks.length === 0) {
+            list.innerHTML = '<p style="color:#999;text-align:center;padding:24px;background:#f9fafb;border-radius:8px;">No hay sub-casos asociados. Crea el primero arriba ⬆️</p>';
+            return;
+        }
+
+        list.innerHTML = data.subtasks.map(s => {
+            const borderColor = s.sla_expired && s.status !== 'resolved' ? '#dc2626' :
+                                (s.status === 'resolved' ? '#16a34a' : '#7c3aed');
+            const assigneeOptions = '<option value="">— Sin asignar —</option>' +
+                _subtaskTechnicians.map(t => `<option value="${t.id}" ${String(t.id)===String(s.assignee_id||'')?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
+
+            return `
+                <div style="background:white;border:1px solid #e5e7eb;border-left:4px solid ${borderColor};border-radius:8px;padding:14px;margin-bottom:10px;">
+                    <!-- Encabezado -->
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:11px;color:#7c3aed;font-weight:700;letter-spacing:0.5px;margin-bottom:2px;">
+                                ${escapeHtml(s.subtask_number || '#'+s.id)} · sub-caso de ${escapeHtml(s.parent_number || '')}
+                            </div>
+                            <div style="font-weight:700;font-size:15px;color:#111827;">${escapeHtml(s.title)}</div>
+                            ${s.description ? `<div style="font-size:13px;color:#4b5563;margin-top:6px;white-space:pre-wrap;">${escapeHtml(s.description)}</div>` : ''}
+                        </div>
+                        <button onclick="deleteSubtask(${s.id})" title="Eliminar"
+                                style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:18px;">🗑️</button>
+                    </div>
+
+                    <!-- Badges -->
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center;">
+                        ${statusBadge(s.status)}
+                        ${priorityBadge(s.priority)}
+                        ${s.category ? `<span style="background:#f3f4f6;color:#374151;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;">📁 ${escapeHtml(s.category)}</span>` : ''}
+                        ${slaPill(s)}
+                    </div>
+
+                    <!-- Controles -->
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:8px;padding-top:10px;border-top:1px dashed #e5e7eb;">
+                        <div>
+                            <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Estado</label>
+                            <select onchange="patchSubtask(${s.id}, {status: this.value})"
+                                    style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">
+                                <option value="open" ${s.status==='open'?'selected':''}>Abierto</option>
+                                <option value="in_progress" ${s.status==='in_progress'?'selected':''}>En progreso</option>
+                                <option value="resolved" ${s.status==='resolved'?'selected':''}>Resuelto</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Prioridad</label>
+                            <select onchange="patchSubtask(${s.id}, {priority: this.value})"
+                                    style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">
+                                <option value="low" ${s.priority==='low'?'selected':''}>Baja</option>
+                                <option value="medium" ${s.priority==='medium'?'selected':''}>Media</option>
+                                <option value="high" ${s.priority==='high'?'selected':''}>Alta</option>
+                                <option value="critical" ${s.priority==='critical'?'selected':''}>Crítica</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Asignado a</label>
+                            <select onchange="patchSubtask(${s.id}, {assignee_id: this.value ? parseInt(this.value) : null})"
+                                    style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">
+                                ${assigneeOptions}
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Tiempo trabajado</label>
+                            <div style="padding:5px 0;font-size:12px;color:#374151;font-weight:600;">⏲ ${fmtTimeWorked(s.time_worked_seconds)}</div>
+                        </div>
+                    </div>
+
+                    <!-- Adjuntos -->
+                    <div style="margin-top:10px;padding-top:10px;border-top:1px dashed #e5e7eb;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                            <span style="font-size:12px;font-weight:600;color:#374151;">📎 Documentos (${(s.attachments||[]).length})</span>
+                            <button onclick="uploadToExistingSubtask(${s.id})"
+                                    style="background:none;border:1px solid #7c3aed;color:#7c3aed;padding:3px 10px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:600;">
+                                + Adjuntar
+                            </button>
+                        </div>
+                        ${(s.attachments && s.attachments.length > 0) ? `
+                            <div style="display:flex;flex-direction:column;gap:4px;">
+                                ${s.attachments.map(a => `
+                                    <div style="display:flex;align-items:center;gap:8px;background:#f9fafb;padding:6px 10px;border-radius:4px;font-size:12px;">
+                                        <span>${attachmentIcon(a.original_name)}</span>
+                                        <a href="${a.download_url}" target="_blank"
+                                           style="color:#2563eb;text-decoration:none;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                                           title="${escapeHtml(a.original_name)}">${escapeHtml(a.original_name)}</a>
+                                        <span style="color:#9ca3af;">${fmtBytes(a.size_bytes)}</span>
+                                        <span style="color:#9ca3af;font-size:11px;">${escapeHtml(a.uploaded_by_name || '')}</span>
+                                        <button onclick="deleteAttachment(${a.id})" title="Eliminar adjunto"
+                                                style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;">×</button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : '<div style="font-size:11px;color:#9ca3af;font-style:italic;">Sin documentos adjuntos</div>'}
+                    </div>
+
+                    <!-- Footer -->
+                    <div style="font-size:11px;color:#9ca3af;margin-top:8px;border-top:1px dashed #e5e7eb;padding-top:6px;">
+                        Creado por ${escapeHtml(s.created_by_name || '—')} · ${escapeHtml(s.created_at || '')}
+                        ${s.resolved_at ? ` · Resuelto: ${escapeHtml(s.resolved_at)}` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function showSubtaskMsg(text, isError) {
+        const el = document.getElementById('subtaskStatusMsg');
+        el.textContent = text;
+        el.style.color = isError ? '#dc2626' : '#16a34a';
+        setTimeout(() => { el.textContent = ''; }, 2500);
+    }
+
+    function updateFileLabel() {
+        const input = document.getElementById('newSubtaskFiles');
+        const label = document.getElementById('newSubtaskFilesLabel');
+        if (!input.files || input.files.length === 0) {
+            label.textContent = '';
+            return;
+        }
+        const names = Array.from(input.files).map(f => `${f.name} (${(f.size/1024).toFixed(0)} KB)`);
+        label.textContent = `${input.files.length} archivo(s): ${names.join(' · ')}`;
+    }
+
+    async function uploadAttachments(subtaskId, files) {
+        if (!files || files.length === 0) return {success: true};
+        const fd = new FormData();
+        for (const f of files) fd.append('files', f);
+        const res = await fetch(`/api/subtask/${subtaskId}/attachments`, {method: 'POST', body: fd});
+        return await res.json();
+    }
+
+    function createSubtask() {
+        const title = document.getElementById('newSubtaskTitle').value.trim();
+        if (!title) { showSubtaskMsg('✗ Título requerido', true); return; }
+        const priority = document.getElementById('newSubtaskPriority').value;
+        const assigneeRaw = document.getElementById('newSubtaskAssignee').value;
+        const category = document.getElementById('newSubtaskCategory').value.trim();
+        const description = document.getElementById('newSubtaskDescription').value.trim();
+        const files = document.getElementById('newSubtaskFiles').files;
+
+        const body = {title, priority};
+        if (assigneeRaw) body.assignee_id = parseInt(assigneeRaw);
+        if (category) body.category = category;
+        if (description) body.description = description;
+
+        showSubtaskMsg('⏳ Creando sub-caso...');
+        fetch(`/api/ticket/${ticketId}/subtasks`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(body)
+        }).then(r => r.json())
+          .then(async data => {
+              if (!data.success) {
+                  showSubtaskMsg('✗ ' + (data.error || 'Error'), true);
+                  return;
+              }
+              const newId = data.subtask && data.subtask.id;
+              if (newId && files && files.length > 0) {
+                  showSubtaskMsg('⏳ Subiendo adjuntos...');
+                  const upRes = await uploadAttachments(newId, files);
+                  if (!upRes.success) {
+                      showSubtaskMsg('⚠ Sub-caso creado, pero falló subida: ' + (upRes.error || ''), true);
+                  } else if (upRes.errors && upRes.errors.length > 0) {
+                      showSubtaskMsg('⚠ Sub-caso creado. Errores en adjuntos: ' + upRes.errors.join('; '), true);
+                  } else {
+                      showSubtaskMsg('✓ Sub-caso creado con ' + (upRes.attachments?.length || 0) + ' adjunto(s)');
+                  }
+              } else {
+                  showSubtaskMsg('✓ Sub-caso creado');
+              }
+              document.getElementById('newSubtaskTitle').value = '';
+              document.getElementById('newSubtaskCategory').value = '';
+              document.getElementById('newSubtaskDescription').value = '';
+              document.getElementById('newSubtaskPriority').value = 'medium';
+              document.getElementById('newSubtaskAssignee').value = '';
+              document.getElementById('newSubtaskFiles').value = '';
+              document.getElementById('newSubtaskFilesLabel').textContent = '';
+              loadSubtasks();
+          });
+    }
+
+    function uploadToExistingSubtask(subtaskId) {
+        const inp = document.createElement('input');
+        inp.type = 'file';
+        inp.multiple = true;
+        inp.accept = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp,.zip,.rar,.7z,.log,.msg,.eml';
+        inp.onchange = async () => {
+            if (!inp.files || inp.files.length === 0) return;
+            showSubtaskMsg('⏳ Subiendo...');
+            const res = await uploadAttachments(subtaskId, inp.files);
+            if (res.success) {
+                showSubtaskMsg('✓ Archivo(s) subido(s)');
+                loadSubtasks();
+            } else {
+                showSubtaskMsg('✗ ' + (res.error || 'Error'), true);
+            }
+        };
+        inp.click();
+    }
+
+    function deleteAttachment(attId) {
+        if (!confirm('¿Eliminar este adjunto?')) return;
+        fetch(`/api/subtask/attachment/${attId}`, {method: 'DELETE'})
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showSubtaskMsg('✓ Adjunto eliminado');
+                    loadSubtasks();
+                } else {
+                    showSubtaskMsg('✗ ' + (data.error || 'Error'), true);
+                }
+            });
+    }
+
+    function fmtBytes(b) {
+        b = b || 0;
+        if (b < 1024) return b + ' B';
+        if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' KB';
+        return (b / 1024 / 1024).toFixed(1) + ' MB';
+    }
+
+    function attachmentIcon(name) {
+        const ext = (name || '').toLowerCase().split('.').pop();
+        const map = {pdf:'📕', doc:'📘', docx:'📘', xls:'📗', xlsx:'📗', ppt:'📙', pptx:'📙',
+                     png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', bmp:'🖼️', webp:'🖼️',
+                     zip:'🗜️', rar:'🗜️', '7z':'🗜️',
+                     txt:'📄', csv:'📊', log:'📋', msg:'✉️', eml:'✉️'};
+        return map[ext] || '📎';
+    }
+
+    function patchSubtask(id, payload) {
+        fetch(`/api/subtask/${id}`, {
+            method: 'PATCH',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+        }).then(r => r.json())
+          .then(data => {
+              if (data.success) {
+                  showSubtaskMsg('✓ Actualizado');
+                  loadSubtasks();
+              } else {
+                  showSubtaskMsg('✗ ' + (data.error || 'Error'), true);
+              }
+          });
+    }
+
+    function deleteSubtask(id) {
+        if (!confirm('¿Eliminar este sub-caso? Esta acción no se puede deshacer.')) return;
+        fetch(`/api/subtask/${id}`, {method: 'DELETE'})
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showSubtaskMsg('✓ Eliminado');
+                    loadSubtasks();
+                } else {
+                    showSubtaskMsg('✗ ' + (data.error || 'Error'), true);
+                }
+            });
+    }
+
+    // Pre-cargar el contador al abrir el ticket
+    document.addEventListener('DOMContentLoaded', () => {
+        fetch(`/api/ticket/${ticketId}/subtasks`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    _subtaskTechnicians = data.technicians || [];
+                    fillAssigneeSelect('newSubtaskAssignee', '');
+                    document.getElementById('subtaskBadge').textContent = data.total;
+                }
+            }).catch(() => {});
+    });
+
+    function loadHistory() {
+        fetch(`/api/ticket/${ticketId}/history`)
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('historyContainer');
+                if (data.success && data.history.length > 0) {
+                    container.innerHTML = data.history.map(h => `
+                        <div class="history-item">
+                            <div class="history-time">📅 ${new Date(h.created_at).toLocaleString('es-ES')}</div>
+                            <div class="history-action">🔄 ${h.action}</div>
+                            <div class="history-description">${h.description}</div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">Sin historial</p>';
+                }
+            });
+    }
+</script>
+</body>
+</html>

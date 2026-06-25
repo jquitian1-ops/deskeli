@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeskEli - Login</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* Paleta naranja → negro */
+        :root {
+            --accent: #ea580c;          /* naranja principal */
+            --accent-dark: #c2410c;     /* naranja oscuro */
+            --accent-light: #fed7aa;    /* naranja muy claro para hover */
+            --bg-start: #1f2937;        /* negro grisáceo */
+            --bg-end: #ea580c;          /* naranja */
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, var(--bg-start) 0%, var(--bg-end) 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .login-container { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); width: 100%; max-width: 450px; border-top: 4px solid var(--accent); }
+        .logo { text-align: center; margin-bottom: 30px; }
+        .logo h1 { color: var(--accent); font-size: 28px; margin-bottom: 5px; }
+        .logo p { color: #666; font-size: 14px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; color: #1f2937; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+        .company-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .company-btn { padding: 12px; border: 2px solid #e0e0e0; background: #f5f5f5; border-radius: 6px; cursor: pointer; transition: all 0.3s; font-size: 13px; font-weight: 600; text-align: center; color: #1f2937; }
+        .company-btn:hover { border-color: var(--accent); background: var(--accent-light); }
+        .company-btn.selected { border-color: var(--accent); background: var(--accent); color: white; }
+        input[type="text"], input[type="password"], input[type="email"] { width: 100%; padding: 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 14px; font-family: inherit; transition: all 0.3s; box-sizing: border-box; }
+        input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15); }
+        .login-button { width: 100%; padding: 12px; background: linear-gradient(135deg, var(--accent) 0%, #1f2937 100%); color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 20px; transition: all 0.2s; letter-spacing: 0.5px; }
+        .login-button:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(234, 88, 12, 0.5); filter: brightness(1.05); }
+        .error { color: #dc2626; background: #fee2e2; padding: 12px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; }
+        .info-box { background: #fef3c7; padding: 15px; border-radius: 6px; margin-top: 20px; font-size: 13px; color: #78350f; border-left: 4px solid var(--accent); }
+        .info-box strong { color: #1f2937; }
+        .hidden { display: none; }
+
+        /* Botón de switch de tema */
+        .theme-switcher { position: fixed; top: 20px; right: 20px; display: flex; gap: 6px; z-index: 100; }
+        .theme-switcher button { padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 700; opacity: 0.85; transition: opacity 0.2s; }
+        .theme-switcher button:hover { opacity: 1; }
+    </style>
+</head>
+<body>
+    <!-- Switcher de tema visual -->
+    <div class="theme-switcher">
+        <button onclick="setLoginTheme('orange')" style="background:#ea580c;color:white;" title="Naranja y negro">🟠 Naranja</button>
+        <button onclick="setLoginTheme('black')" style="background:#1f2937;color:white;" title="Negro puro">⚫ Negro</button>
+        <button onclick="setLoginTheme('purple')" style="background:#764ba2;color:white;" title="Púrpura clásico">🟣 Púrpura</button>
+    </div>
+
+    <div class="login-container">
+        <div class="logo">
+            <img src="/static/deskeli-logo.png"
+                 onerror="this.onerror=null;this.src='/static/eli.png';"
+                 alt="DeskEli"
+                 style="width:96px;height:96px;border-radius:50%;border:3px solid var(--accent);box-shadow:0 4px 12px rgba(0,0,0,0.15);object-fit:cover;margin-bottom:10px;">
+            <h1>DeskEli</h1>
+            <p>v2.1 - Sistema de Gestión de Incidencias</p>
+        </div>
+
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <!-- Aviso de expulsión por administrador -->
+        <div id="forcedLogoutBanner" style="display:none;background:linear-gradient(135deg,#fee2e2,#fecaca);border:2px solid #dc2626;color:#7f1d1d;padding:14px 16px;border-radius:8px;margin-bottom:18px;font-size:14px;">
+            <div style="font-weight:700;font-size:15px;margin-bottom:4px;display:flex;align-items:center;gap:8px;">
+                🚫 Sesión cerrada por el administrador
+            </div>
+            <div style="font-size:13px;line-height:1.5;">
+                Un administrador finalizó tu sesión activa. Si crees que es un error, contactá al equipo de TI.
+                <br>Para volver a usar el sistema, iniciá sesión nuevamente.
+            </div>
+        </div>
+
+        <form method="POST" action="">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label>Selecciona tu Empresa</label>
+                <div class="company-selector">
+                    {% for company_id, company_data in companies.items() %}
+                        <button type="button" class="company-btn" onclick="selectCompany('{{ company_id }}', this)" style="border-color: {{ company_data.primary }}">
+                            {{ company_data.icon }} {{ company_data.name }}
+                        </button>
+                    {% endfor %}
+                </div>
+                <input type="hidden" id="company" name="company" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">📧 Correo electrónico</label>
+                <input type="email" id="email" name="email" required placeholder="tu.correo@empresa.com" autocomplete="username" autocapitalize="none" spellcheck="false">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Contraseña</label>
+                <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="off">
+            </div>
+
+            <button type="submit" class="login-button">Ingresar</button>
+        </form>
+
+    </div>
+
+    <script>
+        function selectCompany(companyId, btn) {
+            document.querySelectorAll('.company-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            document.getElementById('company').value = companyId;
+        }
+
+        // Cambiar tema visual del login (guardado en localStorage)
+        const LOGIN_THEMES = {
+            orange: {accent:'#ea580c', accentDark:'#c2410c', accentLight:'#fed7aa', bgStart:'#1f2937', bgEnd:'#ea580c'},
+            black:  {accent:'#fb923c', accentDark:'#ea580c', accentLight:'#374151', bgStart:'#111827', bgEnd:'#000000'},
+            purple: {accent:'#667eea', accentDark:'#5a67d8', accentLight:'#e0e7ff', bgStart:'#667eea', bgEnd:'#764ba2'}
+        };
+
+        function setLoginTheme(name) {
+            const t = LOGIN_THEMES[name] || LOGIN_THEMES.orange;
+            const r = document.documentElement;
+            r.style.setProperty('--accent', t.accent);
+            r.style.setProperty('--accent-dark', t.accentDark);
+            r.style.setProperty('--accent-light', t.accentLight);
+            r.style.setProperty('--bg-start', t.bgStart);
+            r.style.setProperty('--bg-end', t.bgEnd);
+            try { localStorage.setItem('loginTheme', name); } catch(e) {}
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Restaurar tema guardado
+            try {
+                const saved = localStorage.getItem('loginTheme');
+                if (saved && LOGIN_THEMES[saved]) setLoginTheme(saved);
+            } catch(e) {}
+
+            // Seleccionar primera empresa por defecto
+            const firstBtn = document.querySelector('.company-btn');
+            if (firstBtn) firstBtn.click();
+
+            // Mostrar banner si fue expulsado por admin
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('forced_logout') === '1') {
+                const banner = document.getElementById('forcedLogoutBanner');
+                if (banner) {
+                    banner.style.display = 'block';
+                    // Scroll suave hacia el banner por si no se ve
+                    banner.scrollIntoView({behavior: 'smooth', block: 'center'});
+                }
+                // Limpiar el query param de la URL sin recargar
+                try {
+                    const cleanUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                } catch(e) {}
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal de Técnicos - DeskEli</title>
+    {% include 'company_theme.html' %}
+    <style>
+        :root {
+            --theme-primary: {{ theme_color | default('#2563eb') }};
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--theme-primary) 0%, var(--theme-primary) 100%);
+            color: white;
+            padding: 20px;
+            filter: saturate(1.1);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        @media (max-width: 768px) {
+            .workspace { grid-template-columns: 1fr; }
+        }
+
+        .side-nav {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+            position: sticky;
+            top: 20px;
+        }
+        .side-nav-header {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            color: white;
+            padding: 14px 16px;
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .side-nav-group-title {
+            padding: 10px 16px 6px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #f9fafb;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .side-nav-btn {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 14px 16px;
+            background: white;
+            border: none;
+            border-left: 4px solid transparent;
+            cursor: pointer;
+            font-size: 14px;
+            color: #374151;
+            text-align: left;
+            transition: all 0.2s;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .side-nav-btn:hover {
+            background: #f3f4f6;
+        }
+        .side-nav-btn.active {
+            background: #eff6ff;
+            border-left-color: #2563eb;
+            color: #1e40af;
+            font-weight: 700;
+        }
+        .side-nav-count {
+            background: #e5e7eb;
+            color: #374151;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        .side-nav-btn.active .side-nav-count {
+            background: #2563eb;
+            color: white;
+        }
+
+        .subtask-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-left: 4px solid #7c3aed;
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+        .subtask-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .subtask-card.expired { border-left-color: #dc2626; }
+        .subtask-card.resolved { border-left-color: #16a34a; }
+        .pill {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-right: 4px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .queue-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .queue-item {
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .queue-item:hover {
+            border-color: #2563eb;
+            background: #f3e8ff;
+        }
+
+        .queue-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 8px;
+        }
+
+        .queue-id {
+            font-weight: 600;
+            color: #2563eb;
+        }
+
+        .priority-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .priority-high {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .priority-medium {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .queue-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .queue-meta {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+
+        .bot-suggestion {
+            background: #f0f9ff;
+            border-left: 3px solid #0284c7;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #0c4a6e;
+        }
+
+        .sla-critical {
+            color: #dc2626;
+            font-weight: 600;
+        }
+
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid white;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div style="display:flex;align-items:center;gap:14px;">
+                <img src="/static/deskeli-logo.png"
+                     onerror="this.onerror=null;this.src='/static/eli.png';"
+                     alt="DeskEli"
+                     style="width:56px;height:56px;border-radius:50%;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.25);object-fit:cover;">
+                <div>
+                    <h1 style="margin:0;">👨‍💼 Portal de Técnicos</h1>
+                    <p style="font-size: 14px; opacity: 0.9; margin:0;">Bienvenido, {{ session.name }}</p>
+                </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <a href="/technician/create" style="background:#16a34a;color:white;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;box-shadow:0 2px 6px rgba(22,163,74,0.3);">+ Crear Ticket</a>
+                <a href="/logout" class="logout-btn">Salir</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.sla_health }}</div>
+                <div class="stat-label">Salud SLA</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.on_time }}</div>
+                <div class="stat-label">A Tiempo</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.avg_resolution }}</div>
+                <div class="stat-label">Resolución Promedio</div>
+            </div>
+        </div>
+
+        <div class="workspace">
+            <!-- SIDEBAR IZQUIERDO -->
+            <nav class="side-nav">
+                <div class="side-nav-header">Mi Asignación</div>
+
+                <div class="side-nav-group-title">🎫 Tickets</div>
+                <button class="side-nav-btn active" id="navTicketsMine" onclick="switchView('tickets', 'mine')">
+                    <span style="padding-left:8px;">👤 Asignados a mí</span>
+                    <span class="side-nav-count" id="countTicketsMine">{{ my_queue|length }}</span>
+                </button>
+                <button class="side-nav-btn" id="navTicketsTeam" onclick="switchView('tickets', 'team')">
+                    <span style="padding-left:8px;">👥 De mis grupos</span>
+                    <span class="side-nav-count" id="countTicketsTeam">{{ team_queue|length }}</span>
+                </button>
+
+                <div class="side-nav-group-title">✅ Subtareas</div>
+                <button class="side-nav-btn" id="navSubtasksMine" onclick="switchView('subtasks', 'mine')">
+                    <span style="padding-left:8px;">👤 Asignadas a mí</span>
+                    <span class="side-nav-count" id="countSubtasksMine">…</span>
+                </button>
+                <button class="side-nav-btn" id="navSubtasksTeam" onclick="switchView('subtasks', 'team')">
+                    <span style="padding-left:8px;">👥 De mis grupos</span>
+                    <span class="side-nav-count" id="countSubtasksTeam">…</span>
+                </button>
+            </nav>
+
+            <!-- CONTENIDO -->
+            <div>
+            <!-- VISTA: TICKETS -->
+            <div id="viewTickets" class="queue-section">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                <div class="section-title" style="margin:0;">
+                    <span id="ticketsSectionTitle">🎯 Tickets Asignados a Mí</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <input type="text" id="queueSearch" placeholder="🔍 Buscar por número, título, prioridad..."
+                           onkeyup="filterQueue()"
+                           style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;min-width:280px;font-size:14px;">
+                    <span id="queueSearchCount" style="font-size:12px;color:#6b7280;"></span>
+                </div>
+            </div>
+
+            <!-- Lista: asignados a mí -->
+            <div id="queueListMine" class="ticket-list-block">
+            {% if my_queue %}
+            <div style="overflow-x:auto;">
+            <table id="tableMyTickets" class="filterable-table" style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-size:13px;">
+                <thead>
+                    <tr style="background:#f9fafb;">
+                        <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">N° Caso</th>
+                        <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Empresa</th>
+                        <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asunto</th>
+                        <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Estado</th>
+                        <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Prioridad</th>
+                        <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Fecha Asignación</th>
+                        <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asignado por</th>
+                        <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">SLA</th>
+                    </tr>
+                    <!-- FILA DE FILTROS POR COLUMNA -->
+                    <tr class="col-filter-row" style="background:#f3f4f6;">
+                        <th style="padding:6px;"><input type="text" data-filter="number" data-table="mine" placeholder="🔍 N°..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
+                        <th style="padding:6px;"><select data-filter="company" data-table="mine" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"><option value="">Todas</option></select></th>
+                        <th style="padding:6px;"><input type="text" data-filter="title" data-table="mine" placeholder="🔍 Asunto/categoría..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
+                        <th style="padding:6px;"><select data-filter="status" data-table="mine" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"><option value="">Todos</option><option value="open">📂 Abierto</option><option value="in_progress">🔄 En Progreso</option><option value="resolved">✅ Resuelto</option><option value="closed">🔒 Cerrado</option></select></th>
+                        <th style="padding:6px;"><select data-filter="priority" data-table="mine" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"><option value="">Todas</option><option value="critical">🔴 Crítica</option><option value="high">🟠 Alta</option><option value="medium">🟡 Media</option><option value="low">🟢 Baja</option></select></th>
+                        <th style="padding:6px;"><input type="text" data-filter="date" data-table="mine" placeholder="🔍 Fecha..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
+                        <th style="padding:6px;"><input type="text" data-filter="assigner" data-table="mine" placeholder="🔍 Asignado por..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
+                        <th style="padding:6px;"><select data-filter="sla" data-table="mine" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"><option value="">Todos</option><option value="overdue">⏰ Vencidos</option><option value="critical">🔴 &lt; 30m</option><option value="warning">🟠 &lt; 2h</option><option value="ok">🟢 OK</option></select></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for ticket in my_queue %}
+                    {% set _search = (ticket.ticket_number ~ ' ' ~ ticket.title ~ ' ' ~ ticket.priority ~ ' ' ~ (ticket.category or '') ~ ' ' ~ (ticket.status or '') ~ ' ' ~ (ticket.company_label or '') ~ ' ' ~ (ticket.assigned_by or '')) | lower %}
+                    <tr class="queue-row"
+                        data-search="{{ _search }}"
+                        data-number="{{ ticket.ticket_number|lower }}"
+                        data-title="{{ (ticket.title ~ ' ' ~ (ticket.category or ''))|lower }}"
+                        data-status="{{ ticket.status or '' }}"
+                        data-priority="{{ ticket.priority or '' }}"
+                        data-company="{{ ticket.company|lower if ticket.company else '' }}"
+                        data-date="{{ ticket.assigned_when or '' }}"
+                        data-assigner="{{ (ticket.assigned_by or '')|lower }}"
+                        data-sla="{{ ticket.sla_remaining if ticket.sla_remaining is not none else '' }}"
+                        onclick="window.location='/technician/ticket/{{ ticket.id }}'" style="cursor:pointer;border-bottom:1px solid #f0f0f0;">
+                        <td style="padding:10px;font-weight:700;color:#7c3aed;font-size:12px;">{{ ticket.ticket_number }}</td>
+                        <td style="padding:10px;font-size:12px;">{{ ticket.company_icon }} {{ ticket.company_label }}</td>
+                        <td style="padding:10px;">
+                            <div style="font-weight:600;color:#111827;">{{ ticket.title[:60] }}{% if ticket.title|length > 60 %}...{% endif %}</div>
+                            {% if ticket.category %}<div style="font-size:11px;color:#6b7280;">📁 {{ ticket.category }}</div>{% endif %}
+                        </td>
+                        <td style="padding:10px;text-align:center;">
+                            {% if ticket.status == 'open' %}<span style="background:#dbeafe;color:#1e40af;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">📂 Abierto</span>
+                            {% elif ticket.status == 'in_progress' %}<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">🔄 En Progreso</span>
+                            {% elif ticket.status == 'resolved' %}<span style="background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">✅ Resuelto</span>
+                            {% else %}<span style="background:#f3f4f6;color:#374151;padding:3px 10px;border-radius:10px;font-size:11px;">{{ ticket.status }}</span>{% endif %}
+                        </td>
+                        <td style="padding:10px;text-align:center;">
+                            {% if ticket.priority == 'critical' %}<span style="background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">🔴 Crítica</span>
+                            {% elif ticket.priority == 'high' %}<span style="background:#ffedd5;color:#9a3412;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">🟠 Alta</span>
+                            {% elif ticket.priority == 'medium' %}<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">🟡 Media</span>
+                            {% else %}<span style="background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">🟢 Baja</span>{% endif %}
+                        </td>
+                        <td style="padding:10px;font-size:11px;color:#374151;">{{ ticket.assigned_when or '—' }}</td>
+                        <td style="padding:10px;font-size:11px;">
+                            {% if ticket.assigned_source == 'manual' %}✋
+                            {% elif ticket.assigned_source == 'orchestrator' %}🤖
+                            {% elif ticket.assigned_source == 'sistema' %}⚙️
+                            {% else %}📝{% endif %}
+                            {{ ticket.assigned_by or '—' }}
+                        </td>
+                        <td style="padding:10px;text-align:center;font-size:11px;font-weight:600;">
+                            {% if ticket.sla_remaining is none %}<span style="color:#999;">—</span>
+                            {% elif ticket.sla_remaining > 120 %}<span style="color:#16a34a;">{{ ticket.sla_remaining }}m</span>
+                            {% elif ticket.sla_remaining > 30 %}<span style="color:#d97706;">{{ ticket.sla_remaining }}m</span>
+                            {% else %}<span style="color:#dc2626;font-weight:700;">⏰ {{ ticket.sla_remaining }}m</span>{% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% else %}
+                <div style="text-align:center;padding:40px;color:#999;background:#f9fafb;border-radius:8px;">
+                    No tienes tickets asignados a ti.
+                </div>
+            {% endif %}
+            </div>
+
+            <!-- Lista: de mis grupos (toda la empresa) -->
+            <div id="queueListTeam" class="ticket-list-block" style="display:none;">
+            {% if team_queue %}
+            <div style="overflow-x:auto;">
+            <table id="tableTeamTickets" class="filterable-table" style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-size:13px;">
+                <thead>
+                    <tr style="background:#f9fafb;">
+                        <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">N° Caso</th>
+                        <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Empresa</th>
+                        <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asunto</th>
+                        <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Estado</th>
+                        <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Prioridad</th>
+                        <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asignado a</th>
+                        <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asignado por</th>
+                        <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Fecha</th>
+                        <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">SLA</th>
+                    </tr>
+                    <!-- FILA DE FILTROS POR COLUMNA -->
+                    <tr class="col-filter-row" style="background:#f3f4f6;">
+                        <th style="padding:6px;"><input type="text" data-filter="number" data-table="team" placeholder="🔍 N°..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
+                        <th style="padding:6px;"><select data-filter="company" data-table="team" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"><option value="">Todas</option></select></th>
+                        <th style="padding:6px;"><input type="text" data-filter="title" data-table="team" placeholder="🔍 Asunto..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
+                        <th style="padding:6px;"><select data-filter="status" data-table="team" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"><option value="">Todos</option><option value="open">📂 Abierto</option><option value="in_progress">🔄 En Progreso</option><option value="resolved">✅ Resuelto</option><option value="closed">🔒 Cerrado</option></select></th>
+                        <th style="padding:6px;"><select data-filter="priority" data-table="team" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"><option value="">Todas</option><option value="critical">🔴 Crítica</option><option value="high">🟠 Alta</option><option value="medium">🟡 Media</option><option value="low">🟢 Baja</option></select></th>
+                        <th style="padding:6px;"><input type="text" data-filter="assignee" data-table="team" placeholder="🔍 Técnico..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
+                        <th style="padding:6px;"><input type="text" data-filter="assigner" data-table="team" placeholder="🔍 Por..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
+                        <th style="padding:6px;"><input type="text" data-filter="date" data-table="team" placeholder="🔍 Fecha..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
+                        <th style="padding:6px;"><select data-filter="sla" data-table="team" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"><option value="">Todos</option><option value="overdue">⏰ Vencidos</option><option value="critical">🔴 &lt; 30m</option><option value="warning">🟠 &lt; 2h</option><option value="ok">🟢 OK</option></select></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for ticket in team_queue %}
+                    {% set _search = (ticket.ticket_number ~ ' ' ~ ticket.title ~ ' ' ~ ticket.priority ~ ' ' ~ (ticket.category or '') ~ ' ' ~ (ticket.status or '') ~ ' ' ~ (ticket.company_label or '') ~ ' ' ~ (ticket.assignee.name if ticket.assignee else 'sin asignar') ~ ' ' ~ (ticket.assigned_by or '')) | lower %}
+                    <tr class="queue-row"
+                        data-search="{{ _search }}"
+                        data-number="{{ ticket.ticket_number|lower }}"
+                        data-title="{{ (ticket.title ~ ' ' ~ (ticket.category or ''))|lower }}"
+                        data-status="{{ ticket.status or '' }}"
+                        data-priority="{{ ticket.priority or '' }}"
+                        data-company="{{ ticket.company|lower if ticket.company else '' }}"
+                        data-assignee="{{ (ticket.assignee.name if ticket.assignee else 'sin asignar')|lower }}"
+                        data-assigner="{{ (ticket.assigned_by or '')|lower }}"
+                        data-date="{{ ticket.assigned_when or '' }}"
+                        data-sla="{{ ticket.sla_remaining if ticket.sla_remaining is not none else '' }}"
+                        onclick="window.location='/technician/ticket/{{ ticket.id }}'" style="cursor:pointer;border-bottom:1px solid #f0f0f0;">
+                        <td style="padding:10px;font-weight:700;color:#7c3aed;font-size:12px;">{{ ticket.ticket_number }}</td>
+                        <td style="padding:10px;font-size:12px;">{{ ticket.company_icon }} {{ ticket.company_label }}</td>
+                        <td style="padding:10px;">
+                            <div style="font-weight:600;color:#111827;">{{ ticket.title[:60] }}{% if ticket.title|length > 60 %}...{% endif %}</div>
+                            {% if ticket.category %}<div style="font-size:11px;color:#6b7280;">📁 {{ ticket.category }}</div>{% endif %}
+                        </td>
+                        <td style="padding:10px;text-align:center;">
+                            {% if ticket.status == 'open' %}<span style="background:#dbeafe;color:#1e40af;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">📂 Abierto</span>
+                            {% elif ticket.status == 'in_progress' %}<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">🔄 En Progreso</span>
+                            {% elif ticket.status == 'resolved' %}<span style="background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">✅ Resuelto</span>
+                            {% else %}<span style="background:#f3f4f6;color:#374151;padding:3px 10px;border-radius:10px;font-size:11px;">{{ ticket.status }}</span>{% endif %}
+                        </td>
+                        <td style="padding:10px;text-align:center;">
+                            {% if ticket.priority == 'critical' %}<span style="background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">🔴 Crítica</span>
+                            {% elif ticket.priority == 'high' %}<span style="background:#ffedd5;color:#9a3412;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">🟠 Alta</span>
+                            {% elif ticket.priority == 'medium' %}<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">🟡 Media</span>
+                            {% else %}<span style="background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">🟢 Baja</span>{% endif %}
+                        </td>
+                        <td style="padding:10px;font-size:12px;">
+                            {% if ticket.assignee %}👤 {{ ticket.assignee.name }}{% else %}<span style="color:#999;">Sin asignar</span>{% endif %}
+                        </td>
+                        <td style="padding:10px;font-size:11px;">
+                            {% if ticket.assigned_source == 'manual' %}✋
+                            {% elif ticket.assigned_source == 'orchestrator' %}🤖
+                            {% elif ticket.assigned_source == 'sistema' %}⚙️
+                            {% else %}📝{% endif %}
+                            {{ ticket.assigned_by or '—' }}
+                        </td>
+                        <td style="padding:10px;font-size:11px;color:#374151;">{{ ticket.assigned_when or '—' }}</td>
+                        <td style="padding:10px;text-align:center;font-size:11px;font-weight:600;">
+                            {% if ticket.sla_remaining is none %}<span style="color:#999;">—</span>
+                            {% elif ticket.sla_remaining > 120 %}<span style="color:#16a34a;">{{ ticket.sla_remaining }}m</span>
+                            {% elif ticket.sla_remaining > 30 %}<span style="color:#d97706;">{{ ticket.sla_remaining }}m</span>
+                            {% else %}<span style="color:#dc2626;font-weight:700;">⏰ {{ ticket.sla_remaining }}m</span>{% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% else %}
+                <div style="text-align:center;padding:40px;color:#999;background:#f9fafb;border-radius:8px;">
+                    No hay tickets en tu grupo.
+                </div>
+            {% endif %}
+            </div>
+
+            <div id="queueEmpty" style="display:none;text-align:center;padding:30px;color:#999;background:#f9fafb;border-radius:8px;">
+                No se encontraron tickets con ese criterio
+            </div>
+            </div><!-- /viewTickets -->
+
+            <!-- VISTA: SUBTAREAS -->
+            <div id="viewSubtasks" class="queue-section" style="display:none;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                    <div class="section-title" style="margin:0;" id="subSubtaskTitle">✅ Subtareas Asignadas a Mí</div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="text" id="subSearch" placeholder="🔍 Buscar subtareas..."
+                               onkeyup="filterSubtasks()"
+                               style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;min-width:280px;font-size:14px;">
+                        <span id="subSearchCount" style="font-size:12px;color:#6b7280;"></span>
+                    </div>
+                </div>
+                <div id="subtasksList">
+                    <p style="text-align:center;color:#999;padding:30px;">Cargando subtareas...</p>
+                </div>
+            </div>
+
+            </div><!-- /col contenido -->
+        </div><!-- /workspace -->
+
+        <script>
+        let _allSubtasks = [];
+        let _currentSubtaskScope = 'mine';
+
+        function switchView(view, scope) {
+            scope = scope || 'mine';
+            const isTickets = view === 'tickets';
+
+            // Mostrar/ocultar paneles principales
+            document.getElementById('viewTickets').style.display = isTickets ? '' : 'none';
+            document.getElementById('viewSubtasks').style.display = isTickets ? 'none' : '';
+
+            // Quitar active de todos los botones del sidebar
+            ['navTicketsMine','navTicketsTeam','navSubtasksMine','navSubtasksTeam'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('active');
+            });
+
+            if (isTickets) {
+                document.getElementById(scope === 'mine' ? 'navTicketsMine' : 'navTicketsTeam').classList.add('active');
+                document.getElementById('queueListMine').style.display = scope === 'mine' ? '' : 'none';
+                document.getElementById('queueListTeam').style.display = scope === 'mine' ? 'none' : '';
+                document.getElementById('ticketsSectionTitle').textContent =
+                    scope === 'mine' ? '🎯 Tickets Asignados a Mí' : '👥 Tickets de Mis Grupos';
+                // Reaplicar búsqueda
+                filterQueue();
+            } else {
+                document.getElementById(scope === 'mine' ? 'navSubtasksMine' : 'navSubtasksTeam').classList.add('active');
+                _currentSubtaskScope = scope;
+                loadMySubtasks(scope);
+            }
+        }
+
+        function escSub(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        function loadMySubtasks(scope) {
+            scope = scope || _currentSubtaskScope || 'mine';
+            document.getElementById('subtasksList').innerHTML = '<p style="text-align:center;color:#999;padding:30px;">Cargando subtareas...</p>';
+            fetch('/api/technician/my-subtasks?scope=' + scope)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) {
+                        document.getElementById('subtasksList').innerHTML = '<p style="text-align:center;color:#dc2626;padding:30px;">Error al cargar subtareas</p>';
+                        return;
+                    }
+                    _allSubtasks = data.subtasks || [];
+                    const countId = scope === 'mine' ? 'countSubtasksMine' : 'countSubtasksTeam';
+                    document.getElementById(countId).textContent = data.total;
+                    document.getElementById('subSubtaskTitle') &&
+                        (document.getElementById('subSubtaskTitle').textContent =
+                            scope === 'mine' ? '✅ Subtareas Asignadas a Mí' : '👥 Subtareas de Mis Grupos');
+                    renderMySubtasks(_allSubtasks);
+                })
+                .catch(() => {
+                    document.getElementById('subtasksList').innerHTML = '<p style="text-align:center;color:#dc2626;padding:30px;">Error de conexión</p>';
+                });
+        }
+
+        function priorityPill(p) {
+            const map = {
+                critical: {bg:'#fee2e2', fg:'#991b1b', label:'🔴 CRÍTICA'},
+                high:     {bg:'#ffedd5', fg:'#9a3412', label:'🟠 ALTA'},
+                medium:   {bg:'#fef3c7', fg:'#92400e', label:'🟡 MEDIA'},
+                low:      {bg:'#d1fae5', fg:'#065f46', label:'🟢 BAJA'}
+            };
+            const c = map[p] || map.medium;
+            return `<span class="pill" style="background:${c.bg};color:${c.fg};">${c.label}</span>`;
+        }
+
+        function statusPill(s) {
+            const map = {
+                open:        {bg:'#dbeafe', fg:'#1e40af', label:'📂 Abierto'},
+                in_progress: {bg:'#fef3c7', fg:'#92400e', label:'🔄 En Progreso'},
+                resolved:    {bg:'#d1fae5', fg:'#065f46', label:'✅ Resuelto'}
+            };
+            const c = map[s] || map.open;
+            return `<span class="pill" style="background:${c.bg};color:${c.fg};">${c.label}</span>`;
+        }
+
+        function slaText(s) {
+            if (s.status === 'resolved') return '<span style="color:#6b7280;font-size:12px;">SLA cerrado</span>';
+            if (s.sla_remaining === null || s.sla_remaining === undefined) return '<span style="color:#999;font-size:12px;">SLA sin definir</span>';
+            if (s.sla_expired) return '<span style="color:#dc2626;font-weight:700;font-size:12px;">⏰ SLA VENCIDO</span>';
+            const m = s.sla_remaining;
+            const color = m < 30 ? '#dc2626' : (m < 120 ? '#d97706' : '#16a34a');
+            const txt = m >= 60 ? `${Math.floor(m/60)}h ${m%60}m` : `${m}m`;
+            return `<span style="color:${color};font-weight:600;font-size:12px;">⏱ ${txt} restantes</span>`;
+        }
+
+        function renderMySubtasks(list) {
+            const container = document.getElementById('subtasksList');
+            if (!list || list.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:40px;color:#999;background:#f9fafb;border-radius:8px;">No hay sub-casos para mostrar.</div>';
+                return;
+            }
+
+            const rows = list.map(s => {
+                const rowBg = s.sla_expired && s.status !== 'resolved' ? 'background:#fef2f2;' : '';
+                const titleTruncated = s.title.length > 60 ? s.title.slice(0,60)+'…' : s.title;
+                return `
+                    <tr onclick="window.location='/technician/ticket/${s.ticket_id}'"
+                        style="cursor:pointer;border-bottom:1px solid #f0f0f0;${rowBg}">
+                        <td style="padding:10px;font-weight:700;color:#7c3aed;font-size:12px;">${escSub(s.subtask_number || '#'+s.id)}</td>
+                        <td style="padding:10px;font-size:11px;">
+                            <a href="/technician/ticket/${s.ticket_id}" onclick="event.stopPropagation();" style="color:#2563eb;text-decoration:none;">${escSub(s.parent_number || '—')}</a>
+                        </td>
+                        <td style="padding:10px;font-size:12px;">${escSub(s.company_icon || '🏢')} ${escSub(s.company_label || '')}</td>
+                        <td style="padding:10px;">
+                            <div style="font-weight:600;color:#111827;">${escSub(titleTruncated)}</div>
+                            ${s.category ? `<div style="font-size:11px;color:#6b7280;">📁 ${escSub(s.category)}</div>` : ''}
+                        </td>
+                        <td style="padding:10px;text-align:center;">${statusPill(s.status)}</td>
+                        <td style="padding:10px;text-align:center;">${priorityPill(s.priority)}</td>
+                        <td style="padding:10px;font-size:12px;color:#374151;">${s.assignee_name ? '👤 ' + escSub(s.assignee_name) : '<span style="color:#999;">Sin asignar</span>'}</td>
+                        <td style="padding:10px;font-size:11px;">📝 ${escSub(s.created_by_name || '—')}</td>
+                        <td style="padding:10px;font-size:11px;color:#374151;">${escSub(s.created_at || '—')}</td>
+                        <td style="padding:10px;text-align:center;">${slaText(s)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            container.innerHTML = `
+                <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-size:13px;">
+                    <thead>
+                        <tr style="background:#f9fafb;">
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">N° Sub-caso</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Ticket Padre</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Empresa</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asunto</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Estado</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Prioridad</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asignado a</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asignado por</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Fecha Asignación</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">SLA</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                </div>
+            `;
+        }
+
+        function filterSubtasks() {
+            const q = (document.getElementById('subSearch').value || '').trim().toLowerCase();
+            if (!q) {
+                renderMySubtasks(_allSubtasks);
+                document.getElementById('subSearchCount').textContent = '';
+                return;
+            }
+            const filtered = _allSubtasks.filter(s => {
+                const text = [
+                    s.subtask_number, s.parent_number, s.title, s.description,
+                    s.priority, s.status, s.category,
+                    s.company_label, s.assignee_name, s.created_by_name
+                ].filter(Boolean).join(' ').toLowerCase();
+                return text.indexOf(q) !== -1;
+            });
+            document.getElementById('subSearchCount').textContent = filtered.length + ' de ' + _allSubtasks.length;
+            renderMySubtasks(filtered);
+        }
+
+        // Pre-cargar contadores de subtareas (mine + team) al abrir la página
+        document.addEventListener('DOMContentLoaded', () => {
+            fetch('/api/technician/my-subtasks?scope=mine')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('countSubtasksMine').textContent = data.total;
+                    }
+                }).catch(() => {
+                    document.getElementById('countSubtasksMine').textContent = '0';
+                });
+
+            fetch('/api/technician/my-subtasks?scope=team')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('countSubtasksTeam').textContent = data.total;
+                    }
+                }).catch(() => {
+                    document.getElementById('countSubtasksTeam').textContent = '0';
+                });
+        });
+
+        // Estado de filtros por columna {mine: {col: val}, team: {col: val}}
+        const _colFilters = { mine: {}, team: {} };
+
+        function _matchSlaFilter(slaVal, filter) {
+            if (!filter) return true;
+            const n = parseInt(slaVal);
+            if (isNaN(n)) return filter === '';
+            if (filter === 'overdue')  return n < 0;
+            if (filter === 'critical') return n >= 0 && n < 30;
+            if (filter === 'warning')  return n >= 30 && n < 120;
+            if (filter === 'ok')       return n >= 120;
+            return true;
+        }
+
+        function applyAllFilters() {
+            // Búsqueda general (input arriba) + filtros por columna combinados (AND)
+            const q = (document.getElementById('queueSearch').value || '').trim().toLowerCase();
+            const activeContainer = document.getElementById('queueListMine').style.display === 'none'
+                ? document.getElementById('queueListTeam')
+                : document.getElementById('queueListMine');
+            const tableKey = activeContainer.id === 'queueListMine' ? 'mine' : 'team';
+            const filters = _colFilters[tableKey] || {};
+
+            const rows = activeContainer.querySelectorAll('.queue-row');
+            let visible = 0;
+            rows.forEach(row => {
+                let show = true;
+                // Búsqueda general
+                if (q) {
+                    const text = row.getAttribute('data-search') || '';
+                    if (text.indexOf(q) === -1) show = false;
+                }
+                // Filtros por columna
+                if (show) {
+                    for (const col in filters) {
+                        const fval = (filters[col] || '').trim().toLowerCase();
+                        if (!fval) continue;
+                        if (col === 'sla') {
+                            const slaRaw = row.getAttribute('data-sla') || '';
+                            if (!_matchSlaFilter(slaRaw, fval)) { show = false; break; }
+                        } else if (col === 'status' || col === 'priority' || col === 'company') {
+                            // Match exacto (selects)
+                            const val = (row.getAttribute('data-' + col) || '').toLowerCase();
+                            if (val !== fval) { show = false; break; }
+                        } else {
+                            // Match substring (inputs)
+                            const val = (row.getAttribute('data-' + col) || '').toLowerCase();
+                            if (val.indexOf(fval) === -1) { show = false; break; }
+                        }
+                    }
+                }
+                row.style.display = show ? '' : 'none';
+                if (show) visible++;
+            });
+
+            const countEl = document.getElementById('queueSearchCount');
+            const emptyEl = document.getElementById('queueEmpty');
+            const total = rows.length;
+            const anyFilter = q || Object.values(filters).some(v => v && v.trim());
+            if (anyFilter) {
+                countEl.textContent = visible + ' de ' + total;
+                emptyEl.style.display = visible === 0 ? 'block' : 'none';
+            } else {
+                countEl.textContent = '';
+                emptyEl.style.display = 'none';
+            }
+        }
+
+        // Mantengo el nombre legacy para no romper el onkeyup del input principal
+        function filterQueue() { applyAllFilters(); }
+
+        // Poblar el dropdown de "Empresa" con las opciones únicas de cada tabla
+        function _populateCompanyFilters() {
+            ['mine', 'team'].forEach(tableKey => {
+                const containerId = tableKey === 'mine' ? 'queueListMine' : 'queueListTeam';
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                const select = container.querySelector('select[data-filter="company"]');
+                if (!select) return;
+                const rows = container.querySelectorAll('.queue-row');
+                const companies = new Set();
+                rows.forEach(r => {
+                    const c = r.getAttribute('data-company');
+                    if (c) companies.add(c);
+                });
+                // Preservar opción "Todas" + agregar las únicas
+                const baseOpt = '<option value="">Todas</option>';
+                let html = baseOpt;
+                Array.from(companies).sort().forEach(c => {
+                    const label = c.charAt(0).toUpperCase() + c.slice(1);
+                    html += `<option value="${c}">${label}</option>`;
+                });
+                select.innerHTML = html;
+            });
+        }
+
+        // Conectar todos los inputs/selects de filtros por columna
+        function _setupColumnFilters() {
+            document.querySelectorAll('.col-filter-row [data-filter]').forEach(el => {
+                const col = el.getAttribute('data-filter');
+                const tableKey = el.getAttribute('data-table');
+                const handler = () => {
+                    if (!_colFilters[tableKey]) _colFilters[tableKey] = {};
+                    _colFilters[tableKey][col] = el.value;
+                    applyAllFilters();
+                };
+                el.addEventListener('input', handler);
+                el.addEventListener('change', handler);
+                // Click en input/select no debe disparar el onclick de la fila
+                el.addEventListener('click', e => e.stopPropagation());
+            });
+            // También los <th> de la fila de filtros — no clickeables a ticket
+            document.querySelectorAll('.col-filter-row th').forEach(th => {
+                th.addEventListener('click', e => e.stopPropagation());
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            _populateCompanyFilters();
+            _setupColumnFilters();
+        });
+        </script>
+    </div>
+
+    {% include 'search_widget.html' %}
+
+    <!-- ============== WIDGET DE CHAT FLOTANTE ============== -->
+    <style>
+        .chat-widget-tech {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+        .chat-widget-tech .chat-fab {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: white;
+            border: 3px solid #2563eb;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            overflow: hidden;
+            padding: 0;
+        }
+        .chat-widget-tech .chat-fab img {
+            width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
+        }
+        .chat-widget-tech .chat-fab:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        .chat-widget-tech .chat-fab .chat-badge {
+            position: absolute;
+            top: -3px;
+            right: -3px;
+            background: #dc2626;
+            color: white;
+            border-radius: 50%;
+            min-width: 22px;
+            height: 22px;
+            padding: 0 6px;
+            font-size: 11px;
+            font-weight: 700;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
+        }
+
+        /* ─── Animación cuando hay mensajes nuevos no leídos ─── */
+        .chat-widget-tech .chat-fab.has-unread {
+            animation: eli-pulse 1.5s ease-in-out infinite;
+        }
+        .chat-widget-tech .chat-fab.has-unread img {
+            animation: eli-bounce 1.5s ease-in-out infinite;
+        }
+        @keyframes eli-pulse {
+            0%   { box-shadow: 0 0 0 0   rgba(220, 38, 38, 0.7), 0 0 12px rgba(220, 38, 38, 0.5); }
+            50%  { box-shadow: 0 0 0 14px rgba(220, 38, 38, 0),   0 0 28px rgba(124, 58, 237, 0.7); }
+            100% { box-shadow: 0 0 0 0   rgba(220, 38, 38, 0),   0 0 12px rgba(220, 38, 38, 0.5); }
+        }
+        @keyframes eli-bounce {
+            0%, 100% { transform: scale(1)    rotate(0deg); }
+            25%      { transform: scale(1.08) rotate(-4deg); }
+            75%      { transform: scale(1.08) rotate(4deg); }
+        }
+        .chat-widget-tech .chat-fab.has-unread .chat-badge {
+            animation: badge-pop 0.6s ease-in-out infinite alternate;
+        }
+        @keyframes badge-pop {
+            from { transform: scale(1); }
+            to   { transform: scale(1.18); }
+        }
+
+        .chat-window-tech {
+            position: absolute;
+            bottom: 88px;
+            right: 0;
+            /* Altura adaptativa: máximo 540px o lo que quepa en la pantalla */
+            height: min(540px, calc(100vh - 110px));
+            max-height: calc(100vh - 110px);
+            width: 380px;
+            background: white;
+            border-radius: 14px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .chat-window-tech.active { display: flex; }
+
+        .chat-tabs-tech {
+            display: flex;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .chat-tab-tech {
+            flex: 1;
+            padding: 12px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: #6b7280;
+            border-bottom: 3px solid transparent;
+        }
+        .chat-tab-tech.active {
+            background: white;
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+        }
+
+        .chat-content-tech {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 14px;
+            background: #f9fafb;
+        }
+
+        .chat-footer-tech {
+            flex-shrink: 0;
+            padding: 12px;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 6px;
+        }
+        .chat-footer-tech input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        .chat-footer-tech button {
+            padding: 10px 16px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .chat-spec-selector {
+            flex-shrink: 0;
+            padding: 8px 10px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .unread-banner {
+            flex-shrink: 0;
+            padding: 6px 10px;
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border-bottom: 2px solid #f59e0b;
+            max-height: 110px;
+            overflow-y: auto;
+        }
+        .unread-banner-title {
+            font-size: 11px;
+            font-weight: 800;
+            color: #92400e;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .unread-card {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 5px 8px;
+            background: white;
+            border: 1px solid #fcd34d;
+            border-left: 4px solid #dc2626;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 3px;
+            transition: all 0.15s;
+        }
+        .unread-card:hover {
+            background: #fffbeb;
+            transform: translateX(2px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        }
+        .unread-card-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+        .unread-card-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .unread-card-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        .unread-card-preview {
+            font-size: 11px;
+            color: #6b7280;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 1px;
+        }
+        .unread-card-time {
+            font-size: 10px;
+            color: #9ca3af;
+            flex-shrink: 0;
+        }
+
+        /* Mantengo .chat-spec-list por compatibilidad con código legacy */
+        .chat-spec-list {
+            flex-shrink: 0;
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            padding: 8px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .chat-spec-list button {
+            padding: 6px 10px;
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            border-radius: 16px;
+            font-size: 11px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .chat-spec-list button.active {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+        }
+    </style>
+
+    <div class="chat-widget-tech">
+        <button class="chat-fab" onclick="toggleTechChat()" title="Abrir chat">
+            <img src="/static/eli.png" alt="Chat" onerror="this.parentElement.innerHTML='💬';this.parentElement.style.fontSize='28px';this.parentElement.style.background='#2563eb';this.parentElement.style.color='white';">
+            <span class="chat-badge" id="techChatBadge">!</span>
+        </button>
+
+        <div class="chat-window-tech" id="techChatWindow">
+            <div class="chat-tabs-tech">
+                <button class="chat-tab-tech active" id="techTabEli" onclick="switchTechChat('eli')">
+                    🤖 Eli (IA)
+                </button>
+                <button class="chat-tab-tech" id="techTabSpec" onclick="switchTechChat('spec')">
+                    🔧 Especialistas
+                </button>
+            </div>
+
+            <!-- PANEL ELI -->
+            <div id="techPanelEli" style="flex:1;display:flex;flex-direction:column;">
+                <div id="techEliMessages" class="chat-content-tech">
+                    <div style="text-align:center;color:#666;padding:30px 10px;">
+                        <img src="/static/eli.png" style="width:60px;height:60px;border-radius:50%;margin-bottom:8px;" onerror="this.style.display='none'">
+                        <p style="font-weight:600;color:#5b21b6;">¡Hola! Soy Eli 👋</p>
+                        <p style="font-size:12px;margin-top:6px;">Pregúntame sobre Hardware, Software, Red, SAP...</p>
+                    </div>
+                </div>
+                <div class="chat-footer-tech">
+                    <input type="text" id="techEliInput" placeholder="Pregunta a Eli..." onkeypress="if(event.key==='Enter') sendTechEli()">
+                    <button onclick="sendTechEli()">Enviar</button>
+                </div>
+            </div>
+
+            <!-- PANEL ESPECIALISTAS -->
+            <div id="techPanelSpec" style="flex:1;display:none;flex-direction:column;">
+                <div class="chat-spec-selector">
+                    <label style="font-size:11px;color:#6b7280;font-weight:600;display:block;margin-bottom:4px;">💬 Conversación privada con:</label>
+                    <select id="techSpecSelect" onchange="onTechSpecChange()" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;background:white;cursor:pointer;">
+                        <option value="">— Seleccioná un especialista —</option>
+                    </select>
+                </div>
+
+                <!-- Banner de mensajes nuevos -->
+                <div id="techUnreadBanner" class="unread-banner" style="display:none;"></div>
+                <div id="techSpecMessages" class="chat-content-tech">
+                    <div style="text-align:center;color:#999;padding:30px;font-size:13px;">
+                        👈 Selecciona un especialista arriba
+                    </div>
+                </div>
+                <div class="chat-footer-tech">
+                    <input type="text" id="techSpecInput" placeholder="Seleccioná un especialista primero..." onkeypress="if(event.key==='Enter') sendTechSpec()" disabled>
+                    <button onclick="sendTechSpec()" id="techSpecBtn" disabled style="background:#9ca3af;cursor:not-allowed;">Enviar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let techChatTab = 'eli';
+        let techCurrentSpec = null;
+        let _techSpecListLoaded = false;   // lista de especialistas cargada una sola vez
+        let _techSpecLoadingPromise = null; // evita race conditions en fetch
+
+        // ─── NOTIFICACIÓN DE MENSAJES NUEVOS (Eli ilumina) ───
+        // Monitorea TODOS los DMs en los que participa el técnico.
+        const _MY_NAME = '{{ session.name }}';
+        const _DM_SEEN_KEY = 'techDmLastSeen';  // localStorage: {otherUserId: lastMsgId}
+
+        function _getDmSeenMap() {
+            try { return JSON.parse(localStorage.getItem(_DM_SEEN_KEY) || '{}'); }
+            catch(e) { return {}; }
+        }
+        function _saveDmSeenMap(map) {
+            try { localStorage.setItem(_DM_SEEN_KEY, JSON.stringify(map)); } catch(e) {}
+        }
+
+        function _setEliUnread(count, breakdown) {
+            const fab = document.querySelector('.chat-widget-tech .chat-fab');
+            const badge = document.getElementById('techChatBadge');
+            if (count > 0) {
+                fab.classList.add('has-unread');
+                badge.textContent = count > 99 ? '99+' : count;
+                badge.style.display = 'flex';
+                // Tooltip con detalle de quiénes mandaron
+                if (breakdown && breakdown.length) {
+                    fab.title = 'Nuevos mensajes de:\n' + breakdown.map(b => '• ' + b).join('\n');
+                } else {
+                    fab.title = count + ' mensaje(s) sin leer';
+                }
+            } else {
+                fab.classList.remove('has-unread');
+                badge.style.display = 'none';
+                fab.title = 'Abrir chat';
+            }
+        }
+
+        function _clearEliUnread() {
+            _setEliUnread(0);
+        }
+
+        // Marca como visto un DM específico (cuando el usuario lo abre)
+        function markDmAsSeen(otherUserId, maxMsgId) {
+            const map = _getDmSeenMap();
+            map[String(otherUserId)] = maxMsgId;
+            _saveDmSeenMap(map);
+        }
+
+        // Estado global del último summary (para mostrar en banner y marcar dropdown)
+        let _lastUnreadDms = [];  // lista de objetos {other_user_id, other_user_name, ...}
+
+        // Consulta el resumen de DMs y calcula no leídos
+        async function checkSpecUnread() {
+            try {
+                const r = await fetch('/api/chat/specialists/unread-summary', {cache: 'no-store'});
+                if (!r.ok) return;
+                const d = await r.json();
+                if (!d.success || !Array.isArray(d.dms)) return;
+
+                const seenMap = _getDmSeenMap();
+                const win = document.getElementById('techChatWindow');
+                const chatOpenOnSpec = win.classList.contains('active') && techChatTab === 'spec';
+                const currentOpen = parseInt(techCurrentSpec) || 0;
+
+                const unreadList = [];
+
+                d.dms.forEach(dm => {
+                    const otherId = dm.other_user_id;
+                    const lastSeen = parseInt(seenMap[String(otherId)] || 0);
+                    const isFromOther = dm.last_msg_from_id !== null && dm.last_msg_from_id !== undefined
+                                        && dm.last_msg_from_id !== {{ session.user_id|default(0) }};
+                    if (!isFromOther) return;
+
+                    if (chatOpenOnSpec && currentOpen === otherId) {
+                        markDmAsSeen(otherId, dm.last_msg_id);
+                        return;
+                    }
+
+                    if (dm.last_msg_id > lastSeen) {
+                        unreadList.push(dm);
+                    }
+                });
+
+                _lastUnreadDms = unreadList;
+                const breakdown = unreadList.map(d => d.other_user_name);
+                _setEliUnread(unreadList.length, breakdown);
+                renderUnreadBanner();
+                updateDropdownIndicators();
+            } catch (e) { /* silencio errores intermitentes */ }
+        }
+
+        // Renderiza el banner amarillo con cards clickeables de quien escribió
+        function renderUnreadBanner() {
+            const banner = document.getElementById('techUnreadBanner');
+            if (!banner) return;
+            if (!_lastUnreadDms || _lastUnreadDms.length === 0) {
+                banner.style.display = 'none';
+                banner.innerHTML = '';
+                return;
+            }
+            const roleIcon = (role) => role === 'admin' ? '👑' : '🔧';
+            let html = `<div class="unread-banner-title">🔔 Tenés ${_lastUnreadDms.length} conversación${_lastUnreadDms.length !== 1 ? 'es' : ''} con mensajes nuevos</div>`;
+            _lastUnreadDms.forEach(dm => {
+                const safeName = (dm.other_user_name || '').replace(/[<>&"']/g, '');
+                const safePreview = (dm.last_msg_preview || '').replace(/[<>&"']/g, '');
+                html += `
+                    <div class="unread-card" onclick="openDmFromBanner(${dm.other_user_id})">
+                        <div class="unread-card-icon">${roleIcon(dm.other_user_role)}</div>
+                        <div class="unread-card-info">
+                            <div class="unread-card-name">${safeName}</div>
+                            <div class="unread-card-preview">${safePreview || 'Mensaje nuevo'}</div>
+                        </div>
+                        <div class="unread-card-time">${dm.last_msg_time || ''}</div>
+                    </div>
+                `;
+            });
+            banner.innerHTML = html;
+            banner.style.display = 'block';
+        }
+
+        // Click en una card del banner → abre ese DM
+        window.openDmFromBanner = function(userId) {
+            const sel = document.getElementById('techSpecSelect');
+            if (!sel) return;
+            sel.value = String(userId);
+            onTechSpecChange();
+        };
+
+        // Pone 🔴 al lado de las opciones del dropdown que tienen mensajes nuevos
+        function updateDropdownIndicators() {
+            const sel = document.getElementById('techSpecSelect');
+            if (!sel) return;
+            const unreadIds = new Set(_lastUnreadDms.map(d => String(d.other_user_id)));
+            Array.from(sel.options).forEach(opt => {
+                // Limpiar marca previa
+                const base = (opt.dataset.baseLabel || opt.textContent).replace(/^🔴\s*/, '');
+                opt.dataset.baseLabel = base;
+                if (unreadIds.has(opt.value)) {
+                    opt.textContent = '🔴 ' + base;
+                } else {
+                    opt.textContent = base;
+                }
+            });
+        }
+
+        // Polling cada 15 segundos
+        setInterval(checkSpecUnread, 15000);
+        document.addEventListener('DOMContentLoaded', () => setTimeout(checkSpecUnread, 2000));
+
+        function toggleTechChat() {
+            const win = document.getElementById('techChatWindow');
+            win.classList.toggle('active');
+            if (win.classList.contains('active')) {
+                // Al abrir, si están viendo o entrarán al tab spec → limpiar
+                if (techChatTab === 'spec') {
+                    _clearEliUnread();
+                }
+                if (techChatTab === 'eli') {
+                    document.getElementById('techEliInput').focus();
+                } else {
+                    ensureTechSpecLoaded();
+                }
+            }
+        }
+
+        function switchTechChat(tab) {
+            techChatTab = tab;
+            document.getElementById('techTabEli').classList.toggle('active', tab === 'eli');
+            document.getElementById('techTabSpec').classList.toggle('active', tab === 'spec');
+            document.getElementById('techPanelEli').style.display = tab === 'eli' ? 'flex' : 'none';
+            document.getElementById('techPanelSpec').style.display = tab === 'spec' ? 'flex' : 'none';
+            if (tab === 'spec') {
+                _clearEliUnread();
+                ensureTechSpecLoaded();
+            } else {
+                document.getElementById('techEliInput').focus();
+            }
+        }
+
+        // Carga la lista de especialistas SOLO la primera vez. En llamadas
+        // posteriores solo refresca los mensajes (preservando la selección).
+        async function ensureTechSpecLoaded() {
+            if (_techSpecListLoaded) {
+                // Ya cargada — solo refrescar mensajes del canal/DM actual
+                loadTechSpecMessages();
+                const input = document.getElementById('techSpecInput');
+                if (input) input.focus();
+                return;
+            }
+            // Si ya hay un load en curso, esperar ese (no duplicar)
+            if (_techSpecLoadingPromise) return _techSpecLoadingPromise;
+            _techSpecLoadingPromise = (async () => {
+                try {
+                    await loadTechSpecList();
+                    _techSpecListLoaded = true;   // solo marcar como cargada en éxito
+                } catch (e) {
+                    console.warn('Falló carga inicial de especialistas:', e);
+                    // No marcar como loaded → permite reintentar al volver al tab
+                } finally {
+                    _techSpecLoadingPromise = null;
+                }
+            })();
+            return _techSpecLoadingPromise;
+        }
+
+        // ELI
+        async function sendTechEli() {
+            const input = document.getElementById('techEliInput');
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            const div = document.getElementById('techEliMessages');
+            div.innerHTML += `<div style="margin-bottom:8px;text-align:right;"><div style="display:inline-block;max-width:75%;padding:8px 12px;background:#2563eb;color:white;border-radius:12px;font-size:13px;">${msg}</div></div>`;
+            input.value = '';
+
+            const typing = document.createElement('div');
+            typing.style.cssText = 'margin-bottom:8px;font-size:12px;color:#666;font-style:italic;';
+            typing.textContent = 'Eli está escribiendo...';
+            div.appendChild(typing);
+            div.scrollTop = div.scrollHeight;
+
+            try {
+                const r = await fetch('/api/bot/ask', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({question: msg})
+                });
+                const data = await r.json();
+                typing.remove();
+                div.innerHTML += `<div style="margin-bottom:8px;display:flex;gap:6px;">
+                    <img src="/static/eli.png" style="width:24px;height:24px;border-radius:50%;flex-shrink:0;" onerror="this.style.display='none'">
+                    <div style="max-width:75%;padding:8px 12px;background:white;border:1px solid #e5e7eb;border-radius:12px;font-size:13px;">${(data.answer || 'Sin respuesta').replace(/\n/g,'<br>')}</div>
+                </div>`;
+                div.scrollTop = div.scrollHeight;
+            } catch (e) {
+                typing.remove();
+                div.innerHTML += `<div style="color:#dc2626;font-size:12px;padding:6px;">Error de conexión</div>`;
+            }
+        }
+
+        // ESPECIALISTAS — dropdown solo con DMs privados (sin canal grupal)
+        async function loadTechSpecList() {
+            const sel = document.getElementById('techSpecSelect');
+            if (!sel) return;
+            try {
+                const r = await fetch('/api/technicians');
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const data = await r.json();
+                let html = '<option value="">— Seleccioná un especialista —</option>';
+                if (data.success && data.technicians && data.technicians.length > 0) {
+                    const admins = data.technicians.filter(t => t.role === 'admin');
+                    const techs = data.technicians.filter(t => t.role === 'technician');
+                    if (admins.length) {
+                        html += '<optgroup label="👑 Administradores">';
+                        admins.forEach(t => {
+                            html += `<option value="${t.id}">👑 ${t.name}</option>`;
+                        });
+                        html += '</optgroup>';
+                    }
+                    if (techs.length) {
+                        html += '<optgroup label="🔧 Técnicos">';
+                        techs.forEach(t => {
+                            html += `<option value="${t.id}">🔧 ${t.name}</option>`;
+                        });
+                        html += '</optgroup>';
+                    }
+                } else {
+                    html = '<option value="">— No hay especialistas disponibles —</option>';
+                }
+                sel.innerHTML = html;
+                sel.value = '';
+                // Estado inicial: ningún destinatario, input deshabilitado hasta que elijan uno
+                setSpecInputState(false);
+                // Mostrar mensaje guía en el área de mensajes
+                const msgs = document.getElementById('techSpecMessages');
+                if (msgs) {
+                    msgs.innerHTML = '<div style="text-align:center;color:#999;padding:30px;font-size:13px;">👈 Elegí un especialista arriba para iniciar una conversación privada</div>';
+                }
+            } catch (e) {
+                console.warn('Error cargando técnicos:', e);
+                sel.innerHTML = '<option value="">— Error al cargar especialistas —</option>';
+                setSpecInputState(false);
+            }
+        }
+
+        function setSpecInputState(enabled, name) {
+            const input = document.getElementById('techSpecInput');
+            const btn = document.getElementById('techSpecBtn');
+            if (input) {
+                input.disabled = !enabled;
+                input.placeholder = enabled ? ('Mensaje privado a ' + name + '...') : 'Seleccioná un especialista primero...';
+                if (enabled) input.focus();
+            }
+            if (btn) {
+                btn.disabled = !enabled;
+                btn.style.background = enabled ? '#2563eb' : '#9ca3af';
+                btn.style.cursor = enabled ? 'pointer' : 'not-allowed';
+            }
+        }
+
+        function onTechSpecChange() {
+            const sel = document.getElementById('techSpecSelect');
+            const value = sel.value;
+            if (!value) {
+                techCurrentSpec = null;
+                setSpecInputState(false);
+                const msgs = document.getElementById('techSpecMessages');
+                if (msgs) msgs.innerHTML = '<div style="text-align:center;color:#999;padding:30px;font-size:13px;">👈 Elegí un especialista arriba</div>';
+                return;
+            }
+            const text = sel.options[sel.selectedIndex].text;
+            selectTechSpec(value, text);
+        }
+
+        function selectTechSpec(id, name) {
+            techCurrentSpec = id;
+            setSpecInputState(true, name);
+            loadTechSpecMessages();
+            // Refrescar Eli para limpiar la notificación del DM recién abierto
+            setTimeout(checkSpecUnread, 800);
+        }
+
+        async function loadTechSpecMessages() {
+            const div = document.getElementById('techSpecMessages');
+            // Sin destinatario válido, no cargamos nada
+            const recipientNum = parseInt(techCurrentSpec);
+            if (!Number.isInteger(recipientNum) || recipientNum <= 0) {
+                div.innerHTML = '<div style="text-align:center;color:#999;padding:30px;font-size:13px;">👈 Elegí un especialista arriba</div>';
+                return;
+            }
+            try {
+                const url = '/api/chat/specialists/messages?recipient_id=' + recipientNum;
+                const r = await fetch(url);
+                const data = await r.json();
+                if (!data.success || data.messages.length === 0) {
+                    div.innerHTML = '<div style="text-align:center;color:#999;padding:30px;font-size:13px;">📭 Sin mensajes aún</div>';
+                    return;
+                }
+                let html = '';
+                data.messages.forEach(m => {
+                    const isMe = m.user_name === '{{ session.name }}';
+                    const roleBadge = m.user_role === 'admin' ? '👑' : '🔧';
+                    html += `<div style="margin-bottom:10px;display:flex;${isMe ? 'justify-content:flex-end;' : ''}">
+                        <div style="max-width:75%;padding:8px 12px;border-radius:12px;background:${isMe ? '#2563eb' : 'white'};color:${isMe ? 'white' : '#333'};border:${isMe ? 'none' : '1px solid #e5e7eb'};font-size:13px;">
+                            <div style="font-size:10px;font-weight:600;margin-bottom:3px;opacity:0.9;">${roleBadge} ${m.user_name} • ${m.timestamp}</div>
+                            <div>${m.content}</div>
+                        </div>
+                    </div>`;
+                });
+                div.innerHTML = html;
+                div.scrollTop = div.scrollHeight;
+                // Marcar este DM como visto (último mensaje leído)
+                const maxId = Math.max(...data.messages.map(m => m.id || 0));
+                if (maxId > 0) markDmAsSeen(recipientNum, maxId);
+            } catch (e) {
+                div.innerHTML = '<div style="color:#dc2626;text-align:center;padding:20px;">Error</div>';
+            }
+        }
+
+        async function sendTechSpec() {
+            const input = document.getElementById('techSpecInput');
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            // REQUERIR destinatario (solo DM privado, no hay grupal)
+            const recipientNum = parseInt(techCurrentSpec);
+            if (!Number.isInteger(recipientNum) || recipientNum <= 0) {
+                alert('Seleccioná un especialista antes de enviar el mensaje');
+                return;
+            }
+
+            input.disabled = true;
+            try {
+                const body = {content: msg, recipient_id: recipientNum};
+
+                const r = await fetch('/api/chat/specialists/send', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body)
+                });
+                const data = await r.json();
+                if (data.success) {
+                    input.value = '';
+                    loadTechSpecMessages();
+                } else {
+                    alert('Error: ' + (data.error || ''));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            } finally {
+                input.disabled = false;
+                input.focus();
+            }
+        }
+
+        // Auto-refresh de mensajes cuando está abierto el panel especialistas
+        // Refresca tanto en DM como en canal grupal
+        setInterval(() => {
+            const win = document.getElementById('techChatWindow');
+            if (win && win.classList.contains('active') && techChatTab === 'spec') {
+                loadTechSpecMessages();
+            }
+        }, 30000);
+    </script>
+
+    <!-- WebSocket Socket.IO RT-01 a RT-07 -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="/static/realtime.js"></script>
+    <script>
+        // Recargar cola cada 30 segundos si hay conexión
+        setInterval(() => {
+            if (socket.connected) {
+                console.log('[RT-02] Actualizando cola...');
+            }
+        }, 30000);
+    </script>
+</body>
+</html>

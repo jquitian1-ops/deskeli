@@ -1,0 +1,100 @@
+# ============================================================================
+# DeskEli / TicketDesk Enterprise — .gitignore
+# Protege credenciales, datos sensibles y artefactos de build
+# ============================================================================
+
+# --- Secretos y configuración local (NUNCA versionar) ---
+.env
+.env.local
+.env.production
+.env.development
+.env.*.local
+*.secret
+secrets/
+
+# --- Bases de datos ---
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+ticketdesk*.db*
+instance/
+
+# --- Datos de usuario y operación ---
+uploads/
+attachments/
+backups/
+exports/
+logs/
+*.log
+*.log.*
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# --- Entornos virtuales ---
+venv/
+.venv/
+env/
+ENV/
+
+# --- IDEs y editores ---
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- Terraform / LocalStack ---
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/.terraform.lock.hcl
+*.tfvars
+!*.tfvars.example
+
+# --- Archivos temporales ---
+tmp/
+temp/
+*.tmp
+*.bak
+*.old
+*.backup
+
+# --- Reportes generados / outputs locales ---
+test_reporte*.pdf
+test_reporte*.xlsx
+pentest_report.json
+reports_output/
+
+# --- Archive de código viejo ---
+_archive/
+
+# --- Migraciones one-shot ya ejecutadas ---
+_migrate_servers.py
+add_test_ticket.py
+
+# --- Notebooks (checkpoints) ---
+.ipynb_checkpoints/
+
+# --- Generados por reportes ---
+reports_output/
+*.xlsx.tmp

@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tickets - DeskEli Admin</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, sans-serif; background: #f5f7fa; }
+
+        .container { display: flex; min-height: 100vh; }
+
+        .sidebar {
+            width: 280px;
+            background: #2c3e50;
+            color: white;
+            padding: 20px 0;
+            overflow-y: auto;
+        }
+
+        .sidebar-logo { padding: 0 20px; margin-bottom: 30px; font-weight: 700; }
+        .sidebar-section { margin-bottom: 30px; }
+        .sidebar-title { padding: 0 20px; font-size: 12px; color: #95a5a6; font-weight: 700; margin-bottom: 10px; }
+        .sidebar-item {
+            display: block;
+            padding: 12px 20px;
+            color: #ecf0f1;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        .sidebar-item:hover { background: #34495e; }
+        .sidebar-item.active { background: #3498db; }
+
+        .main-content { flex: 1; display: flex; flex-direction: column; }
+
+        .header-top {
+            background: white;
+            padding: 20px 40px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .breadcrumb { color: #666; font-size: 14px; }
+
+        .content {
+            padding: 40px;
+            flex: 1;
+        }
+
+        .page-title { font-size: 28px; font-weight: 700; margin-bottom: 30px; color: #333; }
+
+        .filters {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-group label { font-weight: 600; font-size: 14px; }
+
+        .filter-group select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .table-wrapper {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #f8f9fa;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            border-bottom: 1px solid #e0e0e0;
+            color: #666;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+
+        tr:hover { background: #f9f9f9; }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-open { background: #e3f2fd; color: #1976d2; }
+        .badge-in-progress { background: #fff3e0; color: #f57c00; }
+        .badge-resolved { background: #e8f5e9; color: #388e3c; }
+
+        .priority-critical { color: #dc2626; font-weight: 700; }
+        .priority-high { color: #ea580c; font-weight: 700; }
+        .priority-medium { color: #d97706; }
+        .priority-low { color: #65a30d; }
+
+        .ticket-link {
+            color: #2563eb;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .ticket-link:hover { text-decoration: underline; }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+            padding: 20px;
+        }
+
+        .pagination a, .pagination span {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-decoration: none;
+            color: #2563eb;
+            font-size: 14px;
+        }
+
+        .pagination span { background: #2563eb; color: white; border-color: #2563eb; }
+        .pagination a:hover { background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="sidebar-logo">🎫 DeskEli</div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-title">Navegación</div>
+                <a href="/admin/dashboard" class="sidebar-item">📈 Dashboard</a>
+                <a href="/admin/tickets" class="sidebar-item active">🎫 Tickets</a>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-title">Sistema</div>
+                <a href="/admin/config" class="sidebar-item">⚙️ Configuración</a>
+            </div>
+
+            <div class="sidebar-section" style="margin-top: auto;">
+                <a href="/logout" class="sidebar-item">🚪 Cerrar Sesión</a>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
+            <div class="header-top">
+                <div class="breadcrumb">Dashboard / Tickets</div>
+            </div>
+
+            <div class="content">
+                <h1 class="page-title">📋 Gestión de Tickets</h1>
+
+                <!-- FILTROS -->
+                <div class="filters">
+                    <form method="GET" style="display: flex; gap: 15px; width: 100%;">
+                        <div class="filter-group">
+                            <label>Estado:</label>
+                            <select name="status">
+                                <option value="all" {% if status_filter == '' %}selected{% endif %}>Todos</option>
+                                <option value="open" {% if status_filter == 'open' %}selected{% endif %}>Abierto</option>
+                                <option value="in_progress" {% if status_filter == 'in_progress' %}selected{% endif %}>En Progreso</option>
+                                <option value="resolved" {% if status_filter == 'resolved' %}selected{% endif %}>Resuelto</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Prioridad:</label>
+                            <select name="priority">
+                                <option value="all" {% if priority_filter == '' %}selected{% endif %}>Todas</option>
+                                <option value="critical" {% if priority_filter == 'critical' %}selected{% endif %}>Crítica</option>
+                                <option value="high" {% if priority_filter == 'high' %}selected{% endif %}>Alta</option>
+                                <option value="medium" {% if priority_filter == 'medium' %}selected{% endif %}>Media</option>
+                                <option value="low" {% if priority_filter == 'low' %}selected{% endif %}>Baja</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" style="padding: 8px 20px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Filtrar</button>
+                    </form>
+                </div>
+
+                {% if is_master %}
+                <div style="background:linear-gradient(135deg,#fef3c7,#fde68a);border:1px solid #f59e0b;padding:12px 16px;border-radius:8px;margin-bottom:14px;font-size:13px;color:#92400e;">
+                    👑 <strong>Vista Master:</strong> estás viendo tickets de todas las empresas
+                    ({{ scope_companies | join(', ') }}). Los admins de Pash y Primatela solo ven los suyos.
+                </div>
+                {% endif %}
+
+                <!-- TABLA -->
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                {% if is_master %}<th>Empresa</th>{% endif %}
+                                <th>Título</th>
+                                <th>Estado</th>
+                                <th>Prioridad</th>
+                                <th>Asignado a</th>
+                                <th>SLA</th>
+                                <th>Creado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if tickets %}
+                                {% for ticket in tickets %}
+                                    <tr>
+                                        <td><a href="/admin/ticket/{{ ticket.id }}" class="ticket-link">{{ ticket.ticket_number }}</a></td>
+                                        {% if is_master %}<td><span style="background:#dbeafe;color:#1e40af;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;">{{ ticket.company | upper }}</span></td>{% endif %}
+                                        <td>{{ ticket.title[:50] }}{% if ticket.title | length > 50 %}...{% endif %}</td>
+                                        <td>
+                                            {% if ticket.status == 'open' %}
+                                                <span class="badge badge-open">🟡 Abierto</span>
+                                            {% elif ticket.status == 'in_progress' %}
+                                                <span class="badge badge-in-progress">🔵 En Progreso</span>
+                                            {% else %}
+                                                <span class="badge badge-resolved">🟢 Resuelto</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="priority-{{ ticket.priority }}">
+                                                {% if ticket.priority == 'critical' %}
+                                                    🔴 Crítica
+                                                {% elif ticket.priority == 'high' %}
+                                                    🟠 Alta
+                                                {% elif ticket.priority == 'medium' %}
+                                                    🟡 Media
+                                                {% else %}
+                                                    🟢 Baja
+                                                {% endif %}
+                                            </span>
+                                        </td>
+                                        <td>{{ ticket.assignee.name if ticket.assignee else 'Sin asignar' }}</td>
+                                        <td>
+                                            {% if ticket.sla_deadline %}
+                                                {% if ticket.sla_deadline > now %}
+                                                    <span style="color: #16a34a;">{{ ticket.sla_remaining }}m</span>
+                                                {% else %}
+                                                    <span style="color: #dc2626; font-weight: 700;">Vencido</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <span style="color: #999;">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ ticket.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="{{ 8 if is_master else 7 }}" style="text-align: center; color: #999; padding: 40px;">No hay tickets que coincidan con los filtros</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- PAGINACIÓN -->
+                {% if total > per_page %}
+                    <div class="pagination">
+                        {% if page > 1 %}
+                            <a href="?status={{ status_filter }}&priority={{ priority_filter }}&page=1">« Primera</a>
+                            <a href="?status={{ status_filter }}&priority={{ priority_filter }}&page={{ page - 1 }}">‹ Anterior</a>
+                        {% endif %}
+
+                        {% for p in range(1, (total // per_page) + 2) %}
+                            {% if p == page %}
+                                <span>{{ p }}</span>
+                            {% else %}
+                                <a href="?status={{ status_filter }}&priority={{ priority_filter }}&page={{ p }}">{{ p }}</a>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if page < (total // per_page) + 1 %}
+                            <a href="?status={{ status_filter }}&priority={{ priority_filter }}&page={{ page + 1 }}">Siguiente ›</a>
+                            <a href="?status={{ status_filter }}&priority={{ priority_filter }}&page={{ (total // per_page) + 1 }}">Última »</a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
