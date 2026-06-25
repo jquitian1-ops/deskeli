@@ -6285,12 +6285,20 @@ def init_db():
                 existing = User.query.filter_by(username=username, company=company).first()
                 if existing:
                     continue
+                # Hash de la contraseña temporal — el usuario debe cambiarla en su primer login
+                _bootstrap_pw = os.getenv('BOOTSTRAP_PASSWORD', 'DeskEli2026!')
+                _bootstrap_hash = hashlib.pbkdf2_hmac(
+                    'sha256', _bootstrap_pw.encode(), username.encode(), 100000
+                ).hex()
                 db.session.add(User(
                     username=username,
                     name=f'{firstname} {lastname}',
                     email=f'{email_prefix}@{company}.com',
                     role=role,
-                    company=company
+                    company=company,
+                    password_hash=_bootstrap_hash,
+                    must_change_password=True,
+                    is_active=True,
                 ))
                 created_count += 1
 
