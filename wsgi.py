@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """
-WSGI entry point para Gunicorn
-Uso: gunicorn -c gunicorn.conf.py wsgi:app
+WSGI entry point para Gunicorn con eventlet.
+Uso: gunicorn -c gunicorn.conf.py wsgi:application
 """
+# CRITICO: eventlet.monkey_patch() debe correr ANTES de cualquier otro import
+# (Flask, SQLAlchemy, threading, socket, ssl, etc.). De lo contrario, eventlet
+# no logra parchear los módulos del sistema y se rompe el contexto de Flask.
+import eventlet
+eventlet.monkey_patch()
+
 from dotenv import load_dotenv
 load_dotenv()
 
