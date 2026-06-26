@@ -1405,7 +1405,49 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
 
                 <div class="panel-content" id="panel-ldap">
                     <h2 class="config-panel-title">🔑 Directorio Activo (LDAP/AD)</h2>
-                    <iframe data-src="/admin/config-old#sec-ldap" class="config-iframe section-iframe" style="display:none;"></iframe>
+                    <p style="color:#6b7280; margin-bottom:16px; font-size:13px;">
+                        Configurá el servidor LDAP por empresa. Cuando una empresa tiene LDAP definido,
+                        el login intenta autenticar contra el directorio activo antes de la contraseña local.
+                        Soporta <code>ldap://</code> (puerto 389) y <code>ldaps://</code> (puerto 636).
+                    </p>
+
+                    <div id="ldap-companies-list" style="display:flex; flex-direction:column; gap:14px;">
+                        <p style="color:#6b7280; font-style:italic;">Cargando empresas…</p>
+                    </div>
+                </div>
+
+                <!-- Modal de edición LDAP -->
+                <div id="ldapModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+                    <div style="background:white; max-width:560px; width:90%; padding:24px; border-radius:10px; max-height:90vh; overflow-y:auto;">
+                        <h3 style="margin:0 0 12px; color:#1f2937;">🔑 LDAP de <span id="ldapModalCompanyName"></span></h3>
+                        <input type="hidden" id="ldapCompanyId">
+                        <div style="display:grid; gap:12px;">
+                            <label style="display:block;">
+                                <span style="font-size:13px; font-weight:600; color:#374151;">Servidor LDAP</span>
+                                <input id="ldapServer" type="text" placeholder="ldap://192.168.20.20 o ldaps://ad.empresa.local" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px;">
+                                <small style="color:#6b7280; font-size:11px;">Usá <code>ldaps://</code> (puerto 636) si tu AD soporta SSL. Si no, <code>ldap://</code> usa 389.</small>
+                            </label>
+                            <label style="display:block;">
+                                <span style="font-size:13px; font-weight:600; color:#374151;">Base DN</span>
+                                <input id="ldapBaseDn" type="text" placeholder="DC=empresa,DC=local" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px;">
+                            </label>
+                            <label style="display:block;">
+                                <span style="font-size:13px; font-weight:600; color:#374151;">Usuario de servicio (bind user)</span>
+                                <input id="ldapBindUser" type="text" placeholder="cat@empresa.local o CN=cat,OU=Service,DC=empresa,DC=local" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px;">
+                            </label>
+                            <label style="display:block;">
+                                <span style="font-size:13px; font-weight:600; color:#374151;">Contraseña</span>
+                                <input id="ldapBindPassword" type="password" placeholder="••••••••" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px;">
+                                <small style="color:#6b7280; font-size:11px;">Si dejás vacío, se conserva la actual.</small>
+                            </label>
+                            <div id="ldapTestResult" style="display:none; padding:10px 12px; border-radius:6px; font-size:13px;"></div>
+                        </div>
+                        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px;">
+                            <button onclick="document.getElementById('ldapModal').style.display='none'" style="padding:8px 14px; background:#e5e7eb; border:none; border-radius:6px; cursor:pointer;">Cancelar</button>
+                            <button onclick="ldapTestConnection()" style="padding:8px 14px; background:#f59e0b; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">🔍 Probar conexión</button>
+                            <button onclick="ldapSaveConfig()" style="padding:8px 14px; background:#10b981; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">💾 Guardar</button>
+                        </div>
+                    </div>
                 </div>
 
 
@@ -3215,6 +3257,128 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
         if (document.getElementById('bizEnabled')) loadBusinessHours();
     });
 })();
+</script>
+
+<!-- ─── LDAP Configuration ───────────────────────────────────────────── -->
+<script>
+async function loadLdapCompanies() {
+    const container = document.getElementById('ldap-companies-list');
+    if (!container) return;
+    try {
+        const res = await fetch('/api/admin/companies');
+        const data = await res.json();
+        if (!data.success || !data.companies) {
+            container.innerHTML = '<p style="color:#dc2626;">Error cargando empresas</p>';
+            return;
+        }
+        container.innerHTML = data.companies.map(c => `
+            <div style="border:1px solid #e5e7eb; border-radius:8px; padding:14px; background:#fafafa;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                    <div>
+                        <strong style="font-size:15px; color:#111827;">${c.icon || '🏢'} ${c.name}</strong>
+                        <div style="font-size:12px; color:#6b7280; margin-top:4px;">
+                            ${c.ldap_server
+                                ? `<span style="color:#059669;">✓ LDAP configurado:</span> <code>${c.ldap_server}</code>`
+                                : '<span style="color:#9ca3af;">○ Sin LDAP — usa solo contraseña local</span>'}
+                        </div>
+                        ${c.ldap_base_dn ? `<div style="font-size:11px; color:#6b7280;">Base DN: <code>${c.ldap_base_dn}</code></div>` : ''}
+                        ${c.ldap_bind_user ? `<div style="font-size:11px; color:#6b7280;">Bind: <code>${c.ldap_bind_user}</code></div>` : ''}
+                    </div>
+                    <button onclick="ldapOpenModal(${c.id}, '${(c.name || '').replace(/'/g, "\\'")}', '${(c.ldap_server || '').replace(/'/g, "\\'")}', '${(c.ldap_base_dn || '').replace(/'/g, "\\'")}', '${(c.ldap_bind_user || '').replace(/'/g, "\\'")}')"
+                            style="padding:6px 12px; background:#2563eb; color:white; border:none; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
+                        ⚙️ Configurar
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        container.innerHTML = `<p style="color:#dc2626;">Error: ${e.message}</p>`;
+    }
+}
+
+function ldapOpenModal(id, name, server, baseDn, bindUser) {
+    document.getElementById('ldapCompanyId').value = id;
+    document.getElementById('ldapModalCompanyName').textContent = name;
+    document.getElementById('ldapServer').value = server || '';
+    document.getElementById('ldapBaseDn').value = baseDn || '';
+    document.getElementById('ldapBindUser').value = bindUser || '';
+    document.getElementById('ldapBindPassword').value = '';
+    document.getElementById('ldapTestResult').style.display = 'none';
+    document.getElementById('ldapModal').style.display = 'flex';
+}
+
+async function ldapTestConnection() {
+    const id = document.getElementById('ldapCompanyId').value;
+    const resultBox = document.getElementById('ldapTestResult');
+    resultBox.style.display = 'block';
+    resultBox.style.background = '#fef3c7';
+    resultBox.style.color = '#78350f';
+    resultBox.textContent = '⏳ Probando conexión…';
+    try {
+        const res = await fetch(`/api/admin/companies/${id}/test-ldap`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                ldap_server: document.getElementById('ldapServer').value,
+                ldap_base_dn: document.getElementById('ldapBaseDn').value,
+                ldap_bind_user: document.getElementById('ldapBindUser').value,
+                ldap_bind_password: document.getElementById('ldapBindPassword').value,
+            }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            resultBox.style.background = '#d1fae5';
+            resultBox.style.color = '#065f46';
+            resultBox.textContent = `✓ ${data.message}`;
+        } else {
+            resultBox.style.background = '#fee2e2';
+            resultBox.style.color = '#991b1b';
+            resultBox.textContent = `✗ ${data.message || data.error || 'Error desconocido'}`;
+        }
+    } catch (e) {
+        resultBox.style.background = '#fee2e2';
+        resultBox.style.color = '#991b1b';
+        resultBox.textContent = `✗ Error de red: ${e.message}`;
+    }
+}
+
+async function ldapSaveConfig() {
+    const id = document.getElementById('ldapCompanyId').value;
+    const payload = {
+        ldap_server: document.getElementById('ldapServer').value.trim(),
+        ldap_base_dn: document.getElementById('ldapBaseDn').value.trim(),
+        ldap_bind_user: document.getElementById('ldapBindUser').value.trim(),
+    };
+    const pw = document.getElementById('ldapBindPassword').value;
+    if (pw) payload.ldap_bind_password = pw;
+    try {
+        const res = await fetch(`/api/admin/companies/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('ldapModal').style.display = 'none';
+            loadLdapCompanies();
+        } else {
+            alert('Error guardando: ' + (data.error || 'desconocido'));
+        }
+    } catch (e) {
+        alert('Error de red: ' + e.message);
+    }
+}
+
+// Cargar lista cuando el tab LDAP se activa
+document.addEventListener('DOMContentLoaded', () => {
+    const ldapTab = document.querySelector('.config-tab[data-tab="ldap"]');
+    if (ldapTab) {
+        ldapTab.addEventListener('click', () => setTimeout(loadLdapCompanies, 100));
+    }
+    // Si el panel LDAP es visible al cargar, cargar también
+    const panel = document.getElementById('panel-ldap');
+    if (panel && panel.classList.contains('active')) loadLdapCompanies();
+});
 </script>
 
 </body>

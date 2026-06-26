@@ -94,6 +94,7 @@ from crypto_utils import (
     encrypt_bytes, decrypt_bytes, has_key as crypto_has_key,
 )
 from password_policy import validate_password
+from ldap_auth import LdapConfig, authenticate_user as ldap_authenticate_user, test_ldap_connection, LDAP_AVAILABLE
 
 app = Flask(__name__)
 # Usar BD en directorio raíz, no en instance/
@@ -1068,31 +1069,69 @@ def login():
                 return render_template('login_v2.html', companies=COMPANY_COLORS,
                                      error=f'Cuenta bloqueada por demasiados intentos fallidos. Intenta de nuevo en {remaining} minuto(s) o contacta al administrador.')
 
-            # Validar contraseña: salt = username (compatibilidad con hashes existentes)
-            if user.password_hash:
-                password_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), user.username.encode(), 100000)
-                if password_hash.hex() != user.password_hash:
-                    # Incrementar contador de intentos fallidos
-                    user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
-                    error_msg = 'Contraseña incorrecta'
-                    if user.failed_login_attempts >= MAX_FAILED_LOGIN_ATTEMPTS:
-                        user.locked_until = now_dt + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
-                        user.failed_login_attempts = 0  # resetear para próxima vuelta
-                        log_audit('account_locked', None, 'auth', user.id,
-                                  f'Cuenta {user.username}@{user.company} bloqueada por {LOCKOUT_DURATION_MINUTES} min tras {MAX_FAILED_LOGIN_ATTEMPTS} intentos fallidos desde {request.remote_addr}')
-                        error_msg = f'Demasiados intentos fallidos. Cuenta bloqueada por {LOCKOUT_DURATION_MINUTES} minutos.'
+            # ─── Autenticación: primero LDAP (si está configurado), luego hash local ───
+            authenticated = False
+            ldap_status = 'not_configured'
+
+            if LDAP_AVAILABLE and (company_obj.ldap_server or '').strip():
+                ldap_cfg = LdapConfig.from_company(company_obj, decrypt_secret)
+                if ldap_cfg:
+                    ldap_status, ldap_full_name, ldap_msg = ldap_authenticate_user(ldap_cfg, user.username, password)
+                    if ldap_status == 'ok':
+                        authenticated = True
+                        log_audit('login_ldap_ok', user.id, 'auth', user.id,
+                                  f'Usuario {user.username}@{company} autenticado por LDAP')
+                        # Actualizar nombre si LDAP devolvió uno y el local está vacío
+                        if ldap_full_name and not user.name:
+                            user.name = ldap_full_name
+                    elif ldap_status == 'bad_credentials':
+                        # LDAP rechazó la contraseña explícitamente → NO caer a hash local
+                        user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+                        error_msg = 'Contraseña incorrecta'
+                        if user.failed_login_attempts >= MAX_FAILED_LOGIN_ATTEMPTS:
+                            user.locked_until = now_dt + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
+                            user.failed_login_attempts = 0
+                            log_audit('account_locked', None, 'auth', user.id,
+                                      f'Cuenta {user.username}@{user.company} bloqueada (LDAP) por {LOCKOUT_DURATION_MINUTES} min desde {request.remote_addr}')
+                            error_msg = f'Demasiados intentos fallidos. Cuenta bloqueada por {LOCKOUT_DURATION_MINUTES} minutos.'
+                        else:
+                            remaining = MAX_FAILED_LOGIN_ATTEMPTS - user.failed_login_attempts
+                            log_audit('login_ldap_failed', None, 'auth', user.id,
+                                      f'LDAP rechazó credenciales de {login_id}@{company} ({user.failed_login_attempts}/{MAX_FAILED_LOGIN_ATTEMPTS}): {ldap_msg}')
+                            error_msg = f'Contraseña incorrecta. Te quedan {remaining} intento(s).'
+                        db.session.commit()
+                        return render_template('login_v2.html', companies=COMPANY_COLORS, error=error_msg)
                     else:
-                        remaining = MAX_FAILED_LOGIN_ATTEMPTS - user.failed_login_attempts
-                        log_audit('login_failed', None, 'auth', user.id,
-                                  f'Login fallido para {login_id}@{company} ({user.failed_login_attempts}/{MAX_FAILED_LOGIN_ATTEMPTS})')
-                        error_msg = f'Contraseña incorrecta. Te quedan {remaining} intento(s) antes del bloqueo temporal.'
-                    db.session.commit()
-                    return render_template('login_v2.html', companies=COMPANY_COLORS, error=error_msg)
-            else:
-                # Usuario sin hash configurado — rechazar acceso (no permitir login sin contraseña)
-                log_audit('login_failed', None, 'auth', None, f'Login rechazado (sin password_hash): {login_id}@{company}')
-                return render_template('login_v2.html', companies=COMPANY_COLORS,
-                                     error='Usuario sin contraseña configurada. Contacta al administrador.')
+                        # LDAP no responde → caer a hash local con warning
+                        log_audit('login_ldap_unreachable', None, 'auth', user.id,
+                                  f'LDAP no disponible para {company}: {ldap_msg}. Fallback a hash local.')
+
+            # Si no se autenticó por LDAP, intentar hash local
+            if not authenticated:
+                if user.password_hash:
+                    password_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), user.username.encode(), 100000)
+                    if password_hash.hex() != user.password_hash:
+                        # Incrementar contador de intentos fallidos
+                        user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+                        error_msg = 'Contraseña incorrecta'
+                        if user.failed_login_attempts >= MAX_FAILED_LOGIN_ATTEMPTS:
+                            user.locked_until = now_dt + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
+                            user.failed_login_attempts = 0
+                            log_audit('account_locked', None, 'auth', user.id,
+                                      f'Cuenta {user.username}@{user.company} bloqueada por {LOCKOUT_DURATION_MINUTES} min tras {MAX_FAILED_LOGIN_ATTEMPTS} intentos fallidos desde {request.remote_addr}')
+                            error_msg = f'Demasiados intentos fallidos. Cuenta bloqueada por {LOCKOUT_DURATION_MINUTES} minutos.'
+                        else:
+                            remaining = MAX_FAILED_LOGIN_ATTEMPTS - user.failed_login_attempts
+                            log_audit('login_failed', None, 'auth', user.id,
+                                      f'Login fallido para {login_id}@{company} ({user.failed_login_attempts}/{MAX_FAILED_LOGIN_ATTEMPTS})')
+                            error_msg = f'Contraseña incorrecta. Te quedan {remaining} intento(s) antes del bloqueo temporal.'
+                        db.session.commit()
+                        return render_template('login_v2.html', companies=COMPANY_COLORS, error=error_msg)
+                else:
+                    # Usuario sin hash configurado y LDAP no autenticó → rechazar
+                    log_audit('login_failed', None, 'auth', None, f'Login rechazado (sin password_hash, LDAP={ldap_status}): {login_id}@{company}')
+                    return render_template('login_v2.html', companies=COMPANY_COLORS,
+                                         error='Usuario sin contraseña configurada. Contacta al administrador.')
 
             # Login exitoso: resetear contador y desbloquear
             user.failed_login_attempts = 0
@@ -8889,6 +8928,53 @@ def api_admin_companies_update(company_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/companies/<int:company_id>/test-ldap', methods=['POST'])
+def api_admin_companies_test_ldap(company_id):
+    """Prueba la conexión LDAP de una empresa.
+    Permite enviar credenciales temporales en el body para test sin guardar."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    c = Company.query.get(company_id)
+    if not c:
+        return jsonify({'success': False, 'error': 'Empresa no encontrada'}), 404
+    if not is_master_admin() and c.code != session.get('company'):
+        return jsonify({'success': False, 'error': 'Sin permiso sobre esta empresa.'}), 403
+
+    if not LDAP_AVAILABLE:
+        return jsonify({'success': False, 'error': 'Librería ldap3 no disponible en el servidor.'}), 500
+
+    # Permitir override del body para probar credenciales nuevas sin guardarlas
+    data = request.get_json() or {}
+
+    class _TempCompany:
+        pass
+
+    tc = _TempCompany()
+    tc.ldap_server = (data.get('ldap_server') or c.ldap_server or '').strip()
+    tc.ldap_base_dn = (data.get('ldap_base_dn') or c.ldap_base_dn or '').strip()
+    tc.ldap_bind_user = (data.get('ldap_bind_user') or c.ldap_bind_user or '').strip()
+    # Si el body trae password, se usa esa; si no, se descifra la guardada
+    raw_pw = data.get('ldap_bind_password')
+    if raw_pw:
+        # Para no almacenarla cifrada en el objeto temp, ponemos un placeholder
+        # y modificamos LdapConfig.from_company después.
+        pass
+
+    cfg = LdapConfig.from_company(tc, decrypt_secret)
+    if not cfg:
+        return jsonify({'success': False, 'error': 'Falta configurar el servidor LDAP.'}), 400
+    # Si llegó password en body, la sobrescribimos en la config
+    if raw_pw:
+        cfg.bind_password = raw_pw
+
+    ok, msg = test_ldap_connection(cfg)
+    log_audit(
+        'ldap_test', session['user_id'], 'company', c.id,
+        f'Test LDAP para {c.code}: {"OK" if ok else "FALLO"} - {msg}'
+    )
+    return jsonify({'success': ok, 'message': msg, 'server': cfg.server, 'port': cfg.port, 'ssl': cfg.use_ssl})
 
 
 @app.route('/api/admin/companies/<int:company_id>', methods=['DELETE'])
