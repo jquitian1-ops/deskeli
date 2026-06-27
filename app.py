@@ -6329,10 +6329,12 @@ def init_db():
                 _bootstrap_hash = hashlib.pbkdf2_hmac(
                     'sha256', _bootstrap_pw.encode(), username.encode(), 100000
                 ).hex()
+                # Dominio configurable; default: dominio corporativo PatPrimo
+                _seed_domain = os.getenv('SEED_EMAIL_DOMAIN', 'patprimo.com.co')
                 db.session.add(User(
                     username=username,
                     name=f'{firstname} {lastname}',
-                    email=f'{email_prefix}@{company}.com',
+                    email=f'{email_prefix}@{_seed_domain}',
                     role=role,
                     company=company,
                     password_hash=_bootstrap_hash,
