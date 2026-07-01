@@ -130,8 +130,12 @@ def main():
 
             # Columnas comunes (por si el modelo PG tiene columnas que la SQLite no)
             src_cols = [r[1] for r in src.execute(f"PRAGMA table_info({table})").fetchall()]
-            dst_cols = {c["name"] for c in insp.get_columns(table)}
+            dst_columns_info = insp.get_columns(table)
+            dst_cols = {c["name"] for c in dst_columns_info}
             common = [c for c in src_cols if c in dst_cols]
+
+            # Detectar columnas BOOLEAN del destino para convertir 0/1 -> False/True
+            bool_cols = {c["name"] for c in dst_columns_info if str(c["type"]).upper() in ("BOOLEAN", "BOOL")}
 
             if args.dry_run:
                 print(f"[DRY ] {table}: {src_count} filas listas para copiar")
@@ -148,7 +152,14 @@ def main():
 
             batch = []
             for row in src.execute(f"SELECT {', '.join(common)} FROM {table}"):
-                batch.append({c: row[c] for c in common})
+                row_dict = {}
+                for c in common:
+                    val = row[c]
+                    # Coerce SQLite int (0/1) -> PG bool (False/True) para columnas boolean
+                    if c in bool_cols and val is not None:
+                        val = bool(val)
+                    row_dict[c] = val
+                batch.append(row_dict)
                 if len(batch) >= batch_size:
                     db.session.execute(insert_sql, batch)
                     copied += len(batch)
