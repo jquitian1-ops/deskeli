@@ -35,6 +35,9 @@ dnspython==2.8.0
 SQLAlchemy==2.0.50
 greenlet==3.5.1
 
+# --- Driver PostgreSQL (para produccion) ---
+psycopg2-binary==2.9.10
+
 # --- Auth / Security ---
 PyJWT==2.13.0
 cryptography==49.0.0
