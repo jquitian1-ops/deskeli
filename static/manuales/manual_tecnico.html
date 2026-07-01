@@ -1,0 +1,1361 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual del Técnico — DeskEli</title>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+        line-height: 1.6;
+    }
+
+    /* ─── PALETA TÉCNICO: Naranja + Negro + Acentos ───────────────── */
+    :root {
+        --primary: #ea580c;
+        --primary-dark: #c2410c;
+        --primary-light: #fed7aa;
+        --dark: #0f172a;
+        --dark-2: #1e293b;
+        --dark-3: #334155;
+        --text: #e2e8f0;
+        --text-muted: #94a3b8;
+        --border: #334155;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #3b82f6;
+    }
+
+    /* TOP BAR */
+    .topbar {
+        position: sticky; top: 0; z-index: 100;
+        background: linear-gradient(135deg, #0f172a 0%, #ea580c 100%);
+        color: white;
+        padding: 14px 28px;
+        box-shadow: 0 4px 20px rgba(234,88,12,0.3);
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 14px; }
+    .topbar-logo {
+        width: 48px; height: 48px;
+        border-radius: 50%;
+        border: 2px solid white;
+        background: white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        object-fit: cover;
+    }
+    .topbar h1 { font-size: 20px; font-weight: 800; letter-spacing: 0.3px; }
+    .topbar .subtitle { font-size: 12px; opacity: 0.9; }
+    .topbar-actions { display: flex; gap: 8px; align-items: center; }
+    .btn-action {
+        padding: 8px 14px; border: none; border-radius: 6px;
+        background: rgba(255,255,255,0.15); color: white;
+        font-size: 13px; font-weight: 600; cursor: pointer;
+        transition: all 0.2s; text-decoration: none;
+    }
+    .btn-action:hover { background: rgba(255,255,255,0.28); transform: translateY(-1px); }
+    .btn-primary {
+        background: white; color: var(--primary-dark);
+    }
+    .btn-primary:hover { background: #fff7ed; }
+
+    /* LAYOUT */
+    .layout { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 64px); }
+
+    /* SIDEBAR */
+    .sidebar {
+        background: var(--dark-2);
+        border-right: 1px solid var(--border);
+        padding: 22px 16px;
+        position: sticky; top: 64px;
+        height: calc(100vh - 64px);
+        overflow-y: auto;
+    }
+    .sidebar h3 {
+        font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px;
+        color: var(--primary); margin: 14px 0 6px; font-weight: 700;
+    }
+    .sidebar a {
+        display: block;
+        padding: 8px 14px;
+        margin-bottom: 3px;
+        color: var(--text);
+        text-decoration: none;
+        border-radius: 6px;
+        font-size: 13.5px;
+        transition: all 0.15s;
+        border-left: 3px solid transparent;
+    }
+    .sidebar a:hover { background: rgba(234,88,12,0.15); color: var(--primary); }
+    .sidebar a.active {
+        background: linear-gradient(90deg, rgba(234,88,12,0.25), transparent);
+        color: white;
+        font-weight: 700;
+        border-left-color: var(--primary);
+    }
+
+    /* PROGRESS BAR */
+    .progress {
+        position: sticky; top: 64px; z-index: 90;
+        height: 4px; background: rgba(255,255,255,0.05);
+    }
+    .progress-bar {
+        height: 100%; background: linear-gradient(90deg, var(--primary), var(--warning));
+        transition: width 0.3s;
+        box-shadow: 0 0 12px rgba(234,88,12,0.6);
+    }
+
+    /* MAIN */
+    .main {
+        padding: 40px 60px 80px;
+        max-width: 1100px;
+    }
+    .section {
+        display: none;
+        animation: fadeIn 0.4s ease;
+    }
+    .section.active { display: block; }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    h2.section-title {
+        font-size: 34px; font-weight: 900; color: white;
+        margin-bottom: 8px;
+    }
+    h2.section-title .emoji { margin-right: 10px; }
+    .section-subtitle {
+        color: var(--text-muted);
+        font-size: 15px;
+        margin-bottom: 30px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+    }
+    h3 { color: white; margin: 24px 0 12px; font-size: 20px; }
+    h4 { color: var(--primary-light); margin: 18px 0 8px; font-size: 16px; }
+    p { margin-bottom: 12px; color: var(--text); font-size: 14.5px; }
+
+    /* HERO WELCOME */
+    .hero {
+        background: linear-gradient(135deg, var(--dark-2), var(--dark-3));
+        border-radius: 14px;
+        padding: 40px;
+        text-align: center;
+        border: 1px solid var(--border);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        margin-bottom: 30px;
+    }
+    .hero-logo {
+        display: block;
+        width: 130px; height: 130px;
+        margin: 0 auto 20px;
+        border-radius: 50%;
+        border: 4px solid var(--primary);
+        background: white;
+        box-shadow: 0 8px 32px rgba(234,88,12,0.5);
+        object-fit: cover;
+        animation: heroFloat 3s ease-in-out infinite;
+    }
+    @keyframes heroFloat {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        50% { transform: translateY(-10px) rotate(-2deg); }
+    }
+    .hero h1 { font-size: 34px; color: white; margin-bottom: 10px; letter-spacing: -0.5px; }
+    .hero p { font-size: 16px; color: var(--text-muted); max-width: 600px; margin: 0 auto 8px; }
+
+    /* CARDS */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 20px 0; }
+    .card {
+        background: var(--dark-2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px;
+        transition: all 0.2s;
+    }
+    .card:hover {
+        transform: translateY(-3px);
+        border-color: var(--primary);
+        box-shadow: 0 8px 20px rgba(234,88,12,0.15);
+    }
+    .card-icon { font-size: 32px; margin-bottom: 12px; }
+    .card h4 { color: var(--primary); margin: 0 0 8px; font-size: 15px; }
+    .card p { font-size: 13px; color: var(--text-muted); margin: 0; }
+
+    /* CALLOUTS */
+    .callout {
+        margin: 18px 0;
+        padding: 16px 20px;
+        border-radius: 8px;
+        border-left: 4px solid;
+        display: flex; gap: 12px;
+    }
+    .callout-icon { font-size: 24px; }
+    .callout-content { flex: 1; }
+    .callout-tip { background: rgba(59,130,246,0.1); border-color: var(--info); }
+    .callout-tip .callout-title { color: #60a5fa; }
+    .callout-warn { background: rgba(245,158,11,0.1); border-color: var(--warning); }
+    .callout-warn .callout-title { color: #fbbf24; }
+    .callout-danger { background: rgba(239,68,68,0.1); border-color: var(--danger); }
+    .callout-danger .callout-title { color: #f87171; }
+    .callout-success { background: rgba(16,185,129,0.1); border-color: var(--success); }
+    .callout-success .callout-title { color: #34d399; }
+    .callout-title { font-weight: 700; margin-bottom: 4px; font-size: 14px; }
+    .callout p { color: var(--text); font-size: 14px; margin: 0; }
+
+    /* SLA COLOR STRIP */
+    .sla-strip {
+        display: flex; gap: 8px; margin: 20px 0;
+        font-size: 13px; font-weight: 700;
+    }
+    .sla-cell {
+        flex: 1; padding: 20px 12px;
+        border-radius: 8px; text-align: center;
+        color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .sla-green { background: linear-gradient(135deg, #10b981, #059669); }
+    .sla-yellow { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .sla-red { background: linear-gradient(135deg, #ef4444, #dc2626); animation: pulseRed 1.5s ease-in-out infinite; }
+    @keyframes pulseRed {
+        0%, 100% { box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        50% { box-shadow: 0 4px 24px rgba(239,68,68,0.8); }
+    }
+    .sla-cell .pct { font-size: 22px; }
+    .sla-cell .label { font-size: 11px; opacity: 0.9; text-transform: uppercase; margin-top: 4px; }
+
+    /* TIMELINE */
+    .timeline {
+        position: relative;
+        margin: 24px 0;
+        padding-left: 30px;
+        border-left: 3px solid var(--primary);
+    }
+    .timeline-item {
+        margin-bottom: 20px;
+        position: relative;
+    }
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -38px; top: 6px;
+        width: 14px; height: 14px;
+        background: var(--primary);
+        border-radius: 50%;
+        box-shadow: 0 0 0 4px rgba(234,88,12,0.3);
+    }
+    .timeline-item h4 { color: var(--primary); margin: 0 0 4px; }
+    .timeline-item p { margin: 0; font-size: 14px; }
+
+    /* KEYS / CODE */
+    kbd {
+        display: inline-block;
+        padding: 3px 8px;
+        background: var(--dark-3);
+        border: 1px solid var(--border);
+        border-bottom-width: 2px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+        color: var(--primary-light);
+        box-shadow: 0 1px 0 rgba(0,0,0,0.4);
+    }
+    code {
+        background: var(--dark-2);
+        color: var(--primary-light);
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 13px;
+        font-family: 'Consolas', monospace;
+    }
+    pre {
+        background: var(--dark);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 16px;
+        overflow-x: auto;
+        margin: 12px 0;
+        font-family: 'Consolas', monospace;
+        font-size: 13px;
+        color: #a7f3d0;
+    }
+
+    /* MOCKUPS (dashboard preview) */
+    .mockup {
+        background: var(--dark);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px;
+        margin: 20px 0;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    }
+    .mock-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 14px;
+    }
+    .mock-badge {
+        padding: 4px 10px; border-radius: 4px;
+        font-size: 11px; font-weight: 700; text-transform: uppercase;
+    }
+    .mock-badge.open { background: #3b82f6; color: white; }
+    .mock-badge.progress { background: #f59e0b; color: white; }
+    .mock-badge.resolved { background: #10b981; color: white; }
+    .mock-ticket {
+        background: var(--dark-2);
+        padding: 14px;
+        border-radius: 6px;
+        margin-bottom: 10px;
+        border-left: 4px solid var(--primary);
+    }
+    .mock-ticket-title { font-weight: 700; color: white; margin-bottom: 4px; font-size: 14px; }
+    .mock-ticket-meta { font-size: 12px; color: var(--text-muted); }
+
+    /* CHRONO */
+    .chrono-demo {
+        display: inline-flex; align-items: center; gap: 12px;
+        background: var(--dark-3);
+        padding: 12px 20px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        font-family: monospace;
+    }
+    .chrono-time {
+        font-size: 24px; font-weight: 800; color: var(--primary);
+        letter-spacing: 2px;
+    }
+    .chrono-btn {
+        padding: 6px 14px; border: none; border-radius: 4px;
+        font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+    .chrono-btn.start { background: var(--success); color: white; }
+    .chrono-btn.pause { background: var(--warning); color: white; }
+    .chrono-btn.stop { background: var(--danger); color: white; }
+
+    /* TABLE */
+    table {
+        width: 100%; border-collapse: collapse; margin: 16px 0;
+        background: var(--dark-2);
+        border-radius: 8px; overflow: hidden;
+    }
+    th, td {
+        padding: 12px 16px; text-align: left;
+        border-bottom: 1px solid var(--border);
+        font-size: 14px;
+    }
+    th {
+        background: var(--dark-3);
+        font-weight: 700; color: var(--primary);
+        font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(234,88,12,0.05); }
+
+    /* FAQ ACCORDION */
+    .faq-item {
+        background: var(--dark-2);
+        border-radius: 8px;
+        margin-bottom: 8px;
+        border: 1px solid var(--border);
+        overflow: hidden;
+    }
+    .faq-question {
+        padding: 14px 20px;
+        cursor: pointer;
+        font-weight: 700;
+        color: white;
+        display: flex; justify-content: space-between; align-items: center;
+        transition: background 0.2s;
+    }
+    .faq-question:hover { background: var(--dark-3); }
+    .faq-question::after {
+        content: '+'; font-size: 22px; color: var(--primary);
+        transition: transform 0.2s;
+    }
+    .faq-item.open .faq-question::after { transform: rotate(45deg); }
+    .faq-answer {
+        max-height: 0; overflow: hidden;
+        transition: max-height 0.3s ease;
+        padding: 0 20px;
+    }
+    .faq-item.open .faq-answer {
+        max-height: 500px;
+        padding: 0 20px 16px;
+    }
+
+    /* QUIZ */
+    .quiz-question {
+        background: var(--dark-2);
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 16px;
+        border: 1px solid var(--border);
+    }
+    .quiz-question h4 { color: white; margin: 0 0 12px; }
+    .quiz-option {
+        display: block; width: 100%; text-align: left;
+        padding: 10px 14px; margin-bottom: 6px;
+        background: var(--dark-3); border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 6px; cursor: pointer;
+        transition: all 0.15s;
+    }
+    .quiz-option:hover { border-color: var(--primary); background: rgba(234,88,12,0.1); }
+    .quiz-option.correct { background: rgba(16,185,129,0.2); border-color: var(--success); color: #6ee7b7; }
+    .quiz-option.wrong { background: rgba(239,68,68,0.2); border-color: var(--danger); color: #fca5a5; }
+    .quiz-feedback {
+        margin-top: 10px; font-size: 13px; font-weight: 600;
+        padding: 10px; border-radius: 6px;
+        display: none;
+    }
+    .quiz-feedback.show { display: block; }
+
+    /* HR DIVIDER */
+    hr { border: none; height: 1px; background: var(--border); margin: 24px 0; }
+
+    /* PRINT */
+    @media print {
+        .topbar, .sidebar, .progress { display: none; }
+        .layout { grid-template-columns: 1fr; }
+        .section { display: block !important; page-break-before: always; }
+        body { background: white; color: black; }
+        .card, .callout, .mockup, .faq-item { background: #f9fafb; color: #1f2937; }
+    }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ TOP BAR ═══════════════════ -->
+<div class="topbar">
+    <div class="topbar-left">
+        <img src="/static/eli.png" alt="Eli" class="topbar-logo" onerror="this.style.display='none'">
+        <div>
+            <h1>🛠️ Manual del Técnico</h1>
+            <div class="subtitle">DeskEli · Guía completa para el equipo de soporte TI</div>
+        </div>
+    </div>
+    <div class="topbar-actions">
+        <button class="btn-action" onclick="window.print()">🖨 Imprimir</button>
+        <a class="btn-action btn-primary" href="https://deskeli.eliotproyectos.tech/login">🚀 Ir al sistema</a>
+    </div>
+</div>
+
+<!-- ═══════════════════ PROGRESS ═══════════════════ -->
+<div class="progress"><div class="progress-bar" id="progressBar" style="width:0%;"></div></div>
+
+<!-- ═══════════════════ LAYOUT ═══════════════════ -->
+<div class="layout">
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <h3>Inicio</h3>
+        <a href="#bienvenida" onclick="showSection('bienvenida')" class="active">🏁 Bienvenida</a>
+        <a href="#rol" onclick="showSection('rol')">🎯 Tu rol como técnico</a>
+        <a href="#login" onclick="showSection('login')">🔐 Iniciar sesión</a>
+
+        <h3>Panel diario</h3>
+        <a href="#dashboard" onclick="showSection('dashboard')">📊 El dashboard</a>
+        <a href="#estados" onclick="showSection('estados')">🔄 Estados del ticket</a>
+        <a href="#tomar" onclick="showSection('tomar')">👋 Tomar un ticket</a>
+
+        <h3>Trabajar el ticket</h3>
+        <a href="#sla" onclick="showSection('sla')">⏱ SLA y escalación</a>
+        <a href="#cronometro" onclick="showSection('cronometro')">⏲ Cronómetro</a>
+        <a href="#chat" onclick="showSection('chat')">💬 Chat con el usuario</a>
+        <a href="#subtareas" onclick="showSection('subtareas')">✅ Subtareas</a>
+        <a href="#adjuntos" onclick="showSection('adjuntos')">📎 Adjuntos</a>
+        <a href="#clasificar" onclick="showSection('clasificar')">🏷 Categorías y tags</a>
+
+        <h3>Cierre</h3>
+        <a href="#escalar" onclick="showSection('escalar')">📈 Escalar</a>
+        <a href="#resolver" onclick="showSection('resolver')">🎉 Resolver</a>
+        <a href="#reasignar" onclick="showSection('reasignar')">🔀 Reasignar / Reabrir</a>
+
+        <h3>Extras</h3>
+        <a href="#reportes" onclick="showSection('reportes')">📈 Mi productividad</a>
+        <a href="#trucos" onclick="showSection('trucos')">💡 Trucos y atajos</a>
+        <a href="#faq" onclick="showSection('faq')">❓ FAQ</a>
+        <a href="#quiz" onclick="showSection('quiz')">🎓 Pon a prueba</a>
+    </nav>
+
+    <!-- ═══════════════════ MAIN ═══════════════════ -->
+    <main class="main">
+
+        <!-- ─── BIENVENIDA ─── -->
+        <section class="section active" id="sec-bienvenida">
+            <div class="hero">
+                <img src="/static/eli.png" alt="Eli" class="hero-logo" onerror="this.style.display='none'">
+                <h1>¡Bienvenido/a al equipo TI!</h1>
+                <p>Sos parte de un equipo cuya misión es <strong>resolver rápido y bien</strong> los problemas de tecnología de más de 8,000 empleados. Este manual te va a mostrar cada herramienta, cada atajo y cada buena práctica.</p>
+                <p style="margin-top:16px;"><strong>Meta:</strong> que en 15 minutos ya estés tomando tu primer ticket.</p>
+            </div>
+
+            <h3>¿Qué vas a aprender?</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">📊</div>
+                    <h4>Dashboard operativo</h4>
+                    <p>Cómo leer tu cola, los KPIs, y los tickets que corren riesgo SLA.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">⏱</div>
+                    <h4>Manejo de SLA</h4>
+                    <p>Cuándo un caso está en verde, amarillo o rojo, y cómo escalar antes de vencer.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">💬</div>
+                    <h4>Comunicación</h4>
+                    <p>Cómo chatear con el usuario, dejar notas internas y coordinar con otros técnicos.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">✅</div>
+                    <h4>Cierre profesional</h4>
+                    <p>Documentar la solución, subir evidencia y cerrar tickets sin dejar cabos sueltos.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">💡</div>
+                <div class="callout-content">
+                    <div class="callout-title">Tip</div>
+                    <p>El sidebar de la izquierda te lleva a cualquier sección. Al final hay un <strong>quiz interactivo</strong> para autoevaluarte.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── ROL ─── -->
+        <section class="section" id="sec-rol">
+            <h2 class="section-title"><span class="emoji">🎯</span>Tu rol como técnico</h2>
+            <p class="section-subtitle">Qué se espera de vos, y qué NO te toca</p>
+
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">✅</div>
+                    <h4>Lo que sí</h4>
+                    <p>Diagnosticar, resolver, escalar cuando corresponde, documentar la solución, mantener SLA en verde.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📝</div>
+                    <h4>Registrar todo</h4>
+                    <p>Cada intento, cada paso, cada solución. Ayuda al próximo técnico y al usuario si vuelve el problema.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🚫</div>
+                    <h4>Lo que NO</h4>
+                    <p>No cerrás tickets sin comunicar al usuario. No aceptás soluciones "en persona" sin registrar.</p>
+                </div>
+            </div>
+
+            <h3>Los 3 mandamientos del técnico DeskEli</h3>
+            <ol style="padding-left:20px; margin:12px 0;">
+                <li style="margin-bottom:10px;"><strong>Documentá o no pasó.</strong> Si no lo registrás en el ticket, es como si no lo hubieras hecho.</li>
+                <li style="margin-bottom:10px;"><strong>Comunicá antes de cerrar.</strong> Confirmá con el usuario que su problema está resuelto antes de marcar el ticket.</li>
+                <li style="margin-bottom:10px;"><strong>Escalá antes de que se venza el SLA</strong>, no después. Si sabés que no vas a llegar, escala YA.</li>
+            </ol>
+        </section>
+
+        <!-- ─── LOGIN ─── -->
+        <section class="section" id="sec-login">
+            <h2 class="section-title"><span class="emoji">🔐</span>Iniciar sesión</h2>
+            <p class="section-subtitle">Entrar al sistema en 4 pasos</p>
+
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>1. Abrí el portal</h4>
+                    <p>Andá a <code>https://deskeli.eliotproyectos.tech</code> desde Chrome o Edge (100+).</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>2. Elegí tu empresa</h4>
+                    <p>Manufactureras Eliot, Pash o Primatela. La empresa determina qué tickets vas a ver.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>3. Ingresá tu correo y contraseña</h4>
+                    <p>Usá tu correo corporativo (ej. <code>tu.nombre@patprimo.com.co</code>).</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>4. ¿Primera vez?</h4>
+                    <p>Si es tu primer login, el sistema te pedirá cambiar la contraseña temporal. Elegí una con al menos 8 caracteres, letras y números.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">🔒</div>
+                <div class="callout-content">
+                    <div class="callout-title">Bloqueo por intentos fallidos</div>
+                    <p>Después de <strong>5 contraseñas incorrectas</strong>, tu cuenta se bloquea 15 minutos. Si te pasa, esperá o contactá al admin.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">📱</div>
+                <div class="callout-content">
+                    <div class="callout-title">Guardá tu contraseña</div>
+                    <p>Usá un gestor (1Password, Bitwarden, KeePass). NO en post-its, NO en documentos Word.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── DASHBOARD ─── -->
+        <section class="section" id="sec-dashboard">
+            <h2 class="section-title"><span class="emoji">📊</span>Tu dashboard</h2>
+            <p class="section-subtitle">Todo lo que necesitás al alcance de la vista</p>
+
+            <p>Cuando entres, el dashboard te muestra 4 zonas clave:</p>
+
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">🎫</div>
+                    <h4>Tu cola de tickets</h4>
+                    <p>Todos los tickets asignados a vos, ordenados por prioridad y SLA restante.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📈</div>
+                    <h4>KPIs personales</h4>
+                    <p>Tickets abiertos, resueltos hoy, tiempo promedio, cumplimiento SLA.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔥</div>
+                    <h4>Alertas SLA</h4>
+                    <p>Tickets al 50%, 100% o 200% del tiempo — los que necesitan atención YA.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">👥</div>
+                    <h4>Chat técnicos</h4>
+                    <p>Comunicación directa con otros técnicos y con Eli, el asistente.</p>
+                </div>
+            </div>
+
+            <h3>Ejemplo de la cola</h3>
+            <div class="mockup">
+                <div class="mock-header">
+                    <strong style="color:white;">📋 Mis tickets asignados</strong>
+                    <span style="color:var(--text-muted); font-size:12px;">7 abiertos · 3 en progreso</span>
+                </div>
+                <div class="mock-ticket">
+                    <div class="mock-ticket-title">🔴 TKT-ELIOT-01234 · Servidor SAP no responde</div>
+                    <div class="mock-ticket-meta">Crítica · SLA vencido hace 30 min · Usuario: María López</div>
+                </div>
+                <div class="mock-ticket" style="border-left-color:var(--warning);">
+                    <div class="mock-ticket-title">🟡 TKT-ELIOT-01230 · No puedo instalar Office</div>
+                    <div class="mock-ticket-meta">Media · Restan 2h · Usuario: Juan Pérez</div>
+                </div>
+                <div class="mock-ticket" style="border-left-color:var(--success);">
+                    <div class="mock-ticket-title">🟢 TKT-ELIOT-01228 · Cambio de mouse</div>
+                    <div class="mock-ticket-meta">Baja · Restan 20h · Usuario: Laura Gómez</div>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">🎯</div>
+                <div class="callout-content">
+                    <div class="callout-title">Regla del semáforo</div>
+                    <p><strong>Rojos primero</strong> (SLA vencido), después amarillos (>50%), después verdes. Siempre respetá la prioridad del ticket dentro de cada color.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── ESTADOS ─── -->
+        <section class="section" id="sec-estados">
+            <h2 class="section-title"><span class="emoji">🔄</span>Estados del ticket</h2>
+            <p class="section-subtitle">De abierto a resuelto, sin quedarse en el medio</p>
+
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>🟢 Open (abierto)</h4>
+                    <p>Recién creado por el usuario o por email. Todavía no lo tomó nadie.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>🟡 In progress (en progreso)</h4>
+                    <p>Un técnico lo tomó y está trabajando. Es el estado en el que va a estar la mayor parte del tiempo.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>⏸ Waiting user (esperando usuario)</h4>
+                    <p>Le pediste info al usuario y estás esperando su respuesta. <strong>El SLA se pausa.</strong></p>
+                </div>
+                <div class="timeline-item">
+                    <h4>🟢 Resolved (resuelto)</h4>
+                    <p>Ya lo solucionaste. El usuario tiene 24h para confirmar; si no responde, se cierra automáticamente.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>🔒 Closed (cerrado)</h4>
+                    <p>Cerrado definitivamente. Ya no se puede editar, solo consultar el histórico.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">⚠️</div>
+                <div class="callout-content">
+                    <div class="callout-title">¡No podés cerrar con subtareas pendientes!</div>
+                    <p>Si el ticket tiene subtareas sin resolver, el sistema NO deja marcar como resuelto. Cerrá primero las subtareas.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── TOMAR TICKET ─── -->
+        <section class="section" id="sec-tomar">
+            <h2 class="section-title"><span class="emoji">👋</span>Tomar un ticket</h2>
+            <p class="section-subtitle">Cómo asignarte un ticket disponible</p>
+
+            <h3>Asignación automática</h3>
+            <p>El sistema tiene un motor de IA que asigna tickets según:</p>
+            <ul style="padding-left:24px; margin:10px 0 20px;">
+                <li>Tu <strong>perfil de habilidades</strong> (redes, software, hardware, SAP, etc.)</li>
+                <li>Tu <strong>carga de trabajo</strong> actual (menos tickets = más chance)</li>
+                <li>La <strong>categoría</strong> del ticket entrante</li>
+                <li>La <strong>prioridad</strong> (críticos van al más experimentado disponible)</li>
+            </ul>
+
+            <h3>Asignación manual</h3>
+            <p>Si querés tomar un ticket específico de la cola general:</p>
+            <ol style="padding-left:24px; margin:10px 0;">
+                <li>Andá a <strong>Cola general</strong> (menú lateral)</li>
+                <li>Click en el ticket que quieras</li>
+                <li>Botón <strong>"Tomar este ticket"</strong> arriba a la derecha</li>
+                <li>Confirmar → el ticket ya está en tu cola</li>
+            </ol>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">🧠</div>
+                <div class="callout-content">
+                    <div class="callout-title">Perfil de habilidades</div>
+                    <p>El admin configura qué habilidades tenés y tu nivel (junior/senior/experto). Si sentís que la IA te asigna cosas que no dominás, pediále al admin ajustar tu perfil.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── SLA ─── -->
+        <section class="section" id="sec-sla">
+            <h2 class="section-title"><span class="emoji">⏱</span>SLA — Cumplimiento y escalación</h2>
+            <p class="section-subtitle">El semáforo que dice cuánto te queda</p>
+
+            <p>Cada ticket tiene un <strong>tiempo de respuesta</strong> y un <strong>tiempo de resolución</strong> según su prioridad:</p>
+
+            <table>
+                <thead>
+                    <tr><th>Prioridad</th><th>Respuesta</th><th>Resolución</th><th>Ejemplo</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>🔴 Crítica</td><td>15 min</td><td>2 horas</td><td>Servidor SAP caído</td></tr>
+                    <tr><td>🟠 Alta</td><td>30 min</td><td>4 horas</td><td>VPN no funciona</td></tr>
+                    <tr><td>🟡 Media</td><td>2 horas</td><td>8 horas</td><td>Office no imprime</td></tr>
+                    <tr><td>🟢 Baja</td><td>4 horas</td><td>24 horas</td><td>Cambio de mouse</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Códigos de color en la barra SLA</h3>
+            <div class="sla-strip">
+                <div class="sla-cell sla-green">
+                    <div class="pct">&lt;50%</div>
+                    <div class="label">En verde · Sin urgencia</div>
+                </div>
+                <div class="sla-cell sla-yellow">
+                    <div class="pct">50–100%</div>
+                    <div class="label">Amarillo · Acelerá</div>
+                </div>
+                <div class="sla-cell sla-red">
+                    <div class="pct">&gt;100%</div>
+                    <div class="label">Rojo · SLA VENCIDO</div>
+                </div>
+            </div>
+
+            <h3>Escalación automática</h3>
+            <p>El sistema escala automáticamente:</p>
+            <ul style="padding-left:24px; margin:10px 0;">
+                <li><strong>Al 50%:</strong> notificación al técnico asignado (a vos)</li>
+                <li><strong>Al 100%:</strong> notificación al líder de TI + Teams alert</li>
+                <li><strong>Al 200%:</strong> notificación al gerente de TI + escalación a on-call</li>
+            </ul>
+
+            <div class="callout callout-danger">
+                <div class="callout-icon">🚨</div>
+                <div class="callout-content">
+                    <div class="callout-title">Si no vas a llegar</div>
+                    <p><strong>Escalá tú mismo antes del 50%.</strong> Es mejor pedir ayuda temprano que dejar vencer el SLA. Nadie te va a juzgar por escalar; sí por dejar vencer.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── CRONOMETRO ─── -->
+        <section class="section" id="sec-cronometro">
+            <h2 class="section-title"><span class="emoji">⏲</span>Cronómetro de tiempo trabajado</h2>
+            <p class="section-subtitle">Registrar cuánto tiempo real invertiste</p>
+
+            <p>Cada ticket tiene un cronómetro para medir el tiempo efectivo de trabajo (no el reloj total del SLA).</p>
+
+            <div class="chrono-demo">
+                <span class="chrono-time">00:23:47</span>
+                <button class="chrono-btn start">▶ Iniciar</button>
+                <button class="chrono-btn pause">⏸ Pausar</button>
+                <button class="chrono-btn stop">⏹ Detener</button>
+            </div>
+
+            <h3>Cómo usarlo</h3>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>▶ Iniciar</h4>
+                    <p>Cuando abrís el ticket y empezás a trabajar. Podés tener solo un cronómetro activo a la vez.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>⏸ Pausar</h4>
+                    <p>Si te interrumpen (reunión, otro ticket urgente). El tiempo NO cuenta mientras esté pausado.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>⏹ Detener y guardar</h4>
+                    <p>Al terminar la sesión. El tiempo se suma al total del ticket.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">📈</div>
+                <div class="callout-content">
+                    <div class="callout-title">Sirve para métricas</div>
+                    <p>El tiempo trabajado se usa para calcular tu productividad y para reportes gerenciales. Mientras más honesto seas, mejor te van a ubicar.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── CHAT ─── -->
+        <section class="section" id="sec-chat">
+            <h2 class="section-title"><span class="emoji">💬</span>Chat con el usuario</h2>
+            <p class="section-subtitle">Comunicación efectiva dentro del ticket</p>
+
+            <p>Cada ticket tiene un <strong>chat en tiempo real</strong> con el usuario que lo creó. Las respuestas llegan por WebSocket, se ven instantáneamente.</p>
+
+            <h3>Tipos de mensajes</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">💬</div>
+                    <h4>Público</h4>
+                    <p>El usuario lo ve. Úsalo para pedir info, dar avances o confirmar la solución.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔒</div>
+                    <h4>Nota interna</h4>
+                    <p>Solo técnicos y admin. Para documentar diagnósticos, coordinar con colegas.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📎</div>
+                    <h4>Con adjunto</h4>
+                    <p>Podés subir capturas, PDFs, videos. Ayudan a explicar más rápido.</p>
+                </div>
+            </div>
+
+            <h3>Buenas prácticas</h3>
+            <ul style="padding-left:24px; margin:10px 0;">
+                <li><strong>Respondé rápido</strong>, aunque sea con "Recibido, ya me pongo". Da tranquilidad.</li>
+                <li><strong>Sé claro y sin tecnicismos</strong>. El usuario no sabe lo que es "DNS" o "GPO".</li>
+                <li><strong>Confirmá antes de cerrar</strong>: "¿Podés probar y confirmarme si ya funciona?"</li>
+                <li><strong>Nunca culpes al usuario</strong> aunque el error sea suyo. Explicale sin juzgar.</li>
+            </ul>
+        </section>
+
+        <!-- ─── SUBTAREAS ─── -->
+        <section class="section" id="sec-subtareas">
+            <h2 class="section-title"><span class="emoji">✅</span>Subtareas</h2>
+            <p class="section-subtitle">Dividir un ticket complejo en pasos verificables</p>
+
+            <p>Cuando un ticket tiene varios pasos, creá subtareas para no olvidarte de ninguna y para que otros técnicos entiendan tu progreso.</p>
+
+            <h3>Ejemplo: "Configurar nueva laptop"</h3>
+            <div class="mockup">
+                <div class="mock-header">
+                    <strong style="color:white;">📋 Subtareas del ticket</strong>
+                    <span style="color:var(--text-muted); font-size:12px;">3 de 5 completadas</span>
+                </div>
+                <div style="padding:8px 0;">
+                    <div style="color:var(--success); margin-bottom:8px;">✓ Instalar Windows 11</div>
+                    <div style="color:var(--success); margin-bottom:8px;">✓ Unir al dominio AD</div>
+                    <div style="color:var(--success); margin-bottom:8px;">✓ Instalar Office 365</div>
+                    <div style="color:var(--warning); margin-bottom:8px;">⏳ Configurar impresora de red</div>
+                    <div style="color:var(--text-muted); margin-bottom:8px;">○ Entregar al usuario y capacitar</div>
+                </div>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">🛑</div>
+                <div class="callout-content">
+                    <div class="callout-title">Regla clave</div>
+                    <p><strong>No podés resolver el ticket si hay subtareas sin cerrar.</strong> El sistema lo bloquea. Cerrá primero cada subtarea antes de resolver el ticket padre.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── ADJUNTOS ─── -->
+        <section class="section" id="sec-adjuntos">
+            <h2 class="section-title"><span class="emoji">📎</span>Adjuntos</h2>
+            <p class="section-subtitle">Evidencia y documentación visual</p>
+
+            <p>Podés adjuntar archivos en el ticket principal, en las subtareas y en el chat.</p>
+
+            <h3>Tipos permitidos</h3>
+            <table>
+                <thead><tr><th>Categoría</th><th>Extensiones</th><th>Tamaño máx.</th></tr></thead>
+                <tbody>
+                    <tr><td>Imágenes</td><td>.png, .jpg, .jpeg, .gif</td><td>10 MB</td></tr>
+                    <tr><td>Documentos</td><td>.pdf, .docx, .xlsx, .pptx</td><td>25 MB</td></tr>
+                    <tr><td>Videos cortos</td><td>.mp4, .webm</td><td>50 MB</td></tr>
+                    <tr><td>Logs</td><td>.txt, .log, .csv, .json</td><td>10 MB</td></tr>
+                </tbody>
+            </table>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">📸</div>
+                <div class="callout-content">
+                    <div class="callout-title">Captura de pantalla</div>
+                    <p>En Windows: <kbd>Win</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> abre la herramienta de recortes. Copia, pega directo en el chat del ticket.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">🔐</div>
+                <div class="callout-content">
+                    <div class="callout-title">¡Cuidado con datos sensibles!</div>
+                    <p>NO subas archivos con contraseñas, tarjetas de crédito, datos personales de otros usuarios. Enmascará antes de subir.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── CLASIFICAR ─── -->
+        <section class="section" id="sec-clasificar">
+            <h2 class="section-title"><span class="emoji">🏷</span>Categorías y tags</h2>
+            <p class="section-subtitle">Clasificar bien = reportes útiles</p>
+
+            <p>Cada ticket tiene una <strong>categoría</strong> (obligatoria) y puede tener múltiples <strong>tags</strong> (opcionales).</p>
+
+            <h3>Categorías principales</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">🌐</div>
+                    <h4>Redes</h4>
+                    <p>Internet, WiFi, VPN, conectividad, cableado</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">💻</div>
+                    <h4>Hardware</h4>
+                    <p>PC, laptop, monitor, teclado, impresora</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📦</div>
+                    <h4>Software</h4>
+                    <p>Office, Windows, drivers, aplicaciones</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🏢</div>
+                    <h4>SAP</h4>
+                    <p>Todo lo relacionado con SAP PRD, QAS, DEV</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔐</div>
+                    <h4>Accesos</h4>
+                    <p>Cuentas, permisos, contraseñas, unidades de red</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🖨</div>
+                    <h4>Periféricos</h4>
+                    <p>Impresoras, escáneres, dispositivos USB</p>
+                </div>
+            </div>
+
+            <h3>Tags recomendados</h3>
+            <p>Los tags son etiquetas libres. Ejemplos útiles:</p>
+            <ul style="padding-left:24px; margin:10px 0;">
+                <li><code>vip</code> — usuario ejecutivo o crítico</li>
+                <li><code>recurring</code> — problema que ya pasó antes</li>
+                <li><code>proveedor-externo</code> — necesita coordinar con Movistar / Dell / Lenovo</li>
+                <li><code>capacitacion</code> — el usuario necesitaría entrenamiento, no solo el fix</li>
+            </ul>
+        </section>
+
+        <!-- ─── ESCALAR ─── -->
+        <section class="section" id="sec-escalar">
+            <h2 class="section-title"><span class="emoji">📈</span>Escalar un ticket</h2>
+            <p class="section-subtitle">Cuándo pedir ayuda, y a quién</p>
+
+            <p>Escalar NO es fracaso. Es reconocimiento profesional de que otro puede hacerlo mejor o más rápido.</p>
+
+            <h3>Cuándo escalar</h3>
+            <ol style="padding-left:24px; margin:10px 0;">
+                <li>El problema requiere permisos que no tenés (admin de dominio, root SAP).</li>
+                <li>Es una categoría que no dominás.</li>
+                <li>Ya llevaste 2h sin avanzar y el SLA se está poniendo amarillo.</li>
+                <li>Involucra proveedores externos (Movistar, Dell, etc.) y hay contacto con el líder.</li>
+                <li>Requiere aprobación (ej. compra de hardware).</li>
+            </ol>
+
+            <h3>Cómo escalar</h3>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>1. Documentá primero</h4>
+                    <p>En el ticket, agregá una nota interna con: qué intentaste, qué pasó, qué falta.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>2. Botón "Escalar"</h4>
+                    <p>Arriba a la derecha del ticket. Elegí a quién: otro técnico específico, tu líder, o "escalación automática" (el sistema decide).</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>3. Notificación</h4>
+                    <p>El destinatario recibe alerta en tiempo real. El ticket pasa a su cola.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── RESOLVER ─── -->
+        <section class="section" id="sec-resolver">
+            <h2 class="section-title"><span class="emoji">🎉</span>Resolver un ticket</h2>
+            <p class="section-subtitle">El momento de mayor cuidado</p>
+
+            <p>Antes de marcar "Resuelto", el sistema te va a pedir varias cosas. No las saltes:</p>
+
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>1. Todas las subtareas cerradas</h4>
+                    <p>Bloqueado hasta que estén todas ✓.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>2. Notas de resolución</h4>
+                    <p>Describí en 2-3 líneas <strong>qué era el problema y cómo lo resolviste</strong>. Ayuda al próximo técnico si el problema vuelve.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>3. Categoría de resolución</h4>
+                    <p>Fixed, workaround aplicado, no reproducible, capacitación al usuario, hardware reemplazado, etc.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>4. Confirmación con el usuario</h4>
+                    <p>En el chat público: "¿Podés confirmar que ya funciona?" — Esperá su OK.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>5. Click "Resolver"</h4>
+                    <p>El usuario recibe email. Tiene 24h para reabrir si no funciona. Si no responde, se cierra solo.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-success">
+                <div class="callout-icon">🎓</div>
+                <div class="callout-content">
+                    <div class="callout-title">Contribuí a la base de conocimiento</div>
+                    <p>Si el problema fue algo común, sugerí al admin agregar la solución al <strong>bot Eli</strong>. Así el próximo usuario podría autoresolverse.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── REASIGNAR / REABRIR ─── -->
+        <section class="section" id="sec-reasignar">
+            <h2 class="section-title"><span class="emoji">🔀</span>Reasignar y reabrir</h2>
+            <p class="section-subtitle">Casos que pasan de vez en cuando</p>
+
+            <h3>Reasignar a otro técnico</h3>
+            <p>Si tomaste un ticket pero te das cuenta que otro colega lo maneja mejor:</p>
+            <ol style="padding-left:24px; margin:10px 0;">
+                <li>Botón <strong>"Reasignar"</strong> arriba del ticket</li>
+                <li>Buscá al técnico por nombre</li>
+                <li>Escribí una nota rápida ("Te lo paso porque tenés más experiencia con impresoras HP")</li>
+                <li>Confirmar → el ticket sale de tu cola, entra a la del otro</li>
+            </ol>
+
+            <h3>Reabrir un ticket resuelto</h3>
+            <p>Si el usuario dice "sigue sin funcionar" y el ticket ya se marcó como resuelto:</p>
+            <ol style="padding-left:24px; margin:10px 0;">
+                <li>Andá al ticket (buscador Ctrl+K si no aparece)</li>
+                <li>Botón <strong>"Reabrir"</strong> arriba a la derecha</li>
+                <li>Motivo (obligatorio): "El problema no fue resuelto porque..."</li>
+                <li>El ticket vuelve a estado <em>in_progress</em>, el SLA sigue desde donde quedó</li>
+            </ol>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">⚠️</div>
+                <div class="callout-content">
+                    <div class="callout-title">Reabrir cuenta para métricas</div>
+                    <p>Si reabren tu ticket, cuenta como resolución incompleta. No es "malo" — pero si te pasa seguido, revisá tu proceso de cierre.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── REPORTES ─── -->
+        <section class="section" id="sec-reportes">
+            <h2 class="section-title"><span class="emoji">📈</span>Tu productividad</h2>
+            <p class="section-subtitle">Métricas personales</p>
+
+            <p>En tu perfil vas a ver tus KPIs actualizados en vivo:</p>
+
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">🎯</div>
+                    <h4>Cumplimiento SLA</h4>
+                    <p>% de tickets resueltos dentro del tiempo. Meta: &gt;90%.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">⏱</div>
+                    <h4>Tiempo promedio</h4>
+                    <p>Tu velocidad promedio por prioridad. Comparado con el equipo.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📊</div>
+                    <h4>Volumen</h4>
+                    <p>Tickets resueltos hoy, esta semana, este mes.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">😊</div>
+                    <h4>Satisfacción</h4>
+                    <p>Ratings de los usuarios después del cierre. 5 estrellas es la meta.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔥</div>
+                    <h4>Reaperturas</h4>
+                    <p>Cuántos tickets tuyos fueron reabiertos. Mientras más bajo, mejor.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🏆</div>
+                    <h4>Ranking</h4>
+                    <p>Tu posición dentro del equipo (opcional, si el admin lo habilita).</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── TRUCOS ─── -->
+        <section class="section" id="sec-trucos">
+            <h2 class="section-title"><span class="emoji">💡</span>Trucos y atajos</h2>
+            <p class="section-subtitle">Herramientas que te van a hacer 3x más rápido</p>
+
+            <h3>Atajos de teclado</h3>
+            <table>
+                <thead><tr><th>Atajo</th><th>Qué hace</th></tr></thead>
+                <tbody>
+                    <tr><td><kbd>Ctrl</kbd> + <kbd>K</kbd></td><td>Buscador global (tickets, comentarios, todo)</td></tr>
+                    <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td><td>Enviar mensaje en el chat del ticket</td></tr>
+                    <tr><td><kbd>N</kbd></td><td>Ir al siguiente ticket de tu cola</td></tr>
+                    <tr><td><kbd>P</kbd></td><td>Volver al ticket anterior</td></tr>
+                    <tr><td><kbd>Esc</kbd></td><td>Cerrar modal / diálogo</td></tr>
+                    <tr><td><kbd>/</kbd></td><td>Enfocar el chat</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Filtros útiles en la cola</h3>
+            <div class="cards">
+                <div class="card">
+                    <h4>🔥 Solo urgentes</h4>
+                    <p>Filtro rápido para ver solo tickets críticos y altos con SLA amarillo/rojo.</p>
+                </div>
+                <div class="card">
+                    <h4>👤 Por usuario</h4>
+                    <p>Buscar todos los tickets abiertos de un usuario específico.</p>
+                </div>
+                <div class="card">
+                    <h4>🏷 Por tag</h4>
+                    <p>Ver todos los "recurring" o "vip" de un vistazo.</p>
+                </div>
+                <div class="card">
+                    <h4>📅 Últimas 24h</h4>
+                    <p>Solo tickets creados hoy — útil para reportes de fin de día.</p>
+                </div>
+            </div>
+
+            <h3>Plantillas de respuesta</h3>
+            <p>En el chat, escribí <code>/</code> y aparece un menú de plantillas predefinidas: "Estamos revisando", "Necesito más info", "Solución aplicada", etc.</p>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">🚀</div>
+                <div class="callout-content">
+                    <div class="callout-title">Pedile al admin</div>
+                    <p>Si notás una respuesta que escribís mucho, sugerí al admin agregarla como plantilla. Te ahorra segundos que se acumulan.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── FAQ ─── -->
+        <section class="section" id="sec-faq">
+            <h2 class="section-title"><span class="emoji">❓</span>Preguntas frecuentes</h2>
+            <p class="section-subtitle">Lo que los técnicos preguntan más seguido</p>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">¿Puedo trabajar dos tickets al mismo tiempo?</div>
+                <div class="faq-answer">
+                    <p>Sí. Podés tener varios tickets en "in_progress" a la vez, pero el cronómetro solo corre en uno a la vez. Cuando cambies de tarea, pausá el cronómetro del anterior e iniciá el del nuevo.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">¿Qué pasa si me equivoco al elegir la prioridad?</div>
+                <div class="faq-answer">
+                    <p>La podés cambiar en cualquier momento desde el detalle del ticket. Si subís la prioridad, el SLA se recalcula. Si la bajás, hay que dejar una nota explicando por qué.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">¿Cómo veo tickets de otro técnico?</div>
+                <div class="faq-answer">
+                    <p>En la vista "Cola general" o "Todos los tickets" (según los permisos de tu empresa). Los admins pueden ver todo; los técnicos regulares suelen ver solo su cola + la cola general de la empresa.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">¿El bot Eli reemplaza al técnico?</div>
+                <div class="faq-answer">
+                    <p>No. Eli responde <strong>preguntas frecuentes autoservicio</strong> antes de crear un ticket. Si el usuario no encuentra la respuesta, se crea el ticket y llega a vos. Eli te ayuda a filtrar lo trivial.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">Un usuario me pide algo por WhatsApp, ¿cómo lo registro?</div>
+                <div class="faq-answer">
+                    <p>Andá a "Crear en nombre de" (arriba del dashboard), buscá al usuario y creá el ticket como si él lo hubiera hecho. Deja el WhatsApp como evidencia (screenshot). <strong>NO trabajes tickets fuera del sistema.</strong></p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">¿Puedo ver tickets de empresas que no son la mía?</div>
+                <div class="faq-answer">
+                    <p>NO. Cada técnico solo ve tickets de su empresa asignada (Eliot, Pash o Primatela). Es una regla de segregación de datos crítica y auditada.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">¿Qué hago si un usuario me insulta?</div>
+                <div class="faq-answer">
+                    <p>Mantené la calma. Respondé profesional. Si escala, avisá a tu líder + captura del chat como evidencia. El registro queda en el ticket (nunca se borra).</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">¿Hay guardia nocturna o de fin de semana?</div>
+                <div class="faq-answer">
+                    <p>Depende de tu empresa. Para tickets críticos hay técnicos on-call fuera del horario laboral (7 AM – 10 PM). Consultá con tu líder cuándo te toca.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── QUIZ ─── -->
+        <section class="section" id="sec-quiz">
+            <h2 class="section-title"><span class="emoji">🎓</span>Pon a prueba lo aprendido</h2>
+            <p class="section-subtitle">6 preguntas — Sin trampas, sin puntaje visible, solo para vos</p>
+
+            <div class="quiz-question">
+                <h4>1. Un ticket está al 60% del SLA y todavía no lo resolviste. ¿Qué hacés?</h4>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Sigo trabajándolo tranquilamente</button>
+                <button class="quiz-option" onclick="quizAnswer(this, true)">Escalo o pido ayuda porque está en amarillo</button>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Cierro con solución parcial y ya</button>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>2. ¿Podés cerrar un ticket que tiene 2 subtareas sin resolver?</h4>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Sí, si el usuario dice que está OK</button>
+                <button class="quiz-option" onclick="quizAnswer(this, true)">No, el sistema lo bloquea</button>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Solo si soy admin</button>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>3. Un usuario te pide arreglar su Excel por WhatsApp. ¿Qué hacés?</h4>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Le ayudo por WhatsApp y no lo registro</button>
+                <button class="quiz-option" onclick="quizAnswer(this, true)">Le pido que cree ticket, o lo creo yo en su nombre</button>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Le digo que no puedo ayudar por WhatsApp</button>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>4. ¿Cuál es la meta de cumplimiento SLA?</h4>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">50%</button>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">75%</button>
+                <button class="quiz-option" onclick="quizAnswer(this, true)">Mayor a 90%</button>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>5. Reasignaste un ticket a un colega. ¿Sigue contando en tu productividad?</h4>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Sí, siempre me cuenta</button>
+                <button class="quiz-option" onclick="quizAnswer(this, true)">No, ahora es responsabilidad del colega</button>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Se divide 50/50</button>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>6. ¿Podés ver tickets de otra empresa (ej. Pash si vos sos de Eliot)?</h4>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Sí, todos podemos ver todo</button>
+                <button class="quiz-option" onclick="quizAnswer(this, true)">No, solo tickets de mi empresa</button>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Solo si el admin master me da permiso</button>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="callout callout-success" id="quizFinal" style="display:none;">
+                <div class="callout-icon">🏆</div>
+                <div class="callout-content">
+                    <div class="callout-title">¡Terminaste el manual!</div>
+                    <p>Ya estás listo para tomar tu primer ticket. Recordá: <strong>documentar, comunicar, escalar a tiempo, cerrar bien</strong>. Bienvenido al equipo TI de DeskEli.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<script>
+    // ─── Navegación por secciones ───
+    function showSection(id) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        const el = document.getElementById('sec-' + id);
+        if (el) el.classList.add('active');
+
+        document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+        const link = document.querySelector(`.sidebar a[href="#${id}"]`);
+        if (link) link.classList.add('active');
+
+        // Progress bar (basado en índice de sección)
+        const sections = ['bienvenida','rol','login','dashboard','estados','tomar','sla','cronometro','chat','subtareas','adjuntos','clasificar','escalar','resolver','reasignar','reportes','trucos','faq','quiz'];
+        const idx = sections.indexOf(id);
+        const pct = Math.round(((idx + 1) / sections.length) * 100);
+        document.getElementById('progressBar').style.width = pct + '%';
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // ─── FAQ acordeón ───
+    function toggleFaq(el) {
+        const item = el.parentElement;
+        item.classList.toggle('open');
+    }
+
+    // ─── Quiz ───
+    let quizAnswered = 0;
+    const totalQuiz = 6;
+    function quizAnswer(btn, isCorrect) {
+        const question = btn.parentElement;
+        const feedback = question.querySelector('.quiz-feedback');
+        // Bloquear todas las opciones de esta pregunta
+        question.querySelectorAll('.quiz-option').forEach(b => {
+            b.style.pointerEvents = 'none';
+            b.style.opacity = '0.75';
+        });
+        btn.style.opacity = '1';
+        if (isCorrect) {
+            btn.classList.add('correct');
+            feedback.textContent = '✓ ¡Correcto!';
+            feedback.style.background = 'rgba(16,185,129,0.2)';
+            feedback.style.color = '#6ee7b7';
+        } else {
+            btn.classList.add('wrong');
+            // Marcar la correcta
+            question.querySelectorAll('.quiz-option').forEach(b => {
+                if (b.onclick.toString().includes('true')) b.classList.add('correct');
+            });
+            feedback.textContent = '✗ Casi. La respuesta correcta aparece resaltada en verde.';
+            feedback.style.background = 'rgba(239,68,68,0.2)';
+            feedback.style.color = '#fca5a5';
+        }
+        feedback.classList.add('show');
+
+        quizAnswered++;
+        if (quizAnswered >= totalQuiz) {
+            document.getElementById('quizFinal').style.display = 'flex';
+        }
+    }
+
+    // ─── Marcar sección inicial ───
+    document.addEventListener('DOMContentLoaded', () => {
+        showSection('bienvenida');
+    });
+</script>
+</body>
+</html>
