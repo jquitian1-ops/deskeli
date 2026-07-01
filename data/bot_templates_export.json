@@ -1,0 +1,1967 @@
+{
+  "_meta": {
+    "exported_at": "2026-07-01T07:48:39",
+    "source_db": "C:\\Users\\jquitian\\proyecto_funcionando\\instance\\ticketdesk_v2.db",
+    "format_version": "1"
+  },
+  "bot_knowledge": [
+    {
+      "keywords": "wifi, red, conectar, conexion",
+      "question": "¿No tienes conexión WiFi?",
+      "answer": "Intenta lo siguiente:\n1. Reinicia tu router (apágalo 30 segundos)\n2. Verifica que estés escribiendo bien la contraseña\n3. Acércate más al router\n4. Reinicia tu dispositivo\nSi persiste, crea un ticket para que nuestro equipo revise.",
+      "category": "Red",
+      "priority": "medium",
+      "created_at": "2026-06-01 09:31:04.930544"
+    },
+    {
+      "keywords": "contraseña, olvide, reset, acceso",
+      "question": "¿Olvidaste tu contraseña?",
+      "answer": "Puedes resetear tu contraseña directamente:\n1. Ve a la página de login\n2. Haz clic en \"¿Olvidaste tu contraseña?\"\n3. Sigue las instrucciones enviadas a tu correo\nSi no recibiste el email, abre un ticket.",
+      "category": "Autenticación",
+      "priority": "low",
+      "created_at": "2026-06-01 09:31:04.930569"
+    },
+    {
+      "keywords": "impresora, no imprime, driver",
+      "question": "¿Problemas con la impresora?",
+      "answer": "Soluciona problemas de impresión:\n1. Verifica que la impresora esté encendida\n2. Abre \"Dispositivos\" > \"Impresoras\" y ve si aparece\n3. Intenta imprimir un documento de prueba\n4. Si falta el driver, descárgalo del sitio del fabricante\nSi sigue sin funcionar, crea un ticket.",
+      "category": "Hardware",
+      "priority": "medium",
+      "created_at": "2026-06-01 09:31:04.930570"
+    },
+    {
+      "keywords": "slow, lento, rendimiento, lag",
+      "question": "¿Tu computadora está lenta?",
+      "answer": "Mejora el rendimiento:\n1. Cierra programas que no uses\n2. Libera espacio en disco (elimina archivos temporales)\n3. Reinicia tu equipo\n4. Verifica que tu antivirus esté actualizado\n5. Abre el Administrador de tareas y cierra procesos innecesarios\nSi persiste después de reiniciar, crea un ticket.",
+      "category": "Rendimiento",
+      "priority": "medium",
+      "created_at": "2026-06-01 09:31:04.930571"
+    },
+    {
+      "keywords": "email, correo, outlook",
+      "question": "¿Problemas con el correo?",
+      "answer": "Soluciona problemas de email:\n1. Verifica tu conexión a internet\n2. Reinicia Outlook o tu cliente de correo\n3. Sincroniza manualmente tu bandeja\n4. Verifica que tu contraseña sea correcta\nSi el problema continúa, crea un ticket con detalles del error.",
+      "category": "Email",
+      "priority": "medium",
+      "created_at": "2026-06-01 09:31:04.930571"
+    },
+    {
+      "keywords": "vpn, remoto, conexion remota",
+      "question": "¿No puedes conectarte a la VPN?",
+      "answer": "Conectarse a la VPN:\n1. Asegúrate de tener la VPN instalada\n2. Abre el cliente VPN\n3. Introduce tu usuario y contraseña de dominio\n4. Si falla, reinicia el cliente VPN\n5. Verifica que tu conexión a internet sea estable\nPara problemas de VPN, contacta al equipo de infraestructura.",
+      "category": "Conectividad",
+      "priority": "high",
+      "created_at": "2026-06-01 09:31:04.930572"
+    },
+    {
+      "keywords": "software, aplicacion, programa",
+      "question": "¿No funciona una aplicación?",
+      "answer": "Pasos para resolver problemas de software:\n1. Reinicia la aplicación\n2. Reinicia tu computadora completamente\n3. Verifica que tengas la versión más reciente instalada\n4. Actualiza los drivers de tu tarjeta gráfica\nSi persiste, crea un ticket incluyendo el nombre del programa y el error exacto.",
+      "category": "Software",
+      "priority": "medium",
+      "created_at": "2026-06-01 09:31:04.930572"
+    },
+    {
+      "keywords": "actualizacion, update, patch",
+      "question": "¿Necesitas actualizar tu sistema?",
+      "answer": "Actualizar Windows:\n1. Ve a Configuración > Actualización y seguridad\n2. Haz clic en \"Buscar actualizaciones\"\n3. Descarga e instala las actualizaciones disponibles\n4. Reinicia tu equipo si es necesario\nNo desactives las actualizaciones automáticas; es importante para la seguridad.",
+      "category": "Sistema",
+      "priority": "medium",
+      "created_at": "2026-06-01 09:31:04.930573"
+    },
+    {
+      "keywords": "contraseña,password,olvide,resetear,olvidé",
+      "question": "¿Cómo restablezco mi contraseña?",
+      "answer": "1. Ve a https://passwordreset.empresa.local\n2. Ingresa tu usuario corporativo\n3. Responde tu pregunta de seguridad o usa tu correo personal verificado\n4. Crea una nueva contraseña que cumpla: mínimo 12 caracteres, mayúsculas, minúsculas, números y un símbolo\n5. Espera 5 minutos antes de iniciar sesión.\n\nSi no funciona, crea un ticket en categoría Accesos.",
+      "category": "Contraseñas",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.699535"
+    },
+    {
+      "keywords": "cuenta,bloqueada,bloqueado,lock,locked",
+      "question": "¿Mi cuenta está bloqueada, qué hago?",
+      "answer": "Las cuentas se bloquean tras 5 intentos fallidos consecutivos.\n\n1. Espera 30 minutos (desbloqueo automático)\n2. Si necesitas acceso urgente: contacta a soporte\n3. Reporta intentos sospechosos de acceso (puede ser ataque)\n\nNUNCA compartas tu contraseña con nadie del soporte.",
+      "category": "Contraseñas",
+      "priority": "high",
+      "created_at": "2026-06-01 20:52:08.701482"
+    },
+    {
+      "keywords": "cambiar,contraseña,expira,vencida,expiró",
+      "question": "¿Cómo cambio mi contraseña?",
+      "answer": "Windows: Ctrl+Alt+Suprimir → \"Cambiar contraseña\"\nWeb: Settings → Cuenta → Cambiar contraseña\nMóvil: Outlook → Cuenta → Seguridad\n\nPolítica: las contraseñas expiran cada 90 días. Recibirás aviso 14 días antes.",
+      "category": "Contraseñas",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.701879"
+    },
+    {
+      "keywords": "outlook,no abre,abre,inicia,inicio,crash",
+      "question": "Outlook no abre o se cierra solo",
+      "answer": "1. Cierra Outlook completamente (Administrador de tareas → fin tarea)\n2. Inicia en modo seguro: Win+R → \"outlook /safe\"\n3. Si funciona en modo seguro, deshabilita complementos:\n   - Archivo → Opciones → Complementos → Ir → Desmarca todos\n4. Si el problema persiste, repara el perfil:\n   - Panel Control → Correo → Mostrar perfiles → Reparar\n5. Última opción: crear nuevo perfil de Outlook",
+      "category": "Email",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.702307"
+    },
+    {
+      "keywords": "correo,enviar,no envia,no envío,bandeja salida,stuck",
+      "question": "Mis correos no se envían (se quedan en Bandeja de salida)",
+      "answer": "1. Verifica tu conexión a internet\n2. Outlook → Enviar/Recibir → Enviar todo\n3. Revisa que el correo no tenga adjuntos mayores a 25MB\n4. Si tiene adjuntos grandes, súbelos a OneDrive y comparte el link\n5. Revisa carpeta \"Bandeja de salida\": si hay correos atascados, ábrelos y reenvíalos\n6. Reinicia Outlook",
+      "category": "Email",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.702671"
+    },
+    {
+      "keywords": "no recibo,correos,emails,bandeja entrada,spam",
+      "question": "No estoy recibiendo correos",
+      "answer": "1. Revisa carpeta Spam/Correo no deseado\n2. Verifica reglas: Archivo → Administrar reglas y alertas\n3. Asegúrate de no haber excedido tu cuota de buzón (límite: 50GB)\n4. Pide al remitente que verifique no estar en tu lista de bloqueados\n5. Revisa \"Outlook elementos eliminados\"\n6. Comprueba estado del servicio en: https://status.office.com",
+      "category": "Email",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.703013"
+    },
+    {
+      "keywords": "firma,signature,configurar firma,correo",
+      "question": "¿Cómo configuro mi firma de correo?",
+      "answer": "Outlook Desktop:\n1. Archivo → Opciones → Correo → Firmas\n2. Nuevo → Asigna nombre\n3. Edita la firma con tu nombre, cargo, teléfono\n4. Selecciónala como predeterminada\n\nOutlook Web:\n1. Settings (engranaje) → Ver toda la configuración\n2. Correo → Redactar y responder → Firma de correo\n\nFirma corporativa estándar disponible en: \\\\fileserver\\plantillas\\firmas",
+      "category": "Email",
+      "priority": "low",
+      "created_at": "2026-06-01 20:52:08.703346"
+    },
+    {
+      "keywords": "fuera oficina,vacaciones,respuesta automatica,out of office",
+      "question": "¿Cómo activo respuesta automática de fuera de oficina?",
+      "answer": "Outlook Desktop:\n1. Archivo → Información → Respuestas automáticas\n2. \"Enviar respuestas automáticas\"\n3. Marca rango de fechas\n4. Escribe mensaje para interno y externo (pestañas separadas)\n5. Aceptar\n\nIncluye:\n- Fechas de tu ausencia\n- Contacto alternativo\n- Cuándo regresarás\n- Mensaje cordial",
+      "category": "Email",
+      "priority": "low",
+      "created_at": "2026-06-01 20:52:08.703718"
+    },
+    {
+      "keywords": "adjunto,archivo,grande,grande,tamaño,size",
+      "question": "No puedo enviar archivos grandes por correo",
+      "answer": "Límite de adjuntos: 25 MB por mensaje.\n\nAlternativas:\n1. **OneDrive**: Sube el archivo, click derecho → Compartir → Copiar link → Pega en el correo\n2. **SharePoint**: Para archivos del equipo, sube ahí y comparte enlace\n3. **Comprimir**: Click derecho → Enviar a → Carpeta comprimida (.zip)\n4. **WeTransfer corporativo**: Para externos\n\nNunca envíes información confidencial por servicios públicos.",
+      "category": "Email",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.704087"
+    },
+    {
+      "keywords": "wifi,no conecta,sin internet,red,ssid",
+      "question": "No puedo conectarme al WiFi",
+      "answer": "1. Olvida la red y vuelve a conectar:\n   - Configuración → Red e Internet → WiFi → Administrar redes conocidas\n   - Selecciona la red corporativa → Olvidar\n   - Vuelve a conectar e ingresa credenciales\n\n2. Reinicia adaptador WiFi:\n   - Win+R → \"ncpa.cpl\"\n   - Click derecho en WiFi → Deshabilitar → Habilitar\n\n3. Renueva IP:\n   - cmd como admin: \"ipconfig /release\" luego \"ipconfig /renew\"\n\n4. Reinicia el equipo\n\n5. Verifica que estés en cobertura del Access Point",
+      "category": "Red",
+      "priority": "high",
+      "created_at": "2026-06-01 20:52:08.704437"
+    },
+    {
+      "keywords": "internet,lento,slow,conexion,red lenta",
+      "question": "Mi internet está muy lento",
+      "answer": "Diagnóstico rápido:\n\n1. Prueba velocidad en https://speedtest.net (debe ser >50 Mbps)\n2. Reinicia tu equipo y router\n3. Cierra apps que consumen ancho de banda:\n   - Streaming (YouTube, Netflix)\n   - Descargas en segundo plano\n   - OneDrive sincronizando\n   - Actualizaciones de Windows\n\n4. Cambia a cable Ethernet si es posible (más estable que WiFi)\n5. Verifica que no haya 20+ usuarios en el mismo AP\n\nSi persiste, reporta a soporte con la velocidad medida.",
+      "category": "Red",
+      "priority": "high",
+      "created_at": "2026-06-01 20:52:08.704768"
+    },
+    {
+      "keywords": "vpn,no conecta,conectar vpn,vpn error,fortinet,cisco anyconnect",
+      "question": "No puedo conectarme a la VPN",
+      "answer": "1. Verifica tu conexión a internet primero\n2. Cierra completamente el cliente VPN\n3. Reinicia el servicio VPN como administrador\n4. Verifica tus credenciales (mismas de Windows)\n5. Si usas MFA, asegúrate que tu app autenticadora funciona\n6. Algunos firewalls bloquean VPN. Prueba desde otra red\n7. Limpia caché DNS: cmd → \"ipconfig /flushdns\"\n\nClientes oficiales:\n- Cisco AnyConnect\n- FortiClient\n- Global Protect\n\nNo uses VPNs no aprobadas, comprometen la seguridad.",
+      "category": "Red",
+      "priority": "high",
+      "created_at": "2026-06-01 20:52:08.705111"
+    },
+    {
+      "keywords": "dns,no resuelve,navegar,paginas,no carga",
+      "question": "Las páginas web no cargan pero tengo internet",
+      "answer": "Problema típico de DNS:\n\n1. Limpia caché DNS:\n   - cmd como admin: \"ipconfig /flushdns\"\n\n2. Cambia el DNS:\n   - Win+R → ncpa.cpl\n   - Click derecho en tu conexión → Propiedades\n   - IPv4 → Propiedades\n   - DNS preferido: 8.8.8.8\n   - DNS alternativo: 8.8.4.4\n\n3. Reinicia el navegador\n4. Prueba en modo incógnito\n5. Limpia caché del navegador (Ctrl+Shift+Supr)",
+      "category": "Red",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.705475"
+    },
+    {
+      "keywords": "ping,no responde,timeout,conexion",
+      "question": "¿Cómo verifico conectividad a un servidor?",
+      "answer": "Usa el comando PING:\n\n1. Abre CMD (Win+R → cmd)\n2. Escribe: ping nombre-servidor.empresa.local\n3. Interpretación:\n   - \"Respuesta de...\" = conectividad OK\n   - \"Tiempo de espera agotado\" = sin conexión\n   - \"Host de destino inaccesible\" = problema de ruta\n\nPara probar puerto específico:\n   - tnc nombre-servidor -p 443 (PowerShell)\n   - telnet nombre-servidor 443\n\nReporta tickets con los resultados del ping.",
+      "category": "Red",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.705826"
+    },
+    {
+      "keywords": "lento,pc lento,computador lento,slow,rendimiento",
+      "question": "Mi computador está muy lento",
+      "answer": "Pasos de optimización:\n\n1. **Reinicia el equipo** (la mayoría de problemas se solucionan así)\n2. Cierra programas que no uses (mira Administrador de Tareas: Ctrl+Shift+Esc)\n3. Verifica espacio en disco C: (debe tener >20% libre)\n4. Desactiva programas de inicio:\n   - Win+R → \"msconfig\" → Inicio → Abrir Administrador de tareas\n   - Deshabilita los no esenciales\n5. Ejecuta limpieza de disco:\n   - Click derecho en C: → Propiedades → Liberar espacio\n6. Verifica si tu antivirus está escaneando\n\nSi persiste, escala a soporte. Puede requerir más RAM o SSD.",
+      "category": "Windows",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.706168"
+    },
+    {
+      "keywords": "pantalla azul,bsod,blue screen,error,reinicia",
+      "question": "Pantalla azul (BSOD) en mi PC",
+      "answer": "**Anota el código de error** (ej: PAGE_FAULT_IN_NONPAGED_AREA, IRQL_NOT_LESS_OR_EQUAL)\n\n1. Reinicia y observa si se repite\n2. Si pasa al iniciar Windows:\n   - Inicia en Modo Seguro (F8 al arrancar)\n   - Restaura sistema a una fecha anterior\n3. Causas comunes:\n   - Drivers desactualizados (especialmente GPU)\n   - RAM defectuosa\n   - Disco con sectores defectuosos\n   - Software incompatible\n\n4. Diagnóstico:\n   - cmd como admin: \"sfc /scannow\"\n   - cmd como admin: \"DISM /Online /Cleanup-Image /RestoreHealth\"\n\nReporta el código exacto del error.",
+      "category": "Windows",
+      "priority": "high",
+      "created_at": "2026-06-01 20:52:08.706488"
+    },
+    {
+      "keywords": "actualizar,windows update,actualizaciones,update",
+      "question": "¿Cómo actualizo Windows?",
+      "answer": "1. Inicio → Configuración → Windows Update\n2. Buscar actualizaciones\n3. Descargar e instalar\n4. Reiniciar cuando se solicite\n\nMejores prácticas:\n- Guarda tu trabajo antes de reiniciar\n- Conecta a corriente (laptops)\n- No apagues durante actualización\n- Programar fuera de horario laboral\n\nSi las actualizaciones fallan:\n- cmd como admin: \"wuauclt /resetauthorization /detectnow\"\n- Espera 10 minutos\n- Reintenta",
+      "category": "Windows",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.706820"
+    },
+    {
+      "keywords": "archivos,perdidos,recuperar,borrados,papelera",
+      "question": "¿Cómo recupero archivos borrados?",
+      "answer": "1. **Papelera de reciclaje**: Doble click → Buscar → Click derecho → Restaurar\n\n2. **Versiones anteriores**:\n   - Click derecho en la carpeta padre → Propiedades → Versiones anteriores\n\n3. **OneDrive**: Si lo tenías sincronizado:\n   - https://onedrive.com → Papelera → Restaurar\n   - Historial de versiones: archivo → click derecho → Historial de versiones\n\n4. **SharePoint**:\n   - Sitio → Configuración → Contenido del sitio → Papelera\n\n5. **Backup empresarial**: Crea ticket urgente. Los respaldos cubren últimos 30 días.\n\nNo escribas más datos al disco hasta intentar recuperarlos.",
+      "category": "Windows",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.707166"
+    },
+    {
+      "keywords": "idioma,teclado,configuracion teclado,layout",
+      "question": "¿Cómo cambio el idioma del teclado?",
+      "answer": "1. Configuración → Hora e idioma → Idioma\n2. \"Agregar idioma\" si no aparece\n3. Click en idioma → Opciones → Agregar teclado\n4. Cambiar entre idiomas: Alt+Shift o Win+Espacio\n\nTeclados comunes:\n- Español (Internacional): la ñ y acentos\n- Español (Latinoamérica): teclas más comunes en LATAM\n- Inglés (EE.UU.): sin ñ, distribución QWERTY estándar",
+      "category": "Windows",
+      "priority": "low",
+      "created_at": "2026-06-01 20:52:08.707501"
+    },
+    {
+      "keywords": "excel,formula,no funciona,calcula",
+      "question": "Las fórmulas de Excel no calculan",
+      "answer": "1. Verifica que el cálculo automático esté activo:\n   - Fórmulas → Opciones para el cálculo → Automático\n\n2. La celda puede tener formato Texto:\n   - Selecciona la celda → Formato → Número\n   - Borra el contenido y vuelve a escribir la fórmula\n\n3. Verifica errores en la fórmula:\n   - #REF! = referencia inválida\n   - #VALUE! = tipo de dato incorrecto\n   - #DIV/0! = división por cero\n   - #NAME? = función mal escrita\n\n4. Presiona F9 para recalcular manualmente\n5. Ctrl+Alt+F9 fuerza recálculo completo",
+      "category": "Office",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.707828"
+    },
+    {
+      "keywords": "word,no guarda,perdido,documento,recuperar",
+      "question": "Perdí mi documento de Word sin guardar",
+      "answer": "1. Abre Word\n2. Archivo → Información → Administrar documento\n3. \"Recuperar libros no guardados\" (Word) o documentos\n4. Busca el archivo\n\nUbicaciones de auto-guardado:\n- Word: %APPDATA%\\Microsoft\\Word\\\n- Excel: %APPDATA%\\Microsoft\\Excel\\\n\nPara el futuro:\n- Habilita AutoRecuperación cada 1 min: Archivo → Opciones → Guardar\n- Guarda directamente en OneDrive (auto-guarda)\n- Usa Ctrl+S frecuentemente",
+      "category": "Office",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.708154"
+    },
+    {
+      "keywords": "teams,reunion,meeting,zoom",
+      "question": "¿Cómo programo una reunión en Teams?",
+      "answer": "1. Abre Teams\n2. Calendario (icono lateral)\n3. \"Nueva reunión\" (esquina superior derecha)\n4. Llena:\n   - Título\n   - Asistentes (escribe nombres)\n   - Fecha y hora\n   - Detalles\n5. Guardar\n\nLa reunión aparece en:\n- Tu calendario de Outlook\n- Calendarios de invitados\n- Pestaña \"Próximas\" en Teams\n\nPara unirse: click en el evento → \"Unirse\"",
+      "category": "Office",
+      "priority": "low",
+      "created_at": "2026-06-01 20:52:08.708501"
+    },
+    {
+      "keywords": "sharepoint,onedrive,compartir,carpeta",
+      "question": "¿Cómo comparto archivos en OneDrive/SharePoint?",
+      "answer": "1. Click derecho sobre el archivo/carpeta → Compartir\n2. Escribe los correos de los destinatarios\n3. Elige permisos:\n   - **Puede editar**: pueden modificar\n   - **Puede ver**: solo lectura\n   - **Puede comentar**: lectura + comentarios\n4. Opcionales:\n   - Establecer fecha de expiración\n   - Contraseña para acceso\n   - Bloquear descargas\n5. Enviar\n\nSeguridad:\n- NO compartir con \"Cualquier persona con el vínculo\" información confidencial\n- Para externos, usa la opción \"Personas específicas\"",
+      "category": "Office",
+      "priority": "low",
+      "created_at": "2026-06-01 20:52:08.708844"
+    },
+    {
+      "keywords": "impresora,no imprime,impresion,print",
+      "question": "La impresora no imprime",
+      "answer": "1. **Revisa físicamente**:\n   - Encendida y con papel\n   - Sin atascos visibles\n   - Tóner/tinta disponible\n   - Cable de red conectado\n\n2. **Cola de impresión**:\n   - Configuración → Dispositivos → Impresoras\n   - Click derecho en la impresora → Ver cola de impresión\n   - Cancela trabajos atascados\n\n3. **Reinicia el servicio de impresión**:\n   - Win+R → services.msc\n   - Busca \"Cola de impresión\" → Reiniciar\n\n4. **Reinstala la impresora**:\n   - Quitar dispositivo\n   - Agregar impresora → busca por nombre/IP\n\nNombre estándar: PRINTER-PISO-AREA (ej: PRINTER-3-CONTABILIDAD)",
+      "category": "Impresoras",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.709188"
+    },
+    {
+      "keywords": "agregar impresora,instalar impresora,nueva",
+      "question": "¿Cómo agrego una impresora?",
+      "answer": "1. Configuración → Dispositivos → Impresoras y escáneres\n2. \"Agregar impresora o escáner\"\n3. Espera a que la encuentre por red\n4. Si no aparece: \"La impresora deseada no aparece\"\n5. \"Agregar usando dirección TCP/IP\":\n   - IP de la impresora (consulta a soporte)\n   - Tipo: TCP/IP estándar\n\nImpresoras corporativas comunes:\n- impresion.empresa.local\n\nCualquier usuario puede agregar impresoras. Si el driver no se instala, contacta soporte.",
+      "category": "Impresoras",
+      "priority": "low",
+      "created_at": "2026-06-01 20:52:08.709876"
+    },
+    {
+      "keywords": "escanear,scan,digitalizar",
+      "question": "¿Cómo escaneo un documento?",
+      "answer": "**Desde impresora multifuncional**:\n1. Coloca el documento en el escáner\n2. En el panel de la impresora: \"Escanear\" o \"Scan to email\"\n3. Selecciona tu correo (o ingresa otra dirección)\n4. Configura: PDF (mejor compartir) o JPG (imágenes)\n5. Inicia escaneo\n6. Recibirás el archivo en tu correo\n\n**Desde Windows**:\n- Abre \"Escáner de Windows\" (Microsoft Store)\n- Sigue las instrucciones\n\n**Móvil**:\n- App \"Microsoft Lens\" o \"Adobe Scan\"\n- Captura con la cámara\n- Genera PDF automáticamente",
+      "category": "Impresoras",
+      "priority": "low",
+      "created_at": "2026-06-01 20:52:08.710277"
+    },
+    {
+      "keywords": "sap,no abre,no inicia,saplogon,gui",
+      "question": "SAP GUI no abre o da error al iniciar",
+      "answer": "1. Verifica conexión a la red corporativa o VPN\n2. Verifica que el servicio esté disponible:\n   - Ping al servidor de aplicaciones\n3. Limpia caché de SAP:\n   - Cierra SAP completamente\n   - Borra: %APPDATA%\\SAP\\Common\n4. Verifica versión de SAP GUI (mínima 7.60)\n5. Verifica que el archivo \"saplogon.ini\" o \"SAPUILandscape.xml\" exista\n   - Ubicación: %APPDATA%\\SAP\\Common\n\nCódigos de error comunes:\n- \"Partner not reached\" = sin conexión al servidor\n- \"Connection broken\" = caída del servicio\n- \"Logon not possible\" = credenciales o mandante incorrecto",
+      "category": "SAP",
+      "priority": "critical",
+      "created_at": "2026-06-01 20:52:08.710657"
+    },
+    {
+      "keywords": "sap,bloqueado,locked,usuario,gui",
+      "question": "Mi usuario SAP está bloqueado",
+      "answer": "Causas comunes de bloqueo SAP:\n1. Múltiples intentos fallidos de login\n2. Inactividad por más de 90 días\n3. Cierre administrativo\n4. Vencimiento de contraseña\n\nSolución:\n- Crea ticket en categoría SAP\n- Indica: usuario SAP, mandante (cliente), ambiente (PRD/QAS/DEV)\n- Soporte BASIS desbloquea normalmente en < 1 hora\n\nMientras tanto:\n- No intentes más logins (extiende bloqueo)\n- Si es urgente, escala al supervisor BASIS",
+      "category": "SAP",
+      "priority": "high",
+      "created_at": "2026-06-01 20:52:08.711079"
+    },
+    {
+      "keywords": "sap,transaccion,error,abap dump",
+      "question": "Error en transacción SAP (ABAP Dump)",
+      "answer": "1. **Anota la información del dump**:\n   - Nombre del programa\n   - Línea del error\n   - Mensaje técnico\n\n2. **Captura pantalla del error**\n\n3. **Pasos para reproducirlo**:\n   - Transacción exacta\n   - Datos ingresados\n   - Botones presionados\n\n4. **Información útil**:\n   - Mandante (consulta con SY-MANDT)\n   - Tu usuario SAP\n   - Hora exacta del error\n\nCrear ticket en categoría SAP con toda esta info. El equipo ABAP analizará el dump (transacción ST22).",
+      "category": "SAP",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.711530"
+    },
+    {
+      "keywords": "sap,reporte,lento,timeout,no genera",
+      "question": "Reporte SAP muy lento o da timeout",
+      "answer": "1. **Limita el rango**:\n   - Filtra por fechas más pequeñas\n   - Filtra por sociedad/centro/material específico\n   - Usa variantes guardadas\n\n2. **Ejecuta en background (en segundo plano)**:\n   - Programa → Ejecutar en segundo plano (F9)\n   - Recibirás notificación cuando termine\n   - Ver con: SP01 o SMX\n\n3. **Si es crítico**:\n   - Reporta a soporte SAP\n   - Posible optimización por equipo BASIS\n   - Tabla con índices faltantes (transacción DBACOCKPIT)",
+      "category": "SAP",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.711942"
+    },
+    {
+      "keywords": "phishing,sospechoso,fraude,correo extraño",
+      "question": "Recibí un correo sospechoso (posible phishing)",
+      "answer": "**NO HAGAS CLICK en ningún link**\n\n1. **Identificadores de phishing**:\n   - Urgencia anormal (\"actúa ahora!\")\n   - Solicita contraseñas\n   - Errores ortográficos\n   - Remitente extraño o suplantado\n   - Links a dominios extraños\n\n2. **Acciones**:\n   - NO respondas\n   - NO hagas click en links\n   - NO descargues adjuntos\n   - Repórtalo: \"Inicio → Reportar como phishing\" (Outlook)\n   - Adjunta el correo a un ticket de Seguridad\n   - Elimínalo\n\n3. **Si hiciste click**: \n   - Cambia tu contraseña INMEDIATAMENTE\n   - Notifica a Seguridad\n   - Escanea tu equipo con antivirus",
+      "category": "Seguridad",
+      "priority": "critical",
+      "created_at": "2026-06-01 20:52:08.712307"
+    },
+    {
+      "keywords": "virus,malware,ransomware,infectado,trojan",
+      "question": "Mi equipo parece tener un virus",
+      "answer": "**DESCONECTA EL EQUIPO DE LA RED INMEDIATAMENTE** (saca cable Ethernet, apaga WiFi).\n\n1. Síntomas comunes:\n   - Lentitud extrema\n   - Ventanas emergentes constantes\n   - Archivos cifrados/renombrados (ransomware)\n   - Programas desconocidos\n   - Antivirus deshabilitado\n   - Navegador redirige a sitios extraños\n\n2. **Acciones**:\n   - NO ingreses contraseñas\n   - Apaga el equipo\n   - Llama a soporte: ext. 5000\n   - Reporta como CRÍTICO\n\n3. NO intentes \"limpiarlo\" tú mismo - puede empeorar\n\nEl equipo de Seguridad usará herramientas especializadas. Posible reinstalación completa.",
+      "category": "Seguridad",
+      "priority": "critical",
+      "created_at": "2026-06-01 20:52:08.712661"
+    },
+    {
+      "keywords": "usb,dispositivo,no reconoce,bloqueado",
+      "question": "¿Por qué no puedo usar mi USB?",
+      "answer": "Por políticas de seguridad, los puertos USB están restringidos:\n\n- **USBs personales**: bloqueados (riesgo de virus)\n- **USBs corporativos cifrados**: permitidos\n- **Dispositivos médicos**: aprobación necesaria\n\nSi necesitas transferir datos:\n1. **Internamente**: usa OneDrive, SharePoint o carpetas de red\n2. **Externamente**: WeTransfer corporativo o link OneDrive con expiración\n3. **USB corporativo**: solicita uno en categoría Seguridad\n\nMover datos por USBs personales viola políticas y puede acarrear sanciones.",
+      "category": "Seguridad",
+      "priority": "high",
+      "created_at": "2026-06-01 20:52:08.713001"
+    },
+    {
+      "keywords": "mfa,2fa,doble factor,authenticator,token",
+      "question": "¿Cómo configuro el doble factor (MFA)?",
+      "answer": "1. Instala app autenticadora:\n   - **Microsoft Authenticator** (recomendado)\n   - Google Authenticator\n\n2. Ve a https://mysignins.microsoft.com\n3. Información de seguridad → Agregar método → Aplicación autenticadora\n4. Escanea el código QR con la app\n5. Verifica con código de 6 dígitos\n\n**Importante**:\n- Habilita notificaciones push (más cómodo)\n- Guarda códigos de recuperación en lugar seguro\n- Si cambias de móvil, configura ANTES de deshacerte del viejo\n\nMFA es obligatorio para todos los empleados desde 2024.",
+      "category": "Seguridad",
+      "priority": "high",
+      "created_at": "2026-06-01 20:52:08.713353"
+    },
+    {
+      "keywords": "no enciende,no prende,muerto,sin energia",
+      "question": "Mi computador no enciende",
+      "answer": "**Laptop**:\n1. Conecta al cargador (puede estar sin batería)\n2. Espera 30 segundos y presiona botón encendido\n3. Si el LED de carga no se enciende: cargador o batería dañados\n4. Reset por hardware: mantén botón encendido 30 segundos sin cargador\n5. Pulsa el botón mientras conectas el cargador\n\n**Desktop**:\n1. Verifica enchufe a corriente\n2. Verifica interruptor trasero de la fuente\n3. Cable del monitor conectado al CPU (no a la placa madre)\n4. Probar con otra fuente de poder si tienes\n\nSi no hay LEDs ni ventiladores: contacta soporte (posible falla de fuente).",
+      "category": "Hardware",
+      "priority": "high",
+      "created_at": "2026-06-01 20:52:08.713713"
+    },
+    {
+      "keywords": "monitor,pantalla,no señal,no signal,negro",
+      "question": "Mi monitor no muestra imagen",
+      "answer": "1. Verifica que el monitor esté encendido (LED frontal)\n2. Verifica cable de video (HDMI/DisplayPort/VGA):\n   - Bien conectado en ambos extremos\n   - Sin daños visibles\n3. Si tienes 2 cables, prueba el otro\n4. Cambia la entrada del monitor (botón \"Source/Input\")\n5. Si el CPU funciona pero el monitor no:\n   - Verifica que está conectado a la GPU (no a la placa base) en desktops\n   - Prueba con otro monitor\n6. Conexión correcta:\n   - Laptop: cable a salida HDMI/USB-C\n   - Desktop: cable a tarjeta gráfica (no a placa madre)\n\nWin+P para cambiar modo de pantalla (extender/duplicar)",
+      "category": "Hardware",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.714056"
+    },
+    {
+      "keywords": "mouse,teclado,no funciona,inalambrico,wireless",
+      "question": "Mi teclado o mouse no funciona",
+      "answer": "**Inalámbrico**:\n1. Verifica nivel de batería\n2. Verifica el receptor USB (cambia de puerto)\n3. Reinicia: apaga 10 segundos y enciende\n4. Re-empareja: presiona botón de pareo\n\n**Bluetooth**:\n1. Configuración → Dispositivos Bluetooth\n2. Quitar dispositivo\n3. Modo emparejamiento (botón especial 3-5 segundos)\n4. Volver a agregar\n\n**Cableado**:\n1. Cambia de puerto USB\n2. Prueba en otro equipo\n3. Si funciona en otro: problema del PC\n4. Si no funciona en otro: hardware dañado, reemplazar\n\nReinicia el equipo después de instalación.",
+      "category": "Hardware",
+      "priority": "low",
+      "created_at": "2026-06-01 20:52:08.714412"
+    },
+    {
+      "keywords": "correo movil,outlook movil,configurar correo telefono",
+      "question": "¿Cómo configuro el correo corporativo en mi móvil?",
+      "answer": "**Outlook App (recomendado)**:\n1. Descarga \"Microsoft Outlook\" desde tu tienda\n2. Abrir → Agregar cuenta\n3. Ingresa correo corporativo\n4. Acepta los requisitos de la empresa (MDM)\n5. Configura PIN o biométrico\n\n**Configuración manual (Exchange)**:\n- Servidor: outlook.office365.com\n- Dominio: empresa\n- Usuario: tu correo completo\n- Puerto: 443\n- SSL: Sí\n\n**Política de seguridad**:\n- Tu móvil debe tener PIN/contraseña\n- Cifrado activado\n- Si se pierde, IT puede borrar los datos corporativos remotamente",
+      "category": "Móvil",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.714745"
+    },
+    {
+      "keywords": "teams movil,zoom movil,llamadas",
+      "question": "¿Cómo uso Teams en mi móvil?",
+      "answer": "1. Descarga \"Microsoft Teams\" desde App Store/Play Store\n2. Inicia sesión con tu cuenta corporativa\n3. Verifica MFA cuando se solicite\n\nFuncionalidades:\n- Chats y llamadas\n- Reuniones (puede unirse desde calendario)\n- Compartir pantalla del móvil\n- Notificaciones push\n\nConsejos:\n- Habilita notificaciones para no perder mensajes\n- Usa audio del móvil en reuniones de pie\n- Para reuniones largas, conecta auriculares\n- Modo \"no molestar\" en horarios fuera de trabajo",
+      "category": "Móvil",
+      "priority": "low",
+      "created_at": "2026-06-01 20:52:08.715075"
+    },
+    {
+      "keywords": "telefono,extension,llamadas,no funciona",
+      "question": "Mi teléfono IP no funciona",
+      "answer": "1. **Reinicia el teléfono**:\n   - Desconecta el cable de red 10 segundos\n   - Vuelve a conectar\n   - Espera que se inicie (1-2 min)\n\n2. **Verifica cable de red**:\n   - Conectado al puerto correcto\n   - LED del puerto encendido\n\n3. **Sin tono**:\n   - Verifica volumen del auricular\n   - Prueba auricular alternativo\n\n4. **No registra**:\n   - Indica error en pantalla\n   - Contacta soporte con número de extensión\n\nExtensiones por área:\n- 1000-1999: Administración\n- 2000-2999: Ventas\n- 3000-3999: Operaciones\n- 4000-4999: TI",
+      "category": "Telefonía",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.715426"
+    },
+    {
+      "keywords": "desviar,llamadas,reenvio,forward",
+      "question": "¿Cómo desvío mis llamadas?",
+      "answer": "En teléfono IP corporativo:\n\n1. Marca **\\*72** + número destino (siempre desvío)\n2. Marca **\\*73** para cancelar desvío\n3. **\\*92** + número = desvío ocupado\n4. **\\*94** + número = desvío no contesta\n\nPara desviar al móvil:\n- *72 + 9 + número celular (sin guiones)\n\nPara recibir mensajes de voz:\n- Marca **\\*86** desde tu teléfono\n- Ingresa PIN (defecto: 1234)\n\nMensajería de voz también llega a tu correo como archivo MP3.",
+      "category": "Telefonía",
+      "priority": "low",
+      "created_at": "2026-06-01 20:52:08.715779"
+    },
+    {
+      "keywords": "no carga,aplicacion,sistema caido,no funciona",
+      "question": "Una aplicación interna no carga",
+      "answer": "1. **Verifica estado del sistema**:\n   - Página de estado: status.empresa.local\n   - Pregunta a colegas si les pasa lo mismo\n\n2. **Si solo a ti**:\n   - Limpia caché del navegador (Ctrl+Shift+Supr)\n   - Prueba modo incógnito\n   - Prueba otro navegador (Chrome/Edge/Firefox)\n   - Reinicia tu sesión\n\n3. **Si a todos**:\n   - El servicio puede estar caído\n   - Crea ticket en categoría Servidores\n   - Indica: aplicación, hora, mensaje de error\n\n4. **Errores comunes**:\n   - 404: página no existe\n   - 500: error del servidor\n   - 502/503: servicio no disponible\n   - 401/403: sin permisos",
+      "category": "Servidores",
+      "priority": "high",
+      "created_at": "2026-06-01 20:52:08.716113"
+    },
+    {
+      "keywords": "carpeta red,compartido,no accede,acceso denegado",
+      "question": "No puedo acceder a una carpeta de red",
+      "answer": "1. **Verifica conectividad**:\n   - Estás en la red corporativa o VPN\n   - Mapa de red: \\\\fileserver\\departamento\n\n2. **Reconectar unidad**:\n   - Win+R → \"cmd\"\n   - \"net use Z: /delete\"\n   - \"net use Z: \\\\fileserver\\compartido /persistent:yes\"\n\n3. **Permisos**:\n   - Pide acceso al gerente del área dueña de la carpeta\n   - Aprobación llega a soporte\n   - Tiempo de respuesta: 1-2 días\n\n4. **Acceso denegado**:\n   - Cierra sesión y vuelve a iniciar\n   - Esto refresca los permisos de grupo",
+      "category": "Servidores",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.716442"
+    },
+    {
+      "keywords": "horario,soporte,atencion,ayuda",
+      "question": "¿Cuál es el horario de soporte TI?",
+      "answer": "**Mesa de Ayuda**:\n- Lunes a Viernes: 7:00 AM - 6:00 PM\n- Sábados: 8:00 AM - 12:00 PM\n- Domingos y festivos: cerrado\n\n**Emergencias 24/7**:\n- Solo para incidentes CRÍTICOS\n- Caídas de servicios productivos\n- Ext. 5911 o +57 300 555 0911\n- WhatsApp soporte emergencias: +57 300 555 0911\n\n**Canales no-emergencia**:\n- TicketDesk (este sistema): siempre disponible\n- Email: soporte@empresa.com\n- Teams: canal \"Soporte TI\"\n- Bot de soporte: 24/7 para preguntas frecuentes",
+      "category": "General",
+      "priority": "low",
+      "created_at": "2026-06-01 20:52:08.716776"
+    },
+    {
+      "keywords": "sla,tiempo respuesta,cuanto tarda",
+      "question": "¿Cuál es el tiempo de respuesta de soporte?",
+      "answer": "**SLA por prioridad**:\n\n| Prioridad | Respuesta | Resolución |\n|-----------|-----------|------------|\n| Crítica | 15 min | 2 horas |\n| Alta | 1 hora | 4 horas |\n| Media | 4 horas | 1 día |\n| Baja | 1 día | 5 días |\n\n**Definiciones**:\n- **Crítica**: Servicio caído, afecta múltiples usuarios o producción\n- **Alta**: No puedes trabajar, sin alternativa\n- **Media**: Inconveniente pero puedes trabajar\n- **Baja**: Solicitud no urgente, mejora\n\nSi tu ticket no recibe respuesta en el SLA, escala a tu gerente.",
+      "category": "General",
+      "priority": "low",
+      "created_at": "2026-06-01 20:52:08.717110"
+    },
+    {
+      "keywords": "capacitacion,curso,training,aprender",
+      "question": "¿Hay capacitaciones disponibles?",
+      "answer": "Sí, ofrecemos capacitaciones mensuales sobre:\n\n- **Office 365**: Excel avanzado, PowerPoint, Outlook\n- **Teams**: Reuniones, canales, colaboración\n- **Seguridad**: Phishing, MFA, contraseñas\n- **SAP**: Por módulos (FI, MM, SD, etc.)\n- **Power BI**: Dashboards básicos\n\n**Para inscribirte**:\n1. Portal Capacita: capacita.empresa.local\n2. Calendario en Teams: canal \"Capacitaciones TI\"\n3. Solicitud al ticket en categoría General → Capacitación\n\nLas capacitaciones internas son gratis. Externas requieren aprobación de tu gerente.",
+      "category": "General",
+      "priority": "low",
+      "created_at": "2026-06-01 20:52:08.717451"
+    },
+    {
+      "keywords": "inventario,activos,asignacion,equipo",
+      "question": "¿Cómo consulto mis activos asignados?",
+      "answer": "**Portal de activos**:\n1. activos.empresa.local\n2. Inicia sesión con tu cuenta corporativa\n3. \"Mis activos\" muestra:\n   - Equipos (PC, laptop, tablet)\n   - Periféricos (monitor, teclado, mouse)\n   - Móviles corporativos\n   - Licencias de software\n\n**Reportar daño**:\n- Click en el activo → \"Reportar incidencia\"\n- O crea ticket en categoría Hardware\n\n**Devolución**:\n- Al cambiar de equipo o salir de la empresa\n- Coordina con tu gerente y soporte\n- Firma acta de entrega/devolución",
+      "category": "General",
+      "priority": "low",
+      "created_at": "2026-06-01 20:52:08.717767"
+    },
+    {
+      "keywords": "nuevo equipo,cambio pc,migracion datos,traslado",
+      "question": "¿Cómo traspaso mis datos a un equipo nuevo?",
+      "answer": "**Antes de la migración**:\n1. Asegúrate que TODO esté en OneDrive (no solo Escritorio local)\n2. Exporta firmas de Outlook\n3. Anota tu lista de software instalado\n4. Backup de archivos personales en red\n\n**Durante la entrega del nuevo equipo**:\n1. Soporte instala configuración base\n2. Inicia sesión con tu cuenta corporativa\n3. OneDrive sincroniza automáticamente\n4. Outlook se configura solo\n5. Instala software adicional según necesidad\n\n**Verifica**:\n- [ ] Documentos sincronizados\n- [ ] Correos completos\n- [ ] Conexión VPN\n- [ ] SAP y otros sistemas\n- [ ] Impresoras agregadas\n\nLa migración típicamente toma 1-2 horas.",
+      "category": "General",
+      "priority": "medium",
+      "created_at": "2026-06-01 20:52:08.718041"
+    },
+    {
+      "keywords": "cambiar pin,nuevo pin,resetear pin",
+      "question": "¿Cómo cambio mi PIN de Windows Hello?",
+      "answer": "1. Inicio → Configuración → Cuentas\n2. Opciones de inicio de sesión\n3. PIN (Windows Hello) → Cambiar\n4. Confirma contraseña actual\n5. Ingresa nuevo PIN (mínimo 4 dígitos)\n6. Confirma de nuevo",
+      "category": "Contraseñas",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.264201"
+    },
+    {
+      "keywords": "cuenta hackeada,intrusion,acceso no autorizado",
+      "question": "Sospecho que mi cuenta fue hackeada",
+      "answer": "**ACCIÓN INMEDIATA**:\n1. Cambia tu contraseña AHORA desde otro dispositivo\n2. Cierra todas las sesiones activas: mysignins.microsoft.com\n3. Revisa actividad reciente de inicios de sesión\n4. Activa MFA si no lo tienes\n5. Notifica a Seguridad: ext. 5911\n6. Revisa carpeta Enviados de correo (¿se enviaron mensajes que no fuiste tú?)",
+      "category": "Contraseñas",
+      "priority": "high",
+      "created_at": "2026-06-09 08:54:58.268577"
+    },
+    {
+      "keywords": "gestor contraseñas,password manager,guardar credenciales",
+      "question": "¿Puedo usar un gestor de contraseñas?",
+      "answer": "Sí, **se recomienda**. Opciones aprobadas:\n- Microsoft Authenticator (sincroniza con cuenta MS)\n- Bitwarden (open source)\n- 1Password (corporativo, consultar disponibilidad)\n\n**NO USAR**:\n- Guardar contraseñas en archivos .txt\n- Compartir por chat o correo\n- Usar la misma contraseña en varios sitios",
+      "category": "Contraseñas",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.270216"
+    },
+    {
+      "keywords": "expira,expirar,vencimiento,90 dias",
+      "question": "¿Cada cuánto expira mi contraseña?",
+      "answer": "Las contraseñas corporativas expiran cada **90 días**.\n\nRecibirás:\n- Notificación 14 días antes\n- Recordatorio 7 días antes\n- Aviso diario los últimos 3 días\n\nPara cambiarla antes:\n- Ctrl+Alt+Suprimir → Cambiar contraseña\n- O desde passwordreset.empresa.local",
+      "category": "Contraseñas",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.271560"
+    },
+    {
+      "keywords": "olvide pin,pin bloqueado",
+      "question": "Olvidé mi PIN de Windows",
+      "answer": "1. En la pantalla de login, debajo del PIN: \"¿Olvidaste tu PIN?\"\n2. Inicia sesión con tu contraseña\n3. Verifica identidad (MFA si tienes)\n4. Configura un nuevo PIN\n\nSi no puedes:\n- Conecta el equipo a la red corporativa\n- Reinicia\n- Vuelve a intentar\n- Última opción: ticket en categoría Accesos",
+      "category": "Contraseñas",
+      "priority": "high",
+      "created_at": "2026-06-09 08:54:58.273139"
+    },
+    {
+      "keywords": "nuevo dispositivo,authenticator,perdi celular",
+      "question": "Cambié de celular, ¿cómo migro mi Authenticator?",
+      "answer": "**ANTES de descartar el teléfono viejo**:\n1. Microsoft Authenticator app → Configuración → Iniciar copia de seguridad en la nube\n2. En el nuevo teléfono: instala app, inicia sesión con misma cuenta personal\n3. Tap en \"Recuperar desde copia de seguridad\"\n\n**Si ya no tienes el teléfono viejo**:\n- Ve a https://mysignins.microsoft.com/security-info\n- Elimina el método \"App de autenticación\" antiguo\n- Agrega uno nuevo con el celular actual\n- Necesitarás MFA alternativo (SMS, llamada) para confirmar",
+      "category": "Autenticación",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.274771"
+    },
+    {
+      "keywords": "codigos respaldo,recuperacion",
+      "question": "¿Cómo genero códigos de respaldo de MFA?",
+      "answer": "1. Ve a https://mysignins.microsoft.com/security-info\n2. Busca \"Códigos de recuperación\"\n3. Generar nuevos códigos (10 únicos)\n4. **Guárdalos en lugar SEGURO** (no en el celular)\n5. Usa uno cada vez que no tengas acceso a Authenticator\n\nCada código es de **un solo uso**.",
+      "category": "Autenticación",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.276377"
+    },
+    {
+      "keywords": "mfa no funciona,no recibo codigo",
+      "question": "No me llegan códigos SMS de verificación",
+      "answer": "1. Verifica el número registrado en https://mysignins.microsoft.com\n2. Asegúrate que el celular tenga señal\n3. Verifica que no esté en modo avión / no molestar\n4. Espera 5 minutos (a veces hay retrasos)\n5. Prueba \"Llamarme\" en lugar de SMS\n6. Si nada funciona: usa la app Authenticator\n\nÚltima opción: contactar Soporte para reset de MFA con verificación de identidad.",
+      "category": "Autenticación",
+      "priority": "high",
+      "created_at": "2026-06-09 08:54:58.277901"
+    },
+    {
+      "keywords": "sso,single sign on,inicio sesion unico",
+      "question": "¿Qué es SSO (Single Sign-On)?",
+      "answer": "**SSO** = Inicio de Sesión Único.\n\nSignifica que al ingresar UNA vez con tu cuenta corporativa, accedes automáticamente a:\n- Correo (Outlook)\n- OneDrive\n- Teams\n- SharePoint\n- TicketDesk\n- Aplicaciones internas\n\nSin volver a ingresar contraseña. Es más seguro y conveniente.",
+      "category": "Autenticación",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.279901"
+    },
+    {
+      "keywords": "politica contraseñas,requisitos",
+      "question": "¿Cuál es la política de contraseñas?",
+      "answer": "**Requisitos mínimos**:\n- 12 caracteres mínimo\n- Al menos 1 mayúscula\n- Al menos 1 minúscula\n- Al menos 1 número\n- Al menos 1 símbolo especial\n- NO puede contener tu nombre/usuario\n- NO puede ser igual a las últimas 5\n\n**Recomendaciones**:\n- Usa frases largas (más seguras)\n- Ejemplo: \"MiCafe2024SinAzucar!\"\n- NO uses fechas personales\n- NO la repitas en otros sitios",
+      "category": "Contraseñas",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.281439"
+    },
+    {
+      "keywords": "bateria,no carga,laptop bateria",
+      "question": "Mi laptop no carga la batería",
+      "answer": "1. Verifica que el cargador esté conectado correctamente\n2. Prueba con otro tomacorriente\n3. Inspecciona el cable del cargador (sin dobleces o cortes)\n4. Limpia el conector con aire comprimido\n5. Calibra la batería:\n   - Cárgala al 100%\n   - Desconecta y úsala hasta apagado\n   - Cárgala 100% sin interrupciones\n6. Si el LED no enciende al conectar: cargador defectuoso\n7. Reporta a soporte para reemplazo si persiste",
+      "category": "Hardware",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.283273"
+    },
+    {
+      "keywords": "laptop calienta,sobrecalentamiento,temperatura",
+      "question": "Mi laptop se calienta mucho",
+      "answer": "1. Verifica que las rejillas de ventilación NO estén bloqueadas\n2. No la uses sobre cama o sofá (bloquean ventilación)\n3. Usa base con ventilador si trabajas largas horas\n4. Cierra apps pesadas innecesarias\n5. Verifica en Administrador de Tareas qué consume CPU\n6. Limpia ventiladores (cada 6 meses, soporte puede ayudar)\n7. Si pasa los 80°C continuamente: requiere mantenimiento",
+      "category": "Hardware",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.284874"
+    },
+    {
+      "keywords": "tactil,touchpad,no funciona",
+      "question": "El touchpad de mi laptop no funciona",
+      "answer": "1. Verifica tecla función: Fn + F7 (o icono touchpad) para activar\n2. Configuración → Dispositivos → Panel táctil\n3. Verifica que \"Panel táctil\" esté ON\n4. Actualiza driver:\n   - Win+X → Administrador de dispositivos\n   - Dispositivos de interfaz humana → Panel táctil\n   - Click derecho → Actualizar driver\n5. Si tienes mouse externo conectado, desconéctalo y reinicia\n6. Reset de configuración táctil en Settings",
+      "category": "Hardware",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.286567"
+    },
+    {
+      "keywords": "pantalla parpadea,flickering",
+      "question": "La pantalla parpadea o tiembla",
+      "answer": "1. **Identifica si es la pantalla o el cable**:\n   - Mueve la pantalla → si cambia, es el cable\n   - Conecta a monitor externo → si externo OK, es pantalla\n2. Actualiza el driver de gráficos\n3. Cambia la tasa de refresco:\n   - Configuración → Pantalla → Avanzado\n   - Tasa: 60Hz estable\n4. Revisa cables si es desktop\n5. Si persiste: requiere reparación o reemplazo",
+      "category": "Hardware",
+      "priority": "high",
+      "created_at": "2026-06-09 08:54:58.288147"
+    },
+    {
+      "keywords": "monitor segundo,dual monitor,extender",
+      "question": "¿Cómo conecto un segundo monitor?",
+      "answer": "1. Conecta el monitor secundario por HDMI/DisplayPort/USB-C\n2. Win+P → Selecciona modo:\n   - **Solo pantalla del PC**: solo principal\n   - **Duplicar**: ambas iguales\n   - **Extender**: escritorio amplio (recomendado)\n   - **Solo segunda**: solo monitor externo\n3. Configuración → Sistema → Pantalla\n4. Arrastra las pantallas para definir posición\n5. Asigna resolución para cada una\n6. Si no detecta el segundo monitor: prueba otro cable o puerto",
+      "category": "Hardware",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.289669"
+    },
+    {
+      "keywords": "audio,sonido,no escucha",
+      "question": "No tengo sonido en mi computador",
+      "answer": "1. Verifica volumen NO esté en silencio (icono altavoz)\n2. Click derecho icono altavoz → \"Abrir mezclador de volumen\"\n3. Sube volumen de la app específica\n4. Verifica el dispositivo de salida correcto:\n   - Click derecho altavoz → Sonidos → Reproducción\n5. Si usas headset, prueba con altavoces y viceversa\n6. Actualiza driver de audio (Administrador de dispositivos)\n7. Ejecuta solucionador: Configuración → Solución problemas → Audio",
+      "category": "Hardware",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.291345"
+    },
+    {
+      "keywords": "microfono,mic,no graba,no escucha",
+      "question": "Mi micrófono no funciona en reuniones",
+      "answer": "1. Configuración → Sistema → Sonido\n2. Entrada → verifica dispositivo correcto seleccionado\n3. Prueba: habla y mira la barra de nivel\n4. Permisos:\n   - Configuración → Privacidad → Micrófono\n   - Activar \"Permitir acceso al micrófono\"\n   - Verificar apps específicas (Teams, Zoom)\n5. En Teams: Configuración → Dispositivos → seleccionar mic\n6. Reinicia la app o reinicia el PC",
+      "category": "Hardware",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.292799"
+    },
+    {
+      "keywords": "camara,webcam,no funciona,bloqueada",
+      "question": "Mi cámara web no funciona",
+      "answer": "1. Verifica que la lente NO esté tapada (algunos laptops tienen interruptor físico)\n2. Permisos:\n   - Configuración → Privacidad → Cámara\n   - Activar acceso global y de apps\n3. Cierra otras apps que puedan usar la cámara (Teams, OBS)\n4. Actualiza driver de cámara\n5. Privacidad LED: si está rojo, otra app la está usando\n6. Prueba con app Cámara de Windows para descartar problema de hardware",
+      "category": "Hardware",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.294147"
+    },
+    {
+      "keywords": "docking,dock,estacion",
+      "question": "Mi docking station no detecta dispositivos",
+      "answer": "1. Desconecta y reconecta el cable USB-C/Thunderbolt principal\n2. Verifica que el dock tenga corriente (LED)\n3. Reinstala drivers del fabricante del dock\n4. En Win+X → Administrador de dispositivos: busca dispositivos con !\n5. Actualiza Windows (las nuevas versiones traen mejor soporte)\n6. Reinicia con dock desconectado, luego conecta",
+      "category": "Hardware",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.295789"
+    },
+    {
+      "keywords": "usb no detecta,puerto usb,reconoce",
+      "question": "Los puertos USB no reconocen dispositivos",
+      "answer": "1. Prueba el dispositivo en OTRO puerto USB\n2. Prueba OTRO dispositivo en el mismo puerto\n3. Reinicia el PC\n4. Win+X → Administrador de dispositivos:\n   - Buscar \"Controladoras USB\"\n   - Click derecho → Desinstalar (no asustes, se reinstalan al reiniciar)\n5. Configuración de energía:\n   - Panel control → Opciones de energía → Cambiar plan → Avanzada\n   - USB → Suspensión selectiva → Deshabilitada\n6. Si todos los puertos fallan: requiere mantenimiento\n7. Por temas de la compañia estan bloqueador los puertos para USB",
+      "category": "Hardware",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.297647"
+    },
+    {
+      "keywords": "chrome lento,navegador lento",
+      "question": "Chrome está muy lento",
+      "answer": "1. Limpia caché: Ctrl+Shift+Supr\n2. Desactiva extensiones innecesarias: chrome://extensions\n3. Cierra pestañas que no uses (consumen memoria)\n4. Actualiza Chrome: chrome://settings/help\n5. Restablece configuración: chrome://settings/reset\n6. Verifica que no haya malware: chrome://settings/cleanup\n7. Última opción: desinstalar y reinstalar",
+      "category": "Software",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.299409"
+    },
+    {
+      "keywords": "no instala,error instalacion",
+      "question": "No puedo instalar un programa",
+      "answer": "1. Verifica si tu cuenta tiene permisos de administrador local\n2. Click derecho instalador → \"Ejecutar como administrador\"\n3. Verifica si el archivo no está bloqueado:\n   - Click derecho → Propiedades → \"Desbloquear\"\n4. Desactiva temporalmente antivirus (puede bloquear)\n5. Verifica espacio en disco C: (mínimo 5GB)\n6. Si requiere permisos elevados: solicita instalación por soporte",
+      "category": "Software",
+      "priority": "high",
+      "created_at": "2026-06-09 08:54:58.300995"
+    },
+    {
+      "keywords": "desinstalar programa,eliminar app",
+      "question": "¿Cómo desinstalo un programa?",
+      "answer": "1. Configuración → Aplicaciones → Aplicaciones instaladas\n2. Busca el programa\n3. Click en ⋯ (3 puntos) → Desinstalar\n4. Sigue el asistente\n\n**Si no se desinstala**:\n- Panel de control → Programas → Programas y características\n- Selecciona programa → Desinstalar\n\nPara programas que dejan residuos: usa **Revo Uninstaller** (consulta a soporte primero).",
+      "category": "Software",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.302831"
+    },
+    {
+      "keywords": "office 365,version office,actualizar office",
+      "question": "¿Qué versión de Office tengo?",
+      "answer": "1. Abre Word, Excel o Outlook\n2. Archivo → Cuenta\n3. Verás:\n   - \"Acerca de Word\" → versión exacta\n   - Información del producto: versión\n   - Botón \"Actualizar opciones\" para verificar actualizaciones\n\nVersiones corporativas comunes:\n- Microsoft 365 (suscripción - siempre actualizada)\n- Office 2021 LTSC (perpetuo)\n- Office 2019 (legacy)",
+      "category": "Software",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.304324"
+    },
+    {
+      "keywords": "powerpoint,presentacion no abre",
+      "question": "PowerPoint no abre o presenta errores",
+      "answer": "1. Cierra Office completamente\n2. Win+R → \"powerpnt /safe\" (modo seguro)\n3. Si funciona en modo seguro:\n   - Archivo → Opciones → Complementos\n   - Administrar: \"Complementos COM\" → Ir\n   - Desactivar uno a uno hasta encontrar el problemático\n4. Reparar Office:\n   - Configuración → Aplicaciones → Microsoft 365\n   - Modificar → Reparación rápida\n5. Última opción: Reparación en línea",
+      "category": "Software",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.305767"
+    },
+    {
+      "keywords": "outlook archivo grande,pst grande,bandeja llena",
+      "question": "Mi archivo PST de Outlook es muy grande",
+      "answer": "1. Verifica tamaño:\n   - Archivo → Configuración de cuenta → Archivo de datos\n   - Click \"Configuración del archivo\" → Compactar\n2. Archiva correos antiguos:\n   - Archivo → Información → Herramientas de limpieza → Archivar\n   - Mover correos mayores a X meses\n3. Vacía Elementos eliminados\n4. Vacía Correo no deseado\n5. Considera mover adjuntos grandes a OneDrive\n\n**Límite recomendado**: < 50GB (puede afectar rendimiento si pasa).",
+      "category": "Office",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.307250"
+    },
+    {
+      "keywords": "pdf,convertir pdf,exportar pdf",
+      "question": "¿Cómo convierto un documento a PDF?",
+      "answer": "**Desde Word/Excel/PowerPoint**:\n1. Archivo → Guardar como\n2. Tipo: PDF (*.pdf)\n3. Opciones avanzadas:\n   - \"Estándar\" para calidad alta\n   - \"Tamaño mínimo\" para correo\n4. Guardar\n\n**Desde cualquier app (imprimir)**:\n1. Imprimir (Ctrl+P)\n2. Impresora: \"Microsoft Print to PDF\"\n3. Imprimir → elige nombre y ubicación",
+      "category": "Office",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.309025"
+    },
+    {
+      "keywords": "captura pantalla,screenshot,recortes",
+      "question": "¿Cómo tomo una captura de pantalla?",
+      "answer": "**Métodos en Windows**:\n1. **PrtScn**: copia toda la pantalla al portapapeles\n2. **Alt + PrtScn**: solo ventana activa\n3. **Win + Shift + S**: herramienta de recorte (recomendada)\n4. **Win + PrtScn**: guarda automáticamente en Imágenes\n5. **App \"Recortes\"**: Win → buscar \"Recortes\"\n\nPara grabar pantalla: **Win + G** (Game Bar) o usa Teams para compartir y grabar.",
+      "category": "Software",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.310717"
+    },
+    {
+      "keywords": "modo oscuro,dark mode,tema oscuro",
+      "question": "¿Cómo activo el modo oscuro?",
+      "answer": "**Windows**:\n1. Configuración → Personalización → Colores\n2. \"Elige tu modo\" → Oscuro\n3. Aplica a apps de Microsoft y compatibles\n\n**Office**:\n1. Archivo → Cuenta\n2. Tema de Office → Negro / Oscuro\n\n**Chrome/Edge**: chrome://flags → \"Force Dark Mode\" o ajustes del navegador.\n\n**Teams**: Configuración (⋯) → General → Tema: Oscuro",
+      "category": "Software",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.312582"
+    },
+    {
+      "keywords": "asistente,cortana,desactivar",
+      "question": "¿Cómo desactivo Cortana / Asistente?",
+      "answer": "**Windows 10/11**:\n1. Click derecho barra tareas → Configuración barra tareas\n2. Buscar → Oculto\n3. Cortana → Oculto\n\nPara desactivar completamente:\n- Win+R → \"gpedit.msc\" (solo Pro)\n- Configuración del equipo → Plantillas administrativas → Componentes de Windows → Buscar\n- \"Permitir Cortana\" → Deshabilitado",
+      "category": "Software",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.314603"
+    },
+    {
+      "keywords": "ip,direccion ip,cual es mi ip",
+      "question": "¿Cómo veo mi dirección IP?",
+      "answer": "**IP local (red interna)**:\n1. Win+R → \"cmd\"\n2. Escribe: ipconfig\n3. Busca \"Dirección IPv4\"\n\n**IP pública (internet)**:\n- Google → \"cuál es mi ip\"\n- O visita: https://www.whatismyip.com\n\n**Detalles completos**:\n- ipconfig /all (en cmd)",
+      "category": "Red",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.316441"
+    },
+    {
+      "keywords": "proxy,configurar proxy",
+      "question": "¿Cómo configuro el proxy corporativo?",
+      "answer": "**Automático (preferido)**:\n1. Configuración → Red e Internet → Proxy\n2. \"Detectar automáticamente\"\n\n**Manual** (si se requiere):\n1. Servidor: proxy.empresa.local\n2. Puerto: 8080\n3. Excluir direcciones internas: *.empresa.local;127.0.0.1\n\nUsuario/contraseña: usar tu cuenta corporativa.",
+      "category": "Red",
+      "priority": "high",
+      "created_at": "2026-06-09 08:54:58.318362"
+    },
+    {
+      "keywords": "wifi visitas,red invitados,visitantes",
+      "question": "¿Cómo doy WiFi a visitantes?",
+      "answer": "Las visitas deben conectarse a la red **WiFi-Guest** (no a la corporativa).\n\n1. Recepción genera código de un día\n2. Conectar a SSID: `Guest-Empresa`\n3. Aceptar términos en el portal cautivo\n4. Ingresar código\n\n**Importante**:\n- La red Guest NO accede a recursos internos\n- Velocidad limitada\n- Sesión expira en 24h\n- NO compartas tu WiFi corporativo personal",
+      "category": "Red",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.320223"
+    },
+    {
+      "keywords": "red lenta dia especifico,horario",
+      "question": "La red está lenta solo en ciertos horarios",
+      "answer": "Causas comunes:\n\n1. **Hora pico** (9-11 AM, 2-4 PM): mucho uso simultáneo\n2. **Backups programados**: 12-2 PM y 10 PM\n3. **Actualizaciones masivas**: domingos\n4. **Streaming**: si hay eventos en vivo\n\nQué hacer:\n- Trabaja con tareas pesadas en horas valle\n- Programa descargas grandes para horarios nocturnos\n- Reporta si el lentitud es constante todo el día",
+      "category": "Red",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.322121"
+    },
+    {
+      "keywords": "cable red,ethernet no funciona",
+      "question": "El cable de red no funciona",
+      "answer": "1. Verifica que el cable esté conectado a ambos extremos\n2. LED del puerto: debe estar encendido (verde/amarillo)\n3. Prueba con OTRO cable\n4. Prueba en OTRO puerto de pared\n5. ipconfig en cmd → verifica si hay IP\n6. Win+R → ncpa.cpl → Ethernet:\n   - Click derecho → Deshabilitar → Habilitar\n7. Si no hay IP: contactar soporte (puede ser configuración del puerto)",
+      "category": "Red",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.323987"
+    },
+    {
+      "keywords": "firewall,bloqueado,no accede sitio",
+      "question": "No puedo acceder a un sitio web específico",
+      "answer": "1. Verifica que el sitio funcione en otros computadores\n2. Prueba en modo incógnito\n3. Limpia caché DNS: cmd → \"ipconfig /flushdns\"\n4. El sitio puede estar **bloqueado por política**:\n   - Redes sociales en horario laboral\n   - Sitios de entretenimiento\n   - Sitios maliciosos detectados\n5. Si es necesario para trabajo: solicita desbloqueo en ticket de Red (justificar uso)",
+      "category": "Red",
+      "priority": "high",
+      "created_at": "2026-06-09 08:54:58.326124"
+    },
+    {
+      "keywords": "wifi se desconecta,intermitente",
+      "question": "Mi WiFi se desconecta cada cierto tiempo",
+      "answer": "1. Verifica nivel de señal (icono WiFi). Si es bajo:\n   - Acércate al Access Point\n   - Cambia a banda 5GHz si tu equipo lo soporta\n2. Olvida la red y reconecta\n3. Actualiza driver WiFi:\n   - Administrador de dispositivos → Adaptadores de red\n4. Configuración avanzada de adaptador → \"Roaming Aggressiveness\": Medium\n5. Reporta a soporte con horarios de desconexión",
+      "category": "Red",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.328214"
+    },
+    {
+      "keywords": "medir velocidad,test internet",
+      "question": "¿Cómo mido la velocidad de internet?",
+      "answer": "1. Cierra apps que consuman ancho de banda\n2. Ve a https://www.speedtest.net o https://fast.com\n3. Inicia la prueba\n4. Anota:\n   - Velocidad de bajada (download)\n   - Velocidad de subida (upload)\n   - Latencia (ping)\n\n**Estándares aceptables corporativos**:\n- Bajada: ≥ 50 Mbps\n- Subida: ≥ 10 Mbps\n- Ping: < 50 ms\n\nSi está muy bajo, reporta con captura de pantalla.",
+      "category": "Red",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.329907"
+    },
+    {
+      "keywords": "cisco,jabber,zoom",
+      "question": "No puedo conectarme a videollamadas",
+      "answer": "1. Verifica internet estable (>5 Mbps)\n2. Cierra otras apps que consuman ancho de banda\n3. Permite acceso a cámara y micrófono\n4. Si usas VPN: prueba sin VPN (algunas calls van por túnel separado)\n5. Actualiza la app (Teams/Zoom/Webex)\n6. Reinicia el router si trabajas desde casa\n7. Conecta por cable Ethernet si tienes (más estable que WiFi)",
+      "category": "Red",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.331472"
+    },
+    {
+      "keywords": "puerto bloqueado,firewall puerto",
+      "question": "Necesito que abran un puerto en firewall",
+      "answer": "Para solicitar apertura de puerto:\n\n1. **Crea ticket en categoría Red/Firewall** con:\n   - Aplicación que lo requiere\n   - Justificación de negocio\n   - Puerto exacto (TCP/UDP)\n   - IP destino\n   - Riesgo evaluado\n2. Aprobación necesaria de:\n   - Tu gerente\n   - Seguridad de TI\n3. Implementación en ventana de mantenimiento\n\n**No se aprueban** puertos genéricos (FTP 21 abierto, etc.) salvo casos especiales.",
+      "category": "Red",
+      "priority": "high",
+      "created_at": "2026-06-09 08:54:58.333049"
+    },
+    {
+      "keywords": "sap rendimiento,sap lento general",
+      "question": "SAP responde muy lento en general",
+      "answer": "1. Verifica que estés en la red corporativa (no Guest WiFi)\n2. Cierra transacciones que no uses (cada una consume memoria)\n3. Borra caché SAP:\n   - Cerrar SAP completamente\n   - Borrar carpeta: %APPDATA%\\SAP\\Common\\Cache\n4. Reinicia SAP\n5. Si es lento en TODOS los usuarios: problema del servidor (reportar a BASIS)\n6. Si es solo en tu PC: problema local (driver, antivirus, RAM)",
+      "category": "SAP",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.334146"
+    },
+    {
+      "keywords": "sap variantes,guardar variante",
+      "question": "¿Cómo guardo una variante en SAP?",
+      "answer": "1. Ingresa a la transacción\n2. Llena los filtros que quieres guardar\n3. Menú: Ir a → Variantes → Guardar como variante\n4. Asigna:\n   - Nombre de variante (sin espacios)\n   - Descripción\n   - Solo para mí / Universal\n5. Guardar\n\nPara cargar después: Variantes → Obtener... → seleccionar.",
+      "category": "SAP",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.335551"
+    },
+    {
+      "keywords": "sap exportar excel,descarga sap",
+      "question": "¿Cómo exporto datos de SAP a Excel?",
+      "answer": "1. Ejecuta el reporte o transacción\n2. Cuando muestre la grilla de datos:\n   - Lista → Exportar → Hoja de cálculo\n   - O click derecho → Exportar\n3. Selecciona:\n   - Excel (en MHTML format)\n   - Hoja de cálculo XML\n4. Asigna nombre y ubicación\n\nPara reportes muy grandes (>50K filas), considera **ejecutar en background** y descargar el archivo después.",
+      "category": "SAP",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.337022"
+    },
+    {
+      "keywords": "sap mandante,cliente sap",
+      "question": "¿Cómo sé en qué mandante SAP estoy?",
+      "answer": "1. En la barra de estado inferior de SAP, busca:\n   - SID (sistema): ej PRD/QAS/DEV\n   - Mandante: ej 100, 200, 300\n   - Usuario: tu nombre de usuario SAP\n2. O ejecuta transacción: SU3 (datos propios)\n\n**Mandantes típicos**:\n- 100: Producción\n- 200: Quality\n- 300: Desarrollo\n\n**Atención**: si modificas en PRD-100 afecta el negocio en vivo. Verifica antes de cambios.",
+      "category": "SAP",
+      "priority": "high",
+      "created_at": "2026-06-09 08:54:58.338409"
+    },
+    {
+      "keywords": "sap autorizaciones,permisos sap",
+      "question": "Me sale \"No autorizado\" en una transacción SAP",
+      "answer": "1. Anota el código exacto del error (S_TCODE, etc.)\n2. Verifica con tu gerente si DEBES tener acceso\n3. Si es así, crea ticket en categoría SAP con:\n   - Transacción solicitada\n   - Justificación de negocio\n   - Aprobador (gerente)\n   - Si es temporal o permanente\n4. El equipo de Roles/Authorizations procesará\n\nTiempo estimado: 24-48h después de aprobación.",
+      "category": "SAP",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.339706"
+    },
+    {
+      "keywords": "sap favoritos,menu favoritos",
+      "question": "¿Cómo agrego una transacción a Favoritos en SAP?",
+      "answer": "1. En el menú principal SAP, click derecho en \"Favoritos\"\n2. Selecciona \"Insertar transacción\"\n3. Ingresa el código (ej. FB60, MM03)\n4. Asigna nombre descriptivo\n5. Aceptar\n\n**Tip**: Arrastra y suelta desde el menú estándar a Favoritos.\nReorganiza con click derecho → Mover hacia arriba/abajo.",
+      "category": "SAP",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.340992"
+    },
+    {
+      "keywords": "sap impresion,formulario",
+      "question": "No puedo imprimir desde SAP",
+      "answer": "1. Verifica que tengas impresoras asignadas:\n   - Transacción SPAD\n2. Configura impresora predeterminada:\n   - SU3 → pestaña Defaults\n   - Dispositivo de salida: tu impresora\n3. En el momento de imprimir:\n   - Selecciona dispositivo en el spool\n   - Marca \"Salida inmediata\"\n4. Si no aparece: verifica nombre exacto de impresora con soporte\n5. Para PDF: imprime a \"Microsoft Print to PDF\"",
+      "category": "SAP",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.342519"
+    },
+    {
+      "keywords": "sap formulario imprimir mal,layout",
+      "question": "Un formulario SAP imprime con formato incorrecto",
+      "answer": "1. Verifica que el form sea para tu impresora (LOCL local vs servidor)\n2. Configura impresora:\n   - Tipo: ZHPLJ (Hewlett Packard LaserJet)\n   - Densidad: 12\n3. Si es formulario SAPscript modificado:\n   - Reportar a desarrollo ABAP con captura\n   - Especificar transacción y formulario (ej. RVINVOICE01)\n4. Para SmartForms o Adobe Forms: similar, reportar a desarrollo",
+      "category": "SAP",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.344596"
+    },
+    {
+      "keywords": "sap atajos,shortcuts,teclas",
+      "question": "¿Cuáles son los atajos de SAP más útiles?",
+      "answer": "**Navegación**:\n- F3: Volver atrás\n- F4: Lista de valores (búsqueda)\n- F1: Ayuda\n- F8: Ejecutar\n- F11: Guardar\n- /n: Nueva transacción\n- /o: Nueva ventana\n- /nex: Cerrar SAP\n\n**Edición**:\n- Ctrl+S: Guardar\n- Ctrl+P: Imprimir\n- Ctrl+Y: Copiar pantalla\n- Ctrl+A: Seleccionar todo",
+      "category": "SAP",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.346674"
+    },
+    {
+      "keywords": "sap caido,sap down,inaccesible",
+      "question": "SAP no responde - sistema caído",
+      "answer": "Si SAP no responde:\n\n1. **Verifica si es solo tu PC** o todos:\n   - Pregunta a colegas\n   - Si solo tú: reinicia tu cliente SAP\n2. **Si es general**:\n   - NO hagas nada con datos en transacciones abiertas\n   - Cierra tu cliente sin guardar (datos se respaldan en BD)\n   - Reporta INMEDIATAMENTE a soporte (categoría SAP - URGENTE)\n   - Notifica a tu gerente del impacto\n3. Equipo BASIS investiga la causa\n4. Espera comunicado oficial para reconectarse",
+      "category": "SAP",
+      "priority": "high",
+      "created_at": "2026-06-09 08:54:58.348291"
+    },
+    {
+      "keywords": "ransomware,archivos cifrados,extorsion",
+      "question": "Mis archivos aparecen cifrados / con extensión rara",
+      "answer": "**¡ACCIÓN INMEDIATA - POSIBLE RANSOMWARE!**\n\n1. **DESCONECTA EL EQUIPO**: cable de red + WiFi\n2. **NO APAGUES** el computador (pierde evidencia)\n3. **NO PAGUES** ningún rescate\n4. Llama URGENTE a Seguridad: ext. 5911\n5. No intentes recuperar archivos solo\n6. Identifica el alcance:\n   - ¿Solo C: o también unidades de red?\n   - ¿Otros equipos cerca afectados?\n\nEl equipo de Seguridad activará el protocolo de respuesta a incidentes.",
+      "category": "Seguridad",
+      "priority": "critical",
+      "created_at": "2026-06-09 08:54:58.349772"
+    },
+    {
+      "keywords": "sospechoso link,url falsa",
+      "question": "¿Cómo identifico un link sospechoso?",
+      "answer": "**Señales de alerta**:\n1. Dominios extraños: paypa1.com (con 1 en vez de l)\n2. URLs largas y confusas\n3. Acortadores (bit.ly, tinyurl) en correos importantes\n4. HTTP sin S (sin cifrado)\n5. Mensaje de urgencia anormal\n6. Solicita información sensible\n7. Errores ortográficos en el dominio\n\n**Cómo verificar**:\n- Pasa el mouse SIN clickear → veras la URL real\n- Busca el sitio oficial en Google\n- Verifica con Seguridad si tienes duda",
+      "category": "Seguridad",
+      "priority": "high",
+      "created_at": "2026-06-09 08:54:58.351208"
+    },
+    {
+      "keywords": "wifi publica,starbucks,aeropuerto",
+      "question": "¿Es seguro usar WiFi pública?",
+      "answer": "**NO se recomienda para trabajo corporativo**.\n\nSi DEBES usar WiFi pública:\n1. ✅ **SIEMPRE conecta VPN corporativa primero**\n2. ✅ Solo accede a sitios HTTPS (candado verde)\n3. ❌ NO accedas a Bancos\n4. ❌ NO ingreses contraseñas sensibles\n5. ❌ NO transfieras archivos confidenciales\n\n**Mejor alternativa**: Hotspot de tu celular con datos móviles (cifrado).",
+      "category": "Seguridad",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.352698"
+    },
+    {
+      "keywords": "computador robado,equipo perdido",
+      "question": "Perdí o me robaron mi laptop corporativa",
+      "answer": "**ACCIÓN INMEDIATA** (no esperes a mañana):\n\n1. Notifica a Seguridad: ext. 5911 o WhatsApp 24/7\n2. Notifica a tu gerente\n3. Cambia contraseñas desde otro equipo:\n   - Email corporativo\n   - VPN\n   - SAP\n   - Otros sistemas\n4. Si fue robo: denuncia policial\n5. Seguridad activará:\n   - Borrado remoto (si MDM activo)\n   - Bloqueo de cuenta\n   - Revisión de accesos recientes\n6. Llena formato de pérdida de activo en RRHH",
+      "category": "Seguridad",
+      "priority": "high",
+      "created_at": "2026-06-09 08:54:58.354565"
+    },
+    {
+      "keywords": "antivirus alerta,deteccion,malware",
+      "question": "Mi antivirus detectó un virus",
+      "answer": "1. **NO ignores** la alerta\n2. Permite que el antivirus **ponga en cuarentena** o elimine el archivo\n3. NO recuperes el archivo de cuarentena\n4. Ejecuta análisis completo del sistema\n5. Si detecta múltiples archivos: posible infección activa\n6. Reporta a Seguridad con captura de la alerta\n7. Indica de dónde obtuviste el archivo (correo, descarga, USB)\n\nNO uses el equipo para tareas sensibles hasta confirmar limpieza.",
+      "category": "Seguridad",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.356014"
+    },
+    {
+      "keywords": "enviar info confidencial,datos privados",
+      "question": "¿Cómo envío información confidencial de forma segura?",
+      "answer": "**Métodos APROBADOS**:\n1. **OneDrive/SharePoint** con link de acceso limitado\n2. **Microsoft Teams** (cifrado end-to-end en chats privados)\n3. **Email corporativo** marcando como Confidencial:\n   - Outlook → Opciones → Cifrar → Solo cifrar\n\n**EVITAR**:\n- ❌ WhatsApp para datos corporativos\n- ❌ Gmail personal\n- ❌ USBs sin cifrado\n- ❌ Servicios como WeTransfer público\n\nPara documentos muy sensibles: agregar contraseña al archivo (Word/Excel → Cifrar con contraseña).",
+      "category": "Seguridad",
+      "priority": "high",
+      "created_at": "2026-06-09 08:54:58.357666"
+    },
+    {
+      "keywords": "permisos administrador,admin local",
+      "question": "¿Por qué no tengo permisos de administrador local?",
+      "answer": "Por política de seguridad, los usuarios estándar NO tienen permisos admin para:\n- Prevenir instalación de malware\n- Mantener integridad del equipo\n- Cumplir normativas\n\n**Si NECESITAS instalar software**:\n1. Crea ticket en categoría Software\n2. Justifica para qué lo necesitas\n3. Soporte instala como admin\n\n**Excepciones**: roles que requieran admin (desarrolladores, técnicos TI) tienen permisos elevados separados.",
+      "category": "Seguridad",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.359703"
+    },
+    {
+      "keywords": "bloqueo pantalla,protector pantalla",
+      "question": "¿Cómo bloqueo mi pantalla rápido?",
+      "answer": "**Win + L** = Bloquea inmediatamente.\n\n**Política corporativa**: el equipo se bloquea automáticamente tras 10 min de inactividad.\n\n**Buenas prácticas**:\n- Bloquea SIEMPRE al alejarte del PC\n- No dejes notas con contraseña pegadas\n- Si trabajas en lugares públicos: pantalla de privacidad\n\n**Recuerda**: dejar pantalla desbloqueada es una violación de seguridad que puede ser auditada.",
+      "category": "Seguridad",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.361219"
+    },
+    {
+      "keywords": "compartir contraseña,dar password",
+      "question": "Un compañero me pide mi contraseña, ¿qué hago?",
+      "answer": "**NUNCA compartas tu contraseña**, ni con:\n- Compañeros\n- Tu gerente\n- Soporte técnico (legítimo NUNCA la pide)\n- Cualquier persona externa\n\nSi necesita acceso a información:\n1. Comparte el archivo específico (no la cuenta)\n2. Solicita permisos en la herramienta\n3. Que cree su propia cuenta\n\nSi alguien insiste: repórtalo como intento de ingeniería social.\n\n**Recuerda**: las acciones con tu cuenta quedan registradas a tu nombre.",
+      "category": "Seguridad",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.363013"
+    },
+    {
+      "keywords": "datos personales,gdpr,proteccion",
+      "question": "¿Qué datos personales puedo manejar?",
+      "answer": "Según política de Protección de Datos:\n\n**Permitido (con autorización)**:\n- Nombre, email corporativo, teléfono\n- Datos de empleados internos\n- Información de clientes con consentimiento\n\n**Sensible - requiere encriptación**:\n- Documentos de identidad\n- Datos médicos\n- Información financiera\n- Datos biométricos\n\n**Prohibido**:\n- Compartir con terceros sin autorización\n- Almacenar fuera de sistemas corporativos\n- Enviar por canales no seguros\n\nAnte dudas: consulta con Compliance.",
+      "category": "Seguridad",
+      "priority": "high",
+      "created_at": "2026-06-09 08:54:58.364622"
+    },
+    {
+      "keywords": "celular corporativo,asignacion movil",
+      "question": "¿Cómo solicito un celular corporativo?",
+      "answer": "Pasos:\n1. Tu cargo debe estar autorizado para celular (consulta RRHH)\n2. Llena formato de solicitud en portal RRHH\n3. Aprobación de tu gerente\n4. Aprobación del responsable presupuestal\n5. Soporte coordina entrega:\n   - Equipo asignado\n   - SIM con plan corporativo\n   - Configuración inicial\n6. Firmas acta de entrega\n\nTiempo total: 1-2 semanas según disponibilidad.",
+      "category": "Móvil",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.366497"
+    },
+    {
+      "keywords": "whatsapp business,whatsapp empresa",
+      "question": "¿Puedo usar WhatsApp para trabajo?",
+      "answer": "Por política:\n\n**Permitido**:\n- Coordinación interna informal\n- Mensajes no confidenciales\n- WhatsApp Business si es tu rol (ventas, soporte cliente)\n\n**NO permitido**:\n- Compartir documentos confidenciales\n- Discutir datos sensibles de clientes\n- Reemplazar comunicación oficial (email/Teams)\n\n**Recomendación**: Usa Teams para temas laborales. Es más seguro y queda registro corporativo.",
+      "category": "Móvil",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.368277"
+    },
+    {
+      "keywords": "instalar app,permitir aplicacion movil",
+      "question": "¿Puedo instalar apps en mi celular corporativo?",
+      "answer": "**Según política MDM (Mobile Device Management)**:\n\n- ✅ Apps de productividad estándar: aprobadas\n- ⚠️ Apps personales: en perfil personal (separado)\n- ❌ Apps de fuentes desconocidas: bloqueadas\n- ❌ Jailbreak/Root: prohibido\n\nLas apps corporativas (Outlook, Teams, Authenticator) se instalan automáticamente.\n\nPara solicitar app no estándar: ticket en Móvil con justificación.",
+      "category": "Móvil",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.370046"
+    },
+    {
+      "keywords": "backup movil,respaldo telefono",
+      "question": "¿Cómo respaldo mi celular?",
+      "answer": "**Android**:\n1. Configuración → Sistema → Copia de seguridad\n2. Habilita \"Google Drive backup\"\n3. Selecciona qué respaldar: apps, fotos, contactos, SMS\n\n**iPhone**:\n1. Configuración → [Tu nombre] → iCloud\n2. Copia en iCloud → activar\n3. \"Hacer copia ahora\"\n\n**Importante**:\n- Datos corporativos (correo, Teams) NO se respaldan en cuenta personal\n- Quedan en la nube de Microsoft separadamente",
+      "category": "Móvil",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.371956"
+    },
+    {
+      "keywords": "sincronizar contactos,outlook contactos",
+      "question": "Mis contactos de Outlook no se sincronizan al celular",
+      "answer": "**iPhone**:\n1. Configuración → Outlook (app) → Contactos → Activar\n2. O en Outlook app: Settings → Tu cuenta → Contactos → Sincronizar\n\n**Android**:\n1. Outlook app → Settings → Sincronizar contactos\n2. Permitir permisos al sistema\n3. Configuración → Cuentas → Outlook → Sincronizar contactos\n\nPuede tardar hasta 24h en mostrar todos. Reinicia el celular si no aparece.",
+      "category": "Móvil",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.373802"
+    },
+    {
+      "keywords": "mouse inalambrico,bateria mouse",
+      "question": "¿Cómo cambio la batería de mi mouse inalámbrico?",
+      "answer": "1. Verifica tipo de mouse:\n   - **Con pilas AA/AAA**: deslice tapa inferior\n   - **Recargable USB-C/Micro USB**: conecta cable\n   - **Bluetooth**: ver indicador en pantalla\n2. Reemplaza con baterías nuevas (alcalinas duran más)\n3. Para mouse Logitech: app Logi Options muestra nivel\n4. Si el mouse ya no enciende ni con baterías nuevas: solicita reemplazo",
+      "category": "Hardware",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.375538"
+    },
+    {
+      "keywords": "auriculares headset,no conecta",
+      "question": "Mis auriculares no se conectan",
+      "answer": "**Con cable**:\n1. Verifica que esté conectado al puerto correcto (verde audio)\n2. Configuración → Sonido → Salida → seleccionar\n\n**Bluetooth**:\n1. Configuración → Dispositivos Bluetooth → Agregar\n2. Pon auriculares en modo emparejamiento (mantener botón 3s)\n3. Selecciona desde la lista\n4. Si ya estaban emparejados pero no conectan: olvidar y volver a agregar\n\n**USB**:\n1. Cambia de puerto USB\n2. Espera que Windows instale el driver\n3. Configurar como salida predeterminada",
+      "category": "Hardware",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.377246"
+    },
+    {
+      "keywords": "webcam externa,configurar camara",
+      "question": "¿Cómo configuro una cámara web externa?",
+      "answer": "1. Conecta la webcam al USB\n2. Espera 30s a que se instale automáticamente\n3. Verifica en Administrador de dispositivos:\n   - \"Dispositivos de imágenes\" → tu cámara\n4. Si tiene software del fabricante (Logitech, etc.): instálalo\n5. En Teams:\n   - Configuración → Dispositivos → Cámara → seleccionar\n6. En Zoom: Configuración → Vídeo → cámara\n\nPara mejor calidad: buena iluminación frontal, fondo neutral.",
+      "category": "Hardware",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.378685"
+    },
+    {
+      "keywords": "limpiar teclado,mantenimiento pc",
+      "question": "¿Cómo limpio mi teclado y pantalla?",
+      "answer": "**Teclado**:\n1. Apaga el PC o desconecta el teclado\n2. Voltea boca abajo y golpea suavemente para sacar polvo\n3. Aire comprimido (lata) entre teclas\n4. Pasa paño microfibra con poco alcohol isopropílico\n\n**Pantalla**:\n1. Apaga el monitor\n2. Pasa paño microfibra SECO\n3. Si hay manchas: rocía paño (NUNCA la pantalla) con limpiador específico\n4. NUNCA uses alcohol, agua o productos con amoniaco\n\nLimpieza recomendada: semanal",
+      "category": "Hardware",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.380094"
+    },
+    {
+      "keywords": "pantalla rota,dañada,quebrada",
+      "question": "Se me cayó el laptop y la pantalla está rota",
+      "answer": "**Pasos**:\n1. NO uses el equipo (puede empeorar el daño)\n2. Apaga inmediatamente\n3. Reporta a soporte:\n   - Categoría: Hardware\n   - Prioridad: Alta\n   - Incluye fotos del daño\n4. Solicita equipo temporal mientras se repara\n5. Llena formato de incidente en RRHH (puede haber implicaciones de seguro)\n\nTiempo de reparación: 5-15 días según disponibilidad de repuestos.",
+      "category": "Hardware",
+      "priority": "high",
+      "created_at": "2026-06-09 08:54:58.381589"
+    },
+    {
+      "keywords": "reglas correo,filtros email",
+      "question": "¿Cómo creo reglas para organizar correos?",
+      "answer": "**Outlook Desktop**:\n1. Inicio → Reglas → Administrar reglas\n2. Nueva regla:\n   - Empezar desde plantilla\n   - O comenzar desde regla en blanco\n3. Define condición (ej: de \"boss@empresa.com\")\n4. Define acción (ej: mover a carpeta \"Jefes\")\n5. Activar\n\n**Outlook Web**:\n1. Configuración → Ver toda la configuración\n2. Correo → Reglas → Agregar regla\n\n**Ideas útiles**:\n- Mover newsletters a carpeta específica\n- Marcar correos VIP\n- Auto-responder fuera de horario",
+      "category": "Email",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.383062"
+    },
+    {
+      "keywords": "reenviar automatico,forward email",
+      "question": "¿Cómo configuro reenvío automático?",
+      "answer": "**Outlook Web** (mejor opción):\n1. Configuración → Ver toda la configuración\n2. Correo → Reenvío\n3. Activar reenvío\n4. Email destino\n5. (Opcional) \"Conservar copia\"\n6. Guardar\n\n**Limitaciones**:\n- Solo puedes reenviar a 1 dirección\n- No se pueden reenviar correos confidenciales (puede ser bloqueado)\n- Auditado por políticas DLP\n\n**Para vacaciones**: mejor usar \"Respuestas automáticas\".",
+      "category": "Email",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.384997"
+    },
+    {
+      "keywords": "calendario compartido,delegar calendario",
+      "question": "¿Cómo comparto mi calendario?",
+      "answer": "**Outlook**:\n1. Calendario → click derecho en tu calendario\n2. Compartir → Compartir calendario\n3. Agregar permisos a personas:\n   - Puede ver disponibilidad\n   - Puede ver detalles\n   - Puede editar\n   - Delegado (responde por ti)\n4. Enviar invitación\n\n**Para delegar**:\n- Archivo → Configuración cuenta → Delegar acceso\n- Agregar persona y nivel",
+      "category": "Email",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.386773"
+    },
+    {
+      "keywords": "busqueda correos,buscar email",
+      "question": "¿Cómo busco un correo viejo?",
+      "answer": "**Outlook - búsqueda rápida**:\n1. Barra de búsqueda (arriba)\n2. Escribe texto, remitente, asunto\n\n**Búsqueda avanzada**:\n- `de:nombre@empresa.com` → de remitente\n- `asunto:reporte` → en el asunto\n- `tiene:adjunto` → con adjuntos\n- `recibido:>1/1/2024` → desde fecha\n- `tamaño:>5MB` → grandes\n\n**Ctrl+E**: enfoca el cuadro de búsqueda.\n**Búsqueda avanzada UI**: Ctrl+Alt+S",
+      "category": "Email",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.388245"
+    },
+    {
+      "keywords": "plantilla correo,quick part",
+      "question": "¿Cómo creo plantillas de correo?",
+      "answer": "**Método 1 - Plantillas .oft**:\n1. Crea correo nuevo con el texto deseado\n2. Archivo → Guardar como\n3. Tipo: Plantilla Outlook (*.oft)\n4. Para usar: Nuevos elementos → Mas elementos → Elegir formulario\n\n**Método 2 - Mis plantillas (recomendado)**:\n1. En nuevo correo: Mensaje → Ver plantillas\n2. + Plantilla\n3. Título y contenido\n4. Guardar\n5. Click en la plantilla para insertar\n\nÚtil para respuestas frecuentes.",
+      "category": "Email",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.390464"
+    },
+    {
+      "keywords": "correo no leido,marcar leido",
+      "question": "¿Cómo marco correos como leídos masivamente?",
+      "answer": "**Marcar TODOS leídos en una carpeta**:\n1. Click derecho en la carpeta\n2. \"Marcar todos como leídos\"\n\n**Marcar selección**:\n1. Selecciona correos (Ctrl+click o Shift+click)\n2. Click derecho → \"Marcar como leído\"\n3. O atajo: **Ctrl+Q**\n\n**Marcar como no leído**: Ctrl+U\n\nÚtil cuando regresas de vacaciones con 500 correos.",
+      "category": "Email",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.391992"
+    },
+    {
+      "keywords": "firmar archivo,certificado digital",
+      "question": "¿Cómo firmo digitalmente un correo?",
+      "answer": "Si tienes certificado digital:\n\n1. **Outlook**:\n   - Archivo → Opciones → Centro de confianza → Configuración\n   - Seguridad del correo → Configuración\n   - Firmar todos los mensajes salientes\n2. **Para certificado nuevo**:\n   - Solicita a Seguridad en ticket\n   - Instala en certificado en tu cuenta\n   - Importar en Outlook\n\n**Beneficio**: el receptor sabe con certeza que el correo es tuyo y no fue alterado.",
+      "category": "Email",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.393601"
+    },
+    {
+      "keywords": "organizar bandeja entrada,carpetas",
+      "question": "¿Cómo organizo mi bandeja de entrada?",
+      "answer": "**Metodología recomendada**:\n\n1. **Inbox Zero**: meta = 0 correos al final del día\n2. Crea carpetas:\n   - 📁 Acción inmediata\n   - 📁 Esperando respuesta\n   - 📁 Para revisar\n   - 📁 Archivo\n3. Reglas automáticas para clasificar\n4. Usa categorías por color\n5. Marca con estrella los importantes\n6. Archiva (Ctrl+E) lo procesado\n\n**Tip**: dedica 2-3 momentos al día a procesar email, no constantemente.",
+      "category": "Email",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.395208"
+    },
+    {
+      "keywords": "estadisticas correo,quien mas envia",
+      "question": "¿Puedo ver estadísticas de mis correos?",
+      "answer": "**Outlook Web**:\n1. Configuración → Ver toda la configuración\n2. General → Estadísticas\n\nMuestra:\n- Correos enviados/recibidos por día/semana\n- Top remitentes\n- Tiempo promedio de respuesta\n- Uso del buzón\n\n**Microsoft MyAnalytics**: insights de productividad personal (si está habilitado).",
+      "category": "Email",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.396835"
+    },
+    {
+      "keywords": "enviar a muchas personas,bcc cco",
+      "question": "¿Debo usar CCO/BCC al enviar a muchas personas?",
+      "answer": "**Sí, mejores prácticas**:\n\n**Para >5 destinatarios externos**:\n- Usa **CCO** (Bcc) para proteger emails de cada uno\n- Pon tu dirección en \"Para\"\n\n**Para listas internas**:\n- Crea una **lista de distribución**\n- Usa el nombre de la lista en \"Para\"\n\n**Evita**:\n- \"Responder a todos\" sin necesidad (genera ruido)\n- Listas de cientos en \"Para\" (expone direcciones)\n\n**Atajo**: Si no ves CCO, en \"Para\" → Opciones → CCO",
+      "category": "Email",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.398434"
+    },
+    {
+      "keywords": "que es ticketdesk,sistema tickets",
+      "question": "¿Qué es TicketDesk y para qué sirve?",
+      "answer": "**TicketDesk Enterprise** es el sistema oficial de soporte TI de la empresa.\n\n**Sirve para**:\n- Reportar problemas técnicos\n- Solicitar servicios (instalar software, dar accesos)\n- Hacer consultas al equipo TI\n- Ver el estado de tus solicitudes\n- Recibir respuestas oficiales con trazabilidad\n\n**Ventajas vs llamadas/correo**:\n- Queda registro oficial\n- Sabes en qué etapa está\n- Recibes SLA garantizado\n- Métricas para mejorar el servicio",
+      "category": "General",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.399973"
+    },
+    {
+      "keywords": "como crear ticket,nuevo caso",
+      "question": "¿Cómo creo un ticket de soporte?",
+      "answer": "1. Ingresa a TicketDesk con tu cuenta\n2. Click \"Crear nuevo ticket\"\n3. Llena:\n   - **Título**: descriptivo y corto\n   - **Categoría**: Hardware/Software/Red/etc.\n   - **Prioridad**: según urgencia real\n   - **Descripción**: detalle el problema\n4. Adjunta capturas si ayudan\n5. Crear\n\n**Tip**: Antes de crear, prueba con el bot (puede resolver al instante con base de conocimiento).",
+      "category": "General",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.401444"
+    },
+    {
+      "keywords": "donde veo mis tickets,mis casos",
+      "question": "¿Dónde veo mis tickets creados?",
+      "answer": "En TicketDesk Portal de Empleados:\n\n1. Ingresa con tu usuario\n2. Verás tu **dashboard** con:\n   - Tus tickets abiertos\n   - Tickets en progreso\n   - Tickets resueltos\n3. Click en cualquier ticket → ves detalles + historial\n4. Puedes agregar comentarios\n5. Calificar el servicio cuando se cierre\n\nFiltros disponibles: estado, prioridad, fecha.",
+      "category": "General",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.402868"
+    },
+    {
+      "keywords": "calificar ticket,encuesta",
+      "question": "¿Cómo califico el servicio recibido?",
+      "answer": "1. Cuando tu ticket sea resuelto, recibirás notificación\n2. Abre el ticket en TicketDesk\n3. Verás opción: \"Calificar este servicio\"\n4. Asigna 1-5 estrellas:\n   - ⭐⭐⭐⭐⭐ Excelente\n   - ⭐ Muy malo\n5. (Opcional) Comentario\n6. Enviar\n\n**Tu feedback ayuda** a mejorar el servicio y reconocer al equipo.",
+      "category": "General",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.404159"
+    },
+    {
+      "keywords": "reabrir ticket,no quedo resuelto",
+      "question": "Un ticket fue cerrado pero el problema no se resolvió",
+      "answer": "1. Abre el ticket cerrado en TicketDesk\n2. Click \"Reabrir\" (disponible hasta 7 días después del cierre)\n3. Explica por qué necesita reapertura\n4. El técnico recibe notificación\n\nSi ya pasaron 7 días:\n- Crea un nuevo ticket\n- En la descripción menciona el ticket anterior: \"Relacionado con TKT-XXX\"\n- El equipo TI revisa el caso completo",
+      "category": "General",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.405303"
+    },
+    {
+      "keywords": "horarios laborales,jornada",
+      "question": "¿Cuáles son los horarios laborales de la empresa?",
+      "answer": "**Horarios generales**:\n- Administrativos: 8:00 AM - 5:00 PM\n- Producción turno 1: 6:00 AM - 2:00 PM\n- Producción turno 2: 2:00 PM - 10:00 PM\n- Producción turno 3: 10:00 PM - 6:00 AM\n\n**TI**:\n- Soporte presencial: Lun-Vie 7 AM - 6 PM\n- Soporte 24/7: solo emergencias críticas\n- Sábados: 8 AM - 12 PM\n\nConsulta RRHH para tu horario específico.",
+      "category": "General",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.406907"
+    },
+    {
+      "keywords": "soporte sabado,festivo,fin semana",
+      "question": "¿Hay soporte los fines de semana?",
+      "answer": "**Sábados**: 8 AM - 12 PM (atención limitada)\n**Domingos y festivos**: Solo emergencias 24/7\n\n**Para emergencias críticas** (sistemas caídos):\n- WhatsApp ON-CALL: +57 300 555 0911\n- Email: emergencias-ti@empresa.com\n- TicketDesk → categoría \"Crítico\" → activa alerta automática\n\nPara consultas no urgentes, mejor esperar al lunes.",
+      "category": "General",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.408798"
+    },
+    {
+      "keywords": "directorio empleados,buscar persona",
+      "question": "¿Cómo encuentro a un empleado?",
+      "answer": "**Outlook** (más rápido):\n1. Nuevo correo\n2. En \"Para\" empieza a escribir el nombre\n3. Auto-completa con datos del directorio\n4. Click → ver más info (cargo, ubicación, jefe)\n\n**Teams**:\n1. Búsqueda superior → escribir nombre\n2. Ve estado online/ocupado\n3. Chat directo\n\n**Intranet**: portal.empresa.local/directorio",
+      "category": "General",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.410684"
+    },
+    {
+      "keywords": "recibir notificaciones,desactivar alerts",
+      "question": "¿Cómo controlo las notificaciones que recibo?",
+      "answer": "**Email TicketDesk**:\n1. Ingresa a TicketDesk → Mi perfil\n2. Notificaciones por correo:\n   - ☑ Nuevo comentario\n   - ☑ Cambio de estado\n   - ☑ Asignado a alguien\n   - ☐ Resumen semanal\n3. Guardar\n\n**Notificaciones del navegador**:\n- Permite o bloquea desde el navegador\n- Útiles para tiempo real\n\n**Push móvil** (si usas app): Settings → Notificaciones",
+      "category": "General",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.412012"
+    },
+    {
+      "keywords": "sugerencia mejora,feedback,buzon",
+      "question": "¿Cómo doy sugerencias para mejorar?",
+      "answer": "**Canales para feedback**:\n\n1. **TicketDesk**: crea ticket en categoría \"General → Sugerencia\"\n2. **Buzón de sugerencias**: sugerencias@empresa.com\n3. **Encuesta anual** (sale por Outlook)\n4. **Reuniones 1:1** con tu gerente\n5. **Teams - canal Ideas**\n\n**Importante**:\n- Las sugerencias son revisadas mensualmente\n- Recibes respuesta en máx. 30 días\n- Las implementadas son reconocidas formalmente",
+      "category": "General",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.413120"
+    },
+    {
+      "keywords": "bot eli,asistente,inteligencia artificial",
+      "question": "¿Cómo uso el bot Eli?",
+      "answer": "**Eli** es el asistente IA de TicketDesk.\n\n**Cómo usarlo**:\n1. Click en el avatar de Eli (esquina inferior derecha del portal)\n2. Escribe tu pregunta como si fuera a una persona\n3. Eli responde con la solución desde su base de conocimiento (56+ soluciones)\n4. Si no tiene respuesta exacta, usa IA Claude para generar una\n5. Si te resuelve: marcalo \"✓ Solucionado\"\n6. Si NO: \"📋 Crear ticket\" y asigna a especialista\n\n**Eli funciona 24/7** y aprende de tus preguntas.",
+      "category": "General",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.415010"
+    },
+    {
+      "keywords": "asignacion automatica,ia tickets",
+      "question": "¿Cómo asigna TicketDesk los tickets automáticamente?",
+      "answer": "TicketDesk usa 4 agentes IA:\n\n1. **Classifier**: clasifica el ticket en una categoría (Hardware, SAP, etc.)\n2. **Assignor**: busca el técnico con:\n   - Habilidades requeridas\n   - Menor carga de trabajo actual\n3. **Responder**: genera respuesta inicial si está en la KB\n4. **Escalator**: monitorea SLA y escala automáticamente\n\nResultado: tus tickets llegan al especialista correcto en segundos, sin intervención manual.",
+      "category": "General",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.416238"
+    },
+    {
+      "keywords": "sla,acuerdo nivel servicio,tiempo respuesta",
+      "question": "¿Qué es el SLA y cuáles son los tiempos?",
+      "answer": "**SLA** = Service Level Agreement (Acuerdo de Nivel de Servicio).\n\nEs el compromiso de tiempo del equipo TI para resolver tickets según prioridad:\n\n| Prioridad | Respuesta | Resolución |\n|-----------|-----------|------------|\n| 🔴 Crítica | 15 min | 1 h |\n| 🟠 Alta | 1 h | 4 h |\n| 🟡 Media | 4 h | 1 día |\n| 🟢 Baja | 1 día | 5 días |\n\nSi tu ticket no cumple SLA, el sistema escala automáticamente al supervisor.",
+      "category": "General",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.417546"
+    },
+    {
+      "keywords": "prioridad ticket,como elegir",
+      "question": "¿Qué prioridad debo darle a mi ticket?",
+      "answer": "**Guía para elegir prioridad**:\n\n🔴 **CRÍTICA**:\n- Sistema caído afectando producción\n- Múltiples usuarios sin trabajar\n- Pérdida de datos en curso\n\n🟠 **ALTA**:\n- No puedes hacer tu trabajo\n- Bloqueo total para ti\n- Sin alternativa\n\n🟡 **MEDIA**:\n- Funciona pero con problemas\n- Tienes workaround temporal\n- Inconveniente pero no urgente\n\n🟢 **BAJA**:\n- Solicitud no urgente\n- Mejora o nueva funcionalidad\n- Información\n\n**Tip**: Marcar todo como CRÍTICA reduce su efectividad. Usa la prioridad real.",
+      "category": "General",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.418879"
+    },
+    {
+      "keywords": "historial ticket,quien hizo",
+      "question": "¿Puedo ver el historial de mi ticket?",
+      "answer": "Sí, cada ticket tiene un **historial completo** auditado:\n\n1. Abre el ticket\n2. Sección \"Historial\" o \"Actividad\"\n\nVerás:\n- Quién creó el ticket\n- Asignaciones y reasignaciones\n- Cambios de estado\n- Comentarios\n- Adjuntos agregados\n- Escalaciones\n- Tiempo dedicado por cada acción\n\nTodo queda registrado con usuario, fecha/hora exacta.",
+      "category": "General",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.419880"
+    },
+    {
+      "keywords": "eligir tecnico,asignar a quien",
+      "question": "¿Puedo elegir qué técnico atienda mi ticket?",
+      "answer": "**No directamente** - el sistema asigna automáticamente al mejor técnico disponible según:\n- Habilidades requeridas\n- Carga actual de trabajo\n- Disponibilidad horaria\n\n**Excepciones**:\n- Si tienes un técnico asignado para casos especiales: menciónalo en la descripción\n- Si requiere un especialista específico: mencionalo en el ticket\n- Si es una continuación: cita el ticket anterior\n\nEsto garantiza distribución equitativa y atención rápida.",
+      "category": "General",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.420852"
+    },
+    {
+      "keywords": "imprimir ticket,exportar ticket",
+      "question": "¿Puedo imprimir o exportar un ticket?",
+      "answer": "1. Abre el ticket\n2. Botón \"Imprimir\" o \"Exportar\":\n   - **PDF**: descarga el ticket completo con historial\n   - **Imprimir**: usa el diálogo de impresión\n\nÚtil para:\n- Reportes a tu gerente\n- Auditorías\n- Documentación de procesos\n- Compartir con compañeros que no usan TicketDesk\n\nEl PDF mantiene todo el formato e información del ticket.",
+      "category": "General",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.422005"
+    },
+    {
+      "keywords": "donde aprender,manual,documentacion",
+      "question": "¿Dónde aprendo a usar TicketDesk?",
+      "answer": "**Recursos disponibles**:\n\n1. **Bot Eli**: pregúntale cualquier cosa\n2. **Base de conocimiento**: 100+ artículos en TicketDesk\n3. **Capacitaciones mensuales**: en Teams\n4. **Manual de usuario**: portal.empresa.local/manuales\n5. **Tutoriales en video**: canal interno de Stream\n6. **FAQ**: ticketdesk.empresa.local/faq\n\n**Capacitación 1-on-1**: solicítala vía ticket en categoría \"Capacitación\".",
+      "category": "General",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.423226"
+    },
+    {
+      "keywords": "puedo ver tickets compañeros,otros tickets",
+      "question": "¿Puedo ver los tickets de mis compañeros?",
+      "answer": "**No por privacidad**. Cada usuario solo ve:\n- SUS propios tickets creados\n- Tickets donde es asignado (técnicos)\n- Todos los de la empresa (admins)\n\n**Excepciones**:\n- Si trabajan en el mismo ticket: agregar como colaborador\n- Si necesitas información compartida: pídela al usuario o al técnico\n\n**Multi-tenant**: NUNCA verás tickets de otras empresas (Eliot/Pash/Primatela están aislados).",
+      "category": "General",
+      "priority": "low",
+      "created_at": "2026-06-09 08:54:58.424332"
+    },
+    {
+      "keywords": "sistema lento,ticketdesk lento",
+      "question": "TicketDesk está lento o no responde",
+      "answer": "1. Refresca la página (Ctrl+F5)\n2. Limpia caché del navegador (Ctrl+Shift+Supr)\n3. Prueba en navegador distinto (Chrome/Edge)\n4. Verifica conexión a internet (speedtest.net)\n5. Verifica el estado del servicio:\n   - Bot Eli si está accesible (señal de que el servicio responde)\n   - Otros sistemas como Outlook ¿funcionan?\n6. Si solo es TicketDesk: reporta vía WhatsApp ON-CALL\n7. Si todo está lento: problema de red general",
+      "category": "General",
+      "priority": "medium",
+      "created_at": "2026-06-09 08:54:58.425088"
+    }
+  ],
+  "templates": [
+    {
+      "name": "Computador no enciende",
+      "description": null,
+      "title_template": "Computador no enciende",
+      "description_template": "Equipo: [Marca/Modelo]\nUbicación: [Oficina/Piso]\nUsuario afectado: [Nombre]\nFecha de incidente: [Fecha]\n\nDescripción del problema:\n- ¿LED encendido al presionar botón?\n- ¿Hace algún sonido?\n- ¿Conectado a la corriente?\n\nAcciones realizadas:\n- ",
+      "category": "Hardware",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.713415",
+      "form_fields": "[{\"name\": \"equipo\", \"label\": \"Equipo\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Marca/Modelo\"}, {\"name\": \"ubicación\", \"label\": \"Ubicación\", \"type\": \"text\", \"required\": false, \"placeholder\": \"Oficina/Piso\"}, {\"name\": \"usuario_afectado\", \"label\": \"Usuario afectado\", \"type\": \"text\", \"required\": false, \"placeholder\": \"Nombre\"}, {\"name\": \"fecha_de_incidente\", \"label\": \"Fecha de incidente\", \"type\": \"date\", \"required\": false, \"placeholder\": \"Fecha\"}, {\"name\": \"acciones_realizadas\", \"label\": \"Acciones realizadas\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Pantalla con problemas",
+      "description": null,
+      "title_template": "Monitor / Pantalla presenta fallas",
+      "description_template": "Tipo de problema:\n[ ] Pantalla negra\n[ ] Líneas o píxeles muertos\n[ ] Parpadea constantemente\n[ ] Colores incorrectos\n[ ] No detecta señal\n\nMarca/Modelo del monitor:\nDuración del problema:\nUsuario afectado: ",
+      "category": "Hardware",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.717596",
+      "form_fields": "[{\"name\": \"tipo_de_problema\", \"label\": \"Tipo de problema\", \"type\": \"select\", \"required\": true, \"options\": [\"Pantalla negra\", \"Líneas o píxeles muertos\", \"Parpadea constantemente\", \"Colores incorrectos\", \"No detecta señal\"]}, {\"name\": \"marcamodelo_del_monitor\", \"label\": \"Marca/Modelo del monitor\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"usuario_afectado\", \"label\": \"Usuario afectado\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Teclado o mouse no funciona",
+      "description": null,
+      "title_template": "Periférico (teclado/mouse) no responde",
+      "description_template": "Dispositivo afectado:\n[ ] Teclado\n[ ] Mouse\n[ ] Ambos\n\nTipo de conexión:\n[ ] USB cableado\n[ ] Inalámbrico USB\n[ ] Bluetooth\n\nMarca/Modelo:\nUsuario: ",
+      "category": "Hardware",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.718428",
+      "form_fields": "[{\"name\": \"dispositivo_afectado\", \"label\": \"Dispositivo afectado\", \"type\": \"select\", \"required\": true, \"options\": [\"Teclado\", \"Mouse\", \"Ambos\"]}, {\"name\": \"tipo_de_conexión\", \"label\": \"Tipo de conexión\", \"type\": \"select\", \"required\": false, \"options\": [\"USB cableado\", \"Inalámbrico USB\", \"Bluetooth\"]}, {\"name\": \"marcamodelo\", \"label\": \"Marca/Modelo\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"usuario\", \"label\": \"Usuario\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Impresora no imprime",
+      "description": null,
+      "title_template": "Impresora con falla",
+      "description_template": "Impresora afectada: [Nombre/Modelo]\nUbicación: [Piso/Área]\nUsuarios afectados: [1 / Varios / Todos]\n\nSíntoma:\n[ ] No imprime nada\n[ ] Imprime mal calidad\n[ ] Atasco de papel\n[ ] Error en pantalla\n[ ] No detecta papel/tóner\n\nMensaje de error mostrado: ",
+      "category": "Hardware",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.718901",
+      "form_fields": "[{\"name\": \"impresora_afectada\", \"label\": \"Impresora afectada\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Nombre/Modelo\"}, {\"name\": \"ubicación\", \"label\": \"Ubicación\", \"type\": \"text\", \"required\": false, \"placeholder\": \"Piso/Área\"}, {\"name\": \"usuarios_afectados\", \"label\": \"Usuarios afectados\", \"type\": \"text\", \"required\": false, \"placeholder\": \"1 / Varios / Todos\"}, {\"name\": \"síntoma\", \"label\": \"Síntoma\", \"type\": \"select\", \"required\": false, \"options\": [\"No imprime nada\", \"Imprime mal calidad\", \"Atasco de papel\", \"Error en pantalla\", \"No detecta papel/tóner\"]}, {\"name\": \"mensaje_de_error_mostrado\", \"label\": \"Mensaje de error mostrado\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Disco duro lleno",
+      "description": null,
+      "title_template": "Espacio insuficiente en disco",
+      "description_template": "Equipo afectado: [Nombre PC]\nUsuario: \nUnidad afectada: [C: / D:]\nEspacio actual disponible: [GB]\n\nArchivos que requiere conservar:\n- \n\n¿Tiene respaldos? [Sí/No]",
+      "category": "Hardware",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.719364",
+      "form_fields": "[{\"name\": \"equipo_afectado\", \"label\": \"Equipo afectado\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Nombre PC\"}, {\"name\": \"usuario\", \"label\": \"Usuario\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"unidad_afectada\", \"label\": \"Unidad afectada\", \"type\": \"text\", \"required\": false, \"placeholder\": \"C: / D:\"}, {\"name\": \"espacio_actual_disponible\", \"label\": \"Espacio actual disponible\", \"type\": \"text\", \"required\": false, \"placeholder\": \"GB\"}, {\"name\": \"archivos_que_requiere_conservar\", \"label\": \"Archivos que requiere conservar\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"tiene_respaldos\", \"label\": \"¿Tiene respaldos?\", \"type\": \"select\", \"required\": false, \"options\": [\"Sí\", \"No\"]}]"
+    },
+    {
+      "name": "Software no abre",
+      "description": null,
+      "title_template": "Aplicación no inicia",
+      "description_template": "Aplicación afectada: \nVersión: \nSistema operativo: \n\nMensaje de error (si aparece):\n\nAcciones intentadas:\n[ ] Reiniciar PC\n[ ] Reinstalar app\n[ ] Ejecutar como administrador\n\nFrecuencia del problema: [Siempre/Intermitente]",
+      "category": "Software",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.719802",
+      "form_fields": "[{\"name\": \"aplicación_afectada\", \"label\": \"Aplicación afectada\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"versión\", \"label\": \"Versión\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"sistema_operativo\", \"label\": \"Sistema operativo\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"mensaje_de_error_si_aparece\", \"label\": \"Mensaje de error (si aparece)\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"acciones_intentadas\", \"label\": \"Acciones intentadas\", \"type\": \"select\", \"required\": false, \"options\": [\"Reiniciar PC\", \"Reinstalar app\", \"Ejecutar como administrador\"]}, {\"name\": \"frecuencia_del_problema\", \"label\": \"Frecuencia del problema\", \"type\": \"text\", \"required\": false, \"placeholder\": \"Siempre/Intermitente\"}]"
+    },
+    {
+      "name": "Instalación de software",
+      "description": null,
+      "title_template": "Solicitud de instalación de software",
+      "description_template": "Software solicitado: \nVersión específica: \nMotivo de la solicitud: \n\nUsuario que solicita: \nGerente/Aprobador: \n\n¿Es licencia gratuita o comercial?\n[ ] Gratuito\n[ ] Comercial (adjuntar comprobante de compra)\n\nUrgencia: ",
+      "category": "Software",
+      "priority": "low",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.720196",
+      "form_fields": "[{\"name\": \"software_solicitado\", \"label\": \"Software solicitado\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"versión_específica\", \"label\": \"Versión específica\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"motivo_de_la_solicitud\", \"label\": \"Motivo de la solicitud\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"usuario_que_solicita\", \"label\": \"Usuario que solicita\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"gerenteaprobador\", \"label\": \"Gerente/Aprobador\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"urgencia\", \"label\": \"Urgencia\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Actualización de software",
+      "description": null,
+      "title_template": "Solicitud de actualización de software",
+      "description_template": "Software a actualizar: \nVersión actual: \nVersión deseada: \n\nMotivo:\n[ ] Funcionalidad nueva requerida\n[ ] Vulnerabilidad de seguridad\n[ ] Compatibilidad\n[ ] Otro: ",
+      "category": "Software",
+      "priority": "low",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.720600",
+      "form_fields": "[{\"name\": \"software_a_actualizar\", \"label\": \"Software a actualizar\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"versión_actual\", \"label\": \"Versión actual\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"versión_deseada\", \"label\": \"Versión deseada\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"motivo\", \"label\": \"Motivo\", \"type\": \"select\", \"required\": false, \"options\": [\"Funcionalidad nueva requerida\", \"Vulnerabilidad de seguridad\", \"Compatibilidad\", \"Otro\"]}]"
+    },
+    {
+      "name": "Office no funciona",
+      "description": null,
+      "title_template": "Microsoft Office presenta fallas",
+      "description_template": "Aplicación afectada:\n[ ] Word\n[ ] Excel\n[ ] PowerPoint\n[ ] Outlook\n[ ] Otra: \n\nVersión Office: \nSíntoma: \nMensaje de error: \nArchivos afectados: ",
+      "category": "Software",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.720973",
+      "form_fields": "[{\"name\": \"aplicación_afectada\", \"label\": \"Aplicación afectada\", \"type\": \"select\", \"required\": true, \"options\": [\"Word\", \"Excel\", \"PowerPoint\", \"Outlook\", \"Otra\"]}, {\"name\": \"versión_office\", \"label\": \"Versión Office\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"síntoma\", \"label\": \"Síntoma\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"mensaje_de_error\", \"label\": \"Mensaje de error\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"archivos_afectados\", \"label\": \"Archivos afectados\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Navegador con problemas",
+      "description": null,
+      "title_template": "Navegador web no funciona correctamente",
+      "description_template": "Navegador:\n[ ] Chrome\n[ ] Edge\n[ ] Firefox\n\nSíntoma:\n[ ] No carga páginas\n[ ] Cierre inesperado\n[ ] Páginas lentas\n[ ] Errores de certificado\n\nSitios afectados: ",
+      "category": "Software",
+      "priority": "low",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.721340",
+      "form_fields": "[{\"name\": \"navegador\", \"label\": \"Navegador\", \"type\": \"select\", \"required\": true, \"options\": [\"Chrome\", \"Edge\", \"Firefox\"]}, {\"name\": \"síntoma\", \"label\": \"Síntoma\", \"type\": \"select\", \"required\": false, \"options\": [\"No carga páginas\", \"Cierre inesperado\", \"Páginas lentas\", \"Errores de certificado\"]}, {\"name\": \"sitios_afectados\", \"label\": \"Sitios afectados\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Sin acceso a internet",
+      "description": null,
+      "title_template": "No tengo conexión a internet",
+      "description_template": "Equipo afectado: \nUsuario: \nUbicación: [Piso/Oficina]\n\nTipo de conexión:\n[ ] WiFi\n[ ] Cable Ethernet\n\nSíntoma:\n[ ] No conecta a la red\n[ ] Conecta pero sin internet\n[ ] Internet lento\n\n¿Otros usuarios cerca afectados? ",
+      "category": "Red",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.721748",
+      "form_fields": "[{\"name\": \"equipo_afectado\", \"label\": \"Equipo afectado\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"usuario\", \"label\": \"Usuario\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"ubicación\", \"label\": \"Ubicación\", \"type\": \"text\", \"required\": false, \"placeholder\": \"Piso/Oficina\"}, {\"name\": \"tipo_de_conexión\", \"label\": \"Tipo de conexión\", \"type\": \"select\", \"required\": false, \"options\": [\"WiFi\", \"Cable Ethernet\"]}, {\"name\": \"síntoma\", \"label\": \"Síntoma\", \"type\": \"select\", \"required\": false, \"options\": [\"No conecta a la red\", \"Conecta pero sin internet\", \"Internet lento\"]}]"
+    },
+    {
+      "name": "WiFi no conecta",
+      "description": null,
+      "title_template": "Problema de conexión WiFi",
+      "description_template": "Red WiFi: [SSID]\nEquipo: \nUbicación: \n\nProblema:\n[ ] No detecta la red\n[ ] Detecta pero no conecta\n[ ] Conecta y desconecta\n[ ] Conexión muy lenta\n\nDispositivos similares funcionan? [Sí/No]",
+      "category": "Red",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.722212",
+      "form_fields": "[{\"name\": \"red_wifi\", \"label\": \"Red WiFi\", \"type\": \"text\", \"required\": true, \"placeholder\": \"SSID\"}, {\"name\": \"equipo\", \"label\": \"Equipo\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"ubicación\", \"label\": \"Ubicación\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"problema\", \"label\": \"Problema\", \"type\": \"select\", \"required\": false, \"options\": [\"No detecta la red\", \"Detecta pero no conecta\", \"Conecta y desconecta\", \"Conexión muy lenta\"]}, {\"name\": \"dispositivos_similares_funcionan\", \"label\": \"Dispositivos similares funcionan?\", \"type\": \"select\", \"required\": false, \"options\": [\"Sí\", \"No\"]}]"
+    },
+    {
+      "name": "VPN no conecta",
+      "description": null,
+      "title_template": "No puedo conectarme a la VPN",
+      "description_template": "Cliente VPN: \nUsuario VPN: \nUbicación: [Casa/Oficina/Externo]\n\nMensaje de error: \n\n¿Cuándo dejó de funcionar?\n¿Funciona en otra red? ",
+      "category": "Red",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.722642",
+      "form_fields": "[{\"name\": \"cliente_vpn\", \"label\": \"Cliente VPN\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"usuario_vpn\", \"label\": \"Usuario VPN\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"ubicación\", \"label\": \"Ubicación\", \"type\": \"text\", \"required\": false, \"placeholder\": \"Casa/Oficina/Externo\"}, {\"name\": \"mensaje_de_error\", \"label\": \"Mensaje de error\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Red corporativa lenta",
+      "description": null,
+      "title_template": "Conexión a red corporativa muy lenta",
+      "description_template": "Tipo de conexión: [LAN/WiFi/VPN]\nUbicación: \nUsuarios afectados: [1/Varios/Todos]\n\nRecursos afectados:\n[ ] Compartidos de red\n[ ] Aplicaciones internas\n[ ] Internet\n[ ] Email\n\nHorario del problema: ",
+      "category": "Red",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.723072",
+      "form_fields": "[{\"name\": \"tipo_de_conexión\", \"label\": \"Tipo de conexión\", \"type\": \"text\", \"required\": true, \"placeholder\": \"LAN/WiFi/VPN\"}, {\"name\": \"ubicación\", \"label\": \"Ubicación\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"usuarios_afectados\", \"label\": \"Usuarios afectados\", \"type\": \"text\", \"required\": false, \"placeholder\": \"1/Varios/Todos\"}, {\"name\": \"recursos_afectados\", \"label\": \"Recursos afectados\", \"type\": \"select\", \"required\": false, \"options\": [\"Compartidos de red\", \"Aplicaciones internas\", \"Internet\", \"Email\"]}, {\"name\": \"horario_del_problema\", \"label\": \"Horario del problema\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Reseteo de contraseña",
+      "description": null,
+      "title_template": "Solicitud de reseteo de contraseña",
+      "description_template": "Usuario afectado: \nSistema/Aplicación: [Windows/Email/SAP/Otro]\nFecha último acceso exitoso: \n\nMotivo:\n[ ] Olvidé la contraseña\n[ ] Cuenta bloqueada\n[ ] Contraseña expirada\n\nMétodo de verificación de identidad: ",
+      "category": "Accesos",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.723735",
+      "form_fields": "[{\"name\": \"usuario_afectado\", \"label\": \"Usuario afectado\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"sistemaaplicación\", \"label\": \"Sistema/Aplicación\", \"type\": \"text\", \"required\": false, \"placeholder\": \"Windows/Email/SAP/Otro\"}, {\"name\": \"fecha_último_acceso_exitoso\", \"label\": \"Fecha último acceso exitoso\", \"type\": \"date\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"motivo\", \"label\": \"Motivo\", \"type\": \"select\", \"required\": false, \"options\": [\"Olvidé la contraseña\", \"Cuenta bloqueada\", \"Contraseña expirada\"]}, {\"name\": \"método_de_verificación_de_identidad\", \"label\": \"Método de verificación de identidad\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Cuenta bloqueada",
+      "description": null,
+      "title_template": "Mi cuenta está bloqueada",
+      "description_template": "Usuario: \nSistema afectado: \nÚltimo acceso exitoso: \n\nMensaje de error: \n¿Cuántos intentos hizo? \n\nNecesidad urgente: ",
+      "category": "Accesos",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.724317",
+      "form_fields": "[{\"name\": \"usuario\", \"label\": \"Usuario\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"sistema_afectado\", \"label\": \"Sistema afectado\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"ltimo_acceso_exitoso\", \"label\": \"Último acceso exitoso\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"mensaje_de_error\", \"label\": \"Mensaje de error\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"necesidad_urgente\", \"label\": \"Necesidad urgente\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Solicitud de acceso a sistema",
+      "description": null,
+      "title_template": "Solicitud de acceso a sistema/aplicación",
+      "description_template": "Sistema solicitado: \nMódulo / Permisos requeridos: \nMotivo de la solicitud: \n\nGerente que aprueba: \nUsuario para acceso: \nFecha de necesidad: ",
+      "category": "Accesos",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.724718",
+      "form_fields": "[{\"name\": \"sistema_solicitado\", \"label\": \"Sistema solicitado\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"módulo_permisos_requeridos\", \"label\": \"Módulo / Permisos requeridos\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"motivo_de_la_solicitud\", \"label\": \"Motivo de la solicitud\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"gerente_que_aprueba\", \"label\": \"Gerente que aprueba\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"usuario_para_acceso\", \"label\": \"Usuario para acceso\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"fecha_de_necesidad\", \"label\": \"Fecha de necesidad\", \"type\": \"date\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Nuevo usuario",
+      "description": null,
+      "title_template": "Alta de nuevo usuario",
+      "description_template": "Nombre completo: \nCargo: \nÁrea/Departamento: \nFecha de ingreso: \nGerente directo: \n\nAccesos requeridos:\n[ ] Email corporativo\n[ ] Equipo y Windows\n[ ] SAP\n[ ] VPN\n[ ] Carpetas de red\n[ ] Otros: ",
+      "category": "Accesos",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.725070",
+      "form_fields": "[{\"name\": \"nombre_completo\", \"label\": \"Nombre completo\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"cargo\", \"label\": \"Cargo\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"readepartamento\", \"label\": \"Área/Departamento\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"fecha_de_ingreso\", \"label\": \"Fecha de ingreso\", \"type\": \"date\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"gerente_directo\", \"label\": \"Gerente directo\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"accesos_requeridos\", \"label\": \"Accesos requeridos\", \"type\": \"select\", \"required\": false, \"options\": [\"Email corporativo\", \"Equipo y Windows\", \"SAP\", \"VPN\", \"Carpetas de red\", \"Otros\"]}]"
+    },
+    {
+      "name": "Baja de usuario",
+      "description": null,
+      "title_template": "Baja de usuario - desactivación de accesos",
+      "description_template": "Usuario a desactivar: \nÚltimo día de trabajo: \nMotivo: [Renuncia/Despido/Vacaciones largas]\n\n¿Conservar archivos? [Sí/No]\nReceptor de archivos: \n\nGerente que solicita: ",
+      "category": "Accesos",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.725433",
+      "form_fields": "[{\"name\": \"usuario_a_desactivar\", \"label\": \"Usuario a desactivar\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"ltimo_día_de_trabajo\", \"label\": \"Último día de trabajo\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"motivo\", \"label\": \"Motivo\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"Renuncia/Despido/Vacaciones largas\"}, {\"name\": \"conservar_archivos\", \"label\": \"¿Conservar archivos?\", \"type\": \"select\", \"required\": false, \"options\": [\"Sí\", \"No\"]}, {\"name\": \"receptor_de_archivos\", \"label\": \"Receptor de archivos\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"gerente_que_solicita\", \"label\": \"Gerente que solicita\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Correo no funciona",
+      "description": null,
+      "title_template": "Outlook / Correo no funciona",
+      "description_template": "Cuenta de correo: \nCliente: [Outlook/Webmail/Móvil]\n\nSíntoma:\n[ ] No envía\n[ ] No recibe\n[ ] No abre\n[ ] Solicita contraseña\n[ ] Bandeja entrada llena\n\nMensaje de error: ",
+      "category": "Email",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.725820",
+      "form_fields": "[{\"name\": \"cuenta_de_correo\", \"label\": \"Cuenta de correo\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"cliente\", \"label\": \"Cliente\", \"type\": \"text\", \"required\": false, \"placeholder\": \"Outlook/Webmail/Móvil\"}, {\"name\": \"síntoma\", \"label\": \"Síntoma\", \"type\": \"select\", \"required\": false, \"options\": [\"No envía\", \"No recibe\", \"No abre\", \"Solicita contraseña\", \"Bandeja entrada llena\"]}, {\"name\": \"mensaje_de_error\", \"label\": \"Mensaje de error\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Correos no llegan",
+      "description": null,
+      "title_template": "No estoy recibiendo correos",
+      "description_template": "Cuenta: \nDesde cuándo no recibe: \n\n¿Remitentes específicos o todos?\nEjemplo de remitente esperado: \n\n¿Revisó spam/correo no deseado?\n¿Bandeja llena? ",
+      "category": "Email",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.726192",
+      "form_fields": "[{\"name\": \"cuenta\", \"label\": \"Cuenta\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"desde_cuándo_no_recibe\", \"label\": \"Desde cuándo no recibe\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"ejemplo_de_remitente_esperado\", \"label\": \"Ejemplo de remitente esperado\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Lista de distribución",
+      "description": null,
+      "title_template": "Solicitud crear/modificar lista de distribución",
+      "description_template": "Tipo:\n[ ] Crear nueva lista\n[ ] Agregar miembros\n[ ] Quitar miembros\n[ ] Cambiar nombre\n\nNombre de lista: \nMiembros: \nPropósito: ",
+      "category": "Email",
+      "priority": "low",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.726565",
+      "form_fields": "[{\"name\": \"tipo\", \"label\": \"Tipo\", \"type\": \"select\", \"required\": true, \"options\": [\"Crear nueva lista\", \"Agregar miembros\", \"Quitar miembros\", \"Cambiar nombre\"]}, {\"name\": \"nombre_de_lista\", \"label\": \"Nombre de lista\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"miembros\", \"label\": \"Miembros\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"propósito\", \"label\": \"Propósito\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "SAP no abre",
+      "description": null,
+      "title_template": "No puedo acceder a SAP",
+      "description_template": "Usuario SAP: \nAmbiente: [PRD/QAS/DEV]\nMandante: \n\nMensaje de error: \nHora del problema: \n\n¿Otros usuarios afectados? ",
+      "category": "SAP",
+      "priority": "critical",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.726942",
+      "form_fields": "[{\"name\": \"usuario_sap\", \"label\": \"Usuario SAP\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"ambiente\", \"label\": \"Ambiente\", \"type\": \"text\", \"required\": false, \"placeholder\": \"PRD/QAS/DEV\"}, {\"name\": \"mandante\", \"label\": \"Mandante\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"mensaje_de_error\", \"label\": \"Mensaje de error\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Error transacción SAP",
+      "description": null,
+      "title_template": "Error en transacción SAP",
+      "description_template": "Transacción: \nMódulo: [FI/CO/MM/SD/PP/HCM]\nUsuario: \nMandante: \n\nPasos para reproducir el error:\n1. \n2. \n3. \n\nMensaje de error exacto: \nNúmero de mensaje: ",
+      "category": "SAP",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.727305",
+      "form_fields": "[{\"name\": \"transacción\", \"label\": \"Transacción\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"módulo\", \"label\": \"Módulo\", \"type\": \"text\", \"required\": false, \"placeholder\": \"FI/CO/MM/SD/PP/HCM\"}, {\"name\": \"usuario\", \"label\": \"Usuario\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"mandante\", \"label\": \"Mandante\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"pasos_para_reproducir_el_error\", \"label\": \"Pasos para reproducir el error\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"mensaje_de_error_exacto\", \"label\": \"Mensaje de error exacto\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"número_de_mensaje\", \"label\": \"Número de mensaje\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Reporte SAP no genera",
+      "description": null,
+      "title_template": "Reporte SAP no se genera",
+      "description_template": "Reporte/Transacción: \nFiltros aplicados: \nFechas del reporte: \nUsuario que ejecuta: \n\nSíntoma:\n[ ] Se queda cargando\n[ ] Sale en blanco\n[ ] Error de timeout\n[ ] Datos incorrectos\n\nMensaje de error: ",
+      "category": "SAP",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.727658",
+      "form_fields": "[{\"name\": \"reportetransacción\", \"label\": \"Reporte/Transacción\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"filtros_aplicados\", \"label\": \"Filtros aplicados\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"fechas_del_reporte\", \"label\": \"Fechas del reporte\", \"type\": \"date\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"usuario_que_ejecuta\", \"label\": \"Usuario que ejecuta\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"síntoma\", \"label\": \"Síntoma\", \"type\": \"select\", \"required\": false, \"options\": [\"Se queda cargando\", \"Sale en blanco\", \"Error de timeout\", \"Datos incorrectos\"]}, {\"name\": \"mensaje_de_error\", \"label\": \"Mensaje de error\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Permisos SAP",
+      "description": null,
+      "title_template": "Solicitud de permisos SAP",
+      "description_template": "Usuario SAP: \nMandante: \n\nTransacciones requeridas:\n- \n\nAutorización solicitada:\n[ ] Visualización\n[ ] Crear\n[ ] Modificar\n[ ] Eliminar\n\nMotivo: \nAprobador: ",
+      "category": "SAP",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.728214",
+      "form_fields": "[{\"name\": \"usuario_sap\", \"label\": \"Usuario SAP\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"mandante\", \"label\": \"Mandante\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"transacciones_requeridas\", \"label\": \"Transacciones requeridas\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"autorización_solicitada\", \"label\": \"Autorización solicitada\", \"type\": \"select\", \"required\": false, \"options\": [\"Visualización\", \"Crear\", \"Modificar\", \"Eliminar\"]}, {\"name\": \"motivo\", \"label\": \"Motivo\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"aprobador\", \"label\": \"Aprobador\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Equipo con virus",
+      "description": null,
+      "title_template": "Sospecha de virus/malware en equipo",
+      "description_template": "Equipo afectado: \nUsuario: \n\nSíntoma observado:\n[ ] Equipo muy lento\n[ ] Ventanas emergentes\n[ ] Archivos cifrados/desaparecidos\n[ ] Redirige a sitios extraños\n[ ] Antivirus deshabilitado\n\n¿Qué archivo/email recibió antes del problema? ",
+      "category": "Seguridad",
+      "priority": "critical",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.728622",
+      "form_fields": "[{\"name\": \"equipo_afectado\", \"label\": \"Equipo afectado\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"usuario\", \"label\": \"Usuario\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"síntoma_observado\", \"label\": \"Síntoma observado\", \"type\": \"select\", \"required\": false, \"options\": [\"Equipo muy lento\", \"Ventanas emergentes\", \"Archivos cifrados/desaparecidos\", \"Redirige a sitios extraños\", \"Antivirus deshabilitado\"]}]"
+    },
+    {
+      "name": "Phishing reportado",
+      "description": null,
+      "title_template": "Correo sospechoso de phishing",
+      "description_template": "Remitente del correo: \nAsunto: \nFecha recibido: \n\n¿Hizo clic en algún link? [Sí/No]\n¿Descargó archivos adjuntos? [Sí/No]\n¿Ingresó credenciales? [Sí/No]\n\nUsuario que reporta: ",
+      "category": "Seguridad",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.729003",
+      "form_fields": "[{\"name\": \"remitente_del_correo\", \"label\": \"Remitente del correo\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"asunto\", \"label\": \"Asunto\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"fecha_recibido\", \"label\": \"Fecha recibido\", \"type\": \"date\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"hizo_clic_en_algún_link\", \"label\": \"¿Hizo clic en algún link?\", \"type\": \"select\", \"required\": false, \"options\": [\"Sí\", \"No\"]}, {\"name\": \"descargó_archivos_adjuntos\", \"label\": \"¿Descargó archivos adjuntos?\", \"type\": \"select\", \"required\": false, \"options\": [\"Sí\", \"No\"]}, {\"name\": \"ingresó_credenciales\", \"label\": \"¿Ingresó credenciales?\", \"type\": \"select\", \"required\": false, \"options\": [\"Sí\", \"No\"]}, {\"name\": \"usuario_que_reporta\", \"label\": \"Usuario que reporta\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Equipo perdido o robado",
+      "description": null,
+      "title_template": "Reporte de equipo perdido/robado",
+      "description_template": "Equipo perdido: [Laptop/Móvil/Tablet]\nMarca/Modelo: \nNúmero de serie: \nÚltimo usuario asignado: \n\nFecha del incidente: \nLugar del incidente: \n\n¿Contenía información confidencial? [Sí/No]\nReporte policial: [Sí/No]",
+      "category": "Seguridad",
+      "priority": "critical",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.729381",
+      "form_fields": "[{\"name\": \"equipo_perdido\", \"label\": \"Equipo perdido\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Laptop/Móvil/Tablet\"}, {\"name\": \"marcamodelo\", \"label\": \"Marca/Modelo\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"número_de_serie\", \"label\": \"Número de serie\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"ltimo_usuario_asignado\", \"label\": \"Último usuario asignado\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"fecha_del_incidente\", \"label\": \"Fecha del incidente\", \"type\": \"date\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"lugar_del_incidente\", \"label\": \"Lugar del incidente\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"contenía_información_confidencial\", \"label\": \"¿Contenía información confidencial?\", \"type\": \"select\", \"required\": false, \"options\": [\"Sí\", \"No\"]}, {\"name\": \"reporte_policial\", \"label\": \"Reporte policial\", \"type\": \"text\", \"required\": false, \"placeholder\": \"Sí/No\"}]"
+    },
+    {
+      "name": "Teléfono no funciona",
+      "description": null,
+      "title_template": "Teléfono IP / Extensión no funciona",
+      "description_template": "Extensión afectada: \nUsuario: \nUbicación: \n\nSíntoma:\n[ ] No tiene tono\n[ ] No recibe llamadas\n[ ] No realiza llamadas\n[ ] Calidad de audio mala\n[ ] No registra en la central\n\nMarca/Modelo del teléfono: ",
+      "category": "Telefonía",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.729765",
+      "form_fields": "[{\"name\": \"extensión_afectada\", \"label\": \"Extensión afectada\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"usuario\", \"label\": \"Usuario\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"ubicación\", \"label\": \"Ubicación\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"síntoma\", \"label\": \"Síntoma\", \"type\": \"select\", \"required\": false, \"options\": [\"No tiene tono\", \"No recibe llamadas\", \"No realiza llamadas\", \"Calidad de audio mala\", \"No registra en la central\"]}, {\"name\": \"marcamodelo_del_teléfono\", \"label\": \"Marca/Modelo del teléfono\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Solicitud de extensión",
+      "description": null,
+      "title_template": "Solicitud nueva extensión telefónica",
+      "description_template": "Usuario solicitante: \nÁrea/Departamento: \nUbicación física: \n\nTipo de extensión:\n[ ] Solo interna\n[ ] Salida local\n[ ] Salida nacional\n[ ] Internacional\n\nAprobador: ",
+      "category": "Telefonía",
+      "priority": "low",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.730361",
+      "form_fields": "[{\"name\": \"usuario_solicitante\", \"label\": \"Usuario solicitante\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"readepartamento\", \"label\": \"Área/Departamento\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"ubicación_física\", \"label\": \"Ubicación física\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"tipo_de_extensión\", \"label\": \"Tipo de extensión\", \"type\": \"select\", \"required\": false, \"options\": [\"Solo interna\", \"Salida local\", \"Salida nacional\", \"Internacional\"]}, {\"name\": \"aprobador\", \"label\": \"Aprobador\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Solicitud reunión virtual",
+      "description": null,
+      "title_template": "Solicitud configuración reunión Teams/Zoom",
+      "description_template": "Tipo de soporte:\n[ ] Configurar cuenta\n[ ] Configurar sala virtual\n[ ] Capacitación de uso\n[ ] Problema técnico durante reunión\n\nFecha del evento: \nParticipantes: \nDuración estimada: ",
+      "category": "General",
+      "priority": "low",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.730912",
+      "form_fields": "[{\"name\": \"tipo_de_soporte\", \"label\": \"Tipo de soporte\", \"type\": \"select\", \"required\": true, \"options\": [\"Configurar cuenta\", \"Configurar sala virtual\", \"Capacitación de uso\", \"Problema técnico durante reunión\"]}, {\"name\": \"fecha_del_evento\", \"label\": \"Fecha del evento\", \"type\": \"date\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"participantes\", \"label\": \"Participantes\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"duración_estimada\", \"label\": \"Duración estimada\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Capacitación",
+      "description": null,
+      "title_template": "Solicitud de capacitación",
+      "description_template": "Tema de capacitación: \nUsuarios a capacitar: \nNivel: [Básico/Intermedio/Avanzado]\n\nModalidad preferida:\n[ ] Presencial\n[ ] Virtual\n[ ] Material escrito\n\nFecha sugerida: ",
+      "category": "General",
+      "priority": "low",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.731312",
+      "form_fields": "[{\"name\": \"tema_de_capacitación\", \"label\": \"Tema de capacitación\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"usuarios_a_capacitar\", \"label\": \"Usuarios a capacitar\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"nivel\", \"label\": \"Nivel\", \"type\": \"text\", \"required\": false, \"placeholder\": \"Básico/Intermedio/Avanzado\"}, {\"name\": \"modalidad_preferida\", \"label\": \"Modalidad preferida\", \"type\": \"select\", \"required\": false, \"options\": [\"Presencial\", \"Virtual\", \"Material escrito\"]}, {\"name\": \"fecha_sugerida\", \"label\": \"Fecha sugerida\", \"type\": \"date\", \"required\": false, \"placeholder\": \"\"}]"
+    },
+    {
+      "name": "Mantenimiento programado",
+      "description": null,
+      "title_template": "Mantenimiento preventivo de equipo",
+      "description_template": "Equipos a mantener: \nUbicación: \nUsuarios afectados: \nFecha propuesta: \nDuración estimada: \n\nTipo de mantenimiento:\n[ ] Limpieza física\n[ ] Actualización de software\n[ ] Revisión de hardware\n[ ] Backup\n[ ] Otro: ",
+      "category": "General",
+      "priority": "low",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-01 20:43:08.731617",
+      "form_fields": "[{\"name\": \"equipos_a_mantener\", \"label\": \"Equipos a mantener\", \"type\": \"text\", \"required\": true, \"placeholder\": \"\"}, {\"name\": \"ubicación\", \"label\": \"Ubicación\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"usuarios_afectados\", \"label\": \"Usuarios afectados\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"fecha_propuesta\", \"label\": \"Fecha propuesta\", \"type\": \"date\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"duración_estimada\", \"label\": \"Duración estimada\", \"type\": \"text\", \"required\": false, \"placeholder\": \"\"}, {\"name\": \"tipo_de_mantenimiento\", \"label\": \"Tipo de mantenimiento\", \"type\": \"select\", \"required\": false, \"options\": [\"Limpieza física\", \"Actualización de software\", \"Revisión de hardware\", \"Backup\", \"Otro\"]}]"
+    },
+    {
+      "name": "Problema de acceso",
+      "description": "Usuario no puede acceder al sistema",
+      "title_template": "No puedo ingresar a [SISTEMA]",
+      "description_template": "Usuario reporta que no puede acceder",
+      "category": "Acceso",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-09 12:21:06.404937",
+      "form_fields": "[{\"name\": \"sistema\", \"label\": \"🎯 Sistema / aplicación / recurso\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: SAP módulo FI, carpeta de red, SharePoint\"}, {\"name\": \"tipo_acceso\", \"label\": \"🔐 Tipo de acceso\", \"type\": \"select\", \"required\": true, \"options\": [\"Solo lectura\", \"Lectura y escritura\", \"Administrador\", \"Reset de contraseña\", \"Otro\"]}, {\"name\": \"justificacion\", \"label\": \"📋 Justificación\", \"type\": \"textarea\", \"required\": true, \"placeholder\": \"Explica para qué necesitas este acceso\"}, {\"name\": \"aprobador\", \"label\": \"✅ Jefe / aprobador\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Nombre y cargo de tu jefe\"}, {\"name\": \"duracion\", \"label\": \"⏳ Duración\", \"type\": \"select\", \"required\": false, \"options\": [\"Permanente\", \"Temporal (indicar fecha en detalles)\"]}]"
+    },
+    {
+      "name": "Problema de velocidad",
+      "description": "Sistema lento o con lag",
+      "title_template": "[SISTEMA] está muy lento",
+      "description_template": "El sistema responde lentamente",
+      "category": "Rendimiento",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-09 12:21:06.406282",
+      "form_fields": "[{\"name\": \"equipo\", \"label\": \"💻 Equipo afectado\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: PC-CONTAB-05 / mi laptop\"}, {\"name\": \"sintoma\", \"label\": \"⚠ Síntoma principal\", \"type\": \"select\", \"required\": true, \"options\": [\"Muy lento\", \"No enciende\", \"Se reinicia / pantalla azul\", \"Pantalla dañada\", \"Ruido / sobrecalentamiento\", \"Teclado / mouse no responden\", \"Disco lleno\", \"Otro\"]}, {\"name\": \"cuando_inicio\", \"label\": \"🕐 ¿Desde cuándo?\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: Desde ayer / desde el último Windows Update\"}, {\"name\": \"frecuencia\", \"label\": \"🔁 Frecuencia\", \"type\": \"select\", \"required\": false, \"options\": [\"Constante\", \"Varias veces al día\", \"Una vez al día\", \"Esporádico\"]}, {\"name\": \"detalles\", \"label\": \"📝 Detalles adicionales\", \"type\": \"textarea\", \"required\": false}]"
+    },
+    {
+      "name": "Error de licencia",
+      "description": "Licencia de software expirada",
+      "title_template": "Licencia expirada de [SOFTWARE]",
+      "description_template": "Necesito renovar la licencia",
+      "category": "Software",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-09 12:21:06.406817",
+      "form_fields": "[{\"name\": \"aplicacion\", \"label\": \"💻 Aplicación / programa\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: Excel, Chrome, SAP GUI\"}, {\"name\": \"tipo_problema\", \"label\": \"⚠ Tipo de problema\", \"type\": \"select\", \"required\": true, \"options\": [\"No abre / se cierra\", \"Error al usar\", \"Funcionalidad faltante\", \"Instalación / actualización\", \"Configuración\", \"Otro\"]}, {\"name\": \"mensaje_error\", \"label\": \"💬 Mensaje de error (si aplica)\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"Copia/pega el mensaje exacto\"}, {\"name\": \"pasos\", \"label\": \"📝 Pasos para reproducir\", \"type\": \"textarea\", \"required\": false, \"placeholder\": \"1. Abrir... 2. Click en... 3. Aparece error\"}]"
+    },
+    {
+      "name": "Backup fallido",
+      "description": "Respaldo de datos no completado",
+      "title_template": "Backup de [SISTEMA] falló",
+      "description_template": "El respaldo no se completó correctamente",
+      "category": "Backup",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-09 12:21:06.407301",
+      "form_fields": "[{\"name\": \"tipo_solicitud\", \"label\": \"🗄 Tipo de solicitud\", \"type\": \"select\", \"required\": true, \"options\": [\"Restaurar archivos eliminados\", \"Restaurar buzón / correos\", \"Backup de equipo\", \"Verificar que existe backup\", \"Otro\"]}, {\"name\": \"archivos_carpeta\", \"label\": \"📁 Archivos / carpeta afectada\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ruta completa o descripción\"}, {\"name\": \"cuando_perdio\", \"label\": \"🕐 ¿Cuándo se perdió / borró?\", \"type\": \"text\", \"required\": true}, {\"name\": \"detalles\", \"label\": \"📝 Detalles\", \"type\": \"textarea\", \"required\": false}]"
+    },
+    {
+      "name": "Hardware defectuoso",
+      "description": "Problema con equipo físico",
+      "title_template": "[EQUIPO] no funciona",
+      "description_template": "El equipo está defectuoso",
+      "category": "Hardware",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-09 12:21:06.408316",
+      "form_fields": "[{\"name\": \"equipo\", \"label\": \"💻 Equipo afectado\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: PC-CONTAB-05 / mi laptop\"}, {\"name\": \"sintoma\", \"label\": \"⚠ Síntoma principal\", \"type\": \"select\", \"required\": true, \"options\": [\"Muy lento\", \"No enciende\", \"Se reinicia / pantalla azul\", \"Pantalla dañada\", \"Ruido / sobrecalentamiento\", \"Teclado / mouse no responden\", \"Disco lleno\", \"Otro\"]}, {\"name\": \"cuando_inicio\", \"label\": \"🕐 ¿Desde cuándo?\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: Desde ayer / desde el último Windows Update\"}, {\"name\": \"frecuencia\", \"label\": \"🔁 Frecuencia\", \"type\": \"select\", \"required\": false, \"options\": [\"Constante\", \"Varias veces al día\", \"Una vez al día\", \"Esporádico\"]}, {\"name\": \"detalles\", \"label\": \"📝 Detalles adicionales\", \"type\": \"textarea\", \"required\": false}]"
+    },
+    {
+      "name": "Configuración de red",
+      "description": "Problema de conectividad",
+      "title_template": "No tengo conexión a [RED]",
+      "description_template": "No puedo conectarme a la red",
+      "category": "Red",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-09 12:21:06.408821",
+      "form_fields": "[{\"name\": \"ubicacion\", \"label\": \"📍 Ubicación / Piso / Oficina\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: Piso 3 - Oficina 305\"}, {\"name\": \"tipo_conexion\", \"label\": \"🔌 Tipo de conexión\", \"type\": \"select\", \"required\": true, \"options\": [\"WiFi\", \"Cable Ethernet\", \"VPN\", \"Ambas\"]}, {\"name\": \"cuando_inicio\", \"label\": \"🕐 ¿Cuándo comenzó?\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: Hoy a las 9:30 AM\"}, {\"name\": \"personas_afectadas\", \"label\": \"👥 Personas afectadas\", \"type\": \"select\", \"required\": true, \"options\": [\"Solo yo\", \"2-5 personas\", \"6-20 personas\", \"Más de 20 / todo el piso\"]}, {\"name\": \"sintomas\", \"label\": \"⚠ Síntomas observados\", \"type\": \"textarea\", \"required\": true, \"placeholder\": \"Ej: No carga ninguna página, error DNS, lento...\"}]"
+    },
+    {
+      "name": "Reporte de problema",
+      "description": "Reporte genérico de problema",
+      "title_template": "Problema con [ÁREA]",
+      "description_template": "Describe el problema que enfrentas",
+      "category": "General",
+      "priority": "low",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-09 12:21:06.409565",
+      "form_fields": "[{\"name\": \"que_pasa\", \"label\": \"❓ ¿Qué está pasando?\", \"type\": \"textarea\", \"required\": true, \"placeholder\": \"Describe el problema con tus palabras\"}, {\"name\": \"equipo_sistema\", \"label\": \"💻 Equipo / sistema afectado\", \"type\": \"text\", \"required\": false, \"placeholder\": \"Ej: Mi laptop, SAP, impresora del piso 2\"}, {\"name\": \"cuando_inicio\", \"label\": \"🕐 ¿Cuándo comenzó?\", \"type\": \"text\", \"required\": false, \"placeholder\": \"Ej: Hoy a las 9am / desde ayer\"}, {\"name\": \"pasos_intentados\", \"label\": \"🔄 ¿Qué intentaste para resolverlo?\", \"type\": \"textarea\", \"required\": false}, {\"name\": \"impacto\", \"label\": \"📊 ¿Cómo te afecta?\", \"type\": \"select\", \"required\": false, \"options\": [\"Me bloquea totalmente\", \"Puedo seguir trabajando con limitaciones\", \"Es molestia pero no crítico\", \"Solo es una consulta\"]}]"
+    },
+    {
+      "name": "🌐 Problema de Red / Internet",
+      "description": "Reportar fallas de conectividad",
+      "title_template": "Sin conexión a red — {ubicacion}",
+      "description_template": "",
+      "category": "Red",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.055476",
+      "form_fields": "[{\"name\": \"ubicacion\", \"label\": \"📍 Ubicación / Piso / Oficina\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: Piso 3 - Oficina 305\"}, {\"name\": \"tipo_conexion\", \"label\": \"🔌 Tipo de conexión\", \"type\": \"select\", \"required\": true, \"options\": [\"WiFi\", \"Cable Ethernet\", \"VPN\", \"Ambas\"]}, {\"name\": \"cuando_inicio\", \"label\": \"🕐 ¿Cuándo comenzó?\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: Hoy a las 9:30 AM\"}, {\"name\": \"personas_afectadas\", \"label\": \"👥 Personas afectadas\", \"type\": \"select\", \"required\": true, \"options\": [\"Solo yo\", \"2-5 personas\", \"6-20 personas\", \"Más de 20 / todo el piso\"]}, {\"name\": \"sintomas\", \"label\": \"⚠ Síntomas observados\", \"type\": \"textarea\", \"required\": true, \"placeholder\": \"Ej: No carga ninguna página, error DNS, lento...\"}]"
+    },
+    {
+      "name": "🖨️ Problema con Impresora",
+      "description": "Reportar fallas o configuración de impresora",
+      "title_template": "Problema con impresora — {impresora}",
+      "description_template": "",
+      "category": "Impresoras",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.057691",
+      "form_fields": "[{\"name\": \"impresora\", \"label\": \"🖨️ Nombre / modelo de impresora\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: HP-LaserJet-Piso3\"}, {\"name\": \"ubicacion\", \"label\": \"📍 Ubicación\", \"type\": \"text\", \"required\": true}, {\"name\": \"tipo_problema\", \"label\": \"⚠ Tipo de problema\", \"type\": \"select\", \"required\": true, \"options\": [\"No imprime\", \"Imprime mal\", \"Atasco de papel\", \"Sin tóner / tinta\", \"Instalar\", \"Otro\"]}, {\"name\": \"mensaje_error\", \"label\": \"💬 Mensaje de error en pantalla\", \"type\": \"text\", \"required\": false}]"
+    },
+    {
+      "name": "📊 Problema en SAP",
+      "description": "Reportar errores o solicitar acceso en SAP",
+      "title_template": "SAP — {tipo_problema} en {transaccion}",
+      "description_template": "",
+      "category": "SAP",
+      "priority": "high",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.058180",
+      "form_fields": "[{\"name\": \"transaccion\", \"label\": \"🔤 Transacción / Módulo SAP\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: ME21N, FB60, VA01, Módulo FI\"}, {\"name\": \"tipo_problema\", \"label\": \"⚠ Tipo de problema\", \"type\": \"select\", \"required\": true, \"options\": [\"Error al ejecutar\", \"Sin autorización\", \"Sistema lento\", \"Resultado incorrecto\", \"Solicitud de acceso\", \"Dump ABAP\"]}, {\"name\": \"mensaje_error\", \"label\": \"💬 Mensaje de error exacto\", \"type\": \"textarea\", \"required\": false}, {\"name\": \"pasos\", \"label\": \"📝 Pasos ejecutados\", \"type\": \"textarea\", \"required\": true, \"placeholder\": \"1. Abrir TX...\\n2. Ingresar...\\n3. Click en...\"}, {\"name\": \"mandante\", \"label\": \"🌐 Mandante / Sistema (SID)\", \"type\": \"text\", \"required\": false, \"placeholder\": \"Ej: PRD-100\"}]"
+    },
+    {
+      "name": "🔑 Solicitud de Acceso",
+      "description": "Solicitar acceso a un sistema, carpeta o aplicación",
+      "title_template": "Solicitud de acceso a {sistema}",
+      "description_template": "",
+      "category": "Accesos",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.058581",
+      "form_fields": "[{\"name\": \"sistema\", \"label\": \"🎯 Sistema / aplicación / recurso\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: SAP módulo FI, carpeta de red, SharePoint\"}, {\"name\": \"tipo_acceso\", \"label\": \"🔐 Tipo de acceso\", \"type\": \"select\", \"required\": true, \"options\": [\"Solo lectura\", \"Lectura y escritura\", \"Administrador\", \"Reset de contraseña\", \"Otro\"]}, {\"name\": \"justificacion\", \"label\": \"📋 Justificación\", \"type\": \"textarea\", \"required\": true, \"placeholder\": \"Explica para qué necesitas este acceso\"}, {\"name\": \"aprobador\", \"label\": \"✅ Jefe / aprobador\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Nombre y cargo de tu jefe\"}, {\"name\": \"duracion\", \"label\": \"⏳ Duración\", \"type\": \"select\", \"required\": false, \"options\": [\"Permanente\", \"Temporal (indicar fecha en detalles)\"]}]"
+    },
+    {
+      "name": "💻 Problema con Computador / Laptop",
+      "description": "Hardware / desempeño del equipo",
+      "title_template": "Equipo lento o con falla — {usuario_equipo}",
+      "description_template": "",
+      "category": "Hardware",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.058999",
+      "form_fields": "[{\"name\": \"equipo\", \"label\": \"💻 Equipo afectado\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: PC-CONTAB-05 / mi laptop\"}, {\"name\": \"sintoma\", \"label\": \"⚠ Síntoma principal\", \"type\": \"select\", \"required\": true, \"options\": [\"Muy lento\", \"No enciende\", \"Se reinicia / pantalla azul\", \"Pantalla dañada\", \"Ruido / sobrecalentamiento\", \"Teclado / mouse no responden\", \"Disco lleno\", \"Otro\"]}, {\"name\": \"cuando_inicio\", \"label\": \"🕐 ¿Desde cuándo?\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: Desde ayer / desde el último Windows Update\"}, {\"name\": \"frecuencia\", \"label\": \"🔁 Frecuencia\", \"type\": \"select\", \"required\": false, \"options\": [\"Constante\", \"Varias veces al día\", \"Una vez al día\", \"Esporádico\"]}, {\"name\": \"detalles\", \"label\": \"📝 Detalles adicionales\", \"type\": \"textarea\", \"required\": false}]"
+    },
+    {
+      "name": "📧 Problema con Email / Outlook",
+      "description": "Fallas de correo o configuración",
+      "title_template": "Outlook — {tipo_problema}",
+      "description_template": "",
+      "category": "Email",
+      "priority": "medium",
+      "company": "eliot",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.059395",
+      "form_fields": "[{\"name\": \"tipo_problema\", \"label\": \"⚠ Tipo de problema\", \"type\": \"select\", \"required\": true, \"options\": [\"No abre Outlook / se cierra\", \"No envío correos\", \"No recibo correos\", \"Buzón lleno\", \"Configurar firma\", \"Respuesta automática\", \"Otro\"]}, {\"name\": \"cuenta\", \"label\": \"📧 Cuenta afectada\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Tu email corporativo\"}, {\"name\": \"mensaje_error\", \"label\": \"💬 Mensaje de error (si aplica)\", \"type\": \"text\", \"required\": false}, {\"name\": \"detalles\", \"label\": \"📝 Detalles\", \"type\": \"textarea\", \"required\": false}]"
+    },
+    {
+      "name": "🌐 Problema de Red / Internet",
+      "description": "Reportar fallas de conectividad",
+      "title_template": "Sin conexión a red — {ubicacion}",
+      "description_template": "",
+      "category": "Red",
+      "priority": "high",
+      "company": "pash",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.059788",
+      "form_fields": "[{\"name\": \"ubicacion\", \"label\": \"📍 Ubicación / Piso / Oficina\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: Piso 3 - Oficina 305\"}, {\"name\": \"tipo_conexion\", \"label\": \"🔌 Tipo de conexión\", \"type\": \"select\", \"required\": true, \"options\": [\"WiFi\", \"Cable Ethernet\", \"VPN\", \"Ambas\"]}, {\"name\": \"cuando_inicio\", \"label\": \"🕐 ¿Cuándo comenzó?\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: Hoy a las 9:30 AM\"}, {\"name\": \"personas_afectadas\", \"label\": \"👥 Personas afectadas\", \"type\": \"select\", \"required\": true, \"options\": [\"Solo yo\", \"2-5 personas\", \"6-20 personas\", \"Más de 20 / todo el piso\"]}, {\"name\": \"sintomas\", \"label\": \"⚠ Síntomas observados\", \"type\": \"textarea\", \"required\": true, \"placeholder\": \"Ej: No carga ninguna página, error DNS, lento...\"}]"
+    },
+    {
+      "name": "🖨️ Problema con Impresora",
+      "description": "Reportar fallas o configuración de impresora",
+      "title_template": "Problema con impresora — {impresora}",
+      "description_template": "",
+      "category": "Impresoras",
+      "priority": "medium",
+      "company": "pash",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.060180",
+      "form_fields": "[{\"name\": \"impresora\", \"label\": \"🖨️ Nombre / modelo de impresora\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: HP-LaserJet-Piso3\"}, {\"name\": \"ubicacion\", \"label\": \"📍 Ubicación\", \"type\": \"text\", \"required\": true}, {\"name\": \"tipo_problema\", \"label\": \"⚠ Tipo de problema\", \"type\": \"select\", \"required\": true, \"options\": [\"No imprime\", \"Imprime mal\", \"Atasco de papel\", \"Sin tóner / tinta\", \"Instalar\", \"Otro\"]}, {\"name\": \"mensaje_error\", \"label\": \"💬 Mensaje de error en pantalla\", \"type\": \"text\", \"required\": false}]"
+    },
+    {
+      "name": "📊 Problema en SAP",
+      "description": "Reportar errores o solicitar acceso en SAP",
+      "title_template": "SAP — {tipo_problema} en {transaccion}",
+      "description_template": "",
+      "category": "SAP",
+      "priority": "high",
+      "company": "pash",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.060616",
+      "form_fields": "[{\"name\": \"transaccion\", \"label\": \"🔤 Transacción / Módulo SAP\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: ME21N, FB60, VA01, Módulo FI\"}, {\"name\": \"tipo_problema\", \"label\": \"⚠ Tipo de problema\", \"type\": \"select\", \"required\": true, \"options\": [\"Error al ejecutar\", \"Sin autorización\", \"Sistema lento\", \"Resultado incorrecto\", \"Solicitud de acceso\", \"Dump ABAP\"]}, {\"name\": \"mensaje_error\", \"label\": \"💬 Mensaje de error exacto\", \"type\": \"textarea\", \"required\": false}, {\"name\": \"pasos\", \"label\": \"📝 Pasos ejecutados\", \"type\": \"textarea\", \"required\": true, \"placeholder\": \"1. Abrir TX...\\n2. Ingresar...\\n3. Click en...\"}, {\"name\": \"mandante\", \"label\": \"🌐 Mandante / Sistema (SID)\", \"type\": \"text\", \"required\": false, \"placeholder\": \"Ej: PRD-100\"}]"
+    },
+    {
+      "name": "🔑 Solicitud de Acceso",
+      "description": "Solicitar acceso a un sistema, carpeta o aplicación",
+      "title_template": "Solicitud de acceso a {sistema}",
+      "description_template": "",
+      "category": "Accesos",
+      "priority": "medium",
+      "company": "pash",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.061061",
+      "form_fields": "[{\"name\": \"sistema\", \"label\": \"🎯 Sistema / aplicación / recurso\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: SAP módulo FI, carpeta de red, SharePoint\"}, {\"name\": \"tipo_acceso\", \"label\": \"🔐 Tipo de acceso\", \"type\": \"select\", \"required\": true, \"options\": [\"Solo lectura\", \"Lectura y escritura\", \"Administrador\", \"Reset de contraseña\", \"Otro\"]}, {\"name\": \"justificacion\", \"label\": \"📋 Justificación\", \"type\": \"textarea\", \"required\": true, \"placeholder\": \"Explica para qué necesitas este acceso\"}, {\"name\": \"aprobador\", \"label\": \"✅ Jefe / aprobador\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Nombre y cargo de tu jefe\"}, {\"name\": \"duracion\", \"label\": \"⏳ Duración\", \"type\": \"select\", \"required\": false, \"options\": [\"Permanente\", \"Temporal (indicar fecha en detalles)\"]}]"
+    },
+    {
+      "name": "💻 Problema con Computador / Laptop",
+      "description": "Hardware / desempeño del equipo",
+      "title_template": "Equipo lento o con falla — {usuario_equipo}",
+      "description_template": "",
+      "category": "Hardware",
+      "priority": "medium",
+      "company": "pash",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.061526",
+      "form_fields": "[{\"name\": \"equipo\", \"label\": \"💻 Equipo afectado\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: PC-CONTAB-05 / mi laptop\"}, {\"name\": \"sintoma\", \"label\": \"⚠ Síntoma principal\", \"type\": \"select\", \"required\": true, \"options\": [\"Muy lento\", \"No enciende\", \"Se reinicia / pantalla azul\", \"Pantalla dañada\", \"Ruido / sobrecalentamiento\", \"Teclado / mouse no responden\", \"Disco lleno\", \"Otro\"]}, {\"name\": \"cuando_inicio\", \"label\": \"🕐 ¿Desde cuándo?\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: Desde ayer / desde el último Windows Update\"}, {\"name\": \"frecuencia\", \"label\": \"🔁 Frecuencia\", \"type\": \"select\", \"required\": false, \"options\": [\"Constante\", \"Varias veces al día\", \"Una vez al día\", \"Esporádico\"]}, {\"name\": \"detalles\", \"label\": \"📝 Detalles adicionales\", \"type\": \"textarea\", \"required\": false}]"
+    },
+    {
+      "name": "📧 Problema con Email / Outlook",
+      "description": "Fallas de correo o configuración",
+      "title_template": "Outlook — {tipo_problema}",
+      "description_template": "",
+      "category": "Email",
+      "priority": "medium",
+      "company": "pash",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.061966",
+      "form_fields": "[{\"name\": \"tipo_problema\", \"label\": \"⚠ Tipo de problema\", \"type\": \"select\", \"required\": true, \"options\": [\"No abre Outlook / se cierra\", \"No envío correos\", \"No recibo correos\", \"Buzón lleno\", \"Configurar firma\", \"Respuesta automática\", \"Otro\"]}, {\"name\": \"cuenta\", \"label\": \"📧 Cuenta afectada\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Tu email corporativo\"}, {\"name\": \"mensaje_error\", \"label\": \"💬 Mensaje de error (si aplica)\", \"type\": \"text\", \"required\": false}, {\"name\": \"detalles\", \"label\": \"📝 Detalles\", \"type\": \"textarea\", \"required\": false}]"
+    },
+    {
+      "name": "🌐 Problema de Red / Internet",
+      "description": "Reportar fallas de conectividad",
+      "title_template": "Sin conexión a red — {ubicacion}",
+      "description_template": "",
+      "category": "Red",
+      "priority": "high",
+      "company": "primatela",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.062409",
+      "form_fields": "[{\"name\": \"ubicacion\", \"label\": \"📍 Ubicación / Piso / Oficina\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: Piso 3 - Oficina 305\"}, {\"name\": \"tipo_conexion\", \"label\": \"🔌 Tipo de conexión\", \"type\": \"select\", \"required\": true, \"options\": [\"WiFi\", \"Cable Ethernet\", \"VPN\", \"Ambas\"]}, {\"name\": \"cuando_inicio\", \"label\": \"🕐 ¿Cuándo comenzó?\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: Hoy a las 9:30 AM\"}, {\"name\": \"personas_afectadas\", \"label\": \"👥 Personas afectadas\", \"type\": \"select\", \"required\": true, \"options\": [\"Solo yo\", \"2-5 personas\", \"6-20 personas\", \"Más de 20 / todo el piso\"]}, {\"name\": \"sintomas\", \"label\": \"⚠ Síntomas observados\", \"type\": \"textarea\", \"required\": true, \"placeholder\": \"Ej: No carga ninguna página, error DNS, lento...\"}]"
+    },
+    {
+      "name": "🖨️ Problema con Impresora",
+      "description": "Reportar fallas o configuración de impresora",
+      "title_template": "Problema con impresora — {impresora}",
+      "description_template": "",
+      "category": "Impresoras",
+      "priority": "medium",
+      "company": "primatela",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.062827",
+      "form_fields": "[{\"name\": \"impresora\", \"label\": \"🖨️ Nombre / modelo de impresora\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: HP-LaserJet-Piso3\"}, {\"name\": \"ubicacion\", \"label\": \"📍 Ubicación\", \"type\": \"text\", \"required\": true}, {\"name\": \"tipo_problema\", \"label\": \"⚠ Tipo de problema\", \"type\": \"select\", \"required\": true, \"options\": [\"No imprime\", \"Imprime mal\", \"Atasco de papel\", \"Sin tóner / tinta\", \"Instalar\", \"Otro\"]}, {\"name\": \"mensaje_error\", \"label\": \"💬 Mensaje de error en pantalla\", \"type\": \"text\", \"required\": false}]"
+    },
+    {
+      "name": "📊 Problema en SAP",
+      "description": "Reportar errores o solicitar acceso en SAP",
+      "title_template": "SAP — {tipo_problema} en {transaccion}",
+      "description_template": "",
+      "category": "SAP",
+      "priority": "high",
+      "company": "primatela",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.063284",
+      "form_fields": "[{\"name\": \"transaccion\", \"label\": \"🔤 Transacción / Módulo SAP\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: ME21N, FB60, VA01, Módulo FI\"}, {\"name\": \"tipo_problema\", \"label\": \"⚠ Tipo de problema\", \"type\": \"select\", \"required\": true, \"options\": [\"Error al ejecutar\", \"Sin autorización\", \"Sistema lento\", \"Resultado incorrecto\", \"Solicitud de acceso\", \"Dump ABAP\"]}, {\"name\": \"mensaje_error\", \"label\": \"💬 Mensaje de error exacto\", \"type\": \"textarea\", \"required\": false}, {\"name\": \"pasos\", \"label\": \"📝 Pasos ejecutados\", \"type\": \"textarea\", \"required\": true, \"placeholder\": \"1. Abrir TX...\\n2. Ingresar...\\n3. Click en...\"}, {\"name\": \"mandante\", \"label\": \"🌐 Mandante / Sistema (SID)\", \"type\": \"text\", \"required\": false, \"placeholder\": \"Ej: PRD-100\"}]"
+    },
+    {
+      "name": "🔑 Solicitud de Acceso",
+      "description": "Solicitar acceso a un sistema, carpeta o aplicación",
+      "title_template": "Solicitud de acceso a {sistema}",
+      "description_template": "",
+      "category": "Accesos",
+      "priority": "medium",
+      "company": "primatela",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.063695",
+      "form_fields": "[{\"name\": \"sistema\", \"label\": \"🎯 Sistema / aplicación / recurso\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: SAP módulo FI, carpeta de red, SharePoint\"}, {\"name\": \"tipo_acceso\", \"label\": \"🔐 Tipo de acceso\", \"type\": \"select\", \"required\": true, \"options\": [\"Solo lectura\", \"Lectura y escritura\", \"Administrador\", \"Reset de contraseña\", \"Otro\"]}, {\"name\": \"justificacion\", \"label\": \"📋 Justificación\", \"type\": \"textarea\", \"required\": true, \"placeholder\": \"Explica para qué necesitas este acceso\"}, {\"name\": \"aprobador\", \"label\": \"✅ Jefe / aprobador\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Nombre y cargo de tu jefe\"}, {\"name\": \"duracion\", \"label\": \"⏳ Duración\", \"type\": \"select\", \"required\": false, \"options\": [\"Permanente\", \"Temporal (indicar fecha en detalles)\"]}]"
+    },
+    {
+      "name": "💻 Problema con Computador / Laptop",
+      "description": "Hardware / desempeño del equipo",
+      "title_template": "Equipo lento o con falla — {usuario_equipo}",
+      "description_template": "",
+      "category": "Hardware",
+      "priority": "medium",
+      "company": "primatela",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.064079",
+      "form_fields": "[{\"name\": \"equipo\", \"label\": \"💻 Equipo afectado\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: PC-CONTAB-05 / mi laptop\"}, {\"name\": \"sintoma\", \"label\": \"⚠ Síntoma principal\", \"type\": \"select\", \"required\": true, \"options\": [\"Muy lento\", \"No enciende\", \"Se reinicia / pantalla azul\", \"Pantalla dañada\", \"Ruido / sobrecalentamiento\", \"Teclado / mouse no responden\", \"Disco lleno\", \"Otro\"]}, {\"name\": \"cuando_inicio\", \"label\": \"🕐 ¿Desde cuándo?\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Ej: Desde ayer / desde el último Windows Update\"}, {\"name\": \"frecuencia\", \"label\": \"🔁 Frecuencia\", \"type\": \"select\", \"required\": false, \"options\": [\"Constante\", \"Varias veces al día\", \"Una vez al día\", \"Esporádico\"]}, {\"name\": \"detalles\", \"label\": \"📝 Detalles adicionales\", \"type\": \"textarea\", \"required\": false}]"
+    },
+    {
+      "name": "📧 Problema con Email / Outlook",
+      "description": "Fallas de correo o configuración",
+      "title_template": "Outlook — {tipo_problema}",
+      "description_template": "",
+      "category": "Email",
+      "priority": "medium",
+      "company": "primatela",
+      "is_system": 1,
+      "created_at": "2026-06-12 10:10:00.064777",
+      "form_fields": "[{\"name\": \"tipo_problema\", \"label\": \"⚠ Tipo de problema\", \"type\": \"select\", \"required\": true, \"options\": [\"No abre Outlook / se cierra\", \"No envío correos\", \"No recibo correos\", \"Buzón lleno\", \"Configurar firma\", \"Respuesta automática\", \"Otro\"]}, {\"name\": \"cuenta\", \"label\": \"📧 Cuenta afectada\", \"type\": \"text\", \"required\": true, \"placeholder\": \"Tu email corporativo\"}, {\"name\": \"mensaje_error\", \"label\": \"💬 Mensaje de error (si aplica)\", \"type\": \"text\", \"required\": false}, {\"name\": \"detalles\", \"label\": \"📝 Detalles\", \"type\": \"textarea\", \"required\": false}]"
+    }
+  ]
+}
