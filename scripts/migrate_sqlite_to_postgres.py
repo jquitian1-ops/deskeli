@@ -35,6 +35,8 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Solo contar filas sin escribir")
     parser.add_argument("--skip-tables", default="",
                         help="Lista separada por comas de tablas a saltear")
+    parser.add_argument("--truncate-first", action="store_true",
+                        help="TRUNCATE todas las tablas destino antes de copiar. Necesario si PG ya tiene datos de init_db()")
     args = parser.parse_args()
 
     sqlite_path = Path(args.sqlite)
@@ -73,6 +75,18 @@ def main():
             db.create_all()
             print("[OK] Schema creado")
             print()
+
+            # 1b) Truncar tablas destino si se pidio (usualmente si init_db() ya poblo datos)
+            if args.truncate_first:
+                print("[STEP 1b] Truncando tablas destino (--truncate-first)...")
+                insp_tmp = inspect(db.engine)
+                all_tables = insp_tmp.get_table_names()
+                if all_tables:
+                    truncate_list = ', '.join(f'"{t}"' for t in all_tables)
+                    db.session.execute(text(f"TRUNCATE {truncate_list} RESTART IDENTITY CASCADE"))
+                    db.session.commit()
+                    print(f"[OK] {len(all_tables)} tablas truncadas")
+                print()
 
         # 2) Abrir SQLite como origen
         import sqlite3
