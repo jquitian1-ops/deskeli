@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -136,6 +137,37 @@ def main():
 
             # Detectar columnas BOOLEAN del destino para convertir 0/1 -> False/True
             bool_cols = {c["name"] for c in dst_columns_info if str(c["type"]).upper() in ("BOOLEAN", "BOOL")}
+
+            # Detectar columnas VARCHAR(N) del destino y verificar si los datos de SQLite superan el limite.
+            # Si algun valor es mas largo, expandir con ALTER TABLE antes de copiar.
+            if not args.dry_run:
+                for col_info in dst_columns_info:
+                    col_type = str(col_info["type"]).upper()
+                    m = re.match(r"^(VARCHAR|CHARACTER VARYING)\((\d+)\)$", col_type)
+                    if not m:
+                        continue
+                    col_name = col_info["name"]
+                    current_len = int(m.group(2))
+                    if col_name not in common:
+                        continue
+                    # Buscar longitud máxima real en SQLite
+                    try:
+                        row = src.execute(f'SELECT MAX(LENGTH("{col_name}")) FROM "{table}"').fetchone()
+                        actual_max = row[0] if row else None
+                    except Exception:
+                        actual_max = None
+                    if actual_max and actual_max > current_len:
+                        # Expandir con margen (2x el necesario, mínimo 50)
+                        new_len = max(actual_max * 2, current_len, 50)
+                        try:
+                            db.session.execute(
+                                text(f'ALTER TABLE "{table}" ALTER COLUMN "{col_name}" TYPE VARCHAR({new_len})')
+                            )
+                            db.session.commit()
+                            print(f"[WIDEN] {table}.{col_name}: VARCHAR({current_len}) -> VARCHAR({new_len}) (dato max={actual_max})")
+                        except Exception as e:
+                            db.session.rollback()
+                            print(f"[WARN] No se pudo expandir {table}.{col_name}: {e}")
 
             if args.dry_run:
                 print(f"[DRY ] {table}: {src_count} filas listas para copiar")

@@ -324,7 +324,7 @@ class User(db.Model):
 class Ticket(db.Model):
     __tablename__ = 'tickets'
     id = db.Column(db.Integer, primary_key=True)
-    ticket_number = db.Column(db.String(20), unique=True, nullable=False)  # TKT-ELIOT-00001
+    ticket_number = db.Column(db.String(50), unique=True, nullable=False)  # TKT-ELIOT-00001 | AUTO-YYYYMMDDHHMMSS-xxxx
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=False)
     category = db.Column(db.String(100), default='General')
