@@ -138,12 +138,16 @@
             <h1>📋 {{ subtask.subtask_number or ('Subtarea #' ~ subtask.id) }}</h1>
             <div class="breadcrumb">
                 {{ company.icon or '🏢' }} {{ company.name or subtask.ticket.company }} ·
-                Subtarea del ticket <a href="/technician/ticket/{{ parent_ticket.id }}">{{ parent_ticket.ticket_number }}</a>
+                Subtarea del ticket <a href="/{{ session.role }}/ticket/{{ parent_ticket.id }}">{{ parent_ticket.ticket_number }}</a>
             </div>
         </div>
         <div style="display:flex; gap:8px;">
+            {% if session.role == 'admin' %}
+            <a href="/admin/dashboard" class="btn btn-back">← Dashboard</a>
+            {% else %}
             <a href="/technician/dashboard" class="btn btn-back">← Dashboard</a>
-            <a href="/technician/ticket/{{ parent_ticket.id }}" class="btn btn-parent" title="Ir al ticket principal">
+            {% endif %}
+            <a href="/{{ session.role }}/ticket/{{ parent_ticket.id }}" class="btn btn-parent" title="Ir al ticket principal">
                 🎫 Ver ticket padre: {{ parent_ticket.ticket_number }}
             </a>
         </div>
@@ -257,7 +261,7 @@
                         🔄 Reabrir subtarea
                     </button>
                 {% endif %}
-                <a href="/technician/ticket/{{ parent_ticket.id }}" class="action-btn secondary" style="text-decoration:none; text-align:center;">
+                <a href="/{{ session.role }}/ticket/{{ parent_ticket.id }}" class="action-btn secondary" style="text-decoration:none; text-align:center;">
                     🎫 Volver al ticket padre
                 </a>
             </div>
@@ -271,7 +275,7 @@
                     Estado: <strong>{{ parent_ticket.status }}</strong> ·
                     Prioridad: <strong>{{ parent_ticket.priority }}</strong>
                 </div>
-                <a href="/technician/ticket/{{ parent_ticket.id }}" style="display:block; margin-top:10px; color:{{ company.primary or '#7c3aed' }}; font-weight:600; font-size:13px; text-decoration:none;">
+                <a href="/{{ session.role }}/ticket/{{ parent_ticket.id }}" style="display:block; margin-top:10px; color:{{ company.primary or '#7c3aed' }}; font-weight:600; font-size:13px; text-decoration:none;">
                     Ver detalle completo →
                 </a>
             </div>
