@@ -2207,16 +2207,18 @@
                 return;
             }
             tbody.innerHTML = list.map(s => `
-                <tr style="border-bottom:1px solid #f0f0f0;${s.sla_expired && s.status !== 'resolved' ? 'background:#fef2f2;' : ''}">
+                <tr onclick="window.location='/admin/subtask/${s.id}'"
+                    style="border-bottom:1px solid #f0f0f0;cursor:pointer;${s.sla_expired && s.status !== 'resolved' ? 'background:#fef2f2;' : ''}"
+                    title="Ver detalle de la subtarea">
                     <td style="padding:10px;font-size:12px;">
-                        <a href="/admin/ticket/${s.ticket_id}" style="color:#7c3aed;font-weight:700;text-decoration:none;">${escSubAdmin(s.subtask_number || '#'+s.id)}</a>
+                        <a href="/admin/subtask/${s.id}" onclick="event.stopPropagation();" style="color:#7c3aed;font-weight:700;text-decoration:none;">${escSubAdmin(s.subtask_number || '#'+s.id)}</a>
                     </td>
                     <td style="padding:10px;font-size:13px;">
                         <div style="font-weight:600;color:#111827;">${escSubAdmin(s.title)}</div>
                         ${s.category ? `<div style="font-size:11px;color:#6b7280;">📁 ${escSubAdmin(s.category)}</div>` : ''}
                     </td>
                     <td style="padding:10px;font-size:12px;">
-                        <a href="/admin/ticket/${s.ticket_id}" style="color:#2563eb;text-decoration:none;">${escSubAdmin(s.parent_number || '—')}</a>
+                        <a href="/admin/ticket/${s.ticket_id}" onclick="event.stopPropagation();" style="color:#2563eb;text-decoration:none;" title="Ir al ticket padre">${escSubAdmin(s.parent_number || '—')}</a>
                     </td>
                     <td style="padding:10px;text-align:center;">${adminSubStatusPill(s.status)}</td>
                     <td style="padding:10px;text-align:center;">${adminSubPriorityPill(s.priority)}</td>

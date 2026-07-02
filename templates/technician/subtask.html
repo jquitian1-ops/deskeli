@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ subtask.subtask_number or ('Subtarea #' ~ subtask.id) }} — DeskEli</title>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        background: #f9fafb;
+        color: #1f2937;
+        line-height: 1.5;
+    }
+
+    /* Header con color de empresa */
+    .header {
+        background: linear-gradient(135deg, {{ company.primary or '#7c3aed' }}, {{ company.secondary or '#5b21b6' }});
+        color: white;
+        padding: 18px 28px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    }
+    .header-inner {
+        max-width: 1200px; margin: 0 auto;
+        display: flex; align-items: center; justify-content: space-between; gap: 20px;
+    }
+    .header h1 { font-size: 20px; }
+    .header .breadcrumb { font-size: 12px; opacity: 0.85; margin-top: 4px; }
+    .header .breadcrumb a { color: white; text-decoration: underline; }
+    .btn {
+        padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer;
+        font-size: 13px; font-weight: 600; text-decoration: none;
+        display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-parent {
+        background: white; color: {{ company.primary or '#7c3aed' }};
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .btn-parent:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+    .btn-back {
+        background: rgba(255,255,255,0.15); color: white;
+    }
+    .btn-back:hover { background: rgba(255,255,255,0.25); }
+
+    /* Contenido */
+    .container { max-width: 1200px; margin: 24px auto; padding: 0 24px; }
+    .layout { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+    .card {
+        background: white; border-radius: 10px; padding: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        border: 1px solid #e5e7eb;
+        margin-bottom: 16px;
+    }
+    .card h3 {
+        font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px;
+        color: #6b7280; margin-bottom: 12px; font-weight: 700;
+    }
+
+    /* Info principal */
+    .subtask-title {
+        font-size: 24px; font-weight: 800; color: #111827; margin-bottom: 8px;
+    }
+    .subtask-meta {
+        display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;
+    }
+    .badge {
+        padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 700;
+    }
+    .badge-status-open { background: #dbeafe; color: #1e40af; }
+    .badge-status-in_progress { background: #fef3c7; color: #92400e; }
+    .badge-status-resolved { background: #d1fae5; color: #065f46; }
+    .badge-priority-low { background: #f3f4f6; color: #6b7280; }
+    .badge-priority-medium { background: #dbeafe; color: #1e40af; }
+    .badge-priority-high { background: #fed7aa; color: #9a3412; }
+    .badge-priority-critical { background: #fee2e2; color: #991b1b; }
+    .badge-sla-expired { background: #dc2626; color: white; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
+
+    .description-box {
+        background: #f9fafb; padding: 16px; border-radius: 8px;
+        border-left: 4px solid {{ company.primary or '#7c3aed' }};
+        white-space: pre-wrap; font-size: 14px; color: #374151;
+        min-height: 100px;
+    }
+
+    /* Sidebar */
+    .info-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 0; border-bottom: 1px solid #f3f4f6;
+        font-size: 13px;
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-row .label { color: #6b7280; font-weight: 600; }
+    .info-row .value { color: #111827; text-align: right; }
+
+    /* Acciones */
+    .action-btn {
+        display: block; width: 100%; padding: 10px 14px;
+        background: {{ company.primary or '#7c3aed' }}; color: white;
+        border: none; border-radius: 6px; cursor: pointer;
+        font-size: 13px; font-weight: 600;
+        margin-bottom: 8px;
+    }
+    .action-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .action-btn.secondary { background: #e5e7eb; color: #111827; }
+    .action-btn.success { background: #10b981; }
+    .action-btn.danger { background: #dc2626; }
+
+    /* Chat / notas */
+    .notes-area {
+        background: #f9fafb; border-radius: 6px; padding: 12px;
+        max-height: 300px; overflow-y: auto;
+        margin-bottom: 12px;
+    }
+    .note-item {
+        background: white; padding: 10px 12px; border-radius: 6px;
+        margin-bottom: 8px; border-left: 3px solid {{ company.primary or '#7c3aed' }};
+        font-size: 13px;
+    }
+    .note-item .note-meta {
+        font-size: 11px; color: #9ca3af; margin-bottom: 4px;
+    }
+    textarea {
+        width: 100%; padding: 8px 10px; border: 1px solid #d1d5db;
+        border-radius: 6px; font-family: inherit; font-size: 13px;
+        min-height: 60px; resize: vertical;
+    }
+</style>
+</head>
+<body>
+
+<!-- ═════ HEADER ═════ -->
+<div class="header">
+    <div class="header-inner">
+        <div>
+            <h1>📋 {{ subtask.subtask_number or ('Subtarea #' ~ subtask.id) }}</h1>
+            <div class="breadcrumb">
+                {{ company.icon or '🏢' }} {{ company.name or subtask.ticket.company }} ·
+                Subtarea del ticket <a href="/technician/ticket/{{ parent_ticket.id }}">{{ parent_ticket.ticket_number }}</a>
+            </div>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <a href="/technician/dashboard" class="btn btn-back">← Dashboard</a>
+            <a href="/technician/ticket/{{ parent_ticket.id }}" class="btn btn-parent" title="Ir al ticket principal">
+                🎫 Ver ticket padre: {{ parent_ticket.ticket_number }}
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- ═════ CONTENIDO ═════ -->
+<div class="container">
+    <div class="layout">
+
+        <!-- ── Columna principal ── -->
+        <div>
+            <div class="card">
+                <div class="subtask-title">{{ subtask.title }}</div>
+                <div class="subtask-meta">
+                    <span class="badge badge-status-{{ subtask.status }}">{{ subtask.status|upper }}</span>
+                    <span class="badge badge-priority-{{ subtask.priority }}">Prioridad: {{ subtask.priority|upper }}</span>
+                    {% if subtask.category %}
+                    <span class="badge" style="background:#ede9fe; color:#5b21b6;">📁 {{ subtask.category }}</span>
+                    {% endif %}
+                    {% if subtask.sla_expired %}
+                    <span class="badge badge-sla-expired">⚠️ SLA VENCIDO</span>
+                    {% elif subtask.sla_remaining is not none %}
+                    <span class="badge" style="background:#fef3c7; color:#78350f;">⏱ Restan {{ subtask.sla_remaining }} min</span>
+                    {% endif %}
+                </div>
+
+                <h3>📄 Descripción</h3>
+                <div class="description-box">{{ subtask.description or '(sin descripción)' }}</div>
+            </div>
+
+            <!-- Notas / Actualizaciones (opcional para MVP; podés extender con chat real) -->
+            <div class="card">
+                <h3>💬 Notas de trabajo</h3>
+                <div id="notesArea" class="notes-area">
+                    <p style="color:#9ca3af; font-style:italic; text-align:center; padding:20px;">
+                        Todavía no hay notas. Empezá agregando el diagnóstico o avance.
+                    </p>
+                </div>
+                <textarea id="noteInput" placeholder="Agregar una nota interna..."></textarea>
+                <button class="action-btn" style="margin-top:8px;" onclick="addNote()">📝 Agregar nota</button>
+            </div>
+        </div>
+
+        <!-- ── Sidebar ── -->
+        <div>
+            <div class="card">
+                <h3>ℹ️ Detalles</h3>
+                <div class="info-row">
+                    <span class="label">Número</span>
+                    <span class="value"><code>{{ subtask.subtask_number or ('#' ~ subtask.id) }}</code></span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Estado</span>
+                    <span class="value">
+                        <span class="badge badge-status-{{ subtask.status }}">{{ subtask.status }}</span>
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Prioridad</span>
+                    <span class="value">
+                        <span class="badge badge-priority-{{ subtask.priority }}">{{ subtask.priority }}</span>
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Asignado a</span>
+                    <span class="value">
+                        {% if assignee %}👤 {{ assignee.name }}{% else %}<em style="color:#9ca3af;">Sin asignar</em>{% endif %}
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Creado por</span>
+                    <span class="value">{% if creator %}{{ creator.name }}{% else %}—{% endif %}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Creada</span>
+                    <span class="value">{{ subtask.created_at.strftime('%Y-%m-%d %H:%M') if subtask.created_at else '—' }}</span>
+                </div>
+                {% if subtask.resolved_at %}
+                <div class="info-row">
+                    <span class="label">Resuelta</span>
+                    <span class="value">{{ subtask.resolved_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                </div>
+                {% endif %}
+                <div class="info-row">
+                    <span class="label">Adjuntos</span>
+                    <span class="value">📎 {{ attachments_count }}</span>
+                </div>
+                {% if subtask.time_worked_seconds %}
+                <div class="info-row">
+                    <span class="label">Tiempo trabajado</span>
+                    <span class="value">{{ (subtask.time_worked_seconds // 60) }} min</span>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Acciones rápidas -->
+            <div class="card">
+                <h3>⚡ Acciones</h3>
+                {% if subtask.status != 'resolved' %}
+                    {% if subtask.status == 'open' %}
+                    <button class="action-btn" onclick="changeStatus('in_progress')">
+                        ▶ Iniciar trabajo
+                    </button>
+                    {% endif %}
+                    <button class="action-btn success" onclick="changeStatus('resolved')">
+                        ✅ Marcar como resuelta
+                    </button>
+                {% else %}
+                    <button class="action-btn secondary" onclick="changeStatus('in_progress')">
+                        🔄 Reabrir subtarea
+                    </button>
+                {% endif %}
+                <a href="/technician/ticket/{{ parent_ticket.id }}" class="action-btn secondary" style="text-decoration:none; text-align:center;">
+                    🎫 Volver al ticket padre
+                </a>
+            </div>
+
+            <!-- Info del ticket padre (contexto) -->
+            <div class="card">
+                <h3>🎫 Ticket padre</h3>
+                <div style="font-weight:700; color:#111827; margin-bottom:6px;">{{ parent_ticket.ticket_number }}</div>
+                <div style="font-size:13px; color:#374151; margin-bottom:8px;">{{ parent_ticket.title }}</div>
+                <div style="font-size:11px; color:#6b7280;">
+                    Estado: <strong>{{ parent_ticket.status }}</strong> ·
+                    Prioridad: <strong>{{ parent_ticket.priority }}</strong>
+                </div>
+                <a href="/technician/ticket/{{ parent_ticket.id }}" style="display:block; margin-top:10px; color:{{ company.primary or '#7c3aed' }}; font-weight:600; font-size:13px; text-decoration:none;">
+                    Ver detalle completo →
+                </a>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    async function changeStatus(newStatus) {
+        if (!confirm(`¿Cambiar estado a "${newStatus}"?`)) return;
+        try {
+            const res = await fetch(`/api/subtask/{{ subtask.id }}`, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({status: newStatus}),
+            });
+            const data = await res.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'no se pudo actualizar'));
+            }
+        } catch (e) {
+            alert('Error de red: ' + e.message);
+        }
+    }
+
+    function addNote() {
+        const val = document.getElementById('noteInput').value.trim();
+        if (!val) return;
+        // Placeholder: agregar como sub-comentario. Backend puede extenderse.
+        // Por ahora solo lo agregamos visualmente.
+        const notesArea = document.getElementById('notesArea');
+        if (notesArea.querySelector('p')) notesArea.innerHTML = '';
+        const now = new Date().toLocaleString('es-CO');
+        const html = `
+            <div class="note-item">
+                <div class="note-meta">📝 Vos · ${now}</div>
+                <div>${val.replace(/</g,'&lt;')}</div>
+            </div>
+        `;
+        notesArea.insertAdjacentHTML('beforeend', html);
+        document.getElementById('noteInput').value = '';
+        notesArea.scrollTop = notesArea.scrollHeight;
+    }
+</script>
+</body>
+</html>

@@ -649,11 +649,12 @@
                 const rowBg = s.sla_expired && s.status !== 'resolved' ? 'background:#fef2f2;' : '';
                 const titleTruncated = s.title.length > 60 ? s.title.slice(0,60)+'…' : s.title;
                 return `
-                    <tr onclick="window.location='/technician/ticket/${s.ticket_id}'"
-                        style="cursor:pointer;border-bottom:1px solid #f0f0f0;${rowBg}">
+                    <tr onclick="window.location='/technician/subtask/${s.id}'"
+                        style="cursor:pointer;border-bottom:1px solid #f0f0f0;${rowBg}"
+                        title="Ver detalle de la subtarea">
                         <td style="padding:10px;font-weight:700;color:#7c3aed;font-size:12px;">${escSub(s.subtask_number || '#'+s.id)}</td>
                         <td style="padding:10px;font-size:11px;">
-                            <a href="/technician/ticket/${s.ticket_id}" onclick="event.stopPropagation();" style="color:#2563eb;text-decoration:none;">${escSub(s.parent_number || '—')}</a>
+                            <a href="/technician/ticket/${s.ticket_id}" onclick="event.stopPropagation();" style="color:#2563eb;text-decoration:none;" title="Ir al ticket padre">${escSub(s.parent_number || '—')}</a>
                         </td>
                         <td style="padding:10px;font-size:12px;">${escSub(s.company_icon || '🏢')} ${escSub(s.company_label || '')}</td>
                         <td style="padding:10px;">

@@ -1864,6 +1864,42 @@ def admin_ticket_detail(ticket_id):
     return technician_ticket(ticket_id)
 
 
+@app.route('/technician/subtask/<int:subtask_id>')
+@app.route('/admin/subtask/<int:subtask_id>')
+def technician_subtask_detail(subtask_id):
+    """Vista de detalle de una subtarea individual (para técnicos y admins).
+    Permite trabajar en la subtarea con un layout similar al del ticket padre,
+    con un botón visible para volver al ticket principal."""
+    if 'user_id' not in session or session['role'] not in ('technician', 'admin'):
+        return redirect(url_for('login'))
+
+    subtask = Subtask.query.get_or_404(subtask_id)
+    parent_ticket = Ticket.query.get(subtask.ticket_id)
+    if not parent_ticket:
+        return redirect(url_for('technician_dashboard'))
+
+    # Validar acceso: misma empresa (o admin master via scope)
+    if parent_ticket.company not in admin_companies_scope():
+        return redirect(url_for('technician_dashboard'))
+
+    # Resolver assignee y creador
+    assignee = User.query.get(subtask.assignee_id) if subtask.assignee_id else None
+    creator = User.query.get(subtask.created_by_id) if subtask.created_by_id else None
+
+    # Contar attachments de la subtarea
+    attachments_count = SubtaskAttachment.query.filter_by(subtask_id=subtask.id).count()
+
+    return render_template(
+        'technician/subtask.html',
+        subtask=subtask,
+        parent_ticket=parent_ticket,
+        assignee=assignee,
+        creator=creator,
+        attachments_count=attachments_count,
+        company=COMPANY_COLORS.get(parent_ticket.company, {}),
+    )
+
+
 @app.route('/technician/ticket/<int:ticket_id>')
 def technician_ticket(ticket_id):
     """Vista de detalle de ticket para técnicos Y admins"""
