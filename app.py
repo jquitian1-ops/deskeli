@@ -373,6 +373,24 @@ class TokenBlacklist(db.Model):
     expires_at = db.Column(db.DateTime, nullable=False)
 
 
+class ApiKey(db.Model):
+    """API Key para integraciones externas (proveedores que crean tickets vía API)."""
+    __tablename__ = 'api_keys'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)          # Ej: "Proveedor Aranda", "Sistema RRHH"
+    token_prefix = db.Column(db.String(12), nullable=False)   # Primeros 8 chars visibles (para reconocer sin descifrar)
+    token_hash = db.Column(db.String(128), unique=True, nullable=False)  # SHA-256 del token completo
+    company = db.Column(db.String(20), nullable=False, index=True)       # Empresa asociada
+    scopes = db.Column(db.String(200), default='tickets:create,tickets:read')  # CSV de scopes
+    is_active = db.Column(db.Boolean, default=True)
+    created_by = db.Column(db.Integer)                        # user_id del admin que la creó
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    last_used_at = db.Column(db.DateTime)
+    last_used_ip = db.Column(db.String(45))
+    expires_at = db.Column(db.DateTime)                       # Opcional; NULL = no expira
+    usage_count = db.Column(db.Integer, default=0)
+
+
 class AuditLog(db.Model):
     __tablename__ = 'audit_logs'
     id = db.Column(db.Integer, primary_key=True)
@@ -13884,6 +13902,381 @@ def api_monitor_escalations():
         'history': history,
         'trend': trend,
     })
+
+# ═════════════════════════════════════════════════════════════════════════════
+# API PÚBLICA v1 - Para integraciones externas (proveedores, sistemas legacy)
+# Autenticación por Bearer token (API Key generada en el panel admin)
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _validate_api_key():
+    """Valida el header 'X-Authorization: Bearer <token>' (o Authorization).
+    Devuelve (api_key, None) si es válido, o (None, error_response) si no."""
+    auth = request.headers.get('X-Authorization') or request.headers.get('Authorization') or ''
+    if not auth.lower().startswith('bearer '):
+        return None, (jsonify({'success': False, 'error': 'Falta header X-Authorization: Bearer <token>'}), 401)
+    token = auth[7:].strip()
+    if not token:
+        return None, (jsonify({'success': False, 'error': 'Token vacío'}), 401)
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    api_key = ApiKey.query.filter_by(token_hash=token_hash, is_active=True).first()
+    if not api_key:
+        return None, (jsonify({'success': False, 'error': 'Token inválido o revocado'}), 401)
+
+    if api_key.expires_at and api_key.expires_at < datetime.now():
+        return None, (jsonify({'success': False, 'error': 'Token expirado'}), 401)
+
+    # Registrar uso
+    api_key.last_used_at = datetime.now()
+    api_key.last_used_ip = request.remote_addr
+    api_key.usage_count = (api_key.usage_count or 0) + 1
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    return api_key, None
+
+
+def _api_key_has_scope(api_key, scope):
+    """True si la API key tiene el scope solicitado."""
+    scopes = [s.strip() for s in (api_key.scopes or '').split(',') if s.strip()]
+    return scope in scopes or '*' in scopes
+
+
+@app.route('/api/v1/external/tickets', methods=['POST'])
+def api_v1_external_create_ticket():
+    """Crear un ticket desde una integración externa.
+
+    Auth: header 'X-Authorization: Bearer <TOKEN>' (o 'Authorization').
+
+    Body JSON esperado:
+    {
+        "subject": "Título del ticket",           (obligatorio)
+        "description": "Descripción del caso",     (obligatorio)
+        "category": "Software",                    (opcional, default: "General")
+        "priority": "high",                        (opcional: low/medium/high/critical)
+
+        "applicantEmail": "juan@empresa.com",      (identifica al solicitante — usá esto O applicantId)
+        "applicantId": 15192,                      (alternativa: ID del user en DeskEli)
+
+        "authorId": 10376,                         (opcional: quién crea; default = applicant)
+        "assigneeEmail": "tecnico@empresa.com",    (opcional: técnico asignado)
+        "assigneeId": 12,                          (opcional)
+
+        "userArea": "Contabilidad",                (opcional)
+        "userLocation": "Piso 3",                  (opcional)
+        "userPhone": "555-1234",                   (opcional)
+
+        "externalRef": "SR-98765",                 (opcional: ID del ticket en el sistema origen)
+        "listAdditionalField": [...]               (compat con Aranda; se guarda en description como metadata)
+    }
+
+    Respuesta 201:
+    {
+        "success": true,
+        "id": 42,
+        "ticket_number": "TKT-ELIOT-00042",
+        "url": "https://deskeli.eliotproyectos.tech/technician/ticket/42"
+    }
+    """
+    api_key, err = _validate_api_key()
+    if err:
+        return err
+    if not _api_key_has_scope(api_key, 'tickets:create'):
+        return jsonify({'success': False, 'error': 'Token sin scope tickets:create'}), 403
+
+    data = request.get_json(silent=True) or {}
+    subject = (data.get('subject') or data.get('title') or '').strip()[:200]
+    description = (data.get('description') or '').strip()
+    if not subject or not description:
+        return jsonify({'success': False, 'error': 'Faltan campos requeridos: subject y description'}), 400
+
+    # Sanitizar (los caller externos son menos confiables)
+    description = sanitize_html(description) if 'sanitize_html' in globals() else description
+
+    # Resolver solicitante
+    applicant = None
+    applicant_email = (data.get('applicantEmail') or data.get('applicant_email') or '').strip().lower()
+    applicant_id_in = data.get('applicantId') or data.get('applicant_id')
+    if applicant_email:
+        applicant = User.query.filter(
+            db.func.lower(User.email) == applicant_email,
+            User.company == api_key.company
+        ).first()
+    if not applicant and applicant_id_in:
+        applicant = User.query.get(applicant_id_in)
+    if not applicant:
+        return jsonify({'success': False, 'error': 'Solicitante no encontrado. Envía applicantEmail o applicantId válido.'}), 400
+    if applicant.company != api_key.company:
+        return jsonify({'success': False, 'error': f'Solicitante no pertenece a la empresa {api_key.company}'}), 403
+
+    # Resolver autor (quién lo crea)
+    author = None
+    author_id_in = data.get('authorId') or data.get('author_id')
+    if author_id_in:
+        author = User.query.get(author_id_in)
+    if not author or author.company != api_key.company:
+        author = applicant  # fallback
+
+    # Resolver asignatario opcional
+    assignee = None
+    assignee_email = (data.get('assigneeEmail') or data.get('assignee_email') or '').strip().lower()
+    assignee_id_in = data.get('assigneeId') or data.get('assignee_id')
+    if assignee_email:
+        assignee = User.query.filter(
+            db.func.lower(User.email) == assignee_email,
+            User.company == api_key.company,
+            User.role.in_(['technician', 'admin'])
+        ).first()
+    if not assignee and assignee_id_in:
+        assignee = User.query.get(assignee_id_in)
+        if assignee and assignee.company != api_key.company:
+            assignee = None
+
+    # Categoría y prioridad
+    category = (data.get('category') or 'General').strip()[:100]
+    priority = (data.get('priority') or 'medium').lower().strip()
+    if priority not in ('low', 'medium', 'high', 'critical'):
+        priority = 'medium'
+
+    # Contacto del solicitante
+    user_area = (data.get('userArea') or data.get('user_area') or applicant.area or '').strip()[:120] or None
+    user_location = (data.get('userLocation') or data.get('user_location') or applicant.location or '').strip()[:120] or None
+    user_phone = (data.get('userPhone') or data.get('user_phone') or applicant.phone or '').strip()[:40] or None
+
+    # Referencia externa (Aranda style) y campos adicionales
+    external_ref = (data.get('externalRef') or data.get('external_ref') or '').strip()[:100]
+    additional_fields = data.get('listAdditionalField') or data.get('additional_fields') or []
+    if external_ref or additional_fields:
+        meta_lines = []
+        if external_ref:
+            meta_lines.append(f'📌 Ref. externa: {external_ref}')
+        if additional_fields and isinstance(additional_fields, list):
+            meta_lines.append('📎 Campos adicionales:')
+            for f in additional_fields[:20]:
+                if not isinstance(f, dict):
+                    continue
+                name = f.get('name') or f.get('fieldName') or f'field_{f.get("fieldId")}'
+                value = f.get('stringValue') or f.get('intValue') or f.get('boolValue')
+                meta_lines.append(f'   - {name}: {value}')
+        description = description + '\n\n---\n' + '\n'.join(meta_lines)
+
+    # SLA en minutos según prioridad
+    sla_map = {'critical': 120, 'high': 240, 'medium': 480, 'low': 1440}
+    sla_minutes = sla_map.get(priority, 480)
+
+    # Generar número de ticket
+    ticket_number = generate_ticket_number(api_key.company) if 'generate_ticket_number' in globals() else \
+                    f'API-{api_key.company.upper()}-{int(time.time())}'
+
+    try:
+        ticket = Ticket(
+            ticket_number=ticket_number,
+            title=subject,
+            description=description,
+            category=category,
+            priority=priority,
+            status='open',
+            company=api_key.company,
+            creator_id=author.id,
+            assignee_id=assignee.id if assignee else None,
+            sla_minutes=sla_minutes,
+            sla_deadline=datetime.now() + timedelta(minutes=sla_minutes),
+            user_area=user_area,
+            user_location=user_location,
+            user_phone=user_phone,
+        )
+        db.session.add(ticket)
+        db.session.commit()
+
+        log_audit('api_ticket_created', author.id if author else None, 'ticket', ticket.id,
+                  f'Ticket #{ticket.ticket_number} creado por API key "{api_key.name}" desde {request.remote_addr}. '
+                  f'Solicitante: {applicant.email}. Ref externa: {external_ref or "N/A"}.')
+
+        # Emitir websocket a los técnicos de la empresa
+        try:
+            socketio.emit('ticket_created', {
+                'id': ticket.id,
+                'ticket_number': ticket.ticket_number,
+                'title': ticket.title,
+                'priority': ticket.priority,
+                'company': ticket.company,
+                'source': 'api_external',
+            }, room=f'company_{api_key.company}')
+        except Exception:
+            pass
+
+        base_url = request.host_url.rstrip('/')
+        return jsonify({
+            'success': True,
+            'id': ticket.id,
+            'ticket_number': ticket.ticket_number,
+            'url': f'{base_url}/technician/ticket/{ticket.id}',
+            'status': ticket.status,
+            'created_at': ticket.created_at.isoformat(timespec='seconds'),
+            'sla_deadline': ticket.sla_deadline.isoformat(timespec='seconds') if ticket.sla_deadline else None,
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        log_audit('api_ticket_failed', None, 'ticket', None,
+                  f'API key "{api_key.name}" falló al crear ticket: {e}')
+        return jsonify({'success': False, 'error': f'Error al crear ticket: {str(e)}'}), 500
+
+
+@app.route('/api/v1/external/tickets/<int:ticket_id>', methods=['GET'])
+def api_v1_external_get_ticket(ticket_id):
+    """Consultar estado de un ticket. Auth por Bearer token, scope 'tickets:read'."""
+    api_key, err = _validate_api_key()
+    if err:
+        return err
+    if not _api_key_has_scope(api_key, 'tickets:read'):
+        return jsonify({'success': False, 'error': 'Token sin scope tickets:read'}), 403
+
+    ticket = Ticket.query.get(ticket_id)
+    if not ticket or ticket.company != api_key.company:
+        return jsonify({'success': False, 'error': 'Ticket no encontrado'}), 404
+
+    assignee = User.query.get(ticket.assignee_id) if ticket.assignee_id else None
+    creator = User.query.get(ticket.creator_id) if ticket.creator_id else None
+
+    return jsonify({
+        'success': True,
+        'id': ticket.id,
+        'ticket_number': ticket.ticket_number,
+        'title': ticket.title,
+        'description': ticket.description,
+        'category': ticket.category,
+        'priority': ticket.priority,
+        'status': ticket.status,
+        'company': ticket.company,
+        'creator': {'id': creator.id, 'name': creator.name, 'email': creator.email} if creator else None,
+        'assignee': {'id': assignee.id, 'name': assignee.name, 'email': assignee.email} if assignee else None,
+        'created_at': ticket.created_at.isoformat(timespec='seconds') if ticket.created_at else None,
+        'updated_at': ticket.updated_at.isoformat(timespec='seconds') if ticket.updated_at else None,
+        'resolved_at': ticket.resolved_at.isoformat(timespec='seconds') if ticket.resolved_at else None,
+        'sla_deadline': ticket.sla_deadline.isoformat(timespec='seconds') if ticket.sla_deadline else None,
+    })
+
+
+# ─── Admin endpoints para gestionar API Keys ─────────────────────────────────
+
+@app.route('/api/admin/api-keys', methods=['GET'])
+def api_admin_api_keys_list():
+    """Listar API Keys de la empresa del admin."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    scope = admin_companies_scope()
+    keys = ApiKey.query.filter(ApiKey.company.in_(scope)).order_by(ApiKey.created_at.desc()).all()
+    return jsonify({
+        'success': True,
+        'api_keys': [{
+            'id': k.id,
+            'name': k.name,
+            'token_prefix': k.token_prefix,
+            'company': k.company,
+            'scopes': (k.scopes or '').split(','),
+            'is_active': bool(k.is_active),
+            'created_at': k.created_at.isoformat(timespec='seconds') if k.created_at else None,
+            'last_used_at': k.last_used_at.isoformat(timespec='seconds') if k.last_used_at else None,
+            'last_used_ip': k.last_used_ip,
+            'expires_at': k.expires_at.isoformat(timespec='seconds') if k.expires_at else None,
+            'usage_count': k.usage_count or 0,
+        } for k in keys]
+    })
+
+
+@app.route('/api/admin/api-keys', methods=['POST'])
+def api_admin_api_keys_create():
+    """Crea una nueva API Key. Devuelve el token EN CLARO SOLO ESTA VEZ."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()[:100]
+    company = (data.get('company') or session.get('company') or '').strip()
+    scopes_list = data.get('scopes') or ['tickets:create', 'tickets:read']
+    if isinstance(scopes_list, list):
+        scopes = ','.join(s.strip() for s in scopes_list if s.strip())
+    else:
+        scopes = str(scopes_list)
+    expires_at = None
+    if data.get('expires_at'):
+        try:
+            expires_at = datetime.fromisoformat(data['expires_at'])
+        except Exception:
+            pass
+
+    if not name:
+        return jsonify({'success': False, 'error': 'name es obligatorio'}), 400
+    if company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': f'Sin permiso sobre la empresa {company}'}), 403
+
+    # Generar token: prefijo reconocible + 40 chars aleatorios seguros
+    prefix = 'dsk_' + ('t' if 'tickets:create' in scopes else 'r')
+    random_part = secrets.token_urlsafe(32)
+    token = f'{prefix}_{random_part}'
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    token_prefix_visible = token[:12]  # Mostrar los primeros 12 en la UI
+
+    key = ApiKey(
+        name=name,
+        token_prefix=token_prefix_visible,
+        token_hash=token_hash,
+        company=company,
+        scopes=scopes,
+        is_active=True,
+        created_by=session['user_id'],
+        expires_at=expires_at,
+    )
+    db.session.add(key)
+    db.session.commit()
+    log_audit('api_key_created', session['user_id'], 'api_key', key.id,
+              f'API Key "{name}" creada para empresa {company} con scopes: {scopes}')
+
+    return jsonify({
+        'success': True,
+        'id': key.id,
+        'name': key.name,
+        'token': token,  # SOLO se muestra en la respuesta de creación — el admin debe guardarla
+        'token_prefix': token_prefix_visible,
+        'company': key.company,
+        'scopes': scopes.split(','),
+        'message': '⚠️ Guardá este token AHORA. No se puede volver a ver.',
+    }), 201
+
+
+@app.route('/api/admin/api-keys/<int:key_id>/toggle', methods=['POST'])
+def api_admin_api_keys_toggle(key_id):
+    """Activar/desactivar una API Key."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    key = ApiKey.query.get(key_id)
+    if not key or key.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'No encontrada'}), 404
+    key.is_active = not key.is_active
+    db.session.commit()
+    log_audit('api_key_toggle', session['user_id'], 'api_key', key.id,
+              f'API Key "{key.name}" {"activada" if key.is_active else "desactivada"}')
+    return jsonify({'success': True, 'is_active': key.is_active})
+
+
+@app.route('/api/admin/api-keys/<int:key_id>', methods=['DELETE'])
+def api_admin_api_keys_delete(key_id):
+    """Eliminar (revocar permanentemente) una API Key."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    key = ApiKey.query.get(key_id)
+    if not key or key.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'No encontrada'}), 404
+    name = key.name
+    db.session.delete(key)
+    db.session.commit()
+    log_audit('api_key_deleted', session['user_id'], 'api_key', key_id,
+              f'API Key "{name}" eliminada permanentemente')
+    return jsonify({'success': True, 'message': 'API Key eliminada'})
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 
 def bootstrap_app():
     """Inicializa BD + arranca todos los schedulers en background.

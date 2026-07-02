@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>API Externa — DeskEli</title>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        background: #f9fafb;
+        color: #1f2937;
+        line-height: 1.65;
+    }
+    .topbar {
+        background: linear-gradient(135deg, #1f2937, #7c3aed);
+        color: white; padding: 16px 32px;
+        display: flex; align-items: center; gap: 14px;
+        box-shadow: 0 4px 20px rgba(124,58,237,0.25);
+    }
+    .topbar h1 { font-size: 22px; }
+    .topbar .subtitle { font-size: 12px; opacity: 0.85; }
+    .topbar-logo {
+        width: 44px; height: 44px; border-radius: 50%;
+        border: 2px solid #7c3aed; object-fit: cover;
+    }
+    .container { max-width: 900px; margin: 30px auto; padding: 0 24px 60px; }
+    h2 { color: #1f2937; margin: 32px 0 14px; padding-bottom: 8px; border-bottom: 2px solid #ede9fe; font-size: 24px; }
+    h3 { color: #5b21b6; margin: 20px 0 10px; font-size: 18px; }
+    p { margin-bottom: 12px; }
+    code { background: #ede9fe; color: #5b21b6; padding: 2px 6px; border-radius: 3px; font-size: 13px; font-family: 'Consolas', monospace; }
+    pre {
+        background: #1f2937; color: #a7f3d0;
+        border-radius: 8px; padding: 18px;
+        overflow-x: auto; margin: 14px 0;
+        font-family: 'Consolas', monospace; font-size: 13px;
+        line-height: 1.5;
+    }
+    pre .k { color: #f9a8d4; }
+    pre .s { color: #fde68a; }
+    pre .c { color: #9ca3af; font-style: italic; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+    th { background: #faf5ff; color: #5b21b6; font-weight: 700; font-size: 12px; text-transform: uppercase; }
+    tr:last-child td { border-bottom: none; }
+    .callout { padding: 14px 18px; border-radius: 8px; margin: 16px 0; border-left: 4px solid; }
+    .callout-info { background: #eff6ff; border-color: #3b82f6; }
+    .callout-warn { background: #fffbeb; border-color: #f59e0b; }
+    .callout-danger { background: #fef2f2; border-color: #dc2626; }
+    .callout-success { background: #ecfdf5; border-color: #10b981; }
+    .callout strong { display: block; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <img src="/static/eli.png" class="topbar-logo" onerror="this.style.display='none'">
+    <div>
+        <h1>🔌 API Externa de DeskEli</h1>
+        <div class="subtitle">Documentación para integraciones — crear tickets desde sistemas externos</div>
+    </div>
+</div>
+
+<div class="container">
+
+<h2>Introducción</h2>
+<p>DeskEli expone una API REST para que sistemas externos (Aranda, RRHH, monitoreo, ITSM, etc.) puedan <strong>crear tickets</strong> y <strong>consultar su estado</strong> de forma programática.</p>
+
+<div class="callout callout-info">
+    <strong>Base URL</strong>
+    <code>https://deskeli.eliotproyectos.tech/api/v1/external</code>
+</div>
+
+<h2>Autenticación</h2>
+<p>Todas las peticiones requieren una <strong>API Key</strong> como <strong>Bearer token</strong> en el header:</p>
+
+<pre>X-Authorization: Bearer dsk_t_XXXXXXXXXXXXXXXXXXXXXXXXX</pre>
+
+<p>Alternativamente se acepta el header estándar <code>Authorization: Bearer ...</code>.</p>
+
+<h3>Cómo obtener una API Key</h3>
+<ol style="padding-left: 22px;">
+    <li>Un administrador entra a <code>/admin/config → 🔌 API / Integraciones</code></li>
+    <li>Click en <strong>➕ Generar nueva API Key</strong></li>
+    <li>Elige nombre, empresa, scopes y (opcional) fecha de expiración</li>
+    <li>Copia el token que aparece — <strong>solo se muestra una vez</strong></li>
+</ol>
+
+<div class="callout callout-warn">
+    <strong>⚠️ Seguridad</strong>
+    El token es un secreto. Guardalo en un gestor (Vault, AWS Secrets Manager, .env con permisos restrictivos). Nunca lo commitees a Git ni lo pongas en logs.
+</div>
+
+<h3>Scopes disponibles</h3>
+<table>
+    <thead><tr><th>Scope</th><th>Descripción</th></tr></thead>
+    <tbody>
+        <tr><td><code>tickets:create</code></td><td>Crear nuevos tickets</td></tr>
+        <tr><td><code>tickets:read</code></td><td>Consultar el estado de tickets existentes</td></tr>
+    </tbody>
+</table>
+
+<h2>Endpoints</h2>
+
+<h3>POST /api/v1/external/tickets — Crear ticket</h3>
+
+<p><strong>Headers:</strong></p>
+<pre>Content-Type: application/json
+X-Authorization: Bearer dsk_t_TU_TOKEN</pre>
+
+<p><strong>Body:</strong></p>
+<pre>{
+  <span class="s">"subject"</span>: <span class="s">"Servidor SAP no responde"</span>,
+  <span class="s">"description"</span>: <span class="s">"El SAP PRD no responde desde hace 20 min..."</span>,
+  <span class="s">"category"</span>: <span class="s">"SAP"</span>,
+  <span class="s">"priority"</span>: <span class="s">"critical"</span>,
+
+  <span class="c">// Identificar al solicitante (uno de los dos)</span>
+  <span class="s">"applicantEmail"</span>: <span class="s">"juan.perez@patprimo.com.co"</span>,
+  <span class="c">// o bien:</span>
+  <span class="c">// "applicantId": 42,</span>
+
+  <span class="c">// Opcionales</span>
+  <span class="s">"authorId"</span>: <span class="k">10</span>,
+  <span class="s">"assigneeEmail"</span>: <span class="s">"tecnico@patprimo.com.co"</span>,
+  <span class="s">"userArea"</span>: <span class="s">"Contabilidad"</span>,
+  <span class="s">"userLocation"</span>: <span class="s">"Piso 3, Bogotá"</span>,
+  <span class="s">"userPhone"</span>: <span class="s">"3001234567"</span>,
+  <span class="s">"externalRef"</span>: <span class="s">"SR-98765"</span>,
+
+  <span class="c">// Campos personalizados (compatibilidad con Aranda)</span>
+  <span class="s">"listAdditionalField"</span>: [
+    {<span class="s">"name"</span>: <span class="s">"Ubicación"</span>, <span class="s">"stringValue"</span>: <span class="s">"ELIOT"</span>},
+    {<span class="s">"name"</span>: <span class="s">"USUARIO AD"</span>, <span class="s">"boolValue"</span>: <span class="k">true</span>}
+  ]
+}</pre>
+
+<p><strong>Campos:</strong></p>
+<table>
+    <thead><tr><th>Campo</th><th>Tipo</th><th>Obligatorio</th><th>Descripción</th></tr></thead>
+    <tbody>
+        <tr><td><code>subject</code></td><td>string</td><td>✅</td><td>Título del ticket (max 200 chars)</td></tr>
+        <tr><td><code>description</code></td><td>string</td><td>✅</td><td>Descripción del caso (soporta markdown básico)</td></tr>
+        <tr><td><code>applicantEmail</code> o <code>applicantId</code></td><td>string / int</td><td>✅</td><td>Identifica al usuario solicitante. Debe existir en DeskEli y pertenecer a la empresa del token.</td></tr>
+        <tr><td><code>category</code></td><td>string</td><td>—</td><td>Categoría (default: "General")</td></tr>
+        <tr><td><code>priority</code></td><td>string</td><td>—</td><td><code>low</code> / <code>medium</code> / <code>high</code> / <code>critical</code> (default: medium)</td></tr>
+        <tr><td><code>authorId</code></td><td>int</td><td>—</td><td>Quién crea el ticket. Default: el applicant.</td></tr>
+        <tr><td><code>assigneeEmail</code> / <code>assigneeId</code></td><td>string / int</td><td>—</td><td>Técnico asignado (rol technician o admin)</td></tr>
+        <tr><td><code>userArea</code>, <code>userLocation</code>, <code>userPhone</code></td><td>string</td><td>—</td><td>Contacto del solicitante</td></tr>
+        <tr><td><code>externalRef</code></td><td>string</td><td>—</td><td>ID del ticket en el sistema origen (se anexa a la descripción)</td></tr>
+        <tr><td><code>listAdditionalField</code></td><td>array</td><td>—</td><td>Campos personalizados (compat Aranda); se anexan a la descripción</td></tr>
+    </tbody>
+</table>
+
+<p><strong>Respuesta 201 (éxito):</strong></p>
+<pre>{
+  <span class="s">"success"</span>: <span class="k">true</span>,
+  <span class="s">"id"</span>: <span class="k">42</span>,
+  <span class="s">"ticket_number"</span>: <span class="s">"TKT-ELIOT-00042"</span>,
+  <span class="s">"url"</span>: <span class="s">"https://deskeli.eliotproyectos.tech/technician/ticket/42"</span>,
+  <span class="s">"status"</span>: <span class="s">"open"</span>,
+  <span class="s">"created_at"</span>: <span class="s">"2026-07-02T15:30:00"</span>,
+  <span class="s">"sla_deadline"</span>: <span class="s">"2026-07-02T17:30:00"</span>
+}</pre>
+
+<p><strong>Errores comunes:</strong></p>
+<table>
+    <thead><tr><th>Código</th><th>Causa</th></tr></thead>
+    <tbody>
+        <tr><td>400</td><td>Faltan campos <code>subject</code>/<code>description</code>, o el applicant no existe</td></tr>
+        <tr><td>401</td><td>Token faltante, inválido, revocado o expirado</td></tr>
+        <tr><td>403</td><td>Token sin scope <code>tickets:create</code>, o applicant de otra empresa</td></tr>
+        <tr><td>500</td><td>Error interno (ver logs de DeskEli)</td></tr>
+    </tbody>
+</table>
+
+<h3>GET /api/v1/external/tickets/{id} — Consultar estado</h3>
+
+<p>Requiere scope <code>tickets:read</code>.</p>
+
+<pre>curl -H "X-Authorization: Bearer dsk_r_TU_TOKEN" \
+     https://deskeli.eliotproyectos.tech/api/v1/external/tickets/42</pre>
+
+<p><strong>Respuesta 200:</strong></p>
+<pre>{
+  <span class="s">"success"</span>: <span class="k">true</span>,
+  <span class="s">"id"</span>: <span class="k">42</span>,
+  <span class="s">"ticket_number"</span>: <span class="s">"TKT-ELIOT-00042"</span>,
+  <span class="s">"title"</span>: <span class="s">"Servidor SAP no responde"</span>,
+  <span class="s">"description"</span>: <span class="s">"..."</span>,
+  <span class="s">"category"</span>: <span class="s">"SAP"</span>,
+  <span class="s">"priority"</span>: <span class="s">"critical"</span>,
+  <span class="s">"status"</span>: <span class="s">"in_progress"</span>,
+  <span class="s">"assignee"</span>: {<span class="s">"id"</span>: <span class="k">7</span>, <span class="s">"name"</span>: <span class="s">"Carlos"</span>, <span class="s">"email"</span>: <span class="s">"carlos@..."</span>},
+  <span class="s">"created_at"</span>: <span class="s">"..."</span>,
+  <span class="s">"updated_at"</span>: <span class="s">"..."</span>,
+  <span class="s">"resolved_at"</span>: <span class="k">null</span>,
+  <span class="s">"sla_deadline"</span>: <span class="s">"..."</span>
+}</pre>
+
+<h2>Ejemplos completos</h2>
+
+<h3>Python (equivalente al script de Aranda)</h3>
+<pre><span class="k">import</span> requests
+
+url = <span class="s">"https://deskeli.eliotproyectos.tech/api/v1/external/tickets"</span>
+token = <span class="s">"dsk_t_XXXXXXXXXXXXXXXXXXXXXXXXX"</span>
+
+headers = {
+    <span class="s">"Content-Type"</span>: <span class="s">"application/json"</span>,
+    <span class="s">"X-Authorization"</span>: <span class="s">f"Bearer {token}"</span>
+}
+
+payload = {
+    <span class="s">"subject"</span>: <span class="s">"Prueba de creación desde API"</span>,
+    <span class="s">"description"</span>: <span class="s">"Ticket generado por integración externa."</span>,
+    <span class="s">"category"</span>: <span class="s">"General"</span>,
+    <span class="s">"priority"</span>: <span class="s">"high"</span>,
+    <span class="s">"applicantEmail"</span>: <span class="s">"juan.perez@patprimo.com.co"</span>,
+    <span class="s">"userArea"</span>: <span class="s">"Contabilidad"</span>,
+    <span class="s">"externalRef"</span>: <span class="s">"SR-98765"</span>,
+    <span class="s">"listAdditionalField"</span>: [
+        {<span class="s">"name"</span>: <span class="s">"Ubicación"</span>, <span class="s">"stringValue"</span>: <span class="s">"ELIOT"</span>},
+        {<span class="s">"name"</span>: <span class="s">"USUARIO AD"</span>, <span class="s">"boolValue"</span>: <span class="k">True</span>}
+    ]
+}
+
+response = requests.post(url, headers=headers, json=payload)
+
+<span class="k">if</span> response.status_code == 201:
+    data = response.json()
+    <span class="k">print</span>(<span class="s">f"✅ Ticket creado: {data['ticket_number']}"</span>)
+    <span class="k">print</span>(<span class="s">f"   URL: {data['url']}"</span>)
+<span class="k">else</span>:
+    <span class="k">print</span>(<span class="s">f"❌ Error {response.status_code}: {response.json()}"</span>)</pre>
+
+<h3>cURL</h3>
+<pre>curl -X POST https://deskeli.eliotproyectos.tech/api/v1/external/tickets \
+  -H "Content-Type: application/json" \
+  -H "X-Authorization: Bearer dsk_t_XXXXXXXXXXXXXXXXXXXXXXXXX" \
+  -d '{
+    "subject": "Impresora no imprime",
+    "description": "La impresora del piso 3 no responde",
+    "category": "Hardware",
+    "priority": "medium",
+    "applicantEmail": "usuario@patprimo.com.co"
+  }'</pre>
+
+<h3>PowerShell</h3>
+<pre>$headers = @{
+    <span class="s">"X-Authorization"</span> = <span class="s">"Bearer dsk_t_XXXXXX"</span>
+    <span class="s">"Content-Type"</span>   = <span class="s">"application/json"</span>
+}
+$body = @{
+    subject         = <span class="s">"Test desde PowerShell"</span>
+    description     = <span class="s">"Ticket creado via API"</span>
+    applicantEmail  = <span class="s">"usuario@patprimo.com.co"</span>
+    priority        = <span class="s">"medium"</span>
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri <span class="s">"https://deskeli.eliotproyectos.tech/api/v1/external/tickets"</span> `
+    -Method Post -Headers $headers -Body $body</pre>
+
+<h2>Migración desde Aranda</h2>
+
+<div class="callout callout-success">
+    <strong>Compatibilidad con Aranda</strong>
+    El endpoint acepta campos como <code>listAdditionalField</code> y <code>externalRef</code> para minimizar cambios en scripts existentes. Los campos personalizados se anexan a la descripción del ticket como metadata visible.
+</div>
+
+<h3>Mapeo de campos Aranda → DeskEli</h3>
+<table>
+    <thead><tr><th>Aranda</th><th>DeskEli</th><th>Notas</th></tr></thead>
+    <tbody>
+        <tr><td><code>subject</code></td><td><code>subject</code></td><td>igual</td></tr>
+        <tr><td><code>description</code></td><td><code>description</code></td><td>igual</td></tr>
+        <tr><td><code>applicantId</code></td><td><code>applicantId</code> o <code>applicantEmail</code></td><td>DeskEli acepta email también</td></tr>
+        <tr><td><code>authorId</code></td><td><code>authorId</code></td><td>igual</td></tr>
+        <tr><td><code>responsibleId</code></td><td><code>assigneeId</code> / <code>assigneeEmail</code></td><td>renombrado</td></tr>
+        <tr><td><code>categoryId</code></td><td><code>category</code> (string)</td><td>DeskEli usa nombre, no ID</td></tr>
+        <tr><td><code>priorityId</code></td><td><code>priority</code> (string)</td><td>low/medium/high/critical</td></tr>
+        <tr><td><code>projectId</code>, <code>serviceId</code>, <code>modelId</code>, <code>stateId</code>, <code>impactId</code>, <code>urgencyId</code></td><td>—</td><td>DeskEli no los usa (modelo más simple)</td></tr>
+        <tr><td><code>listAdditionalField</code></td><td><code>listAdditionalField</code></td><td>se anexa a description</td></tr>
+    </tbody>
+</table>
+
+<h2>Buenas prácticas</h2>
+<ul style="padding-left:22px;">
+    <li><strong>Un token por consumidor:</strong> creá una key distinta para Aranda, otra para RRHH, otra para monitoreo. Facilita revocar solo la que se comprometió.</li>
+    <li><strong>Scopes mínimos:</strong> si un sistema solo crea, no le des <code>tickets:read</code>. Principio de mínimo privilegio.</li>
+    <li><strong>Rotá los tokens:</strong> revocá y generá uno nuevo cada 6 meses. Los tokens no expiran por default.</li>
+    <li><strong>Rate limit:</strong> el sistema aplica 120 req/min por IP. Si necesitás más, hablá con el admin.</li>
+    <li><strong>Idempotencia:</strong> si mandás el mismo <code>externalRef</code> dos veces, se crean 2 tickets (no hay deduplicación). Manejalo del lado del cliente.</li>
+</ul>
+
+<div class="callout callout-danger">
+    <strong>⚠️ Si sospechás que un token se filtró</strong>
+    Andá inmediatamente a <code>/admin/config → 🔌 API / Integraciones</code>, pausá esa key o eliminala, y generá una nueva. Todo uso posterior de la key comprometida será rechazado.
+</div>
+
+<h2>Soporte</h2>
+<p>Para problemas de integración: crear un ticket en el sistema con categoría "Integración API" o contactar al administrador de DeskEli.</p>
+
+</div>
+
+</body>
+</html>
