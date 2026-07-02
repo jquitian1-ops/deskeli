@@ -3444,6 +3444,43 @@
                     if (d.config.webhook_servers) document.getElementById('teams-webhook-servers').value = d.config.webhook_servers;
                 }
             }).catch(() => {});
+
+            // Cargar configuración REAL de la BD (motor activo)
+            fetch('/api/config/database').then(r => r.json()).then(d => {
+                if (!d.success) return;
+                const type = d.db_type;
+                // Marcar el radio correcto
+                const radio = document.querySelector(`input[name="db_type"][value="${type === 'postgresql' ? 'postgresql' : 'sqlite'}"]`);
+                if (radio) { radio.checked = true; toggleDBPanel(); }
+                // Llenar campos si es PostgreSQL
+                if (type === 'postgresql') {
+                    if (d.host) document.getElementById('db_host').value = d.host;
+                    if (d.port) document.getElementById('db_port').value = d.port;
+                    if (d.name) document.getElementById('db_name').value = d.name;
+                    if (d.user) document.getElementById('db_user').value = d.user;
+                    document.getElementById('db_password').placeholder = 'Configurada (no se muestra)';
+                }
+                // Banner si la BD está gestionada por env var (Coolify, Docker, etc.)
+                if (d.managed_by_env) {
+                    const container = document.querySelector('#panel-database, #sec-database, .database-section') ||
+                                      document.querySelector('input[name="db_type"]').closest('.form-section') ||
+                                      document.querySelector('input[name="db_type"]').closest('div');
+                    if (container && !document.getElementById('db-env-banner')) {
+                        const banner = document.createElement('div');
+                        banner.id = 'db-env-banner';
+                        banner.style.cssText = 'background:#fef3c7; border-left:4px solid #f59e0b; padding:14px 18px; margin-bottom:16px; border-radius:6px; color:#78350f; font-size:13px;';
+                        banner.innerHTML = `
+                            <strong>ℹ️ Base de datos gestionada por el entorno</strong><br>
+                            Motor activo: <strong>${type.toUpperCase()}</strong>${d.server_version ? ` — <code>${d.server_version}</code>` : ''}<br>
+                            La conexión viene de la variable de entorno <code>DATABASE_URL</code> (Coolify / Docker). Los cambios que hagas acá <strong>no tienen efecto</strong> hasta que actualices el entorno y reinicies el servicio.
+                        `;
+                        container.insertBefore(banner, container.firstChild);
+                    }
+                    // Deshabilitar botones que no aplican
+                    const saveBtn = document.querySelector('button[onclick*="saveDatabaseConfig"]');
+                    if (saveBtn) { saveBtn.disabled = true; saveBtn.title = 'Deshabilitado: la BD viene del entorno'; saveBtn.style.opacity = '0.5'; }
+                }
+            }).catch(() => {});
         });
 
         function toggleDBPanel() {

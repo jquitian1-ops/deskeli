@@ -3701,6 +3701,22 @@ def api_config_theme():
     cache_delete(f'theme:{company}')  # invalidar cache para que tome efecto inmediato
     return jsonify({'success': True, 'theme': theme, 'company': company})
 
+def _get_db_server_version():
+    """Devuelve la version del server de BD activo (util para mostrar en admin)."""
+    try:
+        from sqlalchemy import text
+        dialect = db.engine.dialect.name
+        if dialect == 'postgresql':
+            row = db.session.execute(text('SELECT version()')).fetchone()
+            return row[0][:80] if row else ''
+        elif dialect == 'sqlite':
+            row = db.session.execute(text('SELECT sqlite_version()')).fetchone()
+            return f'SQLite {row[0]}' if row else ''
+    except Exception:
+        pass
+    return ''
+
+
 @app.route('/api/config/database', methods=['GET', 'POST'])
 def api_config_database():
     """GET: retorna config actual de BD. POST: guarda nueva configuración"""
@@ -3708,34 +3724,37 @@ def api_config_database():
         return jsonify({'success': False}), 401
 
     if request.method == 'GET':
-        # Retornar configuración actual
-        db_url = os.getenv('DATABASE_URL', '')
-        if db_url.startswith('sqlite'):
-            db_type = 'sqlite'
-            db_path = db_url.replace('sqlite:///', '')
-        elif db_url.startswith('postgresql'):
-            db_type = 'postgresql'
-            host = os.getenv('DB_HOST', 'localhost')
-            port = os.getenv('DB_PORT', 5432)
-            name = os.getenv('DB_NAME', '')
-            user = os.getenv('DB_USER', '')
+        # Retornar configuración REAL basada en el engine activo, no el env var.
+        # Esto asegura que si Coolify inyecta DATABASE_URL, la UI refleja el motor real.
+        engine_url = db.engine.url
+        dialect = db.engine.dialect.name  # 'postgresql', 'sqlite', 'mysql', etc.
+        managed_by_env = bool(os.getenv('DATABASE_URL'))
+
+        if dialect == 'postgresql':
             return jsonify({
                 'success': True,
-                'db_type': db_type,
-                'host': host,
-                'port': port,
-                'name': name,
-                'user': user
+                'db_type': 'postgresql',
+                'host': engine_url.host or '',
+                'port': engine_url.port or 5432,
+                'name': engine_url.database or '',
+                'user': engine_url.username or '',
+                'managed_by_env': managed_by_env,
+                'server_version': _get_db_server_version(),
+            })
+        elif dialect == 'sqlite':
+            return jsonify({
+                'success': True,
+                'db_type': 'sqlite',
+                'db_path': engine_url.database or '',
+                'managed_by_env': managed_by_env,
             })
         else:
-            db_type = 'sqlite'
-            db_path = db_url
-
-        return jsonify({
-            'success': True,
-            'db_type': db_type,
-            'db_path': db_path
-        })
+            return jsonify({
+                'success': True,
+                'db_type': dialect,
+                'db_path': str(engine_url),
+                'managed_by_env': managed_by_env,
+            })
 
     elif request.method == 'POST':
         # Guardar nueva configuración
