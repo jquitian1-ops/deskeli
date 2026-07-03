@@ -1538,9 +1538,25 @@ def employee_create():
         description = request.form.get('description', '').strip()
         category = request.form.get('category', 'General').strip()
         priority = request.form.get('priority', 'medium').strip()
+        priority_reason = (request.form.get('priority_reason') or '').strip()
         user_area = (request.form.get('user_area') or '').strip()
         user_location = (request.form.get('user_location') or '').strip()
         user_phone = (request.form.get('user_phone') or '').strip()
+
+        # Si el empleado elevó la prioridad a high o critical, debe venir un motivo
+        if priority in ('high', 'critical'):
+            if priority_reason and len(priority_reason) >= 10:
+                # Anexar el motivo a la descripción con formato destacado
+                priority_label = {'high': 'ALTA', 'critical': 'CRÍTICA'}[priority]
+                description = (
+                    f"{description}\n\n"
+                    f"---\n"
+                    f"🎯 **MOTIVO DE PRIORIDAD {priority_label}** (indicado por el solicitante):\n"
+                    f"{priority_reason}"
+                )
+            else:
+                # Sin motivo → bajar automáticamente a media (evitar abuso de prioridades altas)
+                priority = 'medium'
 
         # Validación contextual: campos personales obligatorios
         def _render_error(msg):
@@ -1593,6 +1609,14 @@ def employee_create():
 
         db.session.add(ticket)
         db.session.commit()
+
+        # Auditoría específica cuando el empleado elevó la prioridad
+        if priority in ('high', 'critical') and priority_reason:
+            log_audit(
+                'ticket_priority_elevated', user.id, 'ticket', ticket.id,
+                f'Empleado {user.email or user.username} eligió prioridad {priority.upper()} '
+                f'con motivo: "{priority_reason[:200]}"'
+            )
 
         # Procesar archivos adjuntos (imágenes pegadas o archivos seleccionados)
         attachments_saved = 0

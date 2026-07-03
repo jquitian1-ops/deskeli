@@ -232,6 +232,7 @@
                     <label>🎯 Criticidad / Prioridad del problema <span style="color:#dc2626;">*</span></label>
                     <p class="help-text" style="margin-bottom:8px;">Selecciona la urgencia real. Esto determina el tiempo máximo de respuesta (SLA).</p>
                     <input type="hidden" id="priority" name="priority" value="medium">
+                    <input type="hidden" id="priority_reason" name="priority_reason" value="">
                     <div id="priorityCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;">
                         <div class="priority-card" data-priority="low" onclick="selectPriority('low')"
                              style="cursor:pointer;padding:14px;border:2px solid #e5e7eb;border-radius:8px;text-align:center;background:white;transition:all 0.15s;">
@@ -261,6 +262,27 @@
                     <div id="priorityWarning" style="display:none;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;padding:8px 12px;border-radius:6px;margin-top:8px;font-size:12px;">
                         ⚠️ <strong>Solo selecciona CRÍTICA</strong> si tu problema bloquea producción o afecta a múltiples usuarios. Uso indebido puede ser auditado.
                     </div>
+                    <!-- Justificación visible cuando el usuario elevó la prioridad -->
+                    <div id="priorityReasonDisplay" style="display:none;background:#f3e8ff;border-left:4px solid #7c3aed;color:#5b21b6;padding:10px 14px;border-radius:6px;margin-top:8px;font-size:13px;">
+                        <strong>📝 Motivo de la prioridad elevada:</strong>
+                        <span id="priorityReasonText" style="display:block;margin-top:4px;color:#374151;"></span>
+                        <a href="#" onclick="event.preventDefault();openPriorityReasonModal(document.getElementById('priority').value, true);" style="color:#7c3aed;font-size:11px;text-decoration:underline;margin-top:4px;display:inline-block;">✏️ Editar motivo</a>
+                    </div>
+                </div>
+
+                <!-- Modal: pedir motivo al elevar prioridad -->
+                <div id="priorityReasonModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;">
+                    <div style="background:white;max-width:500px;width:90%;padding:26px;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                        <h3 id="prModalTitle" style="margin:0 0 8px;color:#1f2937;font-size:18px;">¿Por qué necesitás prioridad <span id="prModalLevel" style="color:#dc2626;">ALTA</span>?</h3>
+                        <p style="color:#6b7280;font-size:13px;margin-bottom:16px;">Elegiste una prioridad por encima de la normal. Contanos brevemente el motivo — así el técnico entiende el impacto y prioriza correctamente.</p>
+                        <textarea id="prModalReason" rows="4" maxlength="500" placeholder="Ej: El servidor SAP no responde y bloquea 20 personas del área de contabilidad. No pueden facturar."
+                                  style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
+                        <div style="font-size:11px;color:#9ca3af;margin-top:4px;text-align:right;"><span id="prModalCharCount">0</span> / 500</div>
+                        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+                            <button type="button" onclick="cancelPriorityChange()" style="padding:9px 16px;background:#e5e7eb;color:#1f2937;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Cancelar</button>
+                            <button type="button" onclick="confirmPriorityChange()" style="padding:9px 18px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;">Confirmar prioridad</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="button-group">
@@ -274,13 +296,19 @@
                 </style>
 
                 <script>
-                    function selectPriority(level) {
-                        const colors = {
-                            low:      {bg:'#dcfce7', border:'#16a34a'},
-                            medium:   {bg:'#fef3c7', border:'#f59e0b'},
-                            high:     {bg:'#ffedd5', border:'#ea580c'},
-                            critical: {bg:'#fee2e2', border:'#dc2626'}
-                        };
+                    const PRIORITY_COLORS = {
+                        low:      {bg:'#dcfce7', border:'#16a34a', label:'BAJA'},
+                        medium:   {bg:'#fef3c7', border:'#f59e0b', label:'MEDIA'},
+                        high:     {bg:'#ffedd5', border:'#ea580c', label:'ALTA'},
+                        critical: {bg:'#fee2e2', border:'#dc2626', label:'CRÍTICA'}
+                    };
+                    // La prioridad "default" es media; elevar por encima requiere motivo
+                    const PRIORITY_DEFAULT = 'medium';
+                    const PRIORITY_ELEVATED = ['high', 'critical'];
+                    let _pendingPriority = null;   // Prioridad tentativa esperando motivo
+                    let _lastConfirmedPriority = 'medium';
+
+                    function paintPriorityCard(level) {
                         document.querySelectorAll('.priority-card').forEach(c => {
                             c.classList.remove('priority-card-active');
                             c.style.borderColor = '#e5e7eb';
@@ -289,12 +317,78 @@
                         const sel = document.querySelector(`.priority-card[data-priority="${level}"]`);
                         if (sel) {
                             sel.classList.add('priority-card-active');
-                            sel.style.borderColor = colors[level].border;
-                            sel.style.background = colors[level].bg;
+                            sel.style.borderColor = PRIORITY_COLORS[level].border;
+                            sel.style.background = PRIORITY_COLORS[level].bg;
                         }
+                    }
+
+                    function selectPriority(level) {
+                        // Si eleva a alta o crítica, pedir motivo antes de confirmar
+                        if (PRIORITY_ELEVATED.includes(level) && level !== _lastConfirmedPriority) {
+                            openPriorityReasonModal(level, false);
+                            return;
+                        }
+                        // Si baja de una prioridad elevada a media/baja, limpiar el motivo
+                        if (!PRIORITY_ELEVATED.includes(level)) {
+                            document.getElementById('priority_reason').value = '';
+                            document.getElementById('priorityReasonDisplay').style.display = 'none';
+                        }
+                        applyPriority(level);
+                    }
+
+                    function applyPriority(level) {
+                        paintPriorityCard(level);
                         document.getElementById('priority').value = level;
+                        _lastConfirmedPriority = level;
                         document.getElementById('priorityWarning').style.display = level === 'critical' ? 'block' : 'none';
                     }
+
+                    function openPriorityReasonModal(level, isEditing) {
+                        _pendingPriority = level;
+                        const modal = document.getElementById('priorityReasonModal');
+                        document.getElementById('prModalLevel').textContent = PRIORITY_COLORS[level].label;
+                        document.getElementById('prModalLevel').style.color = PRIORITY_COLORS[level].border;
+                        // Pre-cargar motivo actual si lo estamos editando
+                        const existingReason = document.getElementById('priority_reason').value;
+                        document.getElementById('prModalReason').value = isEditing ? existingReason : '';
+                        updateCharCount();
+                        modal.style.display = 'flex';
+                        setTimeout(() => document.getElementById('prModalReason').focus(), 100);
+                    }
+
+                    function updateCharCount() {
+                        const ta = document.getElementById('prModalReason');
+                        document.getElementById('prModalCharCount').textContent = ta.value.length;
+                    }
+
+                    function confirmPriorityChange() {
+                        const reason = document.getElementById('prModalReason').value.trim();
+                        if (reason.length < 10) {
+                            alert('El motivo debe tener al menos 10 caracteres para que el técnico entienda el impacto.');
+                            return;
+                        }
+                        // Guardar
+                        document.getElementById('priority_reason').value = reason;
+                        document.getElementById('priorityReasonText').textContent = reason;
+                        document.getElementById('priorityReasonDisplay').style.display = 'block';
+                        // Aplicar la prioridad elevada
+                        applyPriority(_pendingPriority);
+                        document.getElementById('priorityReasonModal').style.display = 'none';
+                        _pendingPriority = null;
+                    }
+
+                    function cancelPriorityChange() {
+                        document.getElementById('priorityReasonModal').style.display = 'none';
+                        _pendingPriority = null;
+                        // Repintar la última prioridad confirmada (rebobinamos si el usuario abrió por click de card)
+                        paintPriorityCard(_lastConfirmedPriority);
+                    }
+
+                    // Listener para contador de caracteres
+                    document.addEventListener('DOMContentLoaded', () => {
+                        const ta = document.getElementById('prModalReason');
+                        if (ta) ta.addEventListener('input', updateCharCount);
+                    });
                 </script>
             </form>
         </div>
