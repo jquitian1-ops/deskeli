@@ -13178,6 +13178,116 @@ def api_custom_roles_delete(key):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/admin/custom-roles/export', methods=['GET'])
+def api_custom_roles_export():
+    """Exporta todos los roles personalizados a JSON descargable."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    roles = _load_custom_roles()
+    company = session.get('company')
+    payload = {
+        '_meta': {
+            'exported_at': datetime.now().isoformat(timespec='seconds'),
+            'source_company': company,
+            'format_version': '1',
+            'total': len(roles),
+        },
+        'custom_roles': roles,
+    }
+
+    log_audit('custom_roles_export', session['user_id'], 'role', None,
+              f'Exportó {len(roles)} roles personalizados')
+
+    from flask import Response
+    import json as _json
+    filename = f'roles_personalizados_{company}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+    return Response(
+        _json.dumps(payload, ensure_ascii=False, indent=2),
+        mimetype='application/json',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+    )
+
+
+@app.route('/api/admin/custom-roles/import', methods=['POST'])
+def api_custom_roles_import():
+    """Importa roles personalizados desde JSON. Modo merge: salta duplicados por 'key'."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    # Acepta JSON en body o archivo subido en form-data
+    data = None
+    if request.is_json:
+        data = request.get_json(silent=True)
+    elif 'file' in request.files:
+        try:
+            import json as _json
+            data = _json.loads(request.files['file'].read().decode('utf-8'))
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'JSON inválido: {e}'}), 400
+
+    if not data or 'custom_roles' not in data:
+        return jsonify({'success': False, 'error': 'Formato inválido: falta la clave "custom_roles"'}), 400
+
+    incoming = data['custom_roles']
+    if not isinstance(incoming, list):
+        return jsonify({'success': False, 'error': '"custom_roles" debe ser una lista'}), 400
+
+    existing_roles = _load_custom_roles()
+    existing_keys = {r.get('key', '').lower() for r in existing_roles}
+
+    created = 0
+    skipped = 0
+    errors = []
+
+    for item in incoming[:200]:
+        try:
+            key = (item.get('key') or '').strip().lower()
+            label = (item.get('label') or '').strip()
+            base_role = (item.get('base_role') or '').strip().lower()
+
+            if not key or not label:
+                errors.append(f'Falta key o label en: {item}')
+                continue
+            if not re.match(r'^[a-z][a-z0-9_]{1,29}$', key):
+                errors.append(f'Clave inválida "{key}": debe empezar con minúscula y solo tener letras/números/_')
+                continue
+            if base_role not in ['admin', 'technician', 'employee']:
+                errors.append(f'"{key}": base_role inválido ({base_role}). Debe ser admin/technician/employee.')
+                continue
+            if key in ('admin', 'technician', 'employee'):
+                errors.append(f'"{key}": clave reservada del sistema')
+                continue
+            if key in existing_keys:
+                skipped += 1
+                continue
+
+            existing_roles.append({
+                'key': key,
+                'label': label[:80],
+                'base_role': base_role,
+                'color': (item.get('color') or '#7c3aed').strip()[:20],
+                'icon': (item.get('icon') or '👔').strip()[:4],
+                'description': (item.get('description') or '').strip()[:255],
+            })
+            existing_keys.add(key)
+            created += 1
+        except Exception as e:
+            errors.append(f'Error en {item.get("key", "?")}: {e}')
+
+    _save_custom_roles(existing_roles)
+    log_audit('custom_roles_import', session['user_id'], 'role', None,
+              f'Import roles: {created} creados, {skipped} omitidos, {len(errors)} errores')
+
+    return jsonify({
+        'success': True,
+        'created': created,
+        'skipped': skipped,
+        'errors': errors[:10],
+        'message': f'✓ {created} roles importados. {skipped} omitidos (ya existían).'
+    })
+
+
 # ============ REPORTES AUTOMÁTICOS ============
 
 @app.route('/api/admin/report-recipients', methods=['GET'])
