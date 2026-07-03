@@ -780,6 +780,18 @@
                         en <strong>Equipo</strong> o usarlos como filtros en la asignación automática de tickets.
                     </p>
 
+                    <!-- Botones de import/export -->
+                    <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+                        <button onclick="srExport()" style="padding:9px 14px; background:#7c3aed; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:13px;">
+                            📥 Descargar todos los subroles (JSON)
+                        </button>
+                        <label style="padding:9px 14px; background:#10b981; color:white; border-radius:6px; cursor:pointer; font-weight:600; font-size:13px; display:inline-block;">
+                            📤 Cargar subroles desde JSON
+                            <input type="file" id="srImportFile" accept="application/json,.json" style="display:none;" onchange="srImport(this.files[0])">
+                        </label>
+                        <div id="srImportStatus" style="font-size:12px; padding:8px 0; color:#6b7280;"></div>
+                    </div>
+
                     <!-- Crear subrol -->
                     <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin-bottom:18px;">
                         <h3 style="margin:0 0 10px 0;font-size:14px;color:#374151;">➕ Agregar Subrol Personalizado</h3>
@@ -2229,6 +2241,46 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
             setTimeout(srLoad, 100);
         }
     });
+
+    // ─── Export / Import ─────────────────────────────────────────────
+    window.srExport = function() {
+        // Simplemente navegar al endpoint dispara la descarga
+        window.location = '/api/admin/subroles/export';
+    };
+
+    window.srImport = async function(file) {
+        if (!file) return;
+        const statusEl = document.getElementById('srImportStatus');
+        statusEl.textContent = '⏳ Subiendo y procesando...';
+        statusEl.style.color = '#6b7280';
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const r = await fetch('/api/admin/subroles/import', {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await r.json();
+            if (data.success) {
+                statusEl.textContent = `✓ ${data.created} creados · ${data.skipped} omitidos (ya existían)`;
+                statusEl.style.color = '#065f46';
+                if (data.errors && data.errors.length) {
+                    console.warn('Errores parciales de importación:', data.errors);
+                    statusEl.textContent += ` · ${data.errors.length} errores (ver consola)`;
+                    statusEl.style.color = '#d97706';
+                }
+                srLoad();  // Recargar la tabla
+            } else {
+                statusEl.textContent = '✗ ' + (data.error || 'Error');
+                statusEl.style.color = '#991b1b';
+            }
+        } catch (e) {
+            statusEl.textContent = '✗ Error de red: ' + e.message;
+            statusEl.style.color = '#991b1b';
+        }
+        // Reset del input file
+        document.getElementById('srImportFile').value = '';
+    };
 })();
 </script>
 

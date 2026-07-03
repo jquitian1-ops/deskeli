@@ -10803,6 +10803,119 @@ def api_admin_subroles_delete(subrole_id):
     return jsonify({'success': True, 'message': f'Subrol "{name}" eliminado'})
 
 
+@app.route('/api/admin/subroles/export', methods=['GET'])
+def api_admin_subroles_export():
+    """Exporta todos los subroles (globales + de la empresa) a JSON descargable."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    company = session.get('company')
+    subroles = Subrole.query.filter(
+        (Subrole.company == None) | (Subrole.company == company)
+    ).order_by(Subrole.is_system.desc(), Subrole.name).all()
+
+    payload = {
+        '_meta': {
+            'exported_at': datetime.now().isoformat(timespec='seconds'),
+            'source_company': company,
+            'format_version': '1',
+            'total': len(subroles),
+        },
+        'subroles': [{
+            'name': s.name,
+            'description': s.description or '',
+            'icon': s.icon or '🔧',
+            'is_global': s.company is None,
+            'is_system': bool(s.is_system),
+            'is_active': bool(s.is_active),
+        } for s in subroles]
+    }
+
+    log_audit('subroles_export', session['user_id'], 'subrole', None,
+              f'Exportó {len(subroles)} subroles para empresa {company}')
+
+    from flask import Response
+    import json as _json
+    filename = f'subroles_{company}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+    return Response(
+        _json.dumps(payload, ensure_ascii=False, indent=2),
+        mimetype='application/json',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+    )
+
+
+@app.route('/api/admin/subroles/import', methods=['POST'])
+def api_admin_subroles_import():
+    """Importa subroles desde un JSON (compatible con el exportado por /export).
+    Modo merge: salta los que ya existen por nombre en la empresa."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    company = session.get('company')
+
+    # Acepta JSON en body o archivo subido en form-data
+    data = None
+    if request.is_json:
+        data = request.get_json(silent=True)
+    elif 'file' in request.files:
+        try:
+            import json as _json
+            data = _json.loads(request.files['file'].read().decode('utf-8'))
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'JSON inválido: {e}'}), 400
+
+    if not data or 'subroles' not in data:
+        return jsonify({'success': False, 'error': 'Formato inválido: falta la clave "subroles"'}), 400
+
+    incoming = data['subroles']
+    if not isinstance(incoming, list):
+        return jsonify({'success': False, 'error': '"subroles" debe ser una lista'}), 400
+
+    created = 0
+    skipped = 0
+    errors = []
+
+    # Cache de nombres existentes en la empresa
+    existing_names = {
+        s.name.lower() for s in Subrole.query.filter(
+            (Subrole.company == None) | (Subrole.company == company)
+        ).all()
+    }
+
+    for item in incoming[:200]:  # Límite de 200 por request
+        try:
+            name = (item.get('name') or '').strip()[:100]
+            if not name or len(name) < 2:
+                errors.append(f'Nombre inválido: {item}')
+                continue
+            if name.lower() in existing_names:
+                skipped += 1
+                continue
+            s = Subrole(
+                name=name,
+                description=(item.get('description') or '').strip()[:500] or None,
+                icon=(item.get('icon') or '🔧').strip()[:10],
+                company=company,  # Siempre se importan como propios de la empresa
+                is_system=False,  # Nunca importar como sistema
+                is_active=bool(item.get('is_active', True)),
+            )
+            db.session.add(s)
+            existing_names.add(name.lower())
+            created += 1
+        except Exception as e:
+            errors.append(f'Error en {item.get("name","?")}: {e}')
+
+    db.session.commit()
+    log_audit('subroles_import', session['user_id'], 'subrole', None,
+              f'Import subroles: {created} creados, {skipped} omitidos (ya existían), {len(errors)} errores')
+
+    return jsonify({
+        'success': True,
+        'created': created,
+        'skipped': skipped,
+        'errors': errors[:10],  # Solo primeros 10 errores para no saturar
+        'message': f'✓ {created} subroles importados. {skipped} omitidos (ya existían).'
+    })
+
+
 @app.route('/api/admin/users/<int:user_id>/subroles', methods=['GET'])
 def api_user_subroles_get(user_id):
     """Subroles asignados a un usuario."""
