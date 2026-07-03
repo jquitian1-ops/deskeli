@@ -361,6 +361,7 @@ class Message(db.Model):
     __tablename__ = 'messages'
     id = db.Column(db.Integer, primary_key=True)
     ticket_id = db.Column(db.Integer, db.ForeignKey('tickets.id'), nullable=False)
+    subtask_id = db.Column(db.Integer, db.ForeignKey('subtasks.id'), nullable=True, index=True)  # Si != null, es un comentario de subtarea
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     text = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
@@ -5816,6 +5817,24 @@ def migrate_companies_smtp():
                     print(f"[migrate_companies] error agregando {col_name}: {e}")
 
 
+def migrate_messages_schema():
+    """Agrega subtask_id a la tabla messages si no existe."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'messages' not in inspector.get_table_names():
+        return
+    existing_cols = {c['name'] for c in inspector.get_columns('messages')}
+    if 'subtask_id' not in existing_cols:
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE messages ADD COLUMN subtask_id INTEGER REFERENCES subtasks(id)"))
+                # Índice para mejorar queries
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_messages_subtask_id ON messages(subtask_id)"))
+            print("[migrate_messages] Columna subtask_id agregada")
+        except Exception as e:
+            print(f"[migrate_messages] no se pudo agregar subtask_id: {e}")
+
+
 def migrate_tickets_schema():
     """Agrega columnas nuevas a 'tickets' si no existen."""
     from sqlalchemy import inspect, text
@@ -6303,6 +6322,10 @@ def init_db():
         migrate_mailbox_oauth()
         migrate_tickets_schema()
         migrate_templates_schema()
+        try:
+            migrate_messages_schema()
+        except Exception as _e:
+            print(f"[migrate] messages_schema: {_e}")
         try:
             migrate_report_recipients_team()
         except Exception as _e:
@@ -8206,6 +8229,93 @@ def _serialize_attachment(a):
         'uploaded_at': a.uploaded_at.strftime('%Y-%m-%d %H:%M') if a.uploaded_at else None,
         'download_url': f'/api/subtask/attachment/{a.id}/download'
     }
+
+
+@app.route('/api/subtask/<int:subtask_id>/messages', methods=['GET'])
+def api_subtask_messages_list(subtask_id):
+    """Listar mensajes/comentarios de una subtarea."""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'No autenticado'}), 401
+    subtask = Subtask.query.get_or_404(subtask_id)
+    ticket = Ticket.query.get(subtask.ticket_id)
+    if not ticket or ticket.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+
+    messages = Message.query.filter_by(subtask_id=subtask_id).order_by(Message.created_at.asc()).all()
+    return jsonify({
+        'success': True,
+        'messages': [{
+            'id': m.id,
+            'text': m.text,
+            'user_id': m.user_id,
+            'user_name': m.user.name if m.user else '—',
+            'user_role': m.user.role if m.user else None,
+            'created_at': m.created_at.strftime('%Y-%m-%d %H:%M') if m.created_at else None,
+            'is_mine': m.user_id == session.get('user_id'),
+        } for m in messages]
+    })
+
+
+@app.route('/api/subtask/<int:subtask_id>/messages', methods=['POST'])
+def api_subtask_messages_create(subtask_id):
+    """Agregar un mensaje/comentario a una subtarea."""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'No autenticado'}), 401
+    subtask = Subtask.query.get_or_404(subtask_id)
+    ticket = Ticket.query.get(subtask.ticket_id)
+    if not ticket or ticket.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+
+    data = request.get_json() or {}
+    text = (data.get('text') or '').strip()
+    if not text:
+        return jsonify({'success': False, 'error': 'Mensaje vacío'}), 400
+    if len(text) > 5000:
+        return jsonify({'success': False, 'error': 'Mensaje demasiado largo (máx 5000 chars)'}), 400
+
+    # Sanitizar HTML (los mensajes de admin/técnicos también pasan por bleach)
+    if 'sanitize_html' in globals():
+        text = sanitize_html(text)
+
+    msg = Message(
+        ticket_id=subtask.ticket_id,  # heredar del padre
+        subtask_id=subtask_id,
+        user_id=session['user_id'],
+        text=text,
+    )
+    db.session.add(msg)
+    db.session.commit()
+
+    log_audit('subtask_message_added', session['user_id'], 'subtask', subtask_id,
+              f'Mensaje agregado a subtarea {subtask.subtask_number or subtask_id}')
+
+    # Broadcast websocket a los técnicos y admin de la empresa
+    try:
+        emit_ticket_event(ticket.company, 'subtask_message', {
+            'subtask_id': subtask_id,
+            'ticket_id': subtask.ticket_id,
+            'message': {
+                'id': msg.id,
+                'text': msg.text,
+                'user_name': msg.user.name if msg.user else '—',
+                'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M'),
+            }
+        })
+    except Exception:
+        pass
+
+    return jsonify({
+        'success': True,
+        'message': {
+            'id': msg.id,
+            'text': msg.text,
+            'user_id': msg.user_id,
+            'user_name': msg.user.name if msg.user else '—',
+            'user_role': msg.user.role if msg.user else None,
+            'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M'),
+            'is_mine': True,
+        }
+    })
 
 
 @app.route('/api/subtask/<int:subtask_id>/attachments', methods=['GET'])

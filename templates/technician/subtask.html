@@ -179,16 +179,17 @@
                 <div class="description-box">{{ subtask.description or '(sin descripción)' }}</div>
             </div>
 
-            <!-- Notas / Actualizaciones (opcional para MVP; podés extender con chat real) -->
+            <!-- Notas / Comentarios persistentes -->
             <div class="card">
-                <h3>💬 Notas de trabajo</h3>
+                <h3>💬 Comentarios <span id="noteCount" style="color:#9ca3af; font-weight:400; font-size:11px;"></span></h3>
                 <div id="notesArea" class="notes-area">
-                    <p style="color:#9ca3af; font-style:italic; text-align:center; padding:20px;">
-                        Todavía no hay notas. Empezá agregando el diagnóstico o avance.
-                    </p>
+                    <p style="color:#9ca3af; font-style:italic; text-align:center; padding:20px;">Cargando…</p>
                 </div>
-                <textarea id="noteInput" placeholder="Agregar una nota interna..."></textarea>
-                <button class="action-btn" style="margin-top:8px;" onclick="addNote()">📝 Agregar nota</button>
+                <textarea id="noteInput" placeholder="Agregar un comentario / nota de trabajo..." onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))addNote()"></textarea>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+                    <small style="color:#9ca3af; font-size:11px;">Tip: Ctrl+Enter para enviar rápido.</small>
+                    <button class="action-btn" style="margin:0; width:auto; padding:8px 16px;" onclick="addNote()" id="btnSaveNote">📝 Guardar comentario</button>
+                </div>
             </div>
         </div>
 
@@ -304,24 +305,75 @@
         }
     }
 
-    function addNote() {
-        const val = document.getElementById('noteInput').value.trim();
-        if (!val) return;
-        // Placeholder: agregar como sub-comentario. Backend puede extenderse.
-        // Por ahora solo lo agregamos visualmente.
-        const notesArea = document.getElementById('notesArea');
-        if (notesArea.querySelector('p')) notesArea.innerHTML = '';
-        const now = new Date().toLocaleString('es-CO');
-        const html = `
-            <div class="note-item">
-                <div class="note-meta">📝 Vos · ${now}</div>
-                <div>${val.replace(/</g,'&lt;')}</div>
+    const SUBTASK_ID = {{ subtask.id }};
+
+    function escapeHtml(t) {
+        return (t || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    function renderNote(msg) {
+        const mine = msg.is_mine ? ' style="border-left-color:#10b981; background:#f0fdf4;"' : '';
+        const roleIcon = msg.user_role === 'admin' ? '👑' : (msg.user_role === 'technician' ? '🛠' : '👤');
+        return `
+            <div class="note-item"${mine}>
+                <div class="note-meta">${roleIcon} <strong>${escapeHtml(msg.user_name)}</strong> · ${escapeHtml(msg.created_at || '')}</div>
+                <div>${escapeHtml(msg.text)}</div>
             </div>
         `;
-        notesArea.insertAdjacentHTML('beforeend', html);
-        document.getElementById('noteInput').value = '';
-        notesArea.scrollTop = notesArea.scrollHeight;
     }
+
+    async function loadNotes() {
+        const notesArea = document.getElementById('notesArea');
+        try {
+            const res = await fetch(`/api/subtask/${SUBTASK_ID}/messages`);
+            const data = await res.json();
+            if (!data.success) {
+                notesArea.innerHTML = `<p style="color:#dc2626; text-align:center; padding:20px;">Error: ${data.error || 'no se pudo cargar'}</p>`;
+                return;
+            }
+            const list = data.messages || [];
+            document.getElementById('noteCount').textContent = list.length ? `(${list.length})` : '';
+            if (list.length === 0) {
+                notesArea.innerHTML = '<p style="color:#9ca3af; font-style:italic; text-align:center; padding:20px;">Sin comentarios todavía. Empezá agregando el diagnóstico o avance.</p>';
+                return;
+            }
+            notesArea.innerHTML = list.map(renderNote).join('');
+            notesArea.scrollTop = notesArea.scrollHeight;
+        } catch (e) {
+            notesArea.innerHTML = `<p style="color:#dc2626; text-align:center; padding:20px;">Error de red: ${e.message}</p>`;
+        }
+    }
+
+    async function addNote() {
+        const input = document.getElementById('noteInput');
+        const btn = document.getElementById('btnSaveNote');
+        const val = input.value.trim();
+        if (!val) return;
+        btn.disabled = true;
+        btn.textContent = '⏳ Guardando...';
+        try {
+            const res = await fetch(`/api/subtask/${SUBTASK_ID}/messages`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({text: val}),
+            });
+            const data = await res.json();
+            if (data.success) {
+                input.value = '';
+                loadNotes();
+            } else {
+                alert('Error: ' + (data.error || 'no se pudo guardar'));
+            }
+        } catch (e) {
+            alert('Error de red: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '📝 Guardar comentario';
+        }
+    }
+
+    // Cargar comentarios al abrir la vista
+    document.addEventListener('DOMContentLoaded', loadNotes);
 </script>
 </body>
 </html>

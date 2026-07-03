@@ -989,6 +989,9 @@
 
 <script src="/static/timeout.js"></script>
 <script>
+    // Rol actual del usuario (para generar links dinámicos según admin/technician)
+    window.__ROLE__ = "{{ session.role or 'technician' }}";
+
     // CRONÓMETRO RF-02-05
     let timerInterval = null;
     let totalSeconds = 0;
@@ -1292,7 +1295,9 @@
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;">
                         <div style="flex:1;min-width:0;">
                             <div style="font-size:11px;color:#7c3aed;font-weight:700;letter-spacing:0.5px;margin-bottom:2px;">
-                                ${escapeHtml(s.subtask_number || '#'+s.id)} · sub-caso de ${escapeHtml(s.parent_number || '')}
+                                <a href="/${window.__ROLE__ || 'technician'}/subtask/${s.id}" title="Abrir detalle de la subtarea" style="color:#7c3aed; text-decoration:none;">
+                                    ${escapeHtml(s.subtask_number || '#'+s.id)}
+                                </a> · sub-caso de ${escapeHtml(s.parent_number || '')}
                             </div>
                             <div style="font-weight:700;font-size:15px;color:#111827;">${escapeHtml(s.title)}</div>
                             ${s.description ? `<div style="font-size:13px;color:#4b5563;margin-top:6px;white-space:pre-wrap;">${escapeHtml(s.description)}</div>` : ''}
