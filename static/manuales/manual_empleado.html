@@ -26,21 +26,23 @@
     .topbar-logo {
         width: 52px; height: 52px;
         border-radius: 50%;
-        border: 2px solid #7c3aed;
-        background: transparent;
+        border: 2px solid #7c3aed !important;
+        background: transparent !important;
         box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         object-fit: cover;
+        outline: none !important;
     }
     .hero-logo {
         display: block;
         width: 160px; height: 160px;
         margin: 18px auto 24px;
         border-radius: 50%;
-        border: 4px solid #7c3aed;
-        background: transparent;
+        border: 4px solid #7c3aed !important;
+        background: transparent !important;
         box-shadow: 0 8px 24px rgba(124,58,237,0.3);
         object-fit: cover;
         animation: heroFloat 3s ease-in-out infinite;
+        outline: none !important;
     }
     @keyframes heroFloat {
         0%, 100% { transform: translateY(0); }
@@ -49,13 +51,16 @@
     .eli-avatar {
         width: 80px; height: 80px;
         border-radius: 50%;
-        border: 3px solid #7c3aed;
-        background: transparent;
+        border: 3px solid #7c3aed !important;
+        background: transparent !important;
         box-shadow: 0 4px 12px rgba(124,58,237,0.3);
         object-fit: cover;
         float: right;
         margin-left: 16px;
+        outline: none !important;
     }
+    /* Defensivo global */
+    img[src*="eli.png"] { background: transparent !important; outline: none !important; }
     .topbar h1 { font-size: 20px; font-weight: 800; }
     .topbar .subtitle { font-size: 12px; opacity: 0.85; }
     .topbar-actions { display: flex; gap: 8px; align-items: center; }

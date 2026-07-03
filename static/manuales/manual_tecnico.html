@@ -46,11 +46,14 @@
     .topbar-logo {
         width: 48px; height: 48px;
         border-radius: 50%;
-        border: 2px solid #7c3aed;
-        background: transparent;
+        border: 2px solid #7c3aed !important;
+        background: transparent !important;
         box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         object-fit: cover;
+        outline: none !important;
     }
+    /* Defensivo global */
+    img[src*="eli.png"] { background: transparent !important; outline: none !important; }
     .topbar h1 { font-size: 20px; font-weight: 800; letter-spacing: 0.3px; }
     .topbar .subtitle { font-size: 12px; opacity: 0.9; }
     .topbar-actions { display: flex; gap: 8px; align-items: center; }
@@ -157,11 +160,12 @@
         width: 130px; height: 130px;
         margin: 0 auto 20px;
         border-radius: 50%;
-        border: 4px solid var(--primary);
-        background: transparent;
+        border: 4px solid var(--primary) !important;
+        background: transparent !important;
         box-shadow: 0 8px 24px rgba(124,58,237,0.3);
         object-fit: cover;
         animation: heroFloat 3s ease-in-out infinite;
+        outline: none !important;
     }
     @keyframes heroFloat {
         0%, 100% { transform: translateY(0) rotate(0deg); }

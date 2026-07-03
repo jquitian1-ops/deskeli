@@ -263,6 +263,8 @@
         .logout-btn:hover {
             background: rgba(255, 255, 255, 0.3);
         }
+            /* Defensivo global: elimina fondo/borde blanco residual en Eli */
+        img[src*="eli.png"] { background: transparent !important; outline: none !important; }
     </style>
 </head>
 <body>
@@ -874,15 +876,15 @@
             width: 70px;
             height: 70px;
             border-radius: 50%;
-            background: white;
-            border: 3px solid #2563eb;
+            background: transparent;
+            border: 3px solid #7c3aed;
             cursor: pointer;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 16px rgba(124,58,237,0.45);
             overflow: hidden;
             padding: 0;
         }
         .chat-widget-tech .chat-fab img {
-            width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
+            width: 100%; height: 100%; object-fit: cover; border-radius: 50%; background: transparent !important;
         }
         .chat-widget-tech .chat-fab:hover {
             transform: scale(1.05);

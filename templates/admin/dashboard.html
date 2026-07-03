@@ -554,6 +554,8 @@
             .companies-grid { grid-template-columns: 1fr; }
             .kanban { grid-template-columns: 1fr; }
         }
+            /* Defensivo global: elimina fondo/borde blanco residual en Eli */
+        img[src*="eli.png"] { background: transparent !important; outline: none !important; }
     </style>
 </head>
 <body>

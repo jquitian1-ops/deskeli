@@ -256,14 +256,14 @@
             width: 70px;
             height: 70px;
             border-radius: 50%;
-            background: white;
+            background: transparent;
             color: white;
-            border: 3px solid #2563eb;
+            border: 3px solid #7c3aed;
             cursor: pointer;
             padding: 0;
             overflow: hidden;
             font-size: 28px;
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+            box-shadow: 0 4px 16px rgba(124, 58, 237, 0.45);
             transition: all 0.3s;
             display: flex;
             align-items: center;
@@ -271,9 +271,11 @@
         }
 
         .chat-button:hover {
-            background: #1e40af;
             transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(124, 58, 237, 0.6);
         }
+
+        .chat-button img { background: transparent !important; }
 
         .chat-window {
             position: absolute;
@@ -497,6 +499,8 @@
             color: #0c4a6e;
             margin-top: 8px;
         }
+            /* Defensivo global: elimina fondo/borde blanco residual en Eli */
+        img[src*="eli.png"] { background: transparent !important; outline: none !important; }
     </style>
 </head>
 <body>
