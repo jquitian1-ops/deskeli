@@ -95,6 +95,7 @@ from crypto_utils import (
 )
 from password_policy import validate_password
 from ldap_auth import LdapConfig, authenticate_user as ldap_authenticate_user, test_ldap_connection, LDAP_AVAILABLE
+from file_compression import compress_upload
 
 app = Flask(__name__)
 # Usar BD en directorio raíz, no en instance/
@@ -1621,6 +1622,7 @@ def employee_create():
         # Procesar archivos adjuntos (imágenes pegadas o archivos seleccionados)
         attachments_saved = 0
         attachments_errors = []
+        attachments_bytes_saved = 0  # Bytes ahorrados por compresión
         try:
             from werkzeug.utils import secure_filename
             files = request.files.getlist('attachments') if 'attachments' in request.files else []
@@ -1630,19 +1632,24 @@ def employee_create():
                 if not _allowed_attachment(f.filename):
                     attachments_errors.append(f"{f.filename}: tipo no permitido")
                     continue
-                safe = secure_filename(f.filename) or 'archivo'
-                ext = safe.rsplit('.', 1)[1].lower() if '.' in safe else ''
-                stored = f"{uuid.uuid4().hex}.{ext}" if ext else uuid.uuid4().hex
-                path = os.path.join(app.config['TICKET_UPLOAD_FOLDER'], stored)
                 try:
-                    f.save(path)
-                    size = os.path.getsize(path)
+                    # Comprimir automáticamente si es imagen (transparente para el usuario)
+                    out_bytes, out_filename, out_mime, stats = compress_upload(f)
+                    if stats['compressed']:
+                        attachments_bytes_saved += (stats['original_size'] - stats['final_size'])
+
+                    safe = secure_filename(out_filename) or 'archivo'
+                    ext = safe.rsplit('.', 1)[1].lower() if '.' in safe else ''
+                    stored = f"{uuid.uuid4().hex}.{ext}" if ext else uuid.uuid4().hex
+                    path = os.path.join(app.config['TICKET_UPLOAD_FOLDER'], stored)
+                    with open(path, 'wb') as fh:
+                        fh.write(out_bytes)
                     db.session.add(TicketAttachment(
                         ticket_id=ticket.id,
-                        original_name=f.filename[:255],
+                        original_name=(out_filename or f.filename)[:255],
                         stored_name=stored,
-                        mime_type=(f.mimetype or '')[:120],
-                        size_bytes=size,
+                        mime_type=(out_mime or f.mimetype or '')[:120],
+                        size_bytes=stats['final_size'],
                         uploaded_by_id=user.id
                     ))
                     attachments_saved += 1
@@ -1650,6 +1657,10 @@ def employee_create():
                     attachments_errors.append(f"{f.filename}: {e}")
             if attachments_saved > 0:
                 db.session.commit()
+                if attachments_bytes_saved > 0:
+                    log_audit('attachments_compressed', user.id, 'ticket', ticket.id,
+                              f'Ticket {ticket.ticket_number}: {attachments_saved} adjunto(s), '
+                              f'{attachments_bytes_saved} bytes ({attachments_bytes_saved/1024:.1f} KB) ahorrados por compresión')
         except Exception as e:
             print(f'[employee_create] Error procesando adjuntos: {e}')
 
@@ -1782,6 +1793,7 @@ def technician_create():
 
         # Adjuntos (mismo procesamiento que employee_create)
         attachments_saved = 0
+        attachments_bytes_saved = 0
         try:
             from werkzeug.utils import secure_filename
             files = request.files.getlist('attachments') if 'attachments' in request.files else []
@@ -1790,18 +1802,24 @@ def technician_create():
                     continue
                 if not _allowed_attachment(f.filename):
                     continue
-                safe = secure_filename(f.filename) or 'archivo'
-                ext = safe.rsplit('.', 1)[1].lower() if '.' in safe else ''
-                stored = f"{uuid.uuid4().hex}.{ext}" if ext else uuid.uuid4().hex
-                path = os.path.join(app.config['TICKET_UPLOAD_FOLDER'], stored)
                 try:
-                    f.save(path)
+                    # Compresión automática (imágenes: resize + JPEG quality 85)
+                    out_bytes, out_filename, out_mime, stats = compress_upload(f)
+                    if stats['compressed']:
+                        attachments_bytes_saved += (stats['original_size'] - stats['final_size'])
+
+                    safe = secure_filename(out_filename) or 'archivo'
+                    ext = safe.rsplit('.', 1)[1].lower() if '.' in safe else ''
+                    stored = f"{uuid.uuid4().hex}.{ext}" if ext else uuid.uuid4().hex
+                    path = os.path.join(app.config['TICKET_UPLOAD_FOLDER'], stored)
+                    with open(path, 'wb') as fh:
+                        fh.write(out_bytes)
                     db.session.add(TicketAttachment(
                         ticket_id=ticket.id,
-                        original_name=f.filename[:255],
+                        original_name=(out_filename or f.filename)[:255],
                         stored_name=stored,
-                        mime_type=(f.mimetype or '')[:120],
-                        size_bytes=os.path.getsize(path),
+                        mime_type=(out_mime or f.mimetype or '')[:120],
+                        size_bytes=stats['final_size'],
                         uploaded_by_id=tech.id
                     ))
                     attachments_saved += 1
@@ -1809,6 +1827,10 @@ def technician_create():
                     print(f'[technician_create] adjunto error: {e}')
             if attachments_saved > 0:
                 db.session.commit()
+                if attachments_bytes_saved > 0:
+                    log_audit('attachments_compressed', tech.id, 'ticket', ticket.id,
+                              f'Ticket {ticket.ticket_number}: {attachments_saved} adjunto(s), '
+                              f'{attachments_bytes_saved} bytes ({attachments_bytes_saved/1024:.1f} KB) ahorrados por compresión')
         except Exception as e:
             print(f'[technician_create] Error procesando adjuntos: {e}')
 
@@ -8382,22 +8404,27 @@ def api_subtask_attachments_upload(subtask_id):
             errors.append(f"{f.filename}: tipo de archivo no permitido")
             continue
 
-        safe = secure_filename(f.filename) or 'archivo'
-        ext = safe.rsplit('.', 1)[1].lower() if '.' in safe else ''
-        stored = f"{uuid.uuid4().hex}.{ext}" if ext else uuid.uuid4().hex
-        path = os.path.join(app.config['UPLOAD_FOLDER'], stored)
         try:
-            f.save(path)
-            size = os.path.getsize(path)
+            # Comprimir automáticamente si es imagen
+            out_bytes, out_filename, out_mime, stats = compress_upload(f)
+            safe = secure_filename(out_filename) or 'archivo'
+            ext = safe.rsplit('.', 1)[1].lower() if '.' in safe else ''
+            stored = f"{uuid.uuid4().hex}.{ext}" if ext else uuid.uuid4().hex
+            path = os.path.join(app.config['UPLOAD_FOLDER'], stored)
+            with open(path, 'wb') as fh:
+                fh.write(out_bytes)
+            size = stats['final_size']
+            final_name = (out_filename or f.filename)[:255]
+            final_mime = (out_mime or f.mimetype or '')[:120]
         except Exception as e:
             errors.append(f"{f.filename}: error al guardar ({e})")
             continue
 
         att = SubtaskAttachment(
             subtask_id=subtask_id,
-            original_name=f.filename[:255],
+            original_name=final_name,
             stored_name=stored,
-            mime_type=(f.mimetype or '')[:120],
+            mime_type=final_mime,
             size_bytes=size,
             uploaded_by_id=session['user_id']
         )
