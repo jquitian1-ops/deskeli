@@ -4478,13 +4478,15 @@ def assign_ticket_auto(ticket):
 def start_server_monitoring():
     """Iniciar monitoreo de servidores cada 5 minutos"""
     def monitor():
+        from time import sleep
         while True:
             try:
-                from time import sleep
                 sleep(300)  # Cada 5 minutos
-                servers = Server.query.filter_by(is_online=True).all()
-                for server in servers:
-                    ping_server(server.id)
+                # CRÍTICO: cualquier query en threads background requiere app_context
+                with app.app_context():
+                    servers = Server.query.filter_by(is_online=True).all()
+                    for server in servers:
+                        ping_server(server.id)
             except Exception as e:
                 print(f'Error en monitoreo: {e}')
 
