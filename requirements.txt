@@ -86,6 +86,9 @@ pyparsing==3.3.2
 python-dateutil==2.9.0.post0
 six==1.17.0
 
-# --- LDAP (preparado para LDAPS futuro) ---
+# --- LDAP (legacy - conservado por compatibilidad) ---
 ldap3==2.9.1
 pyasn1==0.6.3
+
+# --- Microsoft Entra ID / Azure AD (OAuth 2.0 con MSAL) ---
+msal==1.31.1

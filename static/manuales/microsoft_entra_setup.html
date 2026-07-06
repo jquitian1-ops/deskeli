@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Configurar Microsoft Entra ID — DeskEli</title>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f9fafb; color: #1f2937; line-height: 1.6; }
+    .topbar {
+        background: linear-gradient(135deg, #1f2937, #7c3aed); color: white;
+        padding: 16px 32px; display: flex; align-items: center; gap: 14px;
+        box-shadow: 0 4px 20px rgba(124,58,237,0.25);
+    }
+    .topbar h1 { font-size: 22px; }
+    .container { max-width: 900px; margin: 30px auto; padding: 0 24px 60px; }
+    h2 { color: #1f2937; margin: 32px 0 14px; padding-bottom: 8px; border-bottom: 2px solid #ede9fe; font-size: 22px; }
+    h3 { color: #5b21b6; margin: 20px 0 10px; font-size: 17px; }
+    p { margin-bottom: 12px; }
+    code { background: #ede9fe; color: #5b21b6; padding: 2px 6px; border-radius: 3px; font-size: 13px; font-family: monospace; }
+    pre { background: #1f2937; color: #a7f3d0; border-radius: 8px; padding: 16px; overflow-x: auto; margin: 14px 0; font-family: monospace; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+    th { background: #faf5ff; color: #5b21b6; font-weight: 700; font-size: 12px; text-transform: uppercase; }
+    tr:last-child td { border-bottom: none; }
+    .callout { padding: 14px 18px; border-radius: 8px; margin: 16px 0; border-left: 4px solid; }
+    .callout-info { background: #eff6ff; border-color: #3b82f6; }
+    .callout-warn { background: #fffbeb; border-color: #f59e0b; }
+    .callout-danger { background: #fef2f2; border-color: #dc2626; }
+    .callout-success { background: #ecfdf5; border-color: #10b981; }
+    .step { background: white; border-left: 4px solid #7c3aed; padding: 16px 20px; margin: 14px 0; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .step-num { display: inline-block; background: #7c3aed; color: white; width: 26px; height: 26px; border-radius: 50%; text-align: center; line-height: 26px; font-weight: 700; margin-right: 8px; }
+    ol.numbered { margin-left: 20px; margin-top: 10px; }
+    ol.numbered li { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <div>
+        <h1>🔐 Configurar Microsoft Entra ID en DeskEli</h1>
+        <div style="font-size:12px; opacity:0.9;">Guía para el equipo de IT — App Registration en Azure</div>
+    </div>
+</div>
+
+<div class="container">
+
+<h2>Objetivo</h2>
+<p>Permitir que los usuarios de <strong>PatPrimo</strong> (o cualquier empresa) inicien sesión en DeskEli con sus credenciales de Microsoft 365 (SSO). Requiere registrar DeskEli como una <strong>App Registration</strong> en Azure y capturar 3 datos en el panel admin de DeskEli.</p>
+
+<div class="callout callout-info">
+    <strong>Ambiente</strong>
+    Servidor: <code>https://deskeli.eliotproyectos.tech</code><br>
+    Redirect URI que se registra en Azure: <code>https://deskeli.eliotproyectos.tech/auth/microsoft/callback</code>
+</div>
+
+<h2>Paso a paso en Azure Portal</h2>
+
+<div class="step">
+    <span class="step-num">1</span><strong>Entrar a Azure Portal</strong>
+    <p style="margin-top:8px;">Ir a <a href="https://portal.azure.com" target="_blank" style="color:#7c3aed;">https://portal.azure.com</a> con una cuenta que tenga rol <em>Application Administrator</em> o <em>Global Administrator</em> del tenant.</p>
+</div>
+
+<div class="step">
+    <span class="step-num">2</span><strong>Registrar la aplicación</strong>
+    <p>Buscar <strong>"Microsoft Entra ID"</strong> → <strong>App registrations</strong> → botón <strong>+ New registration</strong>.</p>
+    <p>Configurar:</p>
+    <table>
+        <tr><th>Campo</th><th>Valor</th></tr>
+        <tr><td>Name</td><td><code>DeskEli - Sistema de Tickets</code></td></tr>
+        <tr><td>Supported account types</td><td><strong>Accounts in this organizational directory only</strong> (single tenant)</td></tr>
+        <tr><td>Redirect URI</td><td>Platform: <strong>Web</strong> · URI: <code>https://deskeli.eliotproyectos.tech/auth/microsoft/callback</code></td></tr>
+    </table>
+    <p>Click <strong>Register</strong>.</p>
+</div>
+
+<div class="step">
+    <span class="step-num">3</span><strong>Copiar Tenant ID y Client ID</strong>
+    <p>En la página <strong>Overview</strong> de la App recién creada, copiar los 2 GUIDs:</p>
+    <table>
+        <tr><th>Dato</th><th>Va a DeskEli como</th></tr>
+        <tr><td>Application (client) ID</td><td>Client ID</td></tr>
+        <tr><td>Directory (tenant) ID</td><td>Tenant ID</td></tr>
+    </table>
+</div>
+
+<div class="step">
+    <span class="step-num">4</span><strong>Generar Client Secret</strong>
+    <p>En el menú lateral izquierdo: <strong>Certificates & secrets</strong> → tab <strong>Client secrets</strong> → <strong>+ New client secret</strong>.</p>
+    <ol class="numbered">
+        <li>Description: <code>DeskEli auth 2026</code></li>
+        <li>Expires: <strong>24 months</strong> (recomendado)</li>
+        <li>Click <strong>Add</strong></li>
+    </ol>
+    <div class="callout callout-danger">
+        <strong>⚠️ CRÍTICO</strong>
+        Copiá el <strong>Value</strong> del secret AHORA mismo. Solo se muestra una vez. Después, aunque abras el panel, verás solo <code>••••••</code>. Si lo perdés, hay que generar otro.
+    </div>
+</div>
+
+<div class="step">
+    <span class="step-num">5</span><strong>Configurar permisos (API Permissions)</strong>
+    <p>Menú lateral: <strong>API permissions</strong> → <strong>+ Add a permission</strong> → <strong>Microsoft Graph</strong> → <strong>Delegated permissions</strong>.</p>
+    <p>Marcar y agregar estos 4:</p>
+    <table>
+        <tr><th>Permiso</th><th>Descripción</th></tr>
+        <tr><td><code>openid</code></td><td>Login básico</td></tr>
+        <tr><td><code>profile</code></td><td>Nombre completo</td></tr>
+        <tr><td><code>email</code></td><td>Correo del usuario</td></tr>
+        <tr><td><code>User.Read</code></td><td>Leer perfil del usuario logueado</td></tr>
+    </table>
+    <p>Después, click en el botón azul <strong>"Grant admin consent for [organización]"</strong> arriba. Requiere admin de Azure.</p>
+</div>
+
+<div class="step">
+    <span class="step-num">6</span><strong>(Opcional) Restringir por grupo</strong>
+    <p>Si querés que <strong>solo ciertos usuarios</strong> del tenant puedan entrar a DeskEli:</p>
+    <ol class="numbered">
+        <li>En Overview de la App → click en el nombre azul a la derecha de "Managed application in local directory"</li>
+        <li>Menu lateral: <strong>Properties</strong> → <strong>Assignment required</strong> = <strong>Yes</strong> → Save</li>
+        <li>Menu lateral: <strong>Users and groups</strong> → <strong>+ Add user/group</strong> → agregar el grupo de AD/Entra que puede usar DeskEli</li>
+    </ol>
+</div>
+
+<h2>Configurar en DeskEli</h2>
+
+<p>Una vez que IT te pase los 3 datos:</p>
+
+<ol class="numbered">
+    <li>Entrar a DeskEli como admin: <a href="https://deskeli.eliotproyectos.tech/admin/config" target="_blank">https://deskeli.eliotproyectos.tech/admin/config</a></li>
+    <li>Tab <strong>🔐 Microsoft Entra ID</strong></li>
+    <li>Click <strong>⚙️ Configurar</strong> en Manufactureras Eliot (o la empresa correspondiente)</li>
+    <li>Llenar:
+        <ul style="margin-top:6px; margin-left:20px;">
+            <li>Tenant ID: el GUID del tenant</li>
+            <li>Client ID: el Application ID</li>
+            <li>Client Secret: el value del secret</li>
+            <li>☑️ Habilitar login con Microsoft</li>
+        </ul>
+    </li>
+    <li>Click <strong>💾 Guardar</strong></li>
+</ol>
+
+<div class="callout callout-success">
+    <strong>✓ Listo</strong>
+    En la pantalla de login aparece ahora el botón <strong>"Iniciar sesión con Microsoft"</strong>. Los usuarios del tenant pueden entrar sin contraseña local.
+</div>
+
+<h2>Cómo funciona el flujo</h2>
+
+<pre>1. Usuario en /login: click en "Iniciar con Microsoft"
+   ↓
+2. DeskEli redirige a login.microsoftonline.com
+   ↓
+3. Usuario autentica (con su clave de M365, MFA si aplica)
+   ↓
+4. Microsoft redirige a /auth/microsoft/callback con code
+   ↓
+5. DeskEli intercambia code por token, obtiene:
+   - Object ID (identificador único)
+   - Email / userPrincipalName
+   - Nombre completo
+   ↓
+6a. Si existe usuario en DeskEli con ese Object ID → login OK
+6b. Si existe con ese email → linkeo el Object ID y login OK
+6c. Si NO existe → se auto-provisiona con rol "employee" por default
+   ↓
+7. Sesión creada → redirect a dashboard según rol</pre>
+
+<h2>Preguntas frecuentes</h2>
+
+<h3>¿Se puede usar la misma App Registration para las 3 empresas?</h3>
+<p>Sí, si las 3 usan el mismo tenant. Configurás los mismos Tenant ID + Client ID + Secret en las 3 empresas del panel DeskEli.</p>
+
+<h3>¿Qué pasa si el usuario cambia su contraseña de M365?</h3>
+<p>Nada. DeskEli no guarda contraseñas Microsoft — solo el Object ID. Al siguiente login, Microsoft valida y todo sigue funcionando.</p>
+
+<h3>¿Puedo revocar el acceso de un usuario?</h3>
+<p>Sí, hay 3 formas:</p>
+<ol class="numbered">
+    <li><strong>En Azure</strong>: quitar el usuario del grupo con acceso a DeskEli (paso 6)</li>
+    <li><strong>En DeskEli</strong>: desactivar el usuario (<code>is_active=false</code>)</li>
+    <li><strong>Rotar Client Secret</strong> (echa a TODOS): generar uno nuevo en Azure, actualizarlo en DeskEli. Todos los tokens activos siguen funcionando hasta que expiren, pero nuevos logins requieren el secret actualizado.</li>
+</ol>
+
+<h3>¿Los usuarios que ya existían con contraseña local pueden seguir entrando?</h3>
+<p>Sí, ambos métodos coexisten. Un usuario puede entrar con Microsoft O con email/contraseña local. En el primer login con Microsoft, la cuenta se linkea automáticamente (por email) al Object ID de Entra.</p>
+
+<h3>¿Y si un usuario nuevo del tenant quiere entrar?</h3>
+<p>Se le crea la cuenta automáticamente en DeskEli con rol <strong>employee</strong>. Después el admin puede promoverlo a técnico o admin desde el panel de Equipo.</p>
+
+<div class="callout callout-warn">
+    <strong>⚠️ Seguridad del Client Secret</strong>
+    El secret se guarda cifrado en la BD (con <code>DB_ENCRYPTION_KEY</code>) y auditado. Aún así, tratátalo como una contraseña de servicio: gestor de secretos, rotación cada 12-24 meses.
+</div>
+
+</div>
+
+</body>
+</html>

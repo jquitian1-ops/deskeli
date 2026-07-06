@@ -485,7 +485,7 @@
                 <a class="config-tab" data-tab="plantillas"><span class="icon">📋</span>Plantillas</a>
                 <a class="config-tab" data-tab="tags"><span class="icon">🌐</span>Tags</a>
                 <a class="config-tab" data-tab="teams"><span class="icon">💬</span>Teams</a>
-                <a class="config-tab" data-tab="ldap"><span class="icon">🔑</span>LDAP / AD</a>
+                <a class="config-tab" data-tab="microsoft"><span class="icon">🔐</span>Microsoft Entra ID</a>
                 <a class="config-tab" data-tab="api-keys"><span class="icon">🔌</span>API / Integraciones</a>
                 <a class="config-tab" data-tab="empresas"><span class="icon">🏢</span>Empresas</a>
                 <a class="config-tab" data-tab="tema"><span class="icon">🌈</span>Tema visual</a>
@@ -1428,16 +1428,56 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                     <iframe data-src="/admin/config-old#sec-teams" class="config-iframe section-iframe" style="display:none;"></iframe>
                 </div>
 
-                <div class="panel-content" id="panel-ldap">
-                    <h2 class="config-panel-title">🔑 Directorio Activo (LDAP/AD)</h2>
+                <div class="panel-content" id="panel-microsoft">
+                    <h2 class="config-panel-title">🔐 Autenticación con Microsoft Entra ID</h2>
                     <p style="color:#6b7280; margin-bottom:16px; font-size:13px;">
-                        Configurá el servidor LDAP por empresa. Cuando una empresa tiene LDAP definido,
-                        el login intenta autenticar contra el directorio activo antes de la contraseña local.
-                        Soporta <code>ldap://</code> (puerto 389) y <code>ldaps://</code> (puerto 636).
+                        Configurá <strong>Microsoft Entra ID (Azure AD)</strong> por empresa. Cuando está habilitado, los usuarios
+                        podrán entrar con "Iniciar sesión con Microsoft" desde la pantalla de login, sin necesidad de contraseña local.
+                        Requiere un <strong>App Registration</strong> en Azure Portal.
+                        <a href="/static/manuales/microsoft_entra_setup.html" target="_blank" style="color:#7c3aed; font-weight:600; text-decoration:underline;">
+                            📖 Ver guía completa para IT
+                        </a>
                     </p>
 
-                    <div id="ldap-companies-list" style="display:flex; flex-direction:column; gap:14px;">
+                    <div id="ms-companies-list" style="display:flex; flex-direction:column; gap:14px;">
                         <p style="color:#6b7280; font-style:italic;">Cargando empresas…</p>
+                    </div>
+                </div>
+
+                <!-- Modal para configurar Microsoft -->
+                <div id="msModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+                    <div style="background:white; max-width:640px; width:92%; padding:26px; border-radius:12px; max-height:90vh; overflow-y:auto;">
+                        <h3 style="margin:0 0 12px; color:#1f2937;">🔐 Microsoft Entra ID — <span id="msModalCompanyName"></span></h3>
+                        <input type="hidden" id="msCompanyId">
+                        <div style="background:#eff6ff; border-left:4px solid #3b82f6; padding:10px 14px; border-radius:6px; margin-bottom:14px; font-size:12px; color:#1e40af;">
+                            <strong>Redirect URI a configurar en Azure:</strong><br>
+                            <code id="msRedirectUri" style="font-size:11px; word-break:break-all;">Cargando...</code>
+                        </div>
+                        <div style="display:grid; gap:12px;">
+                            <label>
+                                <span style="font-size:13px; font-weight:600; color:#374151;">Tenant ID (Directory ID)</span>
+                                <input id="msTenantId" type="text" placeholder="c6a23a2c-8f6c-485f-a6a9-5e8058e998fd" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px; font-family:monospace; font-size:12px;">
+                                <small style="color:#6b7280; font-size:11px;">Azure Portal → Entra ID → Overview → Directory (tenant) ID</small>
+                            </label>
+                            <label>
+                                <span style="font-size:13px; font-weight:600; color:#374151;">Client ID (Application ID)</span>
+                                <input id="msClientId" type="text" placeholder="5d5f8b5c-a4dd-4c5f-9f1b-f437163dadc1" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px; font-family:monospace; font-size:12px;">
+                                <small style="color:#6b7280; font-size:11px;">Azure Portal → App registrations → tu app → Application (client) ID</small>
+                            </label>
+                            <label>
+                                <span style="font-size:13px; font-weight:600; color:#374151;">Client Secret</span>
+                                <input id="msClientSecret" type="password" placeholder="••••••••" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px;">
+                                <small style="color:#6b7280; font-size:11px;">Si dejás vacío, se conserva el actual. Azure Portal → tu app → Certificates & secrets</small>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:8px; font-size:14px; padding-top:6px;">
+                                <input id="msEnabled" type="checkbox">
+                                <strong>Habilitar login con Microsoft para esta empresa</strong>
+                            </label>
+                        </div>
+                        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:18px;">
+                            <button onclick="document.getElementById('msModal').style.display='none'" style="padding:8px 14px; background:#e5e7eb; border:none; border-radius:6px; cursor:pointer;">Cancelar</button>
+                            <button onclick="msSaveConfig()" style="padding:8px 14px; background:#10b981; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">💾 Guardar</button>
+                        </div>
                     </div>
                 </div>
 
@@ -3548,6 +3588,94 @@ document.addEventListener('DOMContentLoaded', () => {
     // Si el panel LDAP es visible al cargar, cargar también
     const panel = document.getElementById('panel-ldap');
     if (panel && panel.classList.contains('active')) loadLdapCompanies();
+});
+</script>
+
+<!-- ═══════════════ MICROSOFT ENTRA ID ═══════════════ -->
+<script>
+async function loadMsCompanies() {
+    const container = document.getElementById('ms-companies-list');
+    if (!container) return;
+    try {
+        const res = await fetch('/api/admin/companies');
+        const data = await res.json();
+        if (!data.success || !data.companies) {
+            container.innerHTML = '<p style="color:#dc2626;">Error cargando empresas</p>';
+            return;
+        }
+        container.innerHTML = data.companies.map(c => {
+            const enabled = c.microsoft_enabled;
+            const hasConfig = c.microsoft_tenant_id && c.microsoft_client_id;
+            const statusColor = enabled ? '#059669' : (hasConfig ? '#f59e0b' : '#9ca3af');
+            const statusLabel = enabled
+                ? '✓ Habilitado'
+                : (hasConfig ? '⏸ Configurado pero desactivado' : '○ Sin configurar');
+            return `
+                <div style="border:1px solid #e5e7eb; border-radius:8px; padding:14px; background:#fafafa;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                        <div>
+                            <strong style="font-size:15px; color:#111827;">${c.icon || '🏢'} ${c.name}</strong>
+                            <div style="font-size:12px; color:${statusColor}; margin-top:4px; font-weight:600;">${statusLabel}</div>
+                            ${c.microsoft_tenant_id ? `<div style="font-size:11px; color:#6b7280;">Tenant: <code>${c.microsoft_tenant_id}</code></div>` : ''}
+                            ${c.microsoft_client_id ? `<div style="font-size:11px; color:#6b7280;">Client ID: <code>${c.microsoft_client_id}</code></div>` : ''}
+                        </div>
+                        <button onclick="msOpenModal(${c.id}, '${(c.name || '').replace(/'/g, "\\'")}', '${(c.microsoft_tenant_id || '').replace(/'/g, "\\'")}', '${(c.microsoft_client_id || '').replace(/'/g, "\\'")}', ${enabled ? 'true' : 'false'})"
+                                style="padding:6px 12px; background:#7c3aed; color:white; border:none; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
+                            ⚙️ Configurar
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        container.innerHTML = `<p style="color:#dc2626;">Error: ${e.message}</p>`;
+    }
+}
+
+function msOpenModal(id, name, tenantId, clientId, enabled) {
+    document.getElementById('msCompanyId').value = id;
+    document.getElementById('msModalCompanyName').textContent = name;
+    document.getElementById('msTenantId').value = tenantId || '';
+    document.getElementById('msClientId').value = clientId || '';
+    document.getElementById('msClientSecret').value = '';
+    document.getElementById('msEnabled').checked = !!enabled;
+    // Mostrar redirect URI que debe configurarse en Azure
+    document.getElementById('msRedirectUri').textContent = window.location.origin + '/auth/microsoft/callback';
+    document.getElementById('msModal').style.display = 'flex';
+}
+
+async function msSaveConfig() {
+    const id = document.getElementById('msCompanyId').value;
+    const payload = {
+        microsoft_tenant_id: document.getElementById('msTenantId').value.trim(),
+        microsoft_client_id: document.getElementById('msClientId').value.trim(),
+        microsoft_enabled: document.getElementById('msEnabled').checked,
+    };
+    const secret = document.getElementById('msClientSecret').value;
+    if (secret) payload.microsoft_client_secret = secret;
+    try {
+        const res = await fetch(`/api/admin/companies/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('msModal').style.display = 'none';
+            loadMsCompanies();
+        } else {
+            alert('Error guardando: ' + (data.error || 'desconocido'));
+        }
+    } catch (e) {
+        alert('Error de red: ' + e.message);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const tab = document.querySelector('.config-tab[data-tab="microsoft"]');
+    if (tab) tab.addEventListener('click', () => setTimeout(loadMsCompanies, 100));
+    const panel = document.getElementById('panel-microsoft');
+    if (panel && panel.classList.contains('active')) loadMsCompanies();
 });
 </script>
 

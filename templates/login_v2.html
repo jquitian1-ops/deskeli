@@ -102,6 +102,26 @@
             <button type="submit" class="login-button">Ingresar</button>
         </form>
 
+        <!-- Separador + botón Microsoft -->
+        <div style="margin-top:16px; text-align:center;">
+            <div style="display:flex; align-items:center; gap:10px; margin:14px 0; color:#9ca3af; font-size:12px;">
+                <div style="flex:1; height:1px; background:#e5e7eb;"></div>
+                <span>o</span>
+                <div style="flex:1; height:1px; background:#e5e7eb;"></div>
+            </div>
+            <button type="button" onclick="loginWithMicrosoft()" id="msLoginBtn"
+                    style="width:100%; padding:11px; background:white; border:1px solid #d1d5db; border-radius:6px; cursor:pointer; font-size:14px; font-weight:600; color:#1f2937; display:inline-flex; align-items:center; justify-content:center; gap:10px; transition:all 0.2s;">
+                <svg width="18" height="18" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                    <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                    <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                    <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                </svg>
+                Iniciar sesión con Microsoft
+            </button>
+            <p style="font-size:11px; color:#9ca3af; margin-top:8px;">Requiere seleccionar la empresa arriba.</p>
+        </div>
+
     </div>
 
     <script>
@@ -109,6 +129,15 @@
             document.querySelectorAll('.company-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
             document.getElementById('company').value = companyId;
+        }
+
+        function loginWithMicrosoft() {
+            const company = document.getElementById('company').value;
+            if (!company) {
+                alert('Primero seleccioná la empresa arriba.');
+                return;
+            }
+            window.location.href = '/auth/microsoft/login?company=' + encodeURIComponent(company);
         }
 
         // Cambiar tema visual del login (guardado en localStorage)

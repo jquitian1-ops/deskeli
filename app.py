@@ -96,6 +96,13 @@ from crypto_utils import (
 from password_policy import validate_password
 from ldap_auth import LdapConfig, authenticate_user as ldap_authenticate_user, test_ldap_connection, LDAP_AVAILABLE
 from file_compression import compress_upload
+from microsoft_auth import (
+    build_auth_url as ms_build_auth_url,
+    exchange_code_for_token as ms_exchange_code,
+    get_user_info as ms_get_user_info,
+    extract_user_data_from_token as ms_extract_token_data,
+    MSAL_AVAILABLE,
+)
 
 app = Flask(__name__)
 # Usar BD en directorio raíz, no en instance/
@@ -288,6 +295,11 @@ class Company(db.Model):
     ldap_base_dn = db.Column(db.String(255))
     ldap_bind_user = db.Column(db.String(255))
     ldap_bind_password = db.Column(db.String(255))
+    # Microsoft Entra ID (Azure AD) — para autenticación por OAuth 2.0
+    microsoft_tenant_id = db.Column(db.String(100))         # GUID del tenant
+    microsoft_client_id = db.Column(db.String(100))         # Application (client) ID
+    microsoft_client_secret = db.Column(db.String(500))     # Client secret cifrado
+    microsoft_enabled = db.Column(db.Boolean, default=False)  # ¿La empresa usa Microsoft?
     # Configuración SMTP por empresa (si está, sobrescribe la global)
     smtp_host = db.Column(db.String(255))
     smtp_port = db.Column(db.Integer)
@@ -315,6 +327,7 @@ class User(db.Model):
     must_change_password = db.Column(db.Boolean, default=False)  # Forzar cambio en próximo login
     failed_login_attempts = db.Column(db.Integer, default=0)     # Contador de intentos fallidos consecutivos
     locked_until = db.Column(db.DateTime)                        # Si > now() la cuenta está bloqueada
+    microsoft_object_id = db.Column(db.String(100), unique=True, index=True)  # OID de Microsoft Entra (identificador único)
     # Datos de contacto del usuario (se pre-rellenan al crear un ticket)
     area = db.Column(db.String(120))      # Área/departamento
     location = db.Column(db.String(120))  # Sede/oficina/piso
@@ -1437,6 +1450,212 @@ def logout():
         log_audit('logout', user_id, 'user', user_id, f'Usuario cerró sesión')
     session.clear()
     return redirect(url_for('login'))
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# MICROSOFT ENTRA ID (Azure AD) — LOGIN VIA OAUTH 2.0
+# ═════════════════════════════════════════════════════════════════════════════
+
+@app.route('/auth/microsoft/login')
+def auth_microsoft_login():
+    """Inicia el flujo OAuth 2.0 con Microsoft. Recibe ?company=CODIGO."""
+    company_code = (request.args.get('company') or '').strip()
+    if not company_code:
+        return render_template('login_v2.html', companies=COMPANY_COLORS,
+                               error='Seleccioná la empresa antes de continuar con Microsoft.')
+
+    company = Company.query.filter_by(code=company_code).first()
+    if not company:
+        return render_template('login_v2.html', companies=COMPANY_COLORS,
+                               error='Empresa no válida.')
+
+    if not company.microsoft_enabled or not company.microsoft_tenant_id or not company.microsoft_client_id:
+        return render_template('login_v2.html', companies=COMPANY_COLORS,
+                               error=f'{company.name} no tiene configurado Microsoft Entra ID. Contactá al administrador.')
+
+    if not MSAL_AVAILABLE:
+        return render_template('login_v2.html', companies=COMPANY_COLORS,
+                               error='La librería MSAL no está disponible en el servidor.')
+
+    # Descifrar client secret
+    client_secret = decrypt_secret(company.microsoft_client_secret) or ''
+    if not client_secret:
+        return render_template('login_v2.html', companies=COMPANY_COLORS,
+                               error=f'{company.name}: falta el Client Secret de Microsoft.')
+
+    # Redirect URI — debe coincidir exactamente con lo configurado en Azure App Registration
+    redirect_uri = url_for('auth_microsoft_callback', _external=True, _scheme='https' if _IS_PRODUCTION else 'http')
+
+    try:
+        auth_url, state = ms_build_auth_url(
+            tenant_id=company.microsoft_tenant_id,
+            client_id=company.microsoft_client_id,
+            client_secret=client_secret,
+            redirect_uri=redirect_uri,
+        )
+    except Exception as e:
+        log_audit('ms_auth_error', None, 'auth', None, f'Error construyendo URL Microsoft: {e}')
+        return render_template('login_v2.html', companies=COMPANY_COLORS,
+                               error=f'Error iniciando login con Microsoft: {e}')
+
+    # Guardar state + company en session para validar en callback
+    session['ms_oauth_state'] = state
+    session['ms_oauth_company'] = company_code
+    return redirect(auth_url)
+
+
+@app.route('/auth/microsoft/callback')
+def auth_microsoft_callback():
+    """Callback de Microsoft con el authorization code."""
+    error = request.args.get('error')
+    if error:
+        error_desc = request.args.get('error_description') or ''
+        log_audit('ms_auth_denied', None, 'auth', None, f'Microsoft rechazó login: {error} - {error_desc}')
+        session.pop('ms_oauth_state', None)
+        session.pop('ms_oauth_company', None)
+        return render_template('login_v2.html', companies=COMPANY_COLORS,
+                               error=f'Microsoft rechazó el login: {error_desc or error}')
+
+    code = request.args.get('code')
+    state = request.args.get('state')
+    if not code or not state:
+        return render_template('login_v2.html', companies=COMPANY_COLORS,
+                               error='Callback inválido: falta code o state.')
+
+    # Validar state contra CSRF
+    expected_state = session.get('ms_oauth_state')
+    if not expected_state or state != expected_state:
+        log_audit('ms_auth_state_mismatch', None, 'auth', None,
+                  f'State no coincide (posible CSRF) desde {request.remote_addr}')
+        return render_template('login_v2.html', companies=COMPANY_COLORS,
+                               error='Sesión OAuth inválida. Intentá de nuevo.')
+
+    company_code = session.get('ms_oauth_company')
+    session.pop('ms_oauth_state', None)
+    session.pop('ms_oauth_company', None)
+
+    company = Company.query.filter_by(code=company_code).first() if company_code else None
+    if not company:
+        return render_template('login_v2.html', companies=COMPANY_COLORS,
+                               error='Empresa perdida durante el flow. Intentá de nuevo.')
+
+    client_secret = decrypt_secret(company.microsoft_client_secret) or ''
+    redirect_uri = url_for('auth_microsoft_callback', _external=True, _scheme='https' if _IS_PRODUCTION else 'http')
+
+    try:
+        token_result = ms_exchange_code(
+            tenant_id=company.microsoft_tenant_id,
+            client_id=company.microsoft_client_id,
+            client_secret=client_secret,
+            code=code,
+            redirect_uri=redirect_uri,
+        )
+    except Exception as e:
+        log_audit('ms_auth_token_error', None, 'auth', None, f'Error intercambiando code: {e}')
+        return render_template('login_v2.html', companies=COMPANY_COLORS,
+                               error=f'Error obteniendo token de Microsoft: {e}')
+
+    if 'error' in token_result:
+        err_desc = token_result.get('error_description', token_result['error'])
+        log_audit('ms_auth_token_error', None, 'auth', None, f'Token error: {err_desc}')
+        return render_template('login_v2.html', companies=COMPANY_COLORS,
+                               error=f'Microsoft rechazó las credenciales de la app: {err_desc}')
+
+    # Extraer info del usuario del id_token
+    user_data = ms_extract_token_data(token_result)
+    if not user_data or not user_data.get('id'):
+        # Fallback: llamar Graph
+        access_token = token_result.get('access_token')
+        graph_data = ms_get_user_info(access_token) if access_token else None
+        if graph_data:
+            user_data = {
+                'id': graph_data.get('id'),
+                'displayName': graph_data.get('displayName') or '',
+                'mail': graph_data.get('mail') or graph_data.get('userPrincipalName') or '',
+                'userPrincipalName': graph_data.get('userPrincipalName') or '',
+                'givenName': graph_data.get('givenName') or '',
+                'surname': graph_data.get('surname') or '',
+            }
+
+    if not user_data or not user_data.get('id') or not user_data.get('mail'):
+        return render_template('login_v2.html', companies=COMPANY_COLORS,
+                               error='No se pudo obtener info del usuario desde Microsoft.')
+
+    # Buscar usuario en DeskEli: primero por microsoft_object_id, luego por email
+    ms_oid = user_data['id']
+    email = (user_data.get('mail') or user_data.get('userPrincipalName') or '').lower()
+    full_name = user_data.get('displayName') or f"{user_data.get('givenName','')} {user_data.get('surname','')}".strip()
+
+    user = User.query.filter_by(microsoft_object_id=ms_oid).first()
+    if not user:
+        user = User.query.filter(
+            db.func.lower(User.email) == email,
+            User.company == company.code
+        ).first()
+        if user:
+            # Enlazar la cuenta local con el OID de Microsoft
+            user.microsoft_object_id = ms_oid
+
+    # Auto-provisioning: si el usuario del tenant no existe en DeskEli, crearlo
+    if not user:
+        base_username = email.split('@')[0] if email else f'ms_{ms_oid[:8]}'
+        # Evitar colisiones de username
+        username = base_username
+        suffix = 1
+        while User.query.filter_by(username=username, company=company.code).first():
+            suffix += 1
+            username = f'{base_username}{suffix}'
+        user = User(
+            username=username[:80],
+            name=full_name[:120] or username,
+            email=email[:120],
+            role='employee',  # Por default; el admin puede promover después
+            company=company.code,
+            microsoft_object_id=ms_oid,
+            is_active=True,
+            must_change_password=False,  # No aplica: entra por Microsoft
+        )
+        db.session.add(user)
+        try:
+            db.session.commit()
+            log_audit('ms_user_provisioned', None, 'user', user.id,
+                      f'Usuario auto-provisionado desde Microsoft: {email} ({company.code}) → username {username}')
+        except Exception as e:
+            db.session.rollback()
+            return render_template('login_v2.html', companies=COMPANY_COLORS,
+                                   error=f'Error creando usuario local: {e}')
+
+    if not user.is_active:
+        return render_template('login_v2.html', companies=COMPANY_COLORS,
+                               error='Cuenta desactivada. Contactá al administrador.')
+
+    # Actualizar datos del usuario si cambiaron en Microsoft
+    if full_name and user.name != full_name:
+        user.name = full_name[:120]
+    user.last_login = datetime.now()
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    db.session.commit()
+
+    log_audit('ms_login', user.id, 'user', user.id,
+              f'Login Microsoft OK: {email} desde {request.remote_addr}')
+
+    # Crear sesión Flask
+    session['user_id'] = user.id
+    session['username'] = user.username
+    session['name'] = user.name
+    session['role'] = user.role
+    session['company'] = user.company
+    session['login_at'] = datetime.now().isoformat(timespec='seconds')
+    session['login_provider'] = 'microsoft'
+    session.permanent = True
+
+    # Redirigir según rol
+    if user.role == 'admin':
+        return redirect(url_for('admin_dashboard'))
+    if user.role == 'technician':
+        return redirect(url_for('technician_dashboard'))
+    return redirect(url_for('employee_dashboard'))
 
 # ═════════════════════════════════════════════════════════════════════════════
 # GESTIÓN DE EMPRESAS (MULTI-TENANT) - RF-04
@@ -5804,6 +6023,14 @@ def migrate_users_role_label():
             print("[migrate_users] Columna locked_until agregada")
         except Exception as e:
             print(f"[migrate_users] error agregando locked_until: {e}")
+    if 'microsoft_object_id' not in existing_cols:
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN microsoft_object_id VARCHAR(100)"))
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_microsoft_object_id ON users(microsoft_object_id)"))
+            print("[migrate_users] Columna microsoft_object_id agregada")
+        except Exception as e:
+            print(f"[migrate_users] error agregando microsoft_object_id: {e}")
     # Campos de contacto (área, ubicación, teléfono) en users
     for col_name, col_type in (('area', 'VARCHAR(120)'), ('location', 'VARCHAR(120)'), ('phone', 'VARCHAR(40)')):
         if col_name not in existing_cols:
@@ -5852,6 +6079,11 @@ def migrate_companies_smtp():
         ('smtp_password', 'VARCHAR(255)'),
         ('smtp_from', 'VARCHAR(255)'),
         ('smtp_security', 'VARCHAR(10)'),
+        # Microsoft Entra ID
+        ('microsoft_tenant_id', 'VARCHAR(100)'),
+        ('microsoft_client_id', 'VARCHAR(100)'),
+        ('microsoft_client_secret', 'VARCHAR(500)'),
+        ('microsoft_enabled', 'BOOLEAN DEFAULT 0'),
     ]
     with db.engine.begin() as conn:
         for col_name, col_type in additions:
@@ -9077,6 +9309,9 @@ def api_admin_companies_list():
             'ldap_server': c.ldap_server or '',
             'ldap_base_dn': c.ldap_base_dn or '',
             'ldap_bind_user': c.ldap_bind_user or '',
+            'microsoft_tenant_id': c.microsoft_tenant_id or '',
+            'microsoft_client_id': c.microsoft_client_id or '',
+            'microsoft_enabled': bool(c.microsoft_enabled),
             'is_active': bool(c.is_active),
             'user_count': user_count,
             'active_users': active_users,
@@ -9157,6 +9392,15 @@ def api_admin_companies_update(company_id):
         if 'ldap_bind_user' in data: c.ldap_bind_user = data['ldap_bind_user'].strip()
         if 'ldap_bind_password' in data and data['ldap_bind_password']:
             c.ldap_bind_password = encrypt_secret(data['ldap_bind_password'].strip())
+        # Microsoft Entra ID
+        if 'microsoft_tenant_id' in data:
+            c.microsoft_tenant_id = (data['microsoft_tenant_id'] or '').strip()[:100] or None
+        if 'microsoft_client_id' in data:
+            c.microsoft_client_id = (data['microsoft_client_id'] or '').strip()[:100] or None
+        if 'microsoft_client_secret' in data and data['microsoft_client_secret']:
+            c.microsoft_client_secret = encrypt_secret(data['microsoft_client_secret'].strip())
+        if 'microsoft_enabled' in data:
+            c.microsoft_enabled = bool(data['microsoft_enabled'])
         if 'is_active' in data: c.is_active = bool(data['is_active'])
         db.session.commit()
         log_audit('update_company', session['user_id'], 'company', c.id, f'Empresa actualizada: {c.name}')
