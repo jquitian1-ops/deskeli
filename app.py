@@ -1418,8 +1418,14 @@ def _dashboard_url_for(role):
 @app.before_request
 def _enforce_password_change():
     """Si el usuario tiene must_change_password=True, redirigir/bloquear todo
-    hasta que cambie la contraseña."""
+    hasta que cambie la contraseña.
+
+    Excepción: usuarios que entraron por SSO Microsoft (session.login_provider='microsoft')
+    no tienen contraseña local que cambiar, así que se omite."""
     if 'user_id' not in session:
+        return None
+    # Usuarios logueados por Microsoft NO usan contraseña local → skip
+    if session.get('login_provider') == 'microsoft':
         return None
     path = request.path or ''
     # Rutas siempre permitidas mientras debe cambiar contraseña
@@ -1651,6 +1657,9 @@ def auth_microsoft_callback():
     user.last_login = datetime.now()
     user.failed_login_attempts = 0
     user.locked_until = None
+    # El usuario entra por SSO Microsoft: no necesita cambiar contraseña local
+    # (el must_change_password aplica solo cuando entra por email+password local)
+    user.must_change_password = False
     db.session.commit()
 
     log_audit('ms_login', user.id, 'user', user.id,
