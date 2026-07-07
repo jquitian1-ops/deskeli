@@ -40,7 +40,7 @@ psycopg2-binary==2.9.10
 
 # --- Auth / Security ---
 PyJWT==2.13.0
-cryptography==49.0.0
+cryptography==45.0.7
 cffi==2.0.0
 pycparser==3.0
 bcrypt==5.0.0
