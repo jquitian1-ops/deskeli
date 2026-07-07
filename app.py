@@ -201,6 +201,39 @@ def apply_rate_limit():
         if result:
             return result
 
+def get_public_base_url():
+    """Devuelve la URL pública base del sistema, siempre correcta incluso desde
+    threads background (schedulers) donde no hay request context.
+
+    Prioridad:
+    1. Env var PUBLIC_URL (recomendado en producción, ej: https://deskeli.eliotproyectos.tech)
+    2. request.host_url si hay contexto Flask activo
+    3. Primera URL válida (no-localhost) de ALLOWED_ORIGINS
+    4. Fallback: http://localhost:5050
+    """
+    # 1. Variable de entorno explícita
+    public_url = os.getenv('PUBLIC_URL', '').strip().rstrip('/')
+    if public_url:
+        return public_url
+
+    # 2. Request context activo
+    try:
+        if has_request_context():
+            return request.host_url.rstrip('/')
+    except Exception:
+        pass
+
+    # 3. Buscar en ALLOWED_ORIGINS la primera URL no-localhost
+    origins = os.getenv('ALLOWED_ORIGINS', '').split(',')
+    for origin in origins:
+        origin = origin.strip().rstrip('/')
+        if origin and 'localhost' not in origin.lower() and '127.0.0.1' not in origin:
+            return origin
+
+    # 4. Fallback
+    return 'http://localhost:5050'
+
+
 # SECURITY FIX 2: @after_request decorator con security headers
 @app.after_request
 def apply_security_headers(response):
@@ -5084,7 +5117,7 @@ def _sla_alert_email(ticket, threshold_pct, assignee):
 
     subject = f'[DeskEli] {subject_tag} · {ticket.ticket_number} · {ticket.title[:60]}'
 
-    base_url = request.host_url.rstrip('/') if has_request_context() else 'http://localhost:5050'
+    base_url = get_public_base_url()
     ticket_url = f'{base_url}/technician/ticket/{ticket.id}'
 
     body = f"""
@@ -5494,7 +5527,7 @@ def notify_ticket_assigned(ticket, new_assignee, assigned_by_name='Sistema', rea
         print(f'[notify] Técnico sin email, skip')
         return False
 
-    # Construir URL del ticket
+    # Construir URL del ticket (usa PUBLIC_URL env var o ALLOWED_ORIGINS como fallback)
     base_url = ''
     try:
         c = Config.query.filter_by(key='general_base_url').first()
@@ -5503,7 +5536,7 @@ def notify_ticket_assigned(ticket, new_assignee, assigned_by_name='Sistema', rea
     except Exception:
         pass
     if not base_url:
-        base_url = os.getenv('APP_BASE_URL', 'http://localhost:5050').rstrip('/')
+        base_url = get_public_base_url()
 
     ticket_url = f'{base_url}/technician/ticket/{ticket.id}'
 
@@ -7755,7 +7788,7 @@ def api_resolve_ticket(ticket_id):
     try:
         creator = User.query.get(ticket.creator_id)
         if creator and creator.email:
-            base_url = request.host_url.rstrip('/')
+            base_url = get_public_base_url()
             ticket_url = f"{base_url}/employee/ticket/{ticket.id}"
             subject = f"[DeskEli] Ticket {ticket.ticket_number} resuelto - califica la solución"
             body = f"""
@@ -14807,7 +14840,7 @@ def api_v1_external_create_ticket():
         except Exception:
             pass
 
-        base_url = request.host_url.rstrip('/')
+        base_url = get_public_base_url()
         return jsonify({
             'success': True,
             'id': ticket.id,
