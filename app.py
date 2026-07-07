@@ -1456,7 +1456,7 @@ def logout():
 # MICROSOFT ENTRA ID (Azure AD) — LOGIN VIA OAUTH 2.0
 # ═════════════════════════════════════════════════════════════════════════════
 
-@app.route('/auth/microsoft/login')
+@app.route('/auth/microsoft/login', methods=['GET', 'POST'])
 def auth_microsoft_login():
     """Inicia el flujo OAuth 2.0 con Microsoft. Recibe ?company=CODIGO."""
     company_code = (request.args.get('company') or '').strip()
@@ -1504,20 +1504,24 @@ def auth_microsoft_login():
     return redirect(auth_url)
 
 
-@app.route('/auth/microsoft/callback')
+@app.route('/auth/microsoft/callback', methods=['GET', 'POST'])
 def auth_microsoft_callback():
     """Callback de Microsoft con el authorization code."""
-    error = request.args.get('error')
+    # Microsoft puede mandar los params en query string (GET) o form (POST con response_mode=form_post)
+    def _param(key):
+        return request.args.get(key) or request.form.get(key)
+
+    error = _param('error')
     if error:
-        error_desc = request.args.get('error_description') or ''
+        error_desc = _param('error_description') or ''
         log_audit('ms_auth_denied', None, 'auth', None, f'Microsoft rechazó login: {error} - {error_desc}')
         session.pop('ms_oauth_state', None)
         session.pop('ms_oauth_company', None)
         return render_template('login_v2.html', companies=COMPANY_COLORS,
                                error=f'Microsoft rechazó el login: {error_desc or error}')
 
-    code = request.args.get('code')
-    state = request.args.get('state')
+    code = _param('code')
+    state = _param('state')
     if not code or not state:
         # Log detallado para diagnóstico
         args_keys = list(request.args.keys())
