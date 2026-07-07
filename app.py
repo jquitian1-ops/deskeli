@@ -1519,8 +1519,20 @@ def auth_microsoft_callback():
     code = request.args.get('code')
     state = request.args.get('state')
     if not code or not state:
+        # Log detallado para diagnóstico
+        args_keys = list(request.args.keys())
+        referrer = request.headers.get('Referer', '')
+        log_audit('ms_auth_invalid_callback', None, 'auth', None,
+                  f'Callback sin code/state. Args: {args_keys}. Referer: {referrer[:200]}. From: {request.remote_addr}')
+        # Si no llegaste desde Microsoft, mostrar mensaje explicativo
+        if 'login.microsoftonline.com' not in referrer and 'login.live.com' not in referrer:
+            return render_template('login_v2.html', companies=COMPANY_COLORS,
+                                   error='Esta URL solo funciona cuando Microsoft te redirige. '
+                                         'Volvé a /login y click "Iniciar sesión con Microsoft".')
         return render_template('login_v2.html', companies=COMPANY_COLORS,
-                               error='Callback inválido: falta code o state.')
+                               error=f'Callback inválido desde Microsoft (params: {args_keys}). '
+                                     f'Verificá que el Redirect URI en Azure sea exactamente '
+                                     f'https://deskeli.eliotproyectos.tech/auth/microsoft/callback')
 
     # Validar state contra CSRF
     expected_state = session.get('ms_oauth_state')
