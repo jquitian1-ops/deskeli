@@ -5410,12 +5410,13 @@ def _get_smtp_config(company=None):
     }
 
 
-def send_email(to_email, subject, body, attachments=None, company=None):
+def send_email(to_email, subject, body, attachments=None, company=None, cc_emails=None):
     """Enviar email vía SMTP. Soporta SSL (465) y STARTTLS (587).
     Si se pasa `company`, usa la config SMTP de esa empresa (con fallback a global).
     Devuelve True/False. Loguea diagnóstico claro si SMTP rechaza la conexión.
 
     attachments: lista de tuplas (filename, bytes_or_bytesio, mime_subtype).
+    cc_emails: lista de emails a copiar (CC), o string único.
     """
     import socket
     from email.mime.multipart import MIMEMultipart as _MIMEMultipart
@@ -5437,6 +5438,16 @@ def send_email(to_email, subject, body, attachments=None, company=None):
     msg = _MIMEMultipart()
     msg['From'] = smtp_from
     msg['To'] = to_email
+    # Normalizar cc_emails a lista limpia (sin vacíos ni duplicados con TO)
+    cc_list = []
+    if cc_emails:
+        raw_cc = cc_emails if isinstance(cc_emails, (list, tuple)) else [cc_emails]
+        for e in raw_cc:
+            e = (e or '').strip()
+            if e and e.lower() != (to_email or '').lower() and e not in cc_list:
+                cc_list.append(e)
+    if cc_list:
+        msg['Cc'] = ', '.join(cc_list)
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'html'))
 
@@ -7901,6 +7912,139 @@ def api_save_ticket_time(ticket_id):
         'total_seconds': ticket.time_worked_seconds,
         'message': f'{hours}h {minutes}m registrados'
     })
+
+@app.route('/api/ticket/<int:ticket_id>/request-info', methods=['POST'])
+def api_ticket_request_info(ticket_id):
+    """Enviar email al creador solicitando información adicional.
+    TO: creador del ticket. CC: técnico asignado. También registra el mensaje
+    como comentario público en el chat del ticket."""
+    if 'user_id' not in session or session.get('role') not in ('technician', 'admin'):
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    ticket = Ticket.query.get_or_404(ticket_id)
+    if ticket.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso a esta empresa'}), 403
+
+    data = request.get_json() or {}
+    message = (data.get('message') or '').strip()
+    if not message or len(message) < 10:
+        return jsonify({'success': False, 'error': 'Escribí un mensaje (mínimo 10 caracteres)'}), 400
+    if len(message) > 3000:
+        return jsonify({'success': False, 'error': 'Mensaje demasiado largo (máx 3000 caracteres)'}), 400
+
+    # Sanitizar HTML (bleach)
+    safe_message = sanitize_html(message) if 'sanitize_html' in globals() else message
+
+    creator = User.query.get(ticket.creator_id) if ticket.creator_id else None
+    if not creator or not creator.email:
+        return jsonify({'success': False, 'error': 'El solicitante no tiene email registrado'}), 400
+
+    assignee = User.query.get(ticket.assignee_id) if ticket.assignee_id else None
+    current_user = User.query.get(session['user_id'])
+
+    # 1) Registrar como mensaje público en el chat del ticket
+    try:
+        msg = Message(
+            ticket_id=ticket.id,
+            user_id=session['user_id'],
+            text=f'📧 Solicitud de información enviada por email:\n\n{safe_message}',
+        )
+        db.session.add(msg)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f'[request-info] No pude guardar el mensaje: {e}')
+
+    # 2) Cambiar estado a "waiting_user" opcionalmente (pausa SLA)
+    change_status = bool(data.get('change_status', True))
+    if change_status and ticket.status not in ('waiting_user', 'resolved', 'closed'):
+        ticket.status = 'waiting_user'
+        db.session.commit()
+
+    # 3) Enviar email
+    base_url = get_public_base_url()
+    ticket_url = f'{base_url}/employee/ticket/{ticket.id}'
+
+    subject = f'[DeskEli] Necesitamos más información · {ticket.ticket_number} · {ticket.title[:60]}'
+
+    # Formatear el mensaje conservando saltos de linea
+    message_html = safe_message.replace('\n', '<br>')
+
+    body = f"""
+    <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+        <div style="background:#f59e0b;color:white;padding:18px;border-radius:8px 8px 0 0;">
+            <h2 style="margin:0;">📧 Solicitud de información</h2>
+        </div>
+        <div style="padding:22px;background:#f9fafb;border:1px solid #e5e7eb;border-top:none;">
+            <p>Hola <strong>{creator.name or creator.username}</strong>,</p>
+            <p>Sobre el ticket <strong>{ticket.ticket_number}</strong> — <em>"{ticket.title}"</em>:</p>
+
+            <div style="background:white;border-left:4px solid #f59e0b;padding:14px 18px;margin:16px 0;border-radius:4px;">
+                {message_html}
+            </div>
+
+            <p style="margin:16px 0;">Por favor respondé desde el ticket para agilizar la resolución.
+            El técnico asignado está en copia de este correo.</p>
+
+            <p style="text-align:center;margin:24px 0;">
+                <a href="{ticket_url}" style="display:inline-block;background:#2563eb;color:white;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:bold;">
+                    🎫 Responder en el ticket
+                </a>
+            </p>
+
+            <div style="font-size:12px;color:#6b7280;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:12px;">
+                <strong>Detalles del ticket:</strong><br>
+                Número: {ticket.ticket_number}<br>
+                Prioridad: {ticket.priority.upper()}<br>
+                Solicitó info: {current_user.name if current_user else 'Equipo TI'}<br>
+                {f'Técnico asignado: {assignee.name}' if assignee else ''}
+            </div>
+
+            <p style="font-size:11px;color:#9ca3af;margin-top:14px;">
+                Este es un mensaje automático de DeskEli. Podés responder desde el ticket usando el botón de arriba.
+            </p>
+        </div>
+    </body></html>
+    """
+
+    cc_list = [assignee.email] if assignee and assignee.email and assignee.id != session['user_id'] else []
+    # También CC al técnico que envía (si no es el mismo assignee)
+    if current_user and current_user.email and current_user.id != (assignee.id if assignee else None):
+        if current_user.email not in cc_list and current_user.email.lower() != creator.email.lower():
+            cc_list.append(current_user.email)
+
+    email_ok = False
+    try:
+        email_ok = send_email(
+            to_email=creator.email,
+            subject=subject,
+            body=body,
+            company=ticket.company,
+            cc_emails=cc_list,
+        )
+    except Exception as e:
+        print(f'[request-info] Error enviando email: {e}')
+
+    log_audit(
+        'request_info_from_user',
+        session['user_id'],
+        'ticket',
+        ticket.id,
+        f'Solicitud de info enviada por {current_user.email if current_user else "?"} '
+        f'a {creator.email} (CC: {", ".join(cc_list) or "—"}) para ticket {ticket.ticket_number}. '
+        f'Email: {"OK" if email_ok else "FALLO"}'
+    )
+
+    return jsonify({
+        'success': True,
+        'email_sent': email_ok,
+        'to': creator.email,
+        'cc': cc_list,
+        'ticket_status': ticket.status,
+        'message': ('✓ Solicitud enviada por email al usuario' if email_ok
+                    else '⚠ Mensaje guardado en el ticket pero el email no pudo enviarse (revisar config SMTP)')
+    })
+
 
 @app.route('/api/ticket/<int:ticket_id>/message', methods=['POST'])
 def api_add_message(ticket_id):

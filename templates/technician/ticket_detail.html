@@ -775,6 +775,7 @@
                     </div>
                 {% else %}
                     <button class="btn btn-primary" onclick="resolveTicket()">✅ Marcar como Resuelto</button>
+                    <button class="btn" onclick="openRequestInfoModal()" style="background:#3b82f6;color:white;">📧 Solicitar info al usuario</button>
                     <button class="btn btn-warning" onclick="reassignTicket()" style="background:#f59e0b;color:white;">🔄 Reasignar</button>
                     <button class="btn btn-secondary" onclick="escalateTicket()" style="background:#dc2626;color:white;">📞 Escalar a Crítico</button>
                 {% endif %}
@@ -796,6 +797,30 @@
             <div style="display:flex;gap:10px;justify-content:flex-end;">
                 <button onclick="closeEscalate()" style="padding:10px 20px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;">Cancelar</button>
                 <button onclick="confirmEscalate()" style="padding:10px 20px;background:#dc2626;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">🚨 Confirmar Escalación</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL SOLICITAR INFO AL USUARIO -->
+    <div id="requestInfoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:white;padding:30px;border-radius:12px;width:90%;max-width:560px;">
+            <h2 style="margin-bottom:8px;color:#2563eb;">📧 Solicitar información al usuario</h2>
+            <p style="color:#666;margin-bottom:16px;font-size:13px;">
+                Se enviará un email al solicitante <strong>{% if ticket.creator %}{{ ticket.creator.email }}{% else %}(sin email){% endif %}</strong>
+                con copia a vos como técnico. El mensaje también queda registrado en el chat del ticket.
+            </p>
+            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">¿Qué información necesitás?</label>
+            <textarea id="requestInfoMessage" rows="5" maxlength="3000" placeholder="Ej: Hola, para poder resolver tu solicitud necesitamos que nos indiques: 1) El sistema operativo de tu computador, 2) Si el error aparece siempre o solo en algunos casos, 3) Una captura de pantalla del mensaje de error..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-family:inherit;margin-bottom:8px;font-size:13px;resize:vertical;"></textarea>
+            <div style="font-size:11px;color:#9ca3af;margin-bottom:14px;text-align:right;"><span id="riCharCount">0</span> / 3000</div>
+            <div style="background:#eff6ff;border-left:3px solid #3b82f6;padding:10px 14px;border-radius:4px;margin-bottom:14px;font-size:12px;color:#1e40af;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                    <input type="checkbox" id="riChangeStatus" checked>
+                    <span>Cambiar el estado del ticket a <strong>"esperando usuario"</strong> mientras espera respuesta (pausa el SLA)</span>
+                </label>
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button onclick="closeRequestInfo()" style="padding:10px 20px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;">Cancelar</button>
+                <button onclick="confirmRequestInfo()" id="riConfirmBtn" style="padding:10px 20px;background:#3b82f6;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">📧 Enviar solicitud</button>
             </div>
         </div>
     </div>
@@ -862,6 +887,60 @@
                 }
             } catch (e) {
                 alert('Error de conexión: ' + e.message);
+            }
+        }
+
+        // ========== SOLICITAR INFO AL USUARIO ==========
+        function openRequestInfoModal() {
+            const ta = document.getElementById('requestInfoMessage');
+            ta.value = '';
+            document.getElementById('riCharCount').textContent = '0';
+            document.getElementById('riChangeStatus').checked = true;
+            document.getElementById('requestInfoModal').style.display = 'flex';
+            setTimeout(() => ta.focus(), 100);
+        }
+        function closeRequestInfo() {
+            document.getElementById('requestInfoModal').style.display = 'none';
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            const ta = document.getElementById('requestInfoMessage');
+            if (ta) ta.addEventListener('input', () => {
+                document.getElementById('riCharCount').textContent = ta.value.length;
+            });
+        });
+        async function confirmRequestInfo() {
+            const message = document.getElementById('requestInfoMessage').value.trim();
+            const changeStatus = document.getElementById('riChangeStatus').checked;
+            if (message.length < 10) {
+                alert('Escribí un mensaje de al menos 10 caracteres.');
+                return;
+            }
+            const btn = document.getElementById('riConfirmBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Enviando...';
+            try {
+                const res = await fetch(`/api/ticket/${TICKET_ID}/request-info`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message, change_status: changeStatus}),
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeRequestInfo();
+                    const emoji = data.email_sent ? '✓' : '⚠';
+                    const cc = data.cc && data.cc.length ? ` (CC: ${data.cc.join(', ')})` : '';
+                    showActionStatus(`${emoji} ${data.message} → ${data.to}${cc}`, data.email_sent ? 'success' : 'info');
+                    if (changeStatus) {
+                        setTimeout(() => location.reload(), 1500);
+                    }
+                } else {
+                    alert('Error: ' + (data.error || 'no se pudo enviar'));
+                }
+            } catch (e) {
+                alert('Error de red: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '📧 Enviar solicitud';
             }
         }
 
