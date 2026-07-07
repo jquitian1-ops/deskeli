@@ -6006,8 +6006,10 @@ def migrate_users_role_label():
             print(f"[migrate_users] error agregando extra_role_labels: {e}")
     if 'must_change_password' not in existing_cols:
         try:
+            # PostgreSQL requiere FALSE, SQLite acepta 0
+            _bool_default = 'FALSE' if db.engine.dialect.name == 'postgresql' else '0'
             with db.engine.begin() as conn:
-                conn.execute(text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT 0"))
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT {_bool_default}"))
             print("[migrate_users] Columna must_change_password agregada")
         except Exception as e:
             print(f"[migrate_users] error agregando must_change_password: {e}")
@@ -6074,6 +6076,10 @@ def migrate_companies_smtp():
     if 'companies' not in inspector.get_table_names():
         return
     existing_cols = {c['name'] for c in inspector.get_columns('companies')}
+    # Detectar dialecto para usar DEFAULT correcto (SQLite acepta 0, PostgreSQL requiere FALSE)
+    is_postgres = db.engine.dialect.name == 'postgresql'
+    bool_default = 'FALSE' if is_postgres else '0'
+
     additions = [
         ('smtp_host', 'VARCHAR(255)'),
         ('smtp_port', 'INTEGER'),
@@ -6085,16 +6091,19 @@ def migrate_companies_smtp():
         ('microsoft_tenant_id', 'VARCHAR(100)'),
         ('microsoft_client_id', 'VARCHAR(100)'),
         ('microsoft_client_secret', 'VARCHAR(500)'),
-        ('microsoft_enabled', 'BOOLEAN DEFAULT 0'),
+        ('microsoft_enabled', f'BOOLEAN DEFAULT {bool_default}'),
     ]
-    with db.engine.begin() as conn:
-        for col_name, col_type in additions:
-            if col_name not in existing_cols:
-                try:
-                    conn.execute(text(f"ALTER TABLE companies ADD COLUMN {col_name} {col_type}"))
-                    print(f"[migrate_companies] Columna {col_name} agregada")
-                except Exception as e:
-                    print(f"[migrate_companies] error agregando {col_name}: {e}")
+    # CRITICO: usar transacción aislada por columna. En PostgreSQL, si UNA falla
+    # todas las siguientes fallan (transaction aborted state).
+    for col_name, col_type in additions:
+        if col_name in existing_cols:
+            continue
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE companies ADD COLUMN {col_name} {col_type}"))
+            print(f"[migrate_companies] Columna {col_name} agregada")
+        except Exception as e:
+            print(f"[migrate_companies] error agregando {col_name}: {e}")
 
 
 def migrate_messages_schema():
