@@ -14823,7 +14823,7 @@ def _api_key_has_scope(api_key, scope):
 
 @app.route('/api/v1/external/tickets', methods=['POST'])
 def api_v1_external_create_ticket():
-    """Crear un ticket desde una integración externa.
+    """Crear un ticket desde una integración externa, con subtareas (controls) y adjuntos.
 
     Auth: header 'X-Authorization: Bearer <TOKEN>' (o 'Authorization').
 
@@ -14834,19 +14834,39 @@ def api_v1_external_create_ticket():
         "category": "Software",                    (opcional, default: "General")
         "priority": "high",                        (opcional: low/medium/high/critical)
 
-        "applicantEmail": "juan@empresa.com",      (identifica al solicitante — usá esto O applicantId)
-        "applicantId": 15192,                      (alternativa: ID del user en DeskEli)
+        "applicantEmail": "juan@empresa.com",      (obligatorio — o applicantId)
+        "applicantId": 15192,
+        "authorId": 10376,
+        "assigneeEmail": "tecnico@empresa.com",
+        "assigneeId": 12,
+        "userArea": "Contabilidad",
+        "userLocation": "Piso 3",
+        "userPhone": "555-1234",
+        "externalRef": "SR-98765",
+        "listAdditionalField": [...],
 
-        "authorId": 10376,                         (opcional: quién crea; default = applicant)
-        "assigneeEmail": "tecnico@empresa.com",    (opcional: técnico asignado)
-        "assigneeId": 12,                          (opcional)
+        // Subtareas (aka "controls" para compatibilidad con la plataforma origen).
+        // Cada una se crea como una Subtask del ticket padre.
+        "subtasks": [
+            {
+                "title": "Control 1: Validar backups",  (obligatorio)
+                "description": "Detalle del control",    (opcional)
+                "priority": "medium",                    (opcional, hereda del padre)
+                "category": "SAP",                       (opcional)
+                "assigneeEmail": "tec@empresa.com"       (opcional, técnico asignado)
+            }
+        ],
+        // Alias aceptado: "controls" (para compat con Aranda/otras plataformas)
 
-        "userArea": "Contabilidad",                (opcional)
-        "userLocation": "Piso 3",                  (opcional)
-        "userPhone": "555-1234",                   (opcional)
-
-        "externalRef": "SR-98765",                 (opcional: ID del ticket en el sistema origen)
-        "listAdditionalField": [...]               (compat con Aranda; se guarda en description como metadata)
+        // Adjuntos codificados en base64. Van al ticket, subtareas, o ambos.
+        "attachments": [
+            {
+                "filename": "acta_aprobada.pdf",         (obligatorio)
+                "content_base64": "JVBERi0xLjMK...",     (obligatorio, bytes en base64)
+                "mime": "application/pdf",               (opcional, se infiere)
+                "attach_to": "both"                      (opcional: "ticket" | "subtasks" | "both", default "both")
+            }
+        ]
     }
 
     Respuesta 201:
@@ -14854,7 +14874,15 @@ def api_v1_external_create_ticket():
         "success": true,
         "id": 42,
         "ticket_number": "TKT-ELIOT-00042",
-        "url": "https://deskeli.eliotproyectos.tech/technician/ticket/42"
+        "url": "https://.../technician/ticket/42",
+        "subtasks": [
+            {"id": 12, "subtask_number": "TKT-ELIOT-00042-S01", "title": "Control 1"},
+            ...
+        ],
+        "attachments": {
+            "ticket": 1,       // cantidad guardada en el ticket padre
+            "subtasks": 3      // cantidad de registros en subtareas
+        }
     }
     """
     api_key, err = _validate_api_key()
@@ -14971,6 +14999,143 @@ def api_v1_external_create_ticket():
                   f'Ticket #{ticket.ticket_number} creado por API key "{api_key.name}" desde {request.remote_addr}. '
                   f'Solicitante: {applicant.email}. Ref externa: {external_ref or "N/A"}.')
 
+        # ─── SUBTAREAS (alias "controls") ─────────────────────────────
+        subtasks_raw = data.get('subtasks') or data.get('controls') or []
+        subtasks_created = []
+        if isinstance(subtasks_raw, list):
+            for idx, st_data in enumerate(subtasks_raw[:50]):  # límite 50 por seguridad
+                if not isinstance(st_data, dict):
+                    continue
+                st_title = (st_data.get('title') or st_data.get('name') or '').strip()
+                if not st_title:
+                    continue
+                st_desc = sanitize_html((st_data.get('description') or '').strip()) if 'sanitize_html' in globals() else (st_data.get('description') or '').strip()
+                st_priority = (st_data.get('priority') or priority).lower().strip()
+                if st_priority not in ('low', 'medium', 'high', 'critical'):
+                    st_priority = priority
+                st_category = (st_data.get('category') or category).strip()[:100]
+                # Asignatario opcional de la subtarea
+                st_assignee = None
+                st_ass_email = (st_data.get('assigneeEmail') or st_data.get('assignee_email') or '').strip().lower()
+                if st_ass_email:
+                    st_assignee = User.query.filter(
+                        db.func.lower(User.email) == st_ass_email,
+                        User.company == api_key.company,
+                        User.role.in_(['technician', 'admin'])
+                    ).first()
+                # Fallback: assignee del padre
+                if not st_assignee:
+                    st_assignee = assignee
+                # Número de subtarea: TKT-XXX-SNN
+                st_num = f'{ticket.ticket_number}-S{(idx+1):02d}'
+                sla_min = sla_map.get(st_priority, 480)
+                st = Subtask(
+                    ticket_id=ticket.id,
+                    subtask_number=st_num,
+                    title=st_title[:255],
+                    description=st_desc or None,
+                    category=st_category,
+                    status='open',
+                    priority=st_priority,
+                    sla_minutes=sla_min,
+                    sla_deadline=datetime.now() + timedelta(minutes=sla_min),
+                    assignee_id=st_assignee.id if st_assignee else None,
+                    created_by_id=author.id,
+                    order_idx=idx,
+                )
+                db.session.add(st)
+                subtasks_created.append(st)
+            if subtasks_created:
+                db.session.commit()
+                log_audit('api_subtasks_created', author.id if author else None, 'ticket', ticket.id,
+                          f'{len(subtasks_created)} subtareas creadas via API para ticket {ticket.ticket_number}')
+
+        # ─── ADJUNTOS (base64) ────────────────────────────────────────
+        import base64 as _b64
+        from werkzeug.utils import secure_filename as _sec
+        attachments_raw = data.get('attachments') or []
+        att_ticket_count = 0
+        att_subtask_count = 0
+        # Directorio destino
+        ticket_upload_dir = app.config.get('TICKET_UPLOAD_FOLDER', 'uploads/tickets')
+        subtask_upload_dir = app.config.get('UPLOAD_FOLDER', 'uploads/subtasks')
+        os.makedirs(ticket_upload_dir, exist_ok=True)
+        os.makedirs(subtask_upload_dir, exist_ok=True)
+
+        if isinstance(attachments_raw, list):
+            for att_data in attachments_raw[:20]:  # límite 20 por request
+                if not isinstance(att_data, dict):
+                    continue
+                filename = (att_data.get('filename') or 'archivo').strip()[:255]
+                b64_content = att_data.get('content_base64') or att_data.get('content') or ''
+                mime = (att_data.get('mime') or att_data.get('mime_type') or '').strip()[:120] or 'application/octet-stream'
+                attach_to = (att_data.get('attach_to') or 'both').lower().strip()
+                if attach_to not in ('ticket', 'subtasks', 'both'):
+                    attach_to = 'both'
+                if not b64_content:
+                    continue
+                # Chequeo permitido
+                if '_allowed_attachment' in globals() and not _allowed_attachment(filename):
+                    continue
+                # Decodificar
+                try:
+                    raw_bytes = _b64.b64decode(b64_content, validate=False)
+                except Exception:
+                    continue
+                if len(raw_bytes) > 50 * 1024 * 1024:  # 50 MB cap
+                    continue
+
+                # Guardar 1 sola vez en disco (para eficiencia)
+                safe = _sec(filename) or 'archivo'
+                ext = safe.rsplit('.', 1)[1].lower() if '.' in safe else ''
+                stored = f"{uuid.uuid4().hex}.{ext}" if ext else uuid.uuid4().hex
+
+                # Guardar en la carpeta de ticket attachments; ambas rutas de descarga apuntan al mismo archivo
+                target_path = os.path.join(ticket_upload_dir, stored)
+                with open(target_path, 'wb') as fh:
+                    fh.write(raw_bytes)
+
+                size = len(raw_bytes)
+
+                # Registro en TicketAttachment
+                if attach_to in ('ticket', 'both'):
+                    db.session.add(TicketAttachment(
+                        ticket_id=ticket.id,
+                        original_name=filename,
+                        stored_name=stored,
+                        mime_type=mime,
+                        size_bytes=size,
+                        uploaded_by_id=author.id,
+                    ))
+                    att_ticket_count += 1
+
+                # Registro en cada Subtask (SubtaskAttachment)
+                if attach_to in ('subtasks', 'both') and subtasks_created:
+                    # Duplicar archivo físico en la carpeta de subtasks para que api_subtask_attachment_download lo encuentre
+                    subtask_stored = stored  # reuso el mismo nombre
+                    subtask_path = os.path.join(subtask_upload_dir, subtask_stored)
+                    if not os.path.exists(subtask_path):
+                        try:
+                            import shutil as _sh
+                            _sh.copyfile(target_path, subtask_path)
+                        except Exception:
+                            pass
+                    for st in subtasks_created:
+                        db.session.add(SubtaskAttachment(
+                            subtask_id=st.id,
+                            original_name=filename,
+                            stored_name=subtask_stored,
+                            mime_type=mime,
+                            size_bytes=size,
+                            uploaded_by_id=author.id,
+                        ))
+                        att_subtask_count += 1
+
+            if att_ticket_count or att_subtask_count:
+                db.session.commit()
+                log_audit('api_attachments_saved', author.id if author else None, 'ticket', ticket.id,
+                          f'API adjuntos: {att_ticket_count} en ticket, {att_subtask_count} en subtareas ({ticket.ticket_number})')
+
         # Emitir websocket a los técnicos de la empresa
         try:
             socketio.emit('ticket_created', {
@@ -14980,6 +15145,7 @@ def api_v1_external_create_ticket():
                 'priority': ticket.priority,
                 'company': ticket.company,
                 'source': 'api_external',
+                'subtasks_count': len(subtasks_created),
             }, room=f'company_{api_key.company}')
         except Exception:
             pass
@@ -14993,6 +15159,17 @@ def api_v1_external_create_ticket():
             'status': ticket.status,
             'created_at': ticket.created_at.isoformat(timespec='seconds'),
             'sla_deadline': ticket.sla_deadline.isoformat(timespec='seconds') if ticket.sla_deadline else None,
+            'subtasks': [{
+                'id': st.id,
+                'subtask_number': st.subtask_number,
+                'title': st.title,
+                'priority': st.priority,
+                'assignee_id': st.assignee_id,
+            } for st in subtasks_created],
+            'attachments': {
+                'ticket': att_ticket_count,
+                'subtasks': att_subtask_count,
+            },
         }), 201
     except Exception as e:
         db.session.rollback()

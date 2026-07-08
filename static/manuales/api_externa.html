@@ -132,6 +132,31 @@ X-Authorization: Bearer dsk_t_TU_TOKEN</pre>
   <span class="s">"listAdditionalField"</span>: [
     {<span class="s">"name"</span>: <span class="s">"Ubicación"</span>, <span class="s">"stringValue"</span>: <span class="s">"ELIOT"</span>},
     {<span class="s">"name"</span>: <span class="s">"USUARIO AD"</span>, <span class="s">"boolValue"</span>: <span class="k">true</span>}
+  ],
+
+  <span class="c">// NUEVO: Subtareas (alias "controls" tambien acepta)</span>
+  <span class="s">"subtasks"</span>: [
+    {
+      <span class="s">"title"</span>: <span class="s">"Control 1: Validar backups"</span>,
+      <span class="s">"description"</span>: <span class="s">"Verificar que los backups del ultimo mes esten OK"</span>,
+      <span class="s">"priority"</span>: <span class="s">"medium"</span>,
+      <span class="s">"category"</span>: <span class="s">"SAP"</span>,
+      <span class="s">"assigneeEmail"</span>: <span class="s">"tec@patprimo.com.co"</span>
+    },
+    {
+      <span class="s">"title"</span>: <span class="s">"Control 2: Revisar accesos"</span>,
+      <span class="s">"description"</span>: <span class="s">"Auditar accesos privilegiados"</span>
+    }
+  ],
+
+  <span class="c">// NUEVO: Adjuntos en base64. Van al ticket, subtareas o ambos.</span>
+  <span class="s">"attachments"</span>: [
+    {
+      <span class="s">"filename"</span>: <span class="s">"acta_aprobada.pdf"</span>,
+      <span class="s">"content_base64"</span>: <span class="s">"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjQg..."</span>,
+      <span class="s">"mime"</span>: <span class="s">"application/pdf"</span>,
+      <span class="s">"attach_to"</span>: <span class="s">"both"</span>
+    }
   ]
 }</pre>
 
@@ -149,8 +174,27 @@ X-Authorization: Bearer dsk_t_TU_TOKEN</pre>
         <tr><td><code>userArea</code>, <code>userLocation</code>, <code>userPhone</code></td><td>string</td><td>—</td><td>Contacto del solicitante</td></tr>
         <tr><td><code>externalRef</code></td><td>string</td><td>—</td><td>ID del ticket en el sistema origen (se anexa a la descripción)</td></tr>
         <tr><td><code>listAdditionalField</code></td><td>array</td><td>—</td><td>Campos personalizados (compat Aranda); se anexan a la descripción</td></tr>
+        <tr><td><code>subtasks</code> (o <code>controls</code>)</td><td>array</td><td>—</td><td>Subtareas del ticket. Cada una crea un Subtask con <code>title</code>, <code>description</code>, <code>priority</code>, <code>category</code>, <code>assigneeEmail</code>. Máximo 50 por request.</td></tr>
+        <tr><td><code>attachments</code></td><td>array</td><td>—</td><td>Adjuntos en base64. Cada uno: <code>filename</code>, <code>content_base64</code>, <code>mime</code>, <code>attach_to</code> (<code>"ticket"</code> / <code>"subtasks"</code> / <code>"both"</code>). Máximo 20 archivos, 50 MB c/u.</td></tr>
     </tbody>
 </table>
+
+<h3>Adjuntos: cómo funciona <code>attach_to</code></h3>
+<table>
+    <thead><tr><th>Valor</th><th>Comportamiento</th></tr></thead>
+    <tbody>
+        <tr><td><code>"ticket"</code></td><td>Solo se adjunta al ticket padre.</td></tr>
+        <tr><td><code>"subtasks"</code></td><td>Solo se adjunta a cada subtarea creada en el mismo request.</td></tr>
+        <tr><td><code>"both"</code> (default)</td><td>Se adjunta al ticket padre Y a todas las subtareas. Típico para el acta aprobada que aplica a todos los controles.</td></tr>
+    </tbody>
+</table>
+
+<div class="callout callout-info">
+    <strong>ℹ️ Notas de adjuntos</strong>
+    El archivo físico se guarda una sola vez en disco aunque se referencie desde múltiples registros (ticket + N subtareas), para no duplicar espacio.
+    Los formatos permitidos son los mismos que la UI: PDF, Office, imágenes, txt, log, csv, zip. Máximo 50 MB por archivo.
+    Se aplica compresión automática si es imagen (JPEG quality 85, resize a 1920px).
+</div>
 
 <p><strong>Respuesta 201 (éxito):</strong></p>
 <pre>{
@@ -233,6 +277,64 @@ response = requests.post(url, headers=headers, json=payload)
     <span class="k">print</span>(<span class="s">f"   URL: {data['url']}"</span>)
 <span class="k">else</span>:
     <span class="k">print</span>(<span class="s">f"❌ Error {response.status_code}: {response.json()}"</span>)</pre>
+
+<h3>Python: Ticket con subtareas (controles) + acta PDF</h3>
+<p>Caso típico del proveedor de auditoría: envía un documento con múltiples controles y adjunta el PDF del acta aprobada.</p>
+<pre><span class="k">import</span> requests, base64
+
+url = <span class="s">"https://deskeli.eliotproyectos.tech/api/v1/external/tickets"</span>
+token = <span class="s">"dsk_t_XXXXXXXXXXXXXXXXXXXXXXXXX"</span>
+headers = {<span class="s">"Content-Type"</span>: <span class="s">"application/json"</span>, <span class="s">"X-Authorization"</span>: <span class="s">f"Bearer {token}"</span>}
+
+<span class="c"># Leer el PDF del acta aprobada y codificarlo en base64</span>
+<span class="k">with</span> open(<span class="s">"acta_aprobada.pdf"</span>, <span class="s">"rb"</span>) <span class="k">as</span> f:
+    pdf_b64 = base64.b64encode(f.read()).decode(<span class="s">"ascii"</span>)
+
+payload = {
+    <span class="s">"subject"</span>: <span class="s">"Auditoría trimestral Q1 2026"</span>,
+    <span class="s">"description"</span>: <span class="s">"Ejecución de controles de auditoría según acta aprobada."</span>,
+    <span class="s">"category"</span>: <span class="s">"Auditoría"</span>,
+    <span class="s">"priority"</span>: <span class="s">"high"</span>,
+    <span class="s">"applicantEmail"</span>: <span class="s">"auditoria@patprimo.com.co"</span>,
+    <span class="s">"externalRef"</span>: <span class="s">"AUD-Q1-2026-001"</span>,
+
+    <span class="c"># Cada "control" del documento del proveedor = 1 subtarea</span>
+    <span class="s">"subtasks"</span>: [
+        {<span class="s">"title"</span>: <span class="s">"Control 1: Validar backups últimos 30 días"</span>,
+         <span class="s">"description"</span>: <span class="s">"Verificar retención y restauración"</span>,
+         <span class="s">"assigneeEmail"</span>: <span class="s">"basis@patprimo.com.co"</span>},
+
+        {<span class="s">"title"</span>: <span class="s">"Control 2: Revisar accesos privilegiados"</span>,
+         <span class="s">"description"</span>: <span class="s">"Listar usuarios SAP_ALL y motivo"</span>,
+         <span class="s">"category"</span>: <span class="s">"SAP"</span>,
+         <span class="s">"priority"</span>: <span class="s">"critical"</span>},
+
+        {<span class="s">"title"</span>: <span class="s">"Control 3: Auditar cambios en producción"</span>,
+         <span class="s">"description"</span>: <span class="s">"Log de transportes últimos 90 días"</span>},
+    ],
+
+    <span class="c"># El acta aprobada va al ticket padre Y a cada subtarea</span>
+    <span class="s">"attachments"</span>: [
+        {
+            <span class="s">"filename"</span>: <span class="s">"acta_aprobada_Q1_2026.pdf"</span>,
+            <span class="s">"content_base64"</span>: pdf_b64,
+            <span class="s">"mime"</span>: <span class="s">"application/pdf"</span>,
+            <span class="s">"attach_to"</span>: <span class="s">"both"</span>   <span class="c"># ← ticket padre + todas las subtareas</span>
+        }
+    ]
+}
+
+r = requests.post(url, headers=headers, json=payload)
+data = r.json()
+<span class="k">if</span> r.status_code == 201:
+    <span class="k">print</span>(<span class="s">f"✓ Ticket {data['ticket_number']} creado (id={data['id']})"</span>)
+    <span class="k">print</span>(<span class="s">f"  Subtareas: {len(data['subtasks'])}"</span>)
+    <span class="k">for</span> st <span class="k">in</span> data[<span class="s">"subtasks"</span>]:
+        <span class="k">print</span>(<span class="s">f"    - {st['subtask_number']}: {st['title']}"</span>)
+    <span class="k">print</span>(<span class="s">f"  Adjuntos: {data['attachments']['ticket']} en ticket, {data['attachments']['subtasks']} en subtareas"</span>)
+    <span class="k">print</span>(<span class="s">f"  URL: {data['url']}"</span>)
+<span class="k">else</span>:
+    <span class="k">print</span>(<span class="s">f"❌ Error {r.status_code}: {data}"</span>)</pre>
 
 <h3>cURL</h3>
 <pre>curl -X POST https://deskeli.eliotproyectos.tech/api/v1/external/tickets \
