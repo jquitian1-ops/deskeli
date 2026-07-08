@@ -2597,7 +2597,8 @@ def admin_config():
                            current_theme=theme_name,
                            tickets_count=tickets_count,
                            escalations_count=escalations_count,
-                           company_name=company_name)
+                           company_name=company_name,
+                           is_master=is_master_admin())
 
 
 @app.route('/admin/config-old')
@@ -2617,7 +2618,8 @@ def admin_config_old():
     return render_template('admin/config.html',
                            sla_config=sla_config,
                            themes=THEMES,
-                           current_theme=theme_name)
+                           current_theme=theme_name,
+                           is_master=is_master_admin())
 
 @app.route('/admin/orchestrator')
 def admin_orchestrator():
@@ -4150,9 +4152,13 @@ def _get_db_server_version():
 
 @app.route('/api/config/database', methods=['GET', 'POST'])
 def api_config_database():
-    """GET: retorna config actual de BD. POST: guarda nueva configuración"""
+    """GET: retorna config actual de BD. POST: guarda nueva configuración.
+    Restringido a admin master (Manufactureras Eliot) — Pash y Primatela
+    NO pueden ver/cambiar la BD porque es una config global del sistema."""
     if 'user_id' not in session or session['role'] != 'admin':
         return jsonify({'success': False}), 401
+    if not is_master_admin():
+        return jsonify({'success': False, 'error': 'Solo el admin master (Manufactureras Eliot) puede gestionar la BD del sistema'}), 403
 
     if request.method == 'GET':
         # Retornar configuración REAL basada en el engine activo, no el env var.
@@ -4232,9 +4238,11 @@ def api_config_database():
 
 @app.route('/api/config/database/test', methods=['GET'])
 def api_config_database_test():
-    """Prueba la conexión a la BD configurada"""
+    """Prueba la conexión a la BD configurada. Solo master admin."""
     if 'user_id' not in session or session['role'] != 'admin':
         return jsonify({'success': False}), 401
+    if not is_master_admin():
+        return jsonify({'success': False, 'error': 'Solo el admin master puede testear la BD'}), 403
 
     import time
     start = time.time()

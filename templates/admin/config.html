@@ -274,7 +274,9 @@
                 <a href="#sec-ia" class="sidebar-item" onclick="scrollToSection('sec-ia')">✦ IA Perfiles</a>
                 <a href="#sec-sla" class="sidebar-item" onclick="scrollToSection('sec-sla')">⏱️ SLA</a>
                 <a href="#sec-correo" class="sidebar-item" onclick="scrollToSection('sec-correo')">📧 Correo</a>
+                {% if is_master %}
                 <a href="#sec-datos" class="sidebar-item" onclick="scrollToSection('sec-datos')">🗄️ Datos</a>
+                {% endif %}
                 <a href="#sec-plantillas" class="sidebar-item" onclick="scrollToSection('sec-plantillas')">📋 Plantillas</a>
                 <a href="#sec-tags" class="sidebar-item" onclick="scrollToSection('sec-tags')">🏷️ Tags</a>
                 <a href="#sec-teams" class="sidebar-item" onclick="scrollToSection('sec-teams')">💬 Teams</a>
@@ -701,7 +703,8 @@
                     </div>
                 </div>
 
-                <!-- SECCION BASE DE DATOS -->
+                {% if is_master %}
+                <!-- SECCION BASE DE DATOS (solo master admin — Manufactureras Eliot) -->
                 <div class="config-section" id="sec-datos">
                     <div class="section-title">🗄️ Base de Datos</div>
                     <p style="color: #666; margin-bottom: 20px; font-size: 14px;">Configura dónde guardar los datos del sistema. Por defecto usa SQLite local.</p>
@@ -759,6 +762,7 @@
 
                     <div id="db-message" style="margin-top: 15px; padding: 12px; border-radius: 6px; display: none; font-weight: 500;" class="alert alert-success"></div>
                 </div>
+                {% endif %}
 
                 <!-- SECCIÓN LDAP/ACTIVE DIRECTORY -->
                 <div class="config-section" id="sec-ldap">

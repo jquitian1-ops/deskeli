@@ -480,7 +480,9 @@
                 <a class="config-tab" data-tab="correo"><span class="icon">✉</span>Correo</a>
                 <a class="config-tab" data-tab="mailboxes"><span class="icon">📥</span>Buzones</a>
                 <a class="config-tab" data-tab="reportes"><span class="icon">📨</span>Reportes Automáticos</a>
+                {% if is_master %}
                 <a class="config-tab" data-tab="datos"><span class="icon">⚙</span>Datos</a>
+                {% endif %}
                 <a class="config-tab" data-tab="backup"><span class="icon">💾</span>Backup</a>
                 <a class="config-tab" data-tab="plantillas"><span class="icon">📋</span>Plantillas</a>
                 <a class="config-tab" data-tab="tags"><span class="icon">🌐</span>Tags</a>
@@ -1069,11 +1071,13 @@
                     </div>
                 </div>
 
-                <!-- =========== DATOS =========== -->
+                {% if is_master %}
+                <!-- =========== DATOS (solo master admin — Manufactureras Eliot) =========== -->
                 <div class="panel-content" id="panel-datos">
                     <h2 class="config-panel-title">🗄️ Base de Datos</h2>
                     <iframe data-src="/admin/config-old#sec-datos" class="config-iframe section-iframe" style="display:none;"></iframe>
                 </div>
+                {% endif %}
 
                 <!-- =========== BUZONES (Email → Ticket) =========== -->
                 <div class="panel-content" id="panel-mailboxes">
