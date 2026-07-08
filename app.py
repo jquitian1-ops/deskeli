@@ -15573,6 +15573,30 @@ def api_admin_guion_subtask_delete(subtask_id):
     return jsonify({'success': True})
 
 
+# ─── Reporte de apertura de DevTools desde el portal empleado (audit log) ───
+
+@app.route('/api/security/devtools-detected', methods=['POST'])
+def api_security_devtools_detected():
+    """Registra en audit log cuando el detector de DevTools del portal
+    empleado se dispara. Barrera cosmética — util para detectar patrones."""
+    if 'user_id' not in session:
+        return jsonify({'success': False}), 401
+    try:
+        data = request.get_json(silent=True) or {}
+        url = (data.get('url') or '')[:200]
+        ua = (data.get('ua') or '')[:255]
+        log_audit(
+            'devtools_detected',
+            session['user_id'],
+            'session',
+            session['user_id'],
+            f'DevTools abierto en portal empleado. URL={url}. UA={ua}'
+        )
+    except Exception:
+        pass
+    return jsonify({'success': True})
+
+
 # ─── Asignación de guiones a especialistas (M:N desde Gestión de Usuarios) ───
 
 @app.route('/api/admin/users/<int:user_id>/guiones', methods=['GET'])
