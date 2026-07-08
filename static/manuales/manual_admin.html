@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual del Administrador — DeskEli</title>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, sans-serif;
+        background: #f9fafb;
+        color: #1f2937;
+        line-height: 1.6;
+    }
+    :root {
+        --primary: #7c3aed;
+        --primary-dark: #5b21b6;
+        --primary-mid: #6d28d9;
+        --primary-light: #ede9fe;
+        --primary-lighter: #faf5ff;
+        --dark: #1f2937;
+        --text: #1f2937;
+        --text-muted: #6b7280;
+        --bg: #f9fafb;
+        --card-bg: #ffffff;
+        --border: #e5e7eb;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #3b82f6;
+    }
+
+    /* TOP BAR */
+    .topbar {
+        position: sticky; top: 0; z-index: 100;
+        background: linear-gradient(135deg, #1f2937, #7c3aed);
+        color: white;
+        padding: 14px 28px;
+        box-shadow: 0 4px 20px rgba(124,58,237,0.25);
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 14px; }
+    .topbar-logo {
+        width: 48px; height: 48px;
+        border-radius: 50%;
+        border: 2px solid #7c3aed !important;
+        background: transparent !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        object-fit: cover;
+        outline: none !important;
+    }
+    img[src*="eli.png"] { background: transparent !important; outline: none !important; }
+    .topbar h1 { font-size: 20px; font-weight: 800; letter-spacing: 0.3px; }
+    .topbar .subtitle { font-size: 12px; opacity: 0.9; }
+    .topbar-actions { display: flex; gap: 8px; align-items: center; }
+    .btn-action {
+        padding: 8px 14px; border: none; border-radius: 6px;
+        background: rgba(255,255,255,0.15); color: white;
+        font-size: 13px; font-weight: 600; cursor: pointer;
+        transition: all 0.2s; text-decoration: none;
+    }
+    .btn-action:hover { background: rgba(255,255,255,0.28); transform: translateY(-1px); }
+    .btn-primary { background: white; color: var(--primary-dark); }
+    .btn-primary:hover { background: var(--primary-lighter); }
+
+    /* LAYOUT */
+    .layout { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 64px); }
+
+    /* SIDEBAR */
+    .sidebar {
+        background: white;
+        border-right: 1px solid var(--border);
+        padding: 24px 18px;
+        position: sticky; top: 64px;
+        height: calc(100vh - 64px);
+        overflow-y: auto;
+    }
+    .sidebar h3 {
+        font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
+        color: var(--text-muted); margin: 14px 0 6px;
+    }
+    .sidebar a {
+        display: block;
+        padding: 9px 14px;
+        margin-bottom: 3px;
+        color: #374151;
+        text-decoration: none;
+        border-radius: 6px;
+        font-size: 13.5px;
+        transition: all 0.15s;
+        border-left: 3px solid transparent;
+    }
+    .sidebar a:hover { background: var(--primary-lighter); color: var(--primary); }
+    .sidebar a.active {
+        background: linear-gradient(135deg, var(--primary-light), #ddd6fe);
+        color: var(--primary-dark);
+        font-weight: 700;
+        border-left-color: var(--primary);
+    }
+
+    /* PROGRESS */
+    .progress {
+        position: sticky; top: 64px; z-index: 90;
+        height: 4px; background: #f3f4f6;
+    }
+    .progress-bar {
+        height: 100%; background: linear-gradient(90deg, var(--primary), var(--primary-mid));
+        transition: width 0.3s;
+        box-shadow: 0 0 12px rgba(124,58,237,0.5);
+    }
+
+    /* MAIN */
+    .main { padding: 40px 60px 80px; max-width: 1100px; }
+    .section { display: none; animation: fadeIn 0.4s ease; }
+    .section.active { display: block; }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    h2.section-title {
+        font-size: 34px; font-weight: 900; color: var(--dark);
+        margin-bottom: 8px;
+    }
+    h2.section-title .emoji { margin-right: 10px; }
+    .section-subtitle {
+        color: var(--text-muted);
+        font-size: 15px;
+        margin-bottom: 30px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+    }
+    h3 { color: var(--dark); margin: 24px 0 12px; font-size: 20px; }
+    h4 { color: var(--primary-dark); margin: 18px 0 8px; font-size: 16px; }
+    p { margin-bottom: 12px; color: #374151; font-size: 14.5px; }
+    ul, ol { margin: 10px 0 14px 20px; }
+    li { margin-bottom: 6px; color: #374151; font-size: 14.5px; }
+
+    /* HERO */
+    .hero {
+        background: linear-gradient(135deg, #faf5ff, #ede9fe);
+        border-radius: 14px;
+        padding: 40px;
+        text-align: center;
+        border: 1px solid var(--primary-light);
+        box-shadow: 0 4px 24px rgba(124,58,237,0.08);
+        margin-bottom: 30px;
+    }
+    .hero-logo {
+        display: block;
+        width: 130px; height: 130px;
+        margin: 0 auto 20px;
+        border-radius: 50%;
+        border: 4px solid var(--primary) !important;
+        background: transparent !important;
+        box-shadow: 0 8px 24px rgba(124,58,237,0.3);
+        object-fit: cover;
+        animation: heroFloat 3s ease-in-out infinite;
+        outline: none !important;
+    }
+    @keyframes heroFloat {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        50% { transform: translateY(-10px) rotate(-2deg); }
+    }
+    .hero h1 { font-size: 34px; color: var(--dark); margin-bottom: 10px; letter-spacing: -0.5px; }
+    .hero p { font-size: 16px; color: #4b5563; max-width: 620px; margin: 0 auto 8px; }
+
+    /* CARDS */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 20px 0; }
+    .card {
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px;
+        transition: all 0.2s;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .card:hover {
+        transform: translateY(-3px);
+        border-color: var(--primary);
+        box-shadow: 0 8px 20px rgba(124,58,237,0.12);
+    }
+    .card-icon { font-size: 32px; margin-bottom: 12px; }
+    .card h4 { color: var(--primary); margin: 0 0 8px; font-size: 15px; }
+    .card p { font-size: 13px; color: var(--text-muted); margin: 0; }
+
+    /* CALLOUTS */
+    .callout {
+        margin: 18px 0;
+        padding: 16px 20px;
+        border-radius: 8px;
+        border-left: 4px solid;
+        display: flex; gap: 12px;
+    }
+    .callout-icon { font-size: 24px; }
+    .callout-content { flex: 1; }
+    .callout-tip { background: #eff6ff; border-color: var(--info); }
+    .callout-tip .callout-title { color: #1d4ed8; }
+    .callout-warn { background: #fffbeb; border-color: var(--warning); }
+    .callout-warn .callout-title { color: #b45309; }
+    .callout-danger { background: #fef2f2; border-color: var(--danger); }
+    .callout-danger .callout-title { color: #b91c1c; }
+    .callout-success { background: #ecfdf5; border-color: var(--success); }
+    .callout-success .callout-title { color: #047857; }
+    .callout-title { font-weight: 700; margin-bottom: 4px; font-size: 14px; }
+    .callout p { color: #374151; font-size: 14px; margin: 0; }
+
+    /* TIMELINE */
+    .timeline {
+        position: relative;
+        margin: 24px 0;
+        padding-left: 30px;
+        border-left: 3px solid var(--primary);
+    }
+    .timeline-item { margin-bottom: 20px; position: relative; }
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -38px; top: 6px;
+        width: 14px; height: 14px;
+        background: var(--primary);
+        border-radius: 50%;
+        box-shadow: 0 0 0 4px rgba(124,58,237,0.2);
+    }
+    .timeline-item h4 { color: var(--primary); margin: 0 0 4px; }
+    .timeline-item p { margin: 0; font-size: 14px; color: #4b5563; }
+
+    /* CODE */
+    kbd {
+        display: inline-block;
+        padding: 3px 8px;
+        background: white;
+        border: 1px solid #d1d5db;
+        border-bottom-width: 2px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+        color: var(--primary-dark);
+        box-shadow: 0 1px 0 rgba(0,0,0,0.06);
+    }
+    code {
+        background: var(--primary-light);
+        color: var(--primary-dark);
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 13px;
+        font-family: 'Consolas', monospace;
+    }
+    pre {
+        background: #1f2937;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 16px;
+        overflow-x: auto;
+        margin: 12px 0;
+        font-family: 'Consolas', monospace;
+        font-size: 13px;
+        color: #a7f3d0;
+    }
+
+    /* MOCKUPS */
+    .mockup {
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px;
+        margin: 20px 0;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+    }
+    .mock-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 14px;
+    }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 10px 0 4px; }
+    .kpi-card {
+        background: linear-gradient(135deg, var(--primary-lighter), #ffffff);
+        border: 1px solid var(--primary-light);
+        border-radius: 8px;
+        padding: 14px;
+        text-align: center;
+    }
+    .kpi-value { font-size: 26px; font-weight: 800; color: var(--primary-dark); }
+    .kpi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+
+    /* TABLE */
+    table {
+        width: 100%; border-collapse: collapse; margin: 16px 0;
+        background: white;
+        border-radius: 8px; overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    th, td {
+        padding: 12px 16px; text-align: left;
+        border-bottom: 1px solid var(--border);
+        font-size: 14px;
+    }
+    th {
+        background: var(--primary-lighter);
+        font-weight: 700; color: var(--primary-dark);
+        font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--primary-lighter); }
+
+    /* BADGES */
+    .badge {
+        display: inline-block; padding: 3px 10px; border-radius: 4px;
+        font-size: 11px; font-weight: 700; text-transform: uppercase;
+    }
+    .badge-admin { background: #fbbf24; color: #78350f; }
+    .badge-tech { background: #3b82f6; color: white; }
+    .badge-emp { background: #6b7280; color: white; }
+    .badge-red { background: #fee2e2; color: #991b1b; }
+    .badge-green { background: #d1fae5; color: #065f46; }
+    .badge-yellow { background: #fef3c7; color: #92400e; }
+
+    /* FAQ */
+    .faq-item {
+        background: white;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        border: 1px solid var(--border);
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .faq-question {
+        padding: 14px 20px;
+        cursor: pointer;
+        font-weight: 700;
+        color: var(--dark);
+        display: flex; justify-content: space-between; align-items: center;
+        transition: background 0.2s;
+    }
+    .faq-question:hover { background: var(--primary-lighter); }
+    .faq-question::after { content: '+'; font-size: 22px; color: var(--primary); transition: transform 0.2s; }
+    .faq-item.open .faq-question::after { transform: rotate(45deg); }
+    .faq-answer { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; padding: 0 20px; }
+    .faq-item.open .faq-answer { max-height: 700px; padding: 0 20px 16px; }
+
+    /* QUIZ */
+    .quiz-question {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 16px;
+        border: 1px solid var(--border);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .quiz-question h4 { color: var(--dark); margin: 0 0 12px; }
+    .quiz-option {
+        display: block; width: 100%; text-align: left;
+        padding: 10px 14px; margin-bottom: 6px;
+        background: #f9fafb; border: 1px solid var(--border);
+        color: var(--dark);
+        border-radius: 6px; cursor: pointer;
+        transition: all 0.15s;
+        font-family: inherit;
+        font-size: 14px;
+    }
+    .quiz-option:hover { border-color: var(--primary); background: var(--primary-lighter); }
+    .quiz-option.correct { background: #d1fae5; border-color: var(--success); color: #065f46; }
+    .quiz-option.wrong { background: #fee2e2; border-color: var(--danger); color: #991b1b; }
+    .quiz-feedback {
+        margin-top: 10px; font-size: 13px; font-weight: 600;
+        padding: 10px; border-radius: 6px;
+        display: none;
+    }
+    .quiz-feedback.show { display: block; }
+
+    hr { border: none; height: 1px; background: var(--border); margin: 24px 0; }
+
+    @media print {
+        .topbar, .sidebar, .progress { display: none; }
+        .layout { grid-template-columns: 1fr; }
+        .section { display: block !important; page-break-before: always; }
+        body { background: white; color: black; }
+    }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+    <div class="topbar-left">
+        <img src="/static/eli.png" alt="Eli" class="topbar-logo" onerror="this.style.display='none'">
+        <div>
+            <h1>👑 Manual del Administrador</h1>
+            <div class="subtitle">DeskEli · Guía completa para configurar, operar y gobernar el sistema</div>
+        </div>
+    </div>
+    <div class="topbar-actions">
+        <button class="btn-action" onclick="window.print()">🖨 Imprimir</button>
+        <a class="btn-action btn-primary" href="/admin/dashboard">🚀 Volver al panel</a>
+    </div>
+</div>
+
+<div class="progress"><div class="progress-bar" id="progressBar" style="width:0%;"></div></div>
+
+<div class="layout">
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <h3>Inicio</h3>
+        <a href="#bienvenida" onclick="showSection('bienvenida')" class="active">🏁 Bienvenida</a>
+        <a href="#rol" onclick="showSection('rol')">🎯 Tu rol como admin</a>
+
+        <h3>Panel diario</h3>
+        <a href="#dashboard" onclick="showSection('dashboard')">📊 El dashboard</a>
+        <a href="#kanban" onclick="showSection('kanban')">🗂 Tablero Kanban</a>
+        <a href="#kpis" onclick="showSection('kpis')">📈 KPIs y reportes</a>
+        <a href="#buscar" onclick="showSection('buscar')">🔍 Buscar tickets (Ctrl+K)</a>
+
+        <h3>Gestión de usuarios</h3>
+        <a href="#usuarios" onclick="showSection('usuarios')">👥 Equipo y usuarios</a>
+        <a href="#roles" onclick="showSection('roles')">🎭 Roles y subroles</a>
+        <a href="#sesiones" onclick="showSection('sesiones')">🚪 Sesiones y expulsión</a>
+
+        <h3>Configuración</h3>
+        <a href="#empresas" onclick="showSection('empresas')">🏢 Empresas y multi-tenant</a>
+        <a href="#entra" onclick="showSection('entra')">🔐 Microsoft Entra ID</a>
+        <a href="#ldap" onclick="showSection('ldap')">🏛 LDAP / Active Directory</a>
+        <a href="#sla" onclick="showSection('sla')">⏱ SLA y prioridades</a>
+        <a href="#tags" onclick="showSection('tags')">🏷 Tags y categorías</a>
+        <a href="#plantillas" onclick="showSection('plantillas')">📋 Plantillas de ticket</a>
+        <a href="#temas" onclick="showSection('temas')">🎨 Temas visuales</a>
+
+        <h3>Automatización</h3>
+        <a href="#guiones" onclick="showSection('guiones')">📜 Guiones (subtareas)</a>
+        <a href="#asignacion" onclick="showSection('asignacion')">🎯 Asignación automática</a>
+        <a href="#bot" onclick="showSection('bot')">🤖 Bot de autoservicio</a>
+
+        <h3>Integraciones</h3>
+        <a href="#teams" onclick="showSection('teams')">💬 Microsoft Teams</a>
+        <a href="#smtp" onclick="showSection('smtp')">✉️ Correo / SMTP</a>
+        <a href="#apikeys" onclick="showSection('apikeys')">🔑 API Keys externas</a>
+        <a href="#servidores" onclick="showSection('servidores')">🖥 Monitoreo de servidores</a>
+
+        <h3>Datos &amp; seguridad</h3>
+        <a href="#backups" onclick="showSection('backups')">💾 Backups y retención</a>
+        <a href="#auditoria" onclick="showSection('auditoria')">📋 Logs y auditoría</a>
+        <a href="#seguridad" onclick="showSection('seguridad')">🛡 Seguridad y buenas prácticas</a>
+
+        <h3>Recursos</h3>
+        <a href="#operacion" onclick="showSection('operacion')">🔧 Operación diaria</a>
+        <a href="#faq" onclick="showSection('faq')">❓ FAQ</a>
+        <a href="#quiz" onclick="showSection('quiz')">🎓 Pon a prueba</a>
+    </nav>
+
+    <!-- MAIN -->
+    <main class="main">
+
+        <!-- BIENVENIDA -->
+        <section class="section active" id="sec-bienvenida">
+            <div class="hero">
+                <img src="/static/eli.png" alt="Eli" class="hero-logo" onerror="this.style.display='none'">
+                <h1>Bienvenido/a al panel de mando 👑</h1>
+                <p>Sos la persona que <strong>configura</strong>, <strong>vigila</strong> y <strong>escala</strong> DeskEli. Este manual te acompaña desde el primer login hasta las tareas más finas de administración.</p>
+                <p style="margin-top:14px;"><strong>Meta:</strong> que puedas responder cualquier pregunta operativa del sistema en menos de 30 segundos.</p>
+            </div>
+
+            <h3>¿Qué vas a poder hacer?</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">👥</div>
+                    <h4>Gobernar el equipo</h4>
+                    <p>Crear usuarios, asignar roles, gestionar subroles, expulsar sesiones y resetear contraseñas.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📜</div>
+                    <h4>Automatizar procesos</h4>
+                    <p>Crear guiones que la API externa dispara, plantillas de ticket, reglas de asignación por habilidad.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📊</div>
+                    <h4>Medir todo</h4>
+                    <p>Dashboards en vivo, KPIs de SLA, ranking de técnicos, reportes por empresa exportables a Excel.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔐</div>
+                    <h4>Blindar el sistema</h4>
+                    <p>Config Microsoft Entra ID / LDAP, JWT blacklist, backups cifrados, audit log de 12 meses.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">💡</div>
+                <div class="callout-content">
+                    <div class="callout-title">Cómo navegar este manual</div>
+                    <p>El sidebar de la izquierda tiene todas las secciones. Al final hay un <strong>quiz interactivo</strong> para autoevaluarte. Podés imprimir el manual entero desde el botón 🖨 en la parte superior.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ROL -->
+        <section class="section" id="sec-rol">
+            <h2 class="section-title"><span class="emoji">🎯</span>Tu rol como Administrador</h2>
+            <p class="section-subtitle">Qué se espera de vos, y qué NO te toca</p>
+
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">🏛</div>
+                    <h4>Custodio del sistema</h4>
+                    <p>Configurar, mantener y evolucionar DeskEli en las 3 empresas. Vos definís las reglas.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔍</div>
+                    <h4>Auditoría continua</h4>
+                    <p>Revisar logs, medir SLA, detectar cuellos de botella, escalar problemas al gerente.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🚫</div>
+                    <h4>Lo que NO</h4>
+                    <p>No resolvés tickets vos mismo (salvo excepción). No cambiás config sin dejar rastro en el log.</p>
+                </div>
+            </div>
+
+            <h3>Los 4 mandamientos del admin DeskEli</h3>
+            <ol>
+                <li><strong>Configurá desde la UI, nunca desde el código.</strong> Todo lo cambiable vive en el panel admin: SLA, plantillas, tags, LDAP, temas.</li>
+                <li><strong>Segregá por empresa siempre.</strong> Los datos de Pash no se mezclan con Eliot ni Primatela. Si vas a hacer una acción, pensá primero "¿qué empresa?".</li>
+                <li><strong>Auditá cada cambio.</strong> El sistema loguea automáticamente; nunca desactives el audit log.</li>
+                <li><strong>Escalá antes de romper.</strong> Cuando dudes, backup + prueba en staging. Nunca "toquetees" en producción sin plan B.</li>
+            </ol>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">⚠️</div>
+                <div class="callout-content">
+                    <div class="callout-title">Rol master vs. rol admin normal</div>
+                    <p>Existen dos niveles: <strong>Admin normal</strong> (ve/configura solo su empresa) y <strong>Admin master</strong> (ve las 3 empresas). El admin master es típicamente el usuario de Eliot y solo debería haber 1 o 2 personas con este rol.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- DASHBOARD -->
+        <section class="section" id="sec-dashboard">
+            <h2 class="section-title"><span class="emoji">📊</span>El Dashboard</h2>
+            <p class="section-subtitle">Tu vista de mando: qué está pasando en tiempo real</p>
+
+            <div class="mockup">
+                <div class="mock-header">
+                    <strong>Vista panel admin</strong>
+                    <span class="badge badge-admin">👑 ADMIN</span>
+                </div>
+                <div class="kpi-grid">
+                    <div class="kpi-card"><div class="kpi-value">48</div><div class="kpi-label">Abiertos</div></div>
+                    <div class="kpi-card"><div class="kpi-value">23</div><div class="kpi-label">En Progreso</div></div>
+                    <div class="kpi-card"><div class="kpi-value">5</div><div class="kpi-label">SLA Rojo</div></div>
+                    <div class="kpi-card"><div class="kpi-value">94%</div><div class="kpi-label">Cumplimiento</div></div>
+                    <div class="kpi-card"><div class="kpi-value">12</div><div class="kpi-label">Técnicos</div></div>
+                </div>
+            </div>
+
+            <h3>Los 5 bloques que tenés que revisar cada mañana</h3>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>1. KPIs superiores</h4>
+                    <p>Total abiertos, en progreso, resueltos hoy, cumplimiento SLA. Si algún número está fuera de rango, hay que actuar.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>2. Tickets en SLA rojo</h4>
+                    <p>Están al 100% o más del tiempo de resolución. <strong>Estos requieren tu atención inmediata</strong> — reasigná, escalá o involucrate.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>3. Carga por técnico</h4>
+                    <p>Ranking de tickets abiertos por persona. Si alguien tiene 15 y otros 3, hay que balancear.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>4. Tickets sin asignar</h4>
+                    <p>Cualquier ticket nuevo debería tener asignación automática. Si hay tickets "en cola", revisá reglas de asignación.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>5. Alertas del sistema</h4>
+                    <p>Servidores caídos, backup fallido, watchdog reiniciando, errores LDAP. Sección inferior del dashboard.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">💡</div>
+                <div class="callout-content">
+                    <div class="callout-title">Actualización en tiempo real</div>
+                    <p>El dashboard se actualiza vía WebSocket. Los cambios aparecen en <strong>menos de 3 segundos</strong> sin refrescar la página. Si algo no se actualiza, revisá la conexión WebSocket (F12 → Network).</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- KANBAN -->
+        <section class="section" id="sec-kanban">
+            <h2 class="section-title"><span class="emoji">🗂</span>Tablero Kanban</h2>
+            <p class="section-subtitle">Ver todos los tickets como tarjetas en columnas por estado</p>
+
+            <p>El Kanban muestra los tickets como tarjetas en 4 columnas: <strong>Abierto → En Progreso → Esperando Usuario → Resuelto</strong>.</p>
+
+            <h3>Qué podés hacer desde el Kanban</h3>
+            <ul>
+                <li><strong>Arrastrar tarjetas</strong> entre columnas para cambiar estado (con auditoría).</li>
+                <li><strong>Filtrar por empresa</strong> (solo master admin ve todas).</li>
+                <li><strong>Filtrar por técnico</strong> para ver la carga de una persona específica.</li>
+                <li><strong>Filtrar por prioridad</strong> (crítica, alta, media, baja).</li>
+                <li><strong>Click en cualquier tarjeta</strong> → abre el detalle completo del ticket.</li>
+            </ul>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">🛑</div>
+                <div class="callout-content">
+                    <div class="callout-title">Cuidado al arrastrar</div>
+                    <p>Al mover una tarjeta a "Resuelto", el sistema pide una nota de resolución. Al moverla a "Esperando Usuario", pausa el SLA. Nunca uses el Kanban para "limpiar visualmente" — cada movimiento se audita.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- KPIS -->
+        <section class="section" id="sec-kpis">
+            <h2 class="section-title"><span class="emoji">📈</span>KPIs y Reportes</h2>
+            <p class="section-subtitle">Medir el pulso del área TI</p>
+
+            <h3>KPIs disponibles</h3>
+            <table>
+                <thead><tr><th>KPI</th><th>Qué mide</th><th>Meta</th></tr></thead>
+                <tbody>
+                    <tr><td>Cumplimiento SLA</td><td>% de tickets resueltos dentro del tiempo objetivo por prioridad</td><td>&gt; 90%</td></tr>
+                    <tr><td>Tiempo Medio Resolución (MTTR)</td><td>Promedio horas desde apertura hasta cierre</td><td>&lt; 8h (media)</td></tr>
+                    <tr><td>Primera respuesta</td><td>Minutos hasta que un técnico toma el ticket</td><td>&lt; 30 min</td></tr>
+                    <tr><td>Backlog</td><td>Tickets abiertos + en progreso</td><td>&lt; 100 por empresa</td></tr>
+                    <tr><td>Reapertura</td><td>% tickets resueltos que se reabren</td><td>&lt; 5%</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Reportes exportables</h3>
+            <ul>
+                <li>Reporte semanal por empresa (Excel).</li>
+                <li>Ranking mensual de técnicos (Excel).</li>
+                <li>Detalle de tickets vencidos (Excel + PDF).</li>
+                <li>Distribución por categoría/tag (gráficos).</li>
+                <li>Resumen ejecutivo mensual (PDF con gráficos).</li>
+            </ul>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">📅</div>
+                <div class="callout-content">
+                    <div class="callout-title">Envío programado</div>
+                    <p>Los reportes ejecutivos se pueden programar para enviarse automáticamente por correo a destinatarios configurables (menú <strong>Config → Reportes → Destinatarios</strong>).</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- BUSCAR -->
+        <section class="section" id="sec-buscar">
+            <h2 class="section-title"><span class="emoji">🔍</span>Buscar Tickets (Ctrl+K)</h2>
+            <p class="section-subtitle">Búsqueda full-text en todo el sistema</p>
+
+            <p>Presioná <kbd>Ctrl</kbd> + <kbd>K</kbd> en cualquier pantalla del panel admin para abrir la búsqueda instantánea. Buscá por:</p>
+            <ul>
+                <li><strong>Número de ticket</strong> (ej. <code>TKT-2026-000123</code>)</li>
+                <li><strong>Título o descripción</strong> — full-text con SQLite FTS5</li>
+                <li><strong>Nombre/correo del creador</strong></li>
+                <li><strong>Contenido de comentarios</strong> (encuentra tickets aunque el término esté en un comentario)</li>
+            </ul>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">⚡</div>
+                <div class="callout-content">
+                    <div class="callout-title">Rendimiento</div>
+                    <p>La búsqueda responde en menos de 200ms incluso con 1 millón de tickets. Los resultados están filtrados por empresa automáticamente — nunca vas a ver tickets de otras empresas (excepto master).</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- USUARIOS -->
+        <section class="section" id="sec-usuarios">
+            <h2 class="section-title"><span class="emoji">👥</span>Gestión de Usuarios</h2>
+            <p class="section-subtitle">Crear, editar, activar/desactivar y gobernar el equipo</p>
+
+            <p>Andá a <strong>Config → Equipo</strong>. Vas a ver la lista completa de usuarios de tu empresa (o de las 3 si sos master).</p>
+
+            <h3>Acciones por usuario</h3>
+            <table>
+                <thead><tr><th>Botón</th><th>Acción</th><th>Uso típico</th></tr></thead>
+                <tbody>
+                    <tr><td>🎖️</td><td>Asignar subroles</td><td>Especializaciones (redes, hardware, SAP)</td></tr>
+                    <tr><td>📜</td><td>Asignar guiones</td><td>Marcar al técnico como responsable de guiones específicos</td></tr>
+                    <tr><td>🎭</td><td>Roles personalizados</td><td>Etiquetas visuales adicionales (jefatura, líder, etc.)</td></tr>
+                    <tr><td>✏️</td><td>Editar datos</td><td>Cambiar nombre, correo, rol base</td></tr>
+                    <tr><td>⏸ / ▶</td><td>Desactivar / Activar</td><td>Empleado que sale de la organización</td></tr>
+                    <tr><td>🚫</td><td>Expulsar sesión</td><td>Forzar logout inmediato (JWT blacklist)</td></tr>
+                    <tr><td>🔑</td><td>Reset contraseña</td><td>Al usuario le llega correo con nueva contraseña temporal</td></tr>
+                    <tr><td>🗑️</td><td>Eliminar</td><td>Solo si el usuario nunca creó tickets (sino desactivar)</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Crear un usuario nuevo</h3>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>1. Click en <strong>➕ Agregar Usuario</strong></h4>
+                    <p>Se abre el formulario en la parte superior.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>2. Completá los datos</h4>
+                    <p>Usuario (login), nombre completo, correo, rol (Empleado / Técnico / Admin). Si dejás la contraseña vacía, se usa <code>demo</code>.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>3. Guardar → primer login</h4>
+                    <p>El usuario debe cambiar la contraseña temporal en el primer ingreso (excepto SSO Microsoft).</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>4. Asignar subroles / guiones</h4>
+                    <p>Si es técnico, usá los botones 🎖️ y 📜 para especializarlo por área.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">🔒</div>
+                <div class="callout-content">
+                    <div class="callout-title">Segregación por empresa</div>
+                    <p>Un usuario pertenece a <strong>una única empresa</strong>. Si necesitás que alguien vea las 3 empresas (como <code>cat@patprimo.com.co</code>), tenés que crear un registro <strong>por empresa</strong> con rol admin. El sistema lo trata como usuarios separados que comparten correo.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ROLES -->
+        <section class="section" id="sec-roles">
+            <h2 class="section-title"><span class="emoji">🎭</span>Roles y Subroles</h2>
+            <p class="section-subtitle">Cómo se estructuran los permisos y las especializaciones</p>
+
+            <h3>Roles base (afectan permisos del sistema)</h3>
+            <table>
+                <thead><tr><th>Rol</th><th>Puede hacer</th><th>NO puede</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="badge badge-emp">👤 Empleado</span></td><td>Crear tickets, ver los suyos, chatear con técnicos</td><td>Ver tickets de otros, entrar al panel admin</td></tr>
+                    <tr><td><span class="badge badge-tech">🔧 Técnico</span></td><td>Ver cola, tomar tickets, resolver, crear subtareas, adjuntar</td><td>Cambiar config, ver logs, gestionar usuarios</td></tr>
+                    <tr><td><span class="badge badge-admin">👑 Admin</span></td><td>Todo lo anterior + config + logs + gestión de usuarios</td><td>Ver otras empresas (salvo master admin)</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Subroles (especializaciones — no cambian permisos)</h3>
+            <p>Los subroles son <strong>etiquetas de habilidad</strong> que ayudan al motor de asignación automática. Ejemplos: "SAP", "Redes", "Impresoras", "Hardware", "Base de datos".</p>
+            <p>Se crean en <strong>Config → Subroles</strong> y se asignan a los técnicos con el botón 🎖️ en Equipo.</p>
+
+            <h3>Roles personalizados (visuales)</h3>
+            <p>Etiquetas adicionales que aparecen como badges en la UI. Ej: "Líder Nivel 2", "Backup del jefe", "Analista Senior". No afectan permisos — son solo informativos. Se crean en <strong>Config → Roles Personalizados</strong>.</p>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">🎯</div>
+                <div class="callout-content">
+                    <div class="callout-title">Cuándo usar cada uno</div>
+                    <p><strong>Rol base:</strong> permisos del sistema (obligatorio, uno solo).<br><strong>Subroles:</strong> "para asignación automática por habilidad" (varios).<br><strong>Roles personalizados:</strong> "para que aparezca visualmente en la UI" (varios, con icono y color).</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- SESIONES -->
+        <section class="section" id="sec-sesiones">
+            <h2 class="section-title"><span class="emoji">🚪</span>Sesiones activas y expulsión</h2>
+            <p class="section-subtitle">Ver quién está conectado y forzar logout</p>
+
+            <p>Andá a <strong>Config → Seguridad → Sesiones activas</strong> (o desde el botón 🚫 en el listado de usuarios).</p>
+
+            <ul>
+                <li><strong>Ver quién está conectado</strong> ahora mismo (por empresa y tipo de portal).</li>
+                <li><strong>Expulsar</strong> a un usuario específico → su token JWT se agrega al blacklist inmediatamente (revocación &lt;1 seg).</li>
+                <li><strong>Timeout:</strong> las sesiones se cierran solas después de 15 min de inactividad, con aviso 60 seg antes.</li>
+            </ul>
+
+            <div class="callout callout-danger">
+                <div class="callout-icon">🚨</div>
+                <div class="callout-content">
+                    <div class="callout-title">Cuándo expulsar</div>
+                    <p>Si sospechás cuenta comprometida, empleado que fue despedido y aún tiene sesión abierta, o usuario que dejó sesión abierta en un PC público. La expulsión se audita — queda registrado quién expulsó a quién y cuándo.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- EMPRESAS -->
+        <section class="section" id="sec-empresas">
+            <h2 class="section-title"><span class="emoji">🏢</span>Empresas (Multi-tenant)</h2>
+            <p class="section-subtitle">Cómo se estructura la segregación entre las 3 empresas</p>
+
+            <p>DeskEli está diseñado para <strong>3 empresas separadas compartiendo el mismo servidor</strong>: Manufactureras Eliot, Pash y Primatela. Los datos de una empresa NUNCA se muestran a usuarios de otra.</p>
+
+            <h3>Cómo se enforza la segregación</h3>
+            <ul>
+                <li>Toda consulta a la BD filtra automáticamente por <code>company_id</code> del usuario autenticado.</li>
+                <li>Los WebSockets usan salas Socket.IO segregadas — solo recibís updates de tu empresa.</li>
+                <li>La búsqueda full-text (Ctrl+K) también filtra por empresa.</li>
+                <li>Los backups se hacen por empresa pero se comprimen en un único archivo.</li>
+            </ul>
+
+            <h3>Config por empresa</h3>
+            <p>Cada empresa tiene independiente:</p>
+            <table>
+                <tbody>
+                    <tr><td>🎨 Tema visual</td><td>Ícono, colores primario y secundario</td></tr>
+                    <tr><td>🔐 Autenticación</td><td>LDAP propio o Microsoft Entra ID propio (o ambos)</td></tr>
+                    <tr><td>✉️ SMTP</td><td>Servidor de correo propio si difiere del global</td></tr>
+                    <tr><td>⏱ SLA</td><td>Tiempos por prioridad configurables</td></tr>
+                    <tr><td>💬 Webhooks Teams</td><td>Canales por empresa</td></tr>
+                </tbody>
+            </table>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">👑</div>
+                <div class="callout-content">
+                    <div class="callout-title">Master admin</div>
+                    <p>El admin de la empresa Eliot (empresa "master") puede ver y configurar las 3 empresas. Los admins de Pash y Primatela solo pueden gestionar la suya. Es la única excepción a la segregación estricta.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ENTRA -->
+        <section class="section" id="sec-entra">
+            <h2 class="section-title"><span class="emoji">🔐</span>Microsoft Entra ID (Azure AD)</h2>
+            <p class="section-subtitle">SSO con OAuth 2.0 por empresa</p>
+
+            <p>Cada empresa configura su propio tenant de Azure AD. Los usuarios entran con su cuenta corporativa (@patprimo.com.co, @eliot.com.co, etc.) sin contraseña separada.</p>
+
+            <h3>Setup en Azure Portal</h3>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>1. Registrar la app</h4>
+                    <p>Azure Portal → Entra ID → App registrations → Nueva. Nombre: <code>DeskEli</code>. Cuentas: "Solo mi organización".</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>2. Redirect URI</h4>
+                    <p>Tipo <strong>Web</strong>. URL: <code>https://deskeli.eliotproyectos.tech/auth/microsoft/callback</code>.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>3. Permisos de API</h4>
+                    <p>Microsoft Graph → <code>User.Read</code>, <code>openid</code>, <code>profile</code>, <code>email</code> (delegated). Luego click "Conceder consentimiento de administrador".</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>4. Client secret</h4>
+                    <p>Certificados y secretos → Nuevo secreto de cliente. Copiá el <strong>Valor</strong> (no el "Id de secreto").</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>5. Configurar en DeskEli</h4>
+                    <p>Config → Empresas → editar la empresa → sección Microsoft Entra ID. Pegá Tenant ID, Client ID, Client Secret. Marcá "Habilitado". Guardar.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-danger">
+                <div class="callout-icon">🚫</div>
+                <div class="callout-content">
+                    <div class="callout-title">No confundir Tenant ID con Client ID</div>
+                    <p>El <strong>Tenant ID</strong> es el "Id de directorio (inquilino)" — identifica a la organización. El <strong>Client ID</strong> es el "Id de aplicación (cliente)" — identifica a la app DeskEli dentro del tenant. Confundirlos causa el error "Unable to get authority configuration".</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">📖</div>
+                <div class="callout-content">
+                    <div class="callout-title">Guía visual paso a paso</div>
+                    <p>Hay un manual dedicado con capturas en <a href="/static/manuales/microsoft_entra_setup.html" target="_blank"><strong>/static/manuales/microsoft_entra_setup.html</strong></a>.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- LDAP -->
+        <section class="section" id="sec-ldap">
+            <h2 class="section-title"><span class="emoji">🏛</span>LDAP / Active Directory</h2>
+            <p class="section-subtitle">Autenticación legacy — coexiste con Microsoft Entra ID</p>
+
+            <p>Si tu empresa aún no migró a Microsoft Entra, podés usar LDAP contra el AD on-premise.</p>
+
+            <h3>Campos a completar</h3>
+            <ul>
+                <li><strong>LDAP Server</strong>: <code>ldap://ad.tuempresa.local</code> o <code>ldaps://...</code> para SSL.</li>
+                <li><strong>Base DN</strong>: <code>DC=tuempresa,DC=local</code></li>
+                <li><strong>Bind User</strong>: cuenta de servicio con permiso de lectura (ej. <code>serviceaccount@tuempresa.local</code>).</li>
+                <li><strong>Bind Password</strong>: encriptada en BD con Fernet.</li>
+            </ul>
+
+            <p>Config en <strong>Config → Empresas → editar → LDAP</strong>. Click "Probar conexión" antes de guardar.</p>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">🔀</div>
+                <div class="callout-content">
+                    <div class="callout-title">Se puede usar LDAP y Entra al mismo tiempo</div>
+                    <p>El usuario elige en la pantalla de login. Cuentas nuevas empujadas a Entra; cuentas legacy siguen entrando por LDAP hasta migración total.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLA -->
+        <section class="section" id="sec-sla">
+            <h2 class="section-title"><span class="emoji">⏱</span>SLA y Prioridades</h2>
+            <p class="section-subtitle">Cómo configurar los tiempos de respuesta y resolución</p>
+
+            <p>Andá a <strong>Config → SLA</strong>. Podés definir tiempos por prioridad.</p>
+
+            <table>
+                <thead><tr><th>Prioridad</th><th>Respuesta objetivo</th><th>Resolución objetivo</th><th>Uso típico</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="badge badge-red">🔴 Crítica</span></td><td>15 min</td><td>2 horas</td><td>Sistema caído afectando &gt;50 usuarios</td></tr>
+                    <tr><td><span class="badge badge-yellow">🟠 Alta</span></td><td>30 min</td><td>4 horas</td><td>Bloquea a un usuario o proceso importante</td></tr>
+                    <tr><td><span class="badge badge-yellow">🟡 Media</span></td><td>2 horas</td><td>8 horas</td><td>Molesto pero tiene workaround</td></tr>
+                    <tr><td><span class="badge badge-green">🟢 Baja</span></td><td>4 horas</td><td>24 horas</td><td>Mejora, no urgente</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Escalación automática</h3>
+            <ul>
+                <li>Al <strong>50% del tiempo SLA</strong>: notificación al técnico asignado.</li>
+                <li>Al <strong>100% del tiempo SLA</strong>: notificación al líder + escalación a canal Teams.</li>
+                <li>Al <strong>200% del tiempo SLA</strong>: notificación al gerente + reporte diario.</li>
+            </ul>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">⏸</div>
+                <div class="callout-content">
+                    <div class="callout-title">Pausa del SLA</div>
+                    <p>Cuando un ticket pasa a estado <strong>"Esperando Usuario"</strong>, el cronómetro SLA se pausa. Al volver a "En Progreso", se reanuda. Esto evita penalizar al técnico por lentitud del usuario.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAGS -->
+        <section class="section" id="sec-tags">
+            <h2 class="section-title"><span class="emoji">🏷</span>Tags y Categorías</h2>
+            <p class="section-subtitle">Clasificar tickets para reporting y asignación</p>
+
+            <p>Las <strong>categorías</strong> son grupos amplios: <em>Software, Hardware, Redes, Impresoras, SAP, Accesos</em>. Las <strong>tags</strong> son más específicos: <em>bloqueo-usuario, contraseña-expirada, sap-lento</em>.</p>
+
+            <h3>Cómo se usan</h3>
+            <ul>
+                <li>El empleado elige categoría al crear el ticket (obligatorio).</li>
+                <li>El técnico puede agregar tags durante la resolución.</li>
+                <li>Las reglas de asignación automática se basan en categoría + subrol del técnico.</li>
+                <li>Los reportes agrupan por categoría/tag para detectar patrones.</li>
+            </ul>
+
+            <p>Config en <strong>Config → Tags</strong>. Cada tag tiene nombre + color.</p>
+        </section>
+
+        <!-- PLANTILLAS -->
+        <section class="section" id="sec-plantillas">
+            <h2 class="section-title"><span class="emoji">📋</span>Plantillas de Ticket</h2>
+            <p class="section-subtitle">Formularios preconfigurados para tipos comunes de problema</p>
+
+            <p>Vienen 8 plantillas pre-armadas: Software, Hardware, Impresora, Red, SAP, Accesos, Correo, Capacitación. Podés crear nuevas.</p>
+
+            <p>Cada plantilla tiene:</p>
+            <ul>
+                <li><strong>Título:</strong> texto sugerido</li>
+                <li><strong>Categoría default</strong></li>
+                <li><strong>Prioridad sugerida</strong></li>
+                <li><strong>Template de descripción</strong> con campos guiados (ej. "Impresora afectada: [Nombre/Modelo]")</li>
+            </ul>
+
+            <p>Config en <strong>Config → Plantillas</strong>.</p>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">💡</div>
+                <div class="callout-content">
+                    <div class="callout-title">Beneficio de plantillas</div>
+                    <p>Los empleados no dejan campos importantes en blanco — la plantilla los guía. Los técnicos reciben tickets con toda la info necesaria y no pierden tiempo pidiendo detalles.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- TEMAS -->
+        <section class="section" id="sec-temas">
+            <h2 class="section-title"><span class="emoji">🎨</span>Temas Visuales</h2>
+            <p class="section-subtitle">Personalizar apariencia por empresa</p>
+
+            <p>Cada empresa tiene su propio branding en el portal. Config en <strong>Config → Empresas → editar</strong>:</p>
+            <ul>
+                <li><strong>Ícono</strong>: emoji o URL de imagen (aparece en el header).</li>
+                <li><strong>Color primario</strong>: hex #RRGGBB (botones, badges).</li>
+                <li><strong>Color secundario</strong>: para gradientes y hovers.</li>
+            </ul>
+
+            <p>Hay 12 temas pre-armados que podés aplicar con un click. También podés subir un logo custom.</p>
+        </section>
+
+        <!-- GUIONES -->
+        <section class="section" id="sec-guiones">
+            <h2 class="section-title"><span class="emoji">📜</span>Guiones (plantillas de subtareas)</h2>
+            <p class="section-subtitle">Automatizar la creación de tickets vía API con estructura fija</p>
+
+            <p>Un <strong>guión</strong> es una plantilla de subtareas preconfigurada. Cuando un proveedor externo llama la API con un <code>guion_code</code>, DeskEli crea el ticket con todas las subtareas del guión ya armadas y asignadas a los técnicos correspondientes.</p>
+
+            <h3>Caso de uso típico</h3>
+            <p>Proveedor de auditoría manda mensualmente un documento con 10 controles a revisar. Antes de guiones, había que crear 10 subtareas a mano y decidir quién hace qué. Con guiones:</p>
+            <ol>
+                <li>El admin crea el guión <code>auditoria-mensual</code> con las 10 subtareas y sus especialistas.</li>
+                <li>El proveedor solo llama la API con <code>{"guion_code": "auditoria-mensual", "attachments": [...]}</code></li>
+                <li>DeskEli crea el ticket padre + 10 subtareas + adjunta el PDF a todas.</li>
+            </ol>
+
+            <h3>Cómo crear un guión</h3>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>1. Ir a Config → 📜 Guiones → ➕ Crear guión</h4>
+                    <p>Poné nombre, code único (ej. <code>auditoria-q1</code>), empresa, prioridad default y descripción.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>2. Agregar subtareas</h4>
+                    <p>Click en <strong>📋 Subtareas</strong> del guion. Por cada subtarea: título, descripción, categoría, prioridad, especialista asignado.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>3. Marcar especialistas responsables (opcional)</h4>
+                    <p>Config → Equipo → botón 📜 en el técnico → seleccioná los guiones que "domina". Cuando la API cree subtareas sin assignee fijo, DeskEli reparte entre estos técnicos por carga.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>4. Compartir el code con el proveedor</h4>
+                    <p>El proveedor solo necesita el <code>guion_code</code> y una API key activa. Todos los detalles quedan del lado admin.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-success">
+                <div class="callout-icon">✨</div>
+                <div class="callout-content">
+                    <div class="callout-title">Beneficio clave</div>
+                    <p>Si mañana cambia el técnico responsable de auditoría, lo cambiás en el guión y listo — el proveedor no se entera. Antes había que coordinar con el proveedor cada cambio.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ASIGNACION -->
+        <section class="section" id="sec-asignacion">
+            <h2 class="section-title"><span class="emoji">🎯</span>Asignación Automática</h2>
+            <p class="section-subtitle">Cómo el sistema decide qué técnico atiende qué ticket</p>
+
+            <p>Cuando un ticket llega (sin asignación manual), el motor aplica esta cascada:</p>
+
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>1. ¿Es API con guión?</h4>
+                    <p>Sí → usa los <code>assignee_id</code> definidos en las subtareas del guión.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>2. ¿Hay técnicos con subrol matcheando la categoría?</h4>
+                    <p>Sí → filtra por ese subrol. Ej: ticket "SAP" → técnicos con subrol "SAP".</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>3. Balanceo por carga</h4>
+                    <p>Entre los candidatos, elige al que tiene menos tickets activos.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>4. Fallback</h4>
+                    <p>Si nadie tiene el subrol específico, cualquier técnico activo de la empresa.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>5. Sin candidatos</h4>
+                    <p>Queda "Sin asignar" en la cola general. El admin lo asigna manualmente.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">🎓</div>
+                <div class="callout-content">
+                    <div class="callout-title">Para mejorar la asignación automática</div>
+                    <p>Asegurate de que <strong>todos los técnicos tengan subroles asignados</strong>. Cuantos más subroles, mejor matching por habilidad. Si notás muchos tickets "sin asignar", probablemente falten subroles.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- BOT -->
+        <section class="section" id="sec-bot">
+            <h2 class="section-title"><span class="emoji">🤖</span>Bot de Autoservicio</h2>
+            <p class="section-subtitle">Resolver problemas comunes antes de crear ticket</p>
+
+            <p>El bot (integrado con Anthropic Claude) intenta resolver problemas comunes con base de conocimiento pre-grabada. Cuando el empleado empieza a describir el problema, el bot sugiere:</p>
+            <ul>
+                <li>Artículos de KB relevantes.</li>
+                <li>Pasos de solución para problemas típicos (contraseña, VPN, impresora).</li>
+                <li>Si nada aplica → crear ticket normalmente.</li>
+            </ul>
+
+            <h3>Gestionar la base de conocimiento</h3>
+            <p>Config → <strong>Soluciones Bot</strong>. Podés:</p>
+            <ul>
+                <li>Importar KB desde JSON.</li>
+                <li>Editar respuestas manualmente.</li>
+                <li>Exportar para backup / compartir entre empresas.</li>
+            </ul>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">💰</div>
+                <div class="callout-content">
+                    <div class="callout-title">Control de costos</div>
+                    <p>Cada consulta al bot consume tokens de la API Claude. El sistema cachea respuestas y monitorea el uso. Si te acercás al límite mensual, activá el fallback (solo KB local, sin llamadas Claude).</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- TEAMS -->
+        <section class="section" id="sec-teams">
+            <h2 class="section-title"><span class="emoji">💬</span>Integración Microsoft Teams</h2>
+            <p class="section-subtitle">Notificaciones automáticas a canales</p>
+
+            <p>DeskEli envía mensajes a canales de Teams cuando ocurren eventos. Configuralo en <strong>Config → Teams</strong>:</p>
+
+            <h3>Eventos que se pueden notificar</h3>
+            <ul>
+                <li>Ticket creado (por prioridad).</li>
+                <li>SLA al 50% / 100% / 200%.</li>
+                <li>Ticket resuelto.</li>
+                <li>Servidor crítico caído.</li>
+                <li>Backup fallido.</li>
+                <li>Watchdog reinició el servicio.</li>
+            </ul>
+
+            <h3>Setup del webhook</h3>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>1. En Teams</h4>
+                    <p>Elegí el canal → ⋮ → Conectores → Webhook entrante → Nombre y foto → Copiar URL.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>2. En DeskEli</h4>
+                    <p>Config → Teams → Nuevo webhook → Pegar URL. Elegir qué eventos van a ese canal.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>3. Test</h4>
+                    <p>Click "Enviar prueba" → tiene que aparecer el mensaje en el canal.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- SMTP -->
+        <section class="section" id="sec-smtp">
+            <h2 class="section-title"><span class="emoji">✉️</span>Configuración SMTP (Correo)</h2>
+            <p class="section-subtitle">Para enviar notificaciones por correo</p>
+
+            <p>DeskEli manda correos para: notificar creador de ticket, avisar cambio de estado, escalación SLA, reset password, correos programados de reportes.</p>
+
+            <h3>Config global vs. por empresa</h3>
+            <p>Podés tener un SMTP global (en <code>.env</code>) que sirve a todas las empresas, o config específica por empresa (ej. Pash usa Office 365, Eliot usa Gmail Workspace).</p>
+
+            <p>Config por empresa en <strong>Config → Empresas → editar → SMTP</strong>. Campos:</p>
+            <ul>
+                <li>Host, puerto (587 TLS / 465 SSL).</li>
+                <li>Usuario y password (encriptada con Fernet).</li>
+                <li>Remitente (from).</li>
+                <li>Seguridad: TLS o SSL.</li>
+            </ul>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">📧</div>
+                <div class="callout-content">
+                    <div class="callout-title">Office 365 requiere SMTP autenticado habilitado</div>
+                    <p>Si usás Office 365 y el envío falla con auth error, entrá a Admin Center M365 → Usuarios → cuenta → Correo → Administrar aplicaciones de correo → marcar "SMTP autenticado".</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- APIKEYS -->
+        <section class="section" id="sec-apikeys">
+            <h2 class="section-title"><span class="emoji">🔑</span>API Keys Externas</h2>
+            <p class="section-subtitle">Permitir que sistemas externos creen tickets</p>
+
+            <p>Config → <strong>API Keys</strong>. Cada key tiene:</p>
+            <ul>
+                <li><strong>Nombre</strong>: identificador legible (ej. "Sistema Auditoría").</li>
+                <li><strong>Company</strong>: los tickets creados van a esta empresa.</li>
+                <li><strong>Token</strong>: formato <code>dsk_t_XXXXXXXX...</code> — se muestra <strong>una sola vez</strong> al crearla.</li>
+                <li><strong>Scopes</strong>: qué endpoints puede llamar (mínimo: <code>tickets:create</code>).</li>
+                <li><strong>Estado</strong>: activa / inactiva.</li>
+            </ul>
+
+            <h3>Cómo usarla</h3>
+            <p>El sistema externo llama a <code>POST /api/v1/external/tickets</code> con header:</p>
+            <pre>X-Authorization: Bearer dsk_t_XXXXXXXXXXXXXXXX</pre>
+
+            <p>Manual completo con ejemplos: <a href="/static/manuales/api_externa.html" target="_blank"><strong>/static/manuales/api_externa.html</strong></a>.</p>
+
+            <div class="callout callout-danger">
+                <div class="callout-icon">🔒</div>
+                <div class="callout-content">
+                    <div class="callout-title">Rotar tokens periódicamente</div>
+                    <p>Como buena práctica, rotá los tokens cada 6-12 meses o si sospechás filtración. Al desactivar/eliminar una key, el sistema externo debe recibir la nueva antes o va a fallar.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- SERVIDORES -->
+        <section class="section" id="sec-servidores">
+            <h2 class="section-title"><span class="emoji">🖥</span>Monitoreo de Servidores</h2>
+            <p class="section-subtitle">Ping automático a infraestructura crítica</p>
+
+            <p>DeskEli hace ping a servidores críticos (SAP PRD, AD, correo, servidor de archivos) cada 5 minutos. Si algo cae:</p>
+            <ul>
+                <li>Auto-crea un ticket crítico con la info del servidor.</li>
+                <li>Manda mensaje al canal Teams configurado.</li>
+                <li>Notifica al on-call.</li>
+                <li>Registra el evento en el system_log.</li>
+            </ul>
+
+            <p>Config en <strong>Config → Servidores monitoreados</strong>. Cada servidor tiene: nombre, IP/host, puerto, SLA de outage aceptable, técnicos on-call.</p>
+
+            <h3>Métricas por servidor</h3>
+            <ul>
+                <li><strong>Uptime %</strong> (últimas 24h, 7 días, 30 días).</li>
+                <li><strong>Tiempo de respuesta</strong> promedio del ping.</li>
+                <li><strong>Historial de caídas</strong> con duración.</li>
+            </ul>
+        </section>
+
+        <!-- BACKUPS -->
+        <section class="section" id="sec-backups">
+            <h2 class="section-title"><span class="emoji">💾</span>Backups y Retención</h2>
+            <p class="section-subtitle">Salvaguardar los datos del sistema</p>
+
+            <p>Backups automáticos diarios a las <strong>2 AM UTC</strong>. Formato: JSON.gz (comprimido, legible). Contenido: todas las tablas + metadata de esquema + timestamp.</p>
+
+            <h3>Retención</h3>
+            <ul>
+                <li><strong>30 copias diarias</strong> rolling (más viejas se eliminan automáticamente).</li>
+                <li><strong>Logs de auditoría</strong>: 12 meses (política de seguridad).</li>
+                <li><strong>Adjuntos</strong>: no vencen (a menos que se elimine el ticket).</li>
+            </ul>
+
+            <h3>Restaurar</h3>
+            <pre>python scripts/restore.py backups/snapshot_2026-05-28.json.gz</pre>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">🧪</div>
+                <div class="callout-content">
+                    <div class="callout-title">Test de restauración</div>
+                    <p>Cada trimestre, restaurá un backup a un ambiente staging. Si nunca lo probaste, el backup podría estar corrupto y no lo sabrías hasta un desastre real.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- AUDITORIA -->
+        <section class="section" id="sec-auditoria">
+            <h2 class="section-title"><span class="emoji">📋</span>Logs y Auditoría</h2>
+            <p class="section-subtitle">Rastreabilidad de todo lo que pasa en el sistema</p>
+
+            <p>Andá a <strong>Config → Logs de auditoría</strong>. Podés filtrar por nivel (INFO/WARN/ERROR/CRITICAL), fuente, fecha, usuario. Exportá a CSV/Excel.</p>
+
+            <h3>Eventos que se registran automáticamente</h3>
+            <table>
+                <thead><tr><th>Evento</th><th>Nivel</th><th>Info registrada</th></tr></thead>
+                <tbody>
+                    <tr><td>Login / Logout</td><td>INFO</td><td>Usuario, IP, éxito/fallo</td></tr>
+                    <tr><td>Crear/modificar/cerrar ticket</td><td>INFO</td><td>Diff estado viejo → nuevo</td></tr>
+                    <tr><td>Cambio de contraseña</td><td>INFO</td><td>Usuario, IP</td></tr>
+                    <tr><td>Expulsión de sesión</td><td>WARN</td><td>Quién expulsó a quién y por qué</td></tr>
+                    <tr><td>Cambio de config</td><td>INFO</td><td>Sección, campo, valores viejo/nuevo</td></tr>
+                    <tr><td>Fallo LDAP/Entra ID</td><td>WARN</td><td>Usuario, motivo del rechazo</td></tr>
+                    <tr><td>Escalación SLA</td><td>WARN</td><td>Ticket, % SLA, técnico</td></tr>
+                    <tr><td>Backup fallido</td><td>ERROR</td><td>Error message + stacktrace</td></tr>
+                    <tr><td>Watchdog reinició</td><td>ERROR</td><td>Motivo (timeout BD, etc.)</td></tr>
+                </tbody>
+            </table>
+
+            <div class="callout callout-danger">
+                <div class="callout-icon">📜</div>
+                <div class="callout-content">
+                    <div class="callout-title">No borrar logs manualmente</div>
+                    <p>Los logs son requisito de seguridad (12 meses de retención). El sistema los purga automáticamente pasado ese plazo. Borrarlos a mano rompe el compliance.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- SEGURIDAD -->
+        <section class="section" id="sec-seguridad">
+            <h2 class="section-title"><span class="emoji">🛡</span>Seguridad y Buenas Prácticas</h2>
+            <p class="section-subtitle">Blindar DeskEli</p>
+
+            <h3>Mecanismos activos por defecto</h3>
+            <ul>
+                <li><strong>Contraseñas:</strong> PBKDF2 con 100k iteraciones + salt por usuario.</li>
+                <li><strong>JWT blacklist:</strong> logout invalida token en &lt;1 segundo.</li>
+                <li><strong>Timeout sesión:</strong> 15 min inactividad → logout automático.</li>
+                <li><strong>Bloqueo tras 5 intentos:</strong> cuenta bloqueada 15 min tras 5 contraseñas incorrectas.</li>
+                <li><strong>CSRF:</strong> tokens en todos los formularios.</li>
+                <li><strong>Sanitización HTML:</strong> descripciones y comentarios pasan por bleach.</li>
+                <li><strong>SQL:</strong> queries parametrizadas exclusivamente — nunca concatenación.</li>
+                <li><strong>Fernet:</strong> secretos (LDAP pass, Client Secret Entra ID, SMTP pass) cifrados en BD.</li>
+            </ul>
+
+            <h3>Tu checklist mensual</h3>
+            <ol>
+                <li>Revisar usuarios inactivos y desactivarlos (o eliminar si no tienen tickets).</li>
+                <li>Verificar que los backups del mes se hayan completado (sin errores).</li>
+                <li>Rotar Client Secrets de Entra ID cada 6-12 meses.</li>
+                <li>Chequear el system_log por eventos CRITICAL.</li>
+                <li>Confirmar que los canales Teams están recibiendo alertas (envío de prueba).</li>
+                <li>Auditar sesiones activas — expulsar cualquier sesión sospechosa.</li>
+            </ol>
+
+            <div class="callout callout-danger">
+                <div class="callout-icon">🚨</div>
+                <div class="callout-content">
+                    <div class="callout-title">Si sospechás compromiso</div>
+                    <p>1) Expulsá todas las sesiones sospechosas. 2) Cambiá el Client Secret de Entra ID. 3) Reset contraseña forzada al usuario afectado. 4) Revisá el system_log de las últimas 24h. 5) Notificá al gerente TI.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- OPERACION -->
+        <section class="section" id="sec-operacion">
+            <h2 class="section-title"><span class="emoji">🔧</span>Operación Diaria</h2>
+            <p class="section-subtitle">Rutinas y comandos que vas a usar seguido</p>
+
+            <h3>Rutina diaria (5 min)</h3>
+            <ol>
+                <li>Revisar el dashboard: KPIs, tickets en rojo, alertas.</li>
+                <li>Chequear tickets sin asignar y balancear si es necesario.</li>
+                <li>Revisar sesiones activas si notás algo raro en el chat.</li>
+            </ol>
+
+            <h3>Rutina semanal (30 min)</h3>
+            <ol>
+                <li>Revisar reportes exportados (Excel).</li>
+                <li>Enviar resumen ejecutivo al gerente.</li>
+                <li>Ajustar SLA / plantillas / tags si detectás patrones nuevos.</li>
+                <li>Chequear que los backups de la semana estén OK.</li>
+            </ol>
+
+            <h3>Comandos útiles (Coolify terminal)</h3>
+            <pre>python scripts/backup.py                    # Backup manual
+python scripts/restore.py backups/xxx.json.gz   # Restaurar
+python scripts/init_db.py                    # Reinicializar esquema
+python -c "from app import app, db; ..."     # Consultas ad-hoc</pre>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">📞</div>
+                <div class="callout-content">
+                    <div class="callout-title">Cuándo llamar a IT/DevOps</div>
+                    <p>Si el sistema no responde y el watchdog no se recupera solo tras 3 reinicios, tenés que llamar. Si el backup falla 3 días seguidos, también. Los detalles están en <code>/api/health/logs?level=CRITICAL</code>.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- FAQ -->
+        <section class="section" id="sec-faq">
+            <h2 class="section-title"><span class="emoji">❓</span>Preguntas Frecuentes</h2>
+            <p class="section-subtitle">Las dudas más comunes de admins</p>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">¿Puedo hacer que un usuario sea admin en las 3 empresas?</div>
+                <div class="faq-answer"><p>Sí, pero tenés que crearlo como usuario separado en cada empresa (mismo correo, misma persona, 3 registros). El sistema los trata como usuarios independientes que comparten identidad. Solo el <strong>admin master</strong> de Eliot puede saltar la segregación de empresa.</p></div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">Un técnico está saturado. ¿Puedo reasignar sus tickets en masa?</div>
+                <div class="faq-answer"><p>Sí. En el listado de tickets filtrá por técnico, seleccioná varios (checkboxes), y usá "Acciones en lote → Reasignar". Elegí el nuevo asignado. Cada reasignación se audita.</p></div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">¿Cómo agrego una empresa nueva?</div>
+                <div class="faq-answer"><p>Config → Empresas → ➕ Nueva empresa. Poné nombre, código único (ej. <code>nuevaco</code>), ícono y colores. Después creá el primer usuario admin de esa empresa. Solo el admin master de Eliot puede crear empresas nuevas.</p></div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">¿Qué pasa si borro un usuario que creó tickets?</div>
+                <div class="faq-answer"><p>El sistema no te va a dejar (integridad referencial). En cambio, <strong>desactivalo</strong> con el botón ⏸. El usuario ya no puede entrar pero los tickets que creó se mantienen con su nombre.</p></div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">¿Los adjuntos ocupan mucho espacio?</div>
+                <div class="faq-answer"><p>Los adjuntos se guardan en disco (no en BD). Cada archivo máximo 25MB. Los adjuntos NO tienen vencimiento — quedan mientras existe el ticket. Si necesitás liberar espacio, borrá tickets antiguos ya resueltos (con backup previo).</p></div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">¿Puedo probar cambios de config sin afectar producción?</div>
+                <div class="faq-answer"><p>Recomendado: correr un ambiente staging en Coolify apuntando a una copia de la BD. Ahí probás cambios de plantilla, SLA, temas, etc. Nunca "toquetees" producción sin probar primero.</p></div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">¿Cuántos tickets aguanta el sistema?</div>
+                <div class="faq-answer"><p>SQLite con WAL: hasta ~500 usuarios concurrentes y millones de tickets sin degradación notable. Si crecés a &gt;500 usuarios activos, migrá a PostgreSQL (setup ya soportado — cambio de <code>DATABASE_URL</code> en .env).</p></div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">Un usuario dice que su correo no le llega. ¿Qué reviso?</div>
+                <div class="faq-answer"><p>1) System_log filtrado por "email" — buscá errores SMTP. 2) Confirmá que su correo en el perfil sea correcto. 3) Probá enviarle un reset password — si eso llega, el problema es la notificación específica. 4) Chequeá spam del usuario.</p></div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">¿Cómo veo qué está haciendo Eli (el bot) en tiempo real?</div>
+                <div class="faq-answer"><p>Config → Soluciones Bot → tab "Actividad reciente". Ahí ves qué consultas está resolviendo, cuáles derivó a ticket, y el consumo de tokens Claude del mes.</p></div>
+            </div>
+        </section>
+
+        <!-- QUIZ -->
+        <section class="section" id="sec-quiz">
+            <h2 class="section-title"><span class="emoji">🎓</span>Pon a prueba tus conocimientos</h2>
+            <p class="section-subtitle">6 preguntas rápidas para autoevaluarte</p>
+
+            <div class="quiz-question">
+                <h4>1. ¿Qué diferencia hay entre Tenant ID y Client ID de Microsoft Entra?</h4>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Son sinónimos, se pueden usar indistintamente</button>
+                <button class="quiz-option" onclick="quizAnswer(this, true)">Tenant ID identifica la organización; Client ID identifica la app DeskEli dentro de esa org</button>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Tenant es más largo, Client es más corto</button>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>2. Un técnico de Eliot pide ver un ticket de Pash. ¿Se puede?</h4>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Sí, todos los técnicos ven todo</button>
+                <button class="quiz-option" onclick="quizAnswer(this, true)">No — la segregación por empresa es estricta. Solo el admin master de Eliot puede</button>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Sí si el admin le da permiso especial</button>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>3. Necesitás que un proveedor cree tickets con estructura fija de 5 subtareas. ¿Qué usás?</h4>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Una plantilla de ticket</button>
+                <button class="quiz-option" onclick="quizAnswer(this, true)">Un guión (Config → 📜 Guiones)</button>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Le pido que llame a la API 5 veces</button>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>4. Vas a rotar el Client Secret de Entra ID de Pash. ¿Cuál es el orden correcto?</h4>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Borrar el viejo → generar nuevo → actualizar DeskEli</button>
+                <button class="quiz-option" onclick="quizAnswer(this, true)">Generar nuevo → actualizar DeskEli → borrar el viejo</button>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Generar nuevo → borrar viejo → actualizar DeskEli</button>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>5. ¿Cada cuánto se corren los backups automáticos?</h4>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Cada hora</button>
+                <button class="quiz-option" onclick="quizAnswer(this, true)">Diarios a las 2 AM UTC</button>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Semanales los domingos</button>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>6. Un empleado quedó despedido. ¿Qué hacés con su cuenta?</h4>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Elimino la cuenta con 🗑️</button>
+                <button class="quiz-option" onclick="quizAnswer(this, true)">Expulso sesión activa 🚫 + desactivo con ⏸ (mantiene historial de tickets)</button>
+                <button class="quiz-option" onclick="quizAnswer(this, false)">Cambio la contraseña y dejo la cuenta activa</button>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="callout callout-success" id="quizFinal" style="display:none;">
+                <div class="callout-icon">🏆</div>
+                <div class="callout-content">
+                    <div class="callout-title">¡Terminaste el manual!</div>
+                    <p>Ya conocés el panel completo. Recordá los 4 mandamientos: <strong>configurar desde UI, segregar por empresa, auditar todo, escalar antes de romper</strong>. Bienvenido al equipo de admins DeskEli. 👑</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<script>
+    const SECTIONS = [
+        'bienvenida','rol','dashboard','kanban','kpis','buscar',
+        'usuarios','roles','sesiones',
+        'empresas','entra','ldap','sla','tags','plantillas','temas',
+        'guiones','asignacion','bot',
+        'teams','smtp','apikeys','servidores',
+        'backups','auditoria','seguridad',
+        'operacion','faq','quiz'
+    ];
+
+    function showSection(id) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        const el = document.getElementById('sec-' + id);
+        if (el) el.classList.add('active');
+
+        document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+        const link = document.querySelector(`.sidebar a[href="#${id}"]`);
+        if (link) link.classList.add('active');
+
+        const idx = SECTIONS.indexOf(id);
+        const pct = Math.round(((idx + 1) / SECTIONS.length) * 100);
+        document.getElementById('progressBar').style.width = pct + '%';
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function toggleFaq(el) {
+        const item = el.parentElement;
+        item.classList.toggle('open');
+    }
+
+    let quizAnswered = 0;
+    const totalQuiz = 6;
+    function quizAnswer(btn, isCorrect) {
+        const question = btn.parentElement;
+        const feedback = question.querySelector('.quiz-feedback');
+        question.querySelectorAll('.quiz-option').forEach(b => {
+            b.style.pointerEvents = 'none';
+            b.style.opacity = '0.75';
+        });
+        btn.style.opacity = '1';
+        if (isCorrect) {
+            btn.classList.add('correct');
+            feedback.textContent = '✓ ¡Correcto!';
+            feedback.style.background = '#d1fae5';
+            feedback.style.color = '#065f46';
+        } else {
+            btn.classList.add('wrong');
+            question.querySelectorAll('.quiz-option').forEach(b => {
+                if (b.onclick.toString().includes('true')) b.classList.add('correct');
+            });
+            feedback.textContent = '✗ Casi. La respuesta correcta aparece resaltada en verde.';
+            feedback.style.background = '#fee2e2';
+            feedback.style.color = '#991b1b';
+        }
+        feedback.classList.add('show');
+
+        quizAnswered++;
+        if (quizAnswered >= totalQuiz) {
+            document.getElementById('quizFinal').style.display = 'flex';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        showSection('bienvenida');
+    });
+</script>
+</body>
+</html>
