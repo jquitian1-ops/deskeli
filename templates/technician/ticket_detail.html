@@ -562,6 +562,26 @@
                 <div class="section-title">Descripción</div>
                 <div class="description">{{ ticket.description | ticket_md }}</div>
 
+                <!-- Adjuntos del ticket -->
+                <div style="margin-top:16px;background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <div style="font-size:13px;font-weight:700;color:#374151;">
+                            📎 Archivos adjuntos del caso <span id="ticketAttCount" style="background:#e5e7eb;color:#374151;padding:1px 8px;border-radius:10px;font-size:11px;margin-left:4px;">0</span>
+                        </div>
+                        {% if session.role in ['admin', 'technician'] %}
+                        <button onclick="document.getElementById('ticketAttInput').click()"
+                                style="background:none;border:1px solid #7c3aed;color:#7c3aed;padding:4px 12px;border-radius:4px;font-size:12px;cursor:pointer;font-weight:600;">
+                            + Adjuntar archivo
+                        </button>
+                        <input type="file" id="ticketAttInput" multiple style="display:none;" onchange="uploadTicketAttachments(this.files)">
+                        {% endif %}
+                    </div>
+                    <div id="ticketAttList" style="display:flex;flex-direction:column;gap:5px;">
+                        <div style="font-size:12px;color:#9ca3af;font-style:italic;">Cargando adjuntos…</div>
+                    </div>
+                    <div id="ticketAttMsg" style="font-size:11px;margin-top:6px;"></div>
+                </div>
+
                 <div class="bot-box">
                     <div class="bot-title">🤖 Análisis de IA</div>
                     <div class="bot-item"><strong>Tipo de Problema:</strong> {{ bot_suggestion.issue_type }} ({{ bot_suggestion.confidence }}% confianza)</div>
@@ -1630,7 +1650,74 @@
                     document.getElementById('subtaskBadge').textContent = data.total;
                 }
             }).catch(() => {});
+        loadTicketAttachments();
     });
+
+    // ═════ Adjuntos del caso (ticket-level) ═════
+    async function loadTicketAttachments() {
+        const container = document.getElementById('ticketAttList');
+        const counter = document.getElementById('ticketAttCount');
+        try {
+            const r = await fetch(`/api/ticket/${ticketId}/attachments`);
+            const d = await r.json();
+            if (!d.success) throw new Error(d.error || 'Error');
+            const atts = d.attachments || [];
+            counter.textContent = atts.length;
+            if (atts.length === 0) {
+                container.innerHTML = '<div style="font-size:12px;color:#9ca3af;font-style:italic;">Este caso no tiene archivos adjuntos.</div>';
+                return;
+            }
+            const role = '{{ session.role }}';
+            const canDelete = (role === 'admin' || role === 'technician');
+            container.innerHTML = atts.map(a => `
+                <div style="display:flex;align-items:center;gap:8px;background:white;padding:7px 10px;border-radius:5px;border:1px solid #e5e7eb;font-size:12px;">
+                    <span style="font-size:16px;">${attachmentIcon(a.original_name)}</span>
+                    <a href="${a.download_url}" target="_blank"
+                       style="color:#2563eb;text-decoration:none;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;"
+                       title="${escapeHtml(a.original_name)}">${escapeHtml(a.original_name)}</a>
+                    <span style="color:#9ca3af;font-size:11px;">${fmtBytes(a.size_bytes)}</span>
+                    <span style="color:#9ca3af;font-size:11px;" title="Subido por">${escapeHtml(a.uploaded_by_name || '—')}</span>
+                    ${canDelete ? `<button onclick="deleteTicketAttachment(${a.id})" title="Eliminar" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;">×</button>` : ''}
+                </div>
+            `).join('');
+        } catch (e) {
+            container.innerHTML = `<div style="font-size:12px;color:#dc2626;">Error cargando adjuntos: ${e.message}</div>`;
+        }
+    }
+
+    async function uploadTicketAttachments(files) {
+        if (!files || files.length === 0) return;
+        const msg = document.getElementById('ticketAttMsg');
+        msg.innerHTML = '<span style="color:#6b7280;">⏳ Subiendo...</span>';
+        const fd = new FormData();
+        for (const f of files) fd.append('files', f);
+        try {
+            const r = await fetch(`/api/ticket/${ticketId}/attachments`, {method: 'POST', body: fd});
+            const d = await r.json();
+            if (!d.success) throw new Error(d.error || 'Error subiendo');
+            const errs = (d.errors || []).length;
+            msg.innerHTML = errs
+                ? `<span style="color:#dc2626;">⚠ ${d.attachments.length} subidos, ${errs} errores: ${d.errors.join('; ')}</span>`
+                : `<span style="color:#16a34a;">✓ ${d.attachments.length} archivo(s) subido(s)</span>`;
+            document.getElementById('ticketAttInput').value = '';
+            loadTicketAttachments();
+            setTimeout(() => { msg.innerHTML = ''; }, 3500);
+        } catch (e) {
+            msg.innerHTML = `<span style="color:#dc2626;">Error: ${e.message}</span>`;
+        }
+    }
+
+    async function deleteTicketAttachment(attId) {
+        if (!confirm('¿Eliminar este archivo adjunto del caso?')) return;
+        try {
+            const r = await fetch(`/api/ticket/attachment/${attId}`, {method: 'DELETE'});
+            const d = await r.json();
+            if (!d.success) throw new Error(d.error || 'Error');
+            loadTicketAttachments();
+        } catch (e) {
+            document.getElementById('ticketAttMsg').innerHTML = `<span style="color:#dc2626;">Error: ${e.message}</span>`;
+        }
+    }
 
     function loadHistory() {
         fetch(`/api/ticket/${ticketId}/history`)
