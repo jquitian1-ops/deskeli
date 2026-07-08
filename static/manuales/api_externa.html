@@ -278,8 +278,72 @@ response = requests.post(url, headers=headers, json=payload)
 <span class="k">else</span>:
     <span class="k">print</span>(<span class="s">f"❌ Error {response.status_code}: {response.json()}"</span>)</pre>
 
-<h3>Python: Ticket con subtareas (controles) + acta PDF</h3>
-<p>Caso típico del proveedor de auditoría: envía un documento con múltiples controles y adjunta el PDF del acta aprobada.</p>
+<h3>Python: Usar un GUIÓN preconfigurado (recomendado)</h3>
+
+<div class="callout callout-success">
+    <strong>✨ Guiones — la forma más simple y controlada</strong>
+    Un "guión" es una plantilla de subtareas preconfigurada en el panel admin de DeskEli. Cada guión tiene un
+    <code>code</code> único (ej. <code>auditoria-q1</code>) que agrupa: título del ticket, subtareas y técnicos asignados.
+    El proveedor solo manda el <code>guion_code</code> y DeskEli se encarga del resto — sin necesidad de conocer emails ni estructuras.
+</div>
+
+<pre><span class="k">import</span> requests, base64
+
+url = <span class="s">"https://deskeli.eliotproyectos.tech/api/v1/external/tickets"</span>
+token = <span class="s">"dsk_t_XXXXXXXXXXXXXXXXXXXXXXXXX"</span>
+headers = {<span class="s">"Content-Type"</span>: <span class="s">"application/json"</span>, <span class="s">"X-Authorization"</span>: <span class="s">f"Bearer {token}"</span>}
+
+<span class="k">with</span> open(<span class="s">"acta_aprobada.pdf"</span>, <span class="s">"rb"</span>) <span class="k">as</span> f:
+    pdf_b64 = base64.b64encode(f.read()).decode(<span class="s">"ascii"</span>)
+
+payload = {
+    <span class="s">"subject"</span>: <span class="s">"Auditoría trimestral Q1 2026"</span>,
+    <span class="s">"description"</span>: <span class="s">"Ejecución del guión de auditoría."</span>,
+    <span class="s">"applicantEmail"</span>: <span class="s">"auditoria@patprimo.com.co"</span>,
+    <span class="s">"externalRef"</span>: <span class="s">"AUD-Q1-2026-001"</span>,
+
+    <span class="c"># ✨ Con esto DeskEli genera TODAS las subtareas del guion,</span>
+    <span class="c"># cada una con el tecnico asignado ya definido en el admin.</span>
+    <span class="s">"guion_code"</span>: <span class="s">"auditoria-q1"</span>,
+
+    <span class="s">"attachments"</span>: [
+        {
+            <span class="s">"filename"</span>: <span class="s">"acta_aprobada_Q1_2026.pdf"</span>,
+            <span class="s">"content_base64"</span>: pdf_b64,
+            <span class="s">"mime"</span>: <span class="s">"application/pdf"</span>,
+            <span class="s">"attach_to"</span>: <span class="s">"both"</span>
+        }
+    ]
+}
+
+r = requests.post(url, headers=headers, json=payload)
+<span class="k">print</span>(r.status_code, r.json())</pre>
+
+<h4>Ventajas de usar guiones</h4>
+<ul style="padding-left:22px;">
+    <li>El proveedor no necesita saber emails de técnicos ni prioridades — solo el <code>code</code></li>
+    <li>El admin cambia el técnico responsable desde DeskEli sin tocar el código del proveedor</li>
+    <li>Consistencia: todas las auditorías salen con la misma estructura</li>
+    <li>Auditable: en el log queda <code>api_subtasks_from_guion</code> con el nombre del guion usado</li>
+</ul>
+
+<h4>Cómo crear un guión</h4>
+<ol style="padding-left:22px;">
+    <li>En DeskEli entrá como admin</li>
+    <li><code>/admin/config</code> → tab <strong>📜 Guiones</strong> → <strong>➕ Crear guión nuevo</strong></li>
+    <li>Poné: nombre, code (ej. <code>auditoria-q1</code>), empresa, prioridad y categoría default</li>
+    <li>Después click en <strong>📋 Subtareas</strong> del guion → agregar cada subtarea con su técnico asignado</li>
+    <li>Pasás el <code>code</code> al proveedor. Cuando invoque la API, se crea todo automáticamente.</li>
+</ol>
+
+<div class="callout callout-warn">
+    <strong>Compatibilidad</strong>
+    Si el request incluye <code>guion_code</code>, se ignoran los <code>subtasks</code>/<code>controls</code> del payload — el guion tiene precedencia.
+    Si el <code>guion_code</code> no existe o está inactivo, la API rechaza el request con error 400 (no se crea el ticket).
+</div>
+
+<h3>Python: Subtareas ad-hoc (sin guión)</h3>
+<p>Uso alternativo cuando el proveedor quiere controlar la estructura desde su lado, sin guiones. Caso típico del proveedor de auditoría: envía un documento con múltiples controles y adjunta el PDF del acta aprobada.</p>
 <pre><span class="k">import</span> requests, base64
 
 url = <span class="s">"https://deskeli.eliotproyectos.tech/api/v1/external/tickets"</span>

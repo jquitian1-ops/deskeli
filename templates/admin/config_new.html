@@ -487,6 +487,7 @@
                 <a class="config-tab" data-tab="teams"><span class="icon">💬</span>Teams</a>
                 <a class="config-tab" data-tab="microsoft"><span class="icon">🔐</span>Microsoft Entra ID</a>
                 <a class="config-tab" data-tab="api-keys"><span class="icon">🔌</span>API / Integraciones</a>
+                <a class="config-tab" data-tab="guiones"><span class="icon">📜</span>Guiones</a>
                 <a class="config-tab" data-tab="empresas"><span class="icon">🏢</span>Empresas</a>
                 <a class="config-tab" data-tab="tema"><span class="icon">🌈</span>Tema visual</a>
                 <a class="config-tab" data-tab="bot"><span class="icon">🤖</span>Soluciones Bot</a>
@@ -1580,6 +1581,114 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                         <div style="background:#f3f4f6; padding:14px; border-radius:6px; border:1px solid #d1d5db; font-family:monospace; font-size:13px; word-break:break-all; margin-bottom:12px;" id="apiKeyTokenValue"></div>
                         <button onclick="apiKeyCopyToken()" style="padding:8px 14px; background:#10b981; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">📋 Copiar al portapapeles</button>
                         <button onclick="document.getElementById('apiKeyShowModal').style.display='none'; loadApiKeys();" style="padding:8px 14px; background:#e5e7eb; border:none; border-radius:6px; cursor:pointer; margin-left:8px;">Ya lo guardé</button>
+                    </div>
+                </div>
+
+                <!-- ═══════════ GUIONES ═══════════ -->
+                <div class="panel-content" id="panel-guiones">
+                    <h2 class="config-panel-title">📜 Guiones (plantillas de subtareas)</h2>
+                    <p style="color:#6b7280; margin-bottom:16px; font-size:13px;">
+                        Los <strong>Guiones</strong> son plantillas de subtareas con especialistas preasignados. Cuando el proveedor
+                        externo invoca la API con <code>guion_code</code>, el sistema genera automáticamente todas las subtareas
+                        del guión con los técnicos ya definidos, sin que el proveedor tenga que conocer emails ni estructuras.
+                    </p>
+
+                    <button onclick="gnOpenCreateModal()" style="padding:10px 18px; background:#7c3aed; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600; margin-bottom:16px;">
+                        ➕ Crear guión nuevo
+                    </button>
+
+                    <div id="gn-list" style="display:flex; flex-direction:column; gap:12px;">
+                        <p style="color:#6b7280; font-style:italic;">Cargando…</p>
+                    </div>
+                </div>
+
+                <!-- Modal: crear/editar guion -->
+                <div id="gnCreateModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center;">
+                    <div style="background:white; max-width:560px; width:92%; padding:26px; border-radius:12px; max-height:90vh; overflow-y:auto;">
+                        <h3 id="gnCreateTitle" style="margin:0 0 12px; color:#1f2937;">📜 Nuevo guión</h3>
+                        <input type="hidden" id="gnEditId">
+                        <div style="display:grid; gap:12px;">
+                            <label>
+                                <span style="font-size:13px; font-weight:600; color:#374151;">Nombre</span>
+                                <input id="gnName" type="text" placeholder="Ej: Auditoría trimestral - Q1" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px;">
+                            </label>
+                            <label>
+                                <span style="font-size:13px; font-weight:600; color:#374151;">Código (usado por la API)</span>
+                                <input id="gnCode" type="text" placeholder="auditoria-q1" maxlength="50" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px; font-family:monospace;">
+                                <small style="color:#6b7280; font-size:11px;">Minúsculas, números, guiones. Ej: <code>auditoria-q1</code>, <code>onboarding-user</code></small>
+                            </label>
+                            <label>
+                                <span style="font-size:13px; font-weight:600; color:#374151;">Empresa</span>
+                                <select id="gnCompany" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px;"></select>
+                            </label>
+                            <label>
+                                <span style="font-size:13px; font-weight:600; color:#374151;">Descripción (opcional)</span>
+                                <textarea id="gnDesc" rows="3" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px; font-family:inherit;"></textarea>
+                            </label>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                                <label>
+                                    <span style="font-size:13px; font-weight:600; color:#374151;">Prioridad default</span>
+                                    <select id="gnPriority" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px;">
+                                        <option value="low">🟢 Baja</option>
+                                        <option value="medium" selected>🟡 Media</option>
+                                        <option value="high">🟠 Alta</option>
+                                        <option value="critical">🔴 Crítica</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span style="font-size:13px; font-weight:600; color:#374151;">Categoría default</span>
+                                    <input id="gnCategory" type="text" value="General" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px;">
+                                </label>
+                            </div>
+                            <label style="display:flex; align-items:center; gap:8px; font-size:14px;">
+                                <input id="gnActive" type="checkbox" checked>
+                                <strong>Guión activo (puede ser invocado por la API)</strong>
+                            </label>
+                        </div>
+                        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:18px;">
+                            <button onclick="document.getElementById('gnCreateModal').style.display='none'" style="padding:8px 14px; background:#e5e7eb; border:none; border-radius:6px; cursor:pointer;">Cancelar</button>
+                            <button onclick="gnSaveCreate()" style="padding:8px 14px; background:#7c3aed; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">💾 Guardar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal: gestionar subtareas del guion -->
+                <div id="gnSubtasksModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center;">
+                    <div style="background:white; max-width:820px; width:94%; padding:26px; border-radius:12px; max-height:92vh; overflow-y:auto;">
+                        <h3 style="margin:0 0 6px; color:#1f2937;">📋 Subtareas de <span id="gnSubModalTitle" style="color:#7c3aed;"></span></h3>
+                        <p style="color:#6b7280; font-size:12px; margin-bottom:14px;">Estas subtareas se crearán automáticamente en el ticket cuando la API invoque este guión.</p>
+                        <input type="hidden" id="gnSubGuionId">
+
+                        <!-- Formulario agregar subtarea -->
+                        <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:14px; margin-bottom:14px;">
+                            <h4 style="margin:0 0 8px; font-size:13px; color:#374151;">➕ Agregar subtarea al guión</h4>
+                            <div style="display:grid; gap:8px;">
+                                <input id="gnstTitle" type="text" placeholder="Título (obligatorio)" style="padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px;">
+                                <textarea id="gnstDesc" rows="2" placeholder="Descripción (opcional)" style="padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; font-family:inherit; resize:vertical;"></textarea>
+                                <div style="display:grid; grid-template-columns:1fr 1fr 2fr; gap:8px;">
+                                    <select id="gnstPriority" style="padding:8px; border:1px solid #d1d5db; border-radius:6px; font-size:13px;">
+                                        <option value="low">🟢 Baja</option>
+                                        <option value="medium" selected>🟡 Media</option>
+                                        <option value="high">🟠 Alta</option>
+                                        <option value="critical">🔴 Crítica</option>
+                                    </select>
+                                    <input id="gnstCategory" type="text" placeholder="Categoría" style="padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px;">
+                                    <select id="gnstAssignee" style="padding:8px; border:1px solid #d1d5db; border-radius:6px; font-size:13px;">
+                                        <option value="">— Sin asignar (el ticket lo distribuirá) —</option>
+                                    </select>
+                                </div>
+                                <button onclick="gnstAdd()" style="padding:8px 14px; background:#10b981; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:13px;">➕ Agregar subtarea</button>
+                            </div>
+                        </div>
+
+                        <!-- Lista de subtareas existentes -->
+                        <div id="gnstList" style="display:flex; flex-direction:column; gap:8px;">
+                            <p style="color:#6b7280; font-style:italic; text-align:center; padding:20px;">Sin subtareas todavía</p>
+                        </div>
+
+                        <div style="display:flex; justify-content:flex-end; margin-top:18px;">
+                            <button onclick="document.getElementById('gnSubtasksModal').style.display='none'; loadGuiones();" style="padding:8px 14px; background:#e5e7eb; border:none; border-radius:6px; cursor:pointer;">Cerrar</button>
+                        </div>
                     </div>
                 </div>
 
@@ -3815,6 +3924,261 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tab) tab.addEventListener('click', () => setTimeout(loadApiKeys, 100));
     const panel = document.getElementById('panel-api-keys');
     if (panel && panel.classList.contains('active')) loadApiKeys();
+});
+</script>
+
+<!-- ═══════════════ GUIONES ═══════════════ -->
+<script>
+let _gnCompaniesCache = null;
+
+async function loadGuiones() {
+    const container = document.getElementById('gn-list');
+    if (!container) return;
+    try {
+        const res = await fetch('/api/admin/guiones');
+        const data = await res.json();
+        if (!data.success || !data.guiones) {
+            container.innerHTML = '<p style="color:#dc2626;">Error cargando guiones</p>';
+            return;
+        }
+        if (data.guiones.length === 0) {
+            container.innerHTML = '<p style="color:#6b7280; font-style:italic; padding:20px; text-align:center; background:#f9fafb; border-radius:8px;">No hay guiones. Click "Crear guión nuevo" para empezar.</p>';
+            return;
+        }
+        container.innerHTML = data.guiones.map(g => `
+            <div style="border:1px solid ${g.is_active ? '#e5e7eb' : '#fca5a5'}; border-radius:8px; padding:14px; background:${g.is_active ? '#fafafa' : '#fef2f2'};">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:280px;">
+                        <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                            <strong style="font-size:15px; color:#111827;">${escGN(g.name)}</strong>
+                            <code style="background:#ede9fe; color:#5b21b6; padding:2px 6px; border-radius:3px; font-size:11px;">${escGN(g.code)}</code>
+                            <span style="padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; background:${g.is_active ? '#d1fae5' : '#fee2e2'}; color:${g.is_active ? '#065f46' : '#991b1b'};">
+                                ${g.is_active ? 'ACTIVO' : 'INACTIVO'}
+                            </span>
+                        </div>
+                        <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">
+                            Empresa: <strong>${escGN(g.company)}</strong> · Prioridad: ${escGN(g.default_priority)} · Categoría: ${escGN(g.default_category || '—')}
+                        </div>
+                        ${g.description ? `<div style="font-size:12px; color:#374151; margin-bottom:6px;">${escGN(g.description)}</div>` : ''}
+                        <div style="font-size:12px; color:#7c3aed; font-weight:600;">
+                            📋 ${g.subtasks_count} subtarea(s) configuradas
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                        <button onclick="gnOpenSubtasks(${g.id}, '${escGN(g.name).replace(/'/g, "\\'")}')" style="padding:6px 10px; background:#3b82f6; color:white; border:none; border-radius:5px; cursor:pointer; font-size:12px; font-weight:600;">📋 Subtareas</button>
+                        <button onclick="gnOpenEdit(${g.id})" style="padding:6px 10px; background:#f59e0b; color:white; border:none; border-radius:5px; cursor:pointer; font-size:12px; font-weight:600;">✏️ Editar</button>
+                        <button onclick="gnDelete(${g.id}, '${escGN(g.name).replace(/'/g, "\\'")}')" style="padding:6px 10px; background:#dc2626; color:white; border:none; border-radius:5px; cursor:pointer; font-size:12px; font-weight:600;">🗑</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        container.innerHTML = `<p style="color:#dc2626;">Error: ${e.message}</p>`;
+    }
+}
+
+function escGN(s) {
+    return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function gnLoadCompanies() {
+    if (_gnCompaniesCache) return _gnCompaniesCache;
+    const res = await fetch('/api/admin/companies');
+    const data = await res.json();
+    _gnCompaniesCache = data.companies || [];
+    return _gnCompaniesCache;
+}
+
+async function gnOpenCreateModal() {
+    document.getElementById('gnCreateTitle').textContent = '📜 Nuevo guión';
+    document.getElementById('gnEditId').value = '';
+    document.getElementById('gnName').value = '';
+    document.getElementById('gnCode').value = '';
+    document.getElementById('gnDesc').value = '';
+    document.getElementById('gnPriority').value = 'medium';
+    document.getElementById('gnCategory').value = 'General';
+    document.getElementById('gnActive').checked = true;
+    document.getElementById('gnCode').disabled = false;
+
+    const companies = await gnLoadCompanies();
+    document.getElementById('gnCompany').innerHTML = companies.map(c => `<option value="${c.code}">${c.icon || '🏢'} ${escGN(c.name)}</option>`).join('');
+    document.getElementById('gnCreateModal').style.display = 'flex';
+}
+
+async function gnOpenEdit(id) {
+    try {
+        const res = await fetch(`/api/admin/guiones/${id}`);
+        const data = await res.json();
+        if (!data.success) { alert('Error: ' + (data.error || 'no se pudo cargar')); return; }
+        const g = data.guion;
+        document.getElementById('gnCreateTitle').textContent = '✏️ Editar guión';
+        document.getElementById('gnEditId').value = g.id;
+        document.getElementById('gnName').value = g.name;
+        document.getElementById('gnCode').value = g.code;
+        document.getElementById('gnCode').disabled = true;  // Code inmutable después de crear
+        document.getElementById('gnDesc').value = g.description || '';
+        document.getElementById('gnPriority').value = g.default_priority || 'medium';
+        document.getElementById('gnCategory').value = g.default_category || 'General';
+        document.getElementById('gnActive').checked = !!g.is_active;
+
+        const companies = await gnLoadCompanies();
+        document.getElementById('gnCompany').innerHTML = companies.map(c =>
+            `<option value="${c.code}" ${c.code === g.company ? 'selected' : ''}>${c.icon || '🏢'} ${escGN(c.name)}</option>`
+        ).join('');
+        document.getElementById('gnCompany').disabled = true;  // Company inmutable
+        document.getElementById('gnCreateModal').style.display = 'flex';
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+async function gnSaveCreate() {
+    const editId = document.getElementById('gnEditId').value;
+    const payload = {
+        name: document.getElementById('gnName').value.trim(),
+        code: document.getElementById('gnCode').value.trim().toLowerCase(),
+        company: document.getElementById('gnCompany').value,
+        description: document.getElementById('gnDesc').value.trim(),
+        default_priority: document.getElementById('gnPriority').value,
+        default_category: document.getElementById('gnCategory').value.trim() || 'General',
+        is_active: document.getElementById('gnActive').checked,
+    };
+    if (!payload.name) { alert('Nombre requerido'); return; }
+    if (!editId && !payload.code) { alert('Código requerido'); return; }
+    try {
+        const url = editId ? `/api/admin/guiones/${editId}` : '/api/admin/guiones';
+        const method = editId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+            method, headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('gnCompany').disabled = false;
+            document.getElementById('gnCreateModal').style.display = 'none';
+            loadGuiones();
+        } else {
+            alert('Error: ' + (data.error || 'desconocido'));
+        }
+    } catch (e) { alert('Error de red: ' + e.message); }
+}
+
+async function gnDelete(id, name) {
+    if (!confirm(`¿Eliminar el guión "${name}"? Se borrarán también todas sus subtareas configuradas.`)) return;
+    try {
+        const res = await fetch(`/api/admin/guiones/${id}`, {method: 'DELETE'});
+        const data = await res.json();
+        if (data.success) loadGuiones();
+        else alert('Error: ' + (data.error || 'desconocido'));
+    } catch (e) { alert('Error: ' + e.message); }
+}
+
+// ─── Subtareas de un guion ───────────────────────────────────
+async function gnOpenSubtasks(guionId, guionName) {
+    document.getElementById('gnSubGuionId').value = guionId;
+    document.getElementById('gnSubModalTitle').textContent = guionName;
+    // Cargar los técnicos disponibles para el selector
+    try {
+        // Cargar el guion para saber la empresa
+        const rGuion = await fetch(`/api/admin/guiones/${guionId}`);
+        const dGuion = await rGuion.json();
+        const guionCompany = dGuion.success ? dGuion.guion.company : null;
+
+        // Cargar técnicos y admins de esa empresa
+        const rUsers = await fetch('/api/admin/team');
+        const dUsers = await rUsers.json();
+        const techs = (dUsers.users || dUsers.team || []).filter(u =>
+            (u.role === 'technician' || u.role === 'admin') && u.company === guionCompany && u.is_active
+        );
+        const sel = document.getElementById('gnstAssignee');
+        sel.innerHTML = '<option value="">— Sin asignar (el ticket lo distribuirá) —</option>' +
+            techs.map(t => `<option value="${t.id}">${escGN(t.name)} · ${escGN(t.email)} (${t.role})</option>`).join('');
+    } catch (e) {
+        console.warn('No pude cargar técnicos:', e);
+    }
+    // Limpiar form
+    document.getElementById('gnstTitle').value = '';
+    document.getElementById('gnstDesc').value = '';
+    document.getElementById('gnstPriority').value = 'medium';
+    document.getElementById('gnstCategory').value = '';
+    document.getElementById('gnSubtasksModal').style.display = 'flex';
+    gnstReload();
+}
+
+async function gnstReload() {
+    const guionId = document.getElementById('gnSubGuionId').value;
+    const container = document.getElementById('gnstList');
+    try {
+        const res = await fetch(`/api/admin/guiones/${guionId}`);
+        const data = await res.json();
+        if (!data.success) { container.innerHTML = '<p style="color:#dc2626;">Error cargando</p>'; return; }
+        const subs = data.guion.subtasks || [];
+        if (subs.length === 0) {
+            container.innerHTML = '<p style="color:#6b7280; font-style:italic; text-align:center; padding:16px; background:#f9fafb; border-radius:6px;">Sin subtareas. Agregá la primera arriba ⬆</p>';
+            return;
+        }
+        container.innerHTML = subs.map((s, idx) => `
+            <div style="background:white; border:1px solid #e5e7eb; border-left:4px solid #7c3aed; border-radius:6px; padding:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+                    <div style="flex:1;">
+                        <div style="font-weight:700; color:#111827; font-size:14px;">
+                            <span style="color:#7c3aed;">${idx+1}.</span> ${escGN(s.title)}
+                        </div>
+                        ${s.description ? `<div style="font-size:12px; color:#4b5563; margin-top:4px; white-space:pre-wrap;">${escGN(s.description)}</div>` : ''}
+                        <div style="font-size:11px; color:#6b7280; margin-top:6px; display:flex; flex-wrap:wrap; gap:8px;">
+                            <span>🎯 ${escGN(s.priority || 'medium')}</span>
+                            ${s.category ? `<span>📁 ${escGN(s.category)}</span>` : ''}
+                            ${s.assignee_name
+                                ? `<span>👤 ${escGN(s.assignee_name)} (${escGN(s.assignee_email || '')})</span>`
+                                : `<span style="color:#9ca3af;">👤 Sin asignar</span>`}
+                        </div>
+                    </div>
+                    <button onclick="gnstDelete(${s.id}, '${escGN(s.title).replace(/'/g, "\\'")}')" style="padding:5px 10px; background:#dc2626; color:white; border:none; border-radius:4px; cursor:pointer; font-size:11px;">🗑</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) { container.innerHTML = `<p style="color:#dc2626;">Error: ${e.message}</p>`; }
+}
+
+async function gnstAdd() {
+    const guionId = document.getElementById('gnSubGuionId').value;
+    const payload = {
+        title: document.getElementById('gnstTitle').value.trim(),
+        description: document.getElementById('gnstDesc').value.trim(),
+        priority: document.getElementById('gnstPriority').value,
+        category: document.getElementById('gnstCategory').value.trim(),
+        assignee_id: parseInt(document.getElementById('gnstAssignee').value) || null,
+    };
+    if (!payload.title) { alert('Título requerido'); return; }
+    try {
+        const res = await fetch(`/api/admin/guiones/${guionId}/subtasks`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('gnstTitle').value = '';
+            document.getElementById('gnstDesc').value = '';
+            gnstReload();
+        } else alert('Error: ' + (data.error || 'desconocido'));
+    } catch (e) { alert('Error: ' + e.message); }
+}
+
+async function gnstDelete(subId, title) {
+    if (!confirm(`¿Eliminar la subtarea "${title}"?`)) return;
+    try {
+        const res = await fetch(`/api/admin/guion-subtasks/${subId}`, {method:'DELETE'});
+        const data = await res.json();
+        if (data.success) gnstReload();
+        else alert('Error: ' + (data.error || 'desconocido'));
+    } catch (e) { alert('Error: ' + e.message); }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const tab = document.querySelector('.config-tab[data-tab="guiones"]');
+    if (tab) tab.addEventListener('click', () => setTimeout(loadGuiones, 100));
+    const panel = document.getElementById('panel-guiones');
+    if (panel && panel.classList.contains('active')) loadGuiones();
 });
 </script>
 

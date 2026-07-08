@@ -732,6 +732,42 @@ class SubtaskAttachment(db.Model):
     subtask = db.relationship('Subtask', backref=db.backref('attachments', cascade='all, delete-orphan'))
 
 
+class Guion(db.Model):
+    """Guión (script) preconfigurado que la API externa puede invocar.
+    Cuando el proveedor manda 'guion_id' o 'guion_code', el sistema toma las
+    subtareas y responsables ya definidos, sin necesidad de que el proveedor
+    conozca emails ni estructuras."""
+    __tablename__ = 'guiones'
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(50), unique=True, nullable=False, index=True)   # 'auditoria-q1', 'onboarding-user'
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    company = db.Column(db.String(20), nullable=False, index=True)              # empresa dueña del guion
+    default_priority = db.Column(db.String(20), default='medium')
+    default_category = db.Column(db.String(100), default='General')
+    is_active = db.Column(db.Boolean, default=True)
+    created_by_id = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class GuionSubtask(db.Model):
+    """Cada paso/control preconfigurado dentro de un guión."""
+    __tablename__ = 'guion_subtasks'
+    id = db.Column(db.Integer, primary_key=True)
+    guion_id = db.Column(db.Integer, db.ForeignKey('guiones.id'), nullable=False, index=True)
+    order_idx = db.Column(db.Integer, default=0)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+    category = db.Column(db.String(100))
+    priority = db.Column(db.String(20), default='medium')                       # low/medium/high/critical
+    assignee_id = db.Column(db.Integer, db.ForeignKey('users.id'))              # técnico asignado por default
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    guion = db.relationship('Guion', backref=db.backref('subtasks', cascade='all, delete-orphan', order_by='GuionSubtask.order_idx'))
+    assignee = db.relationship('User', foreign_keys=[assignee_id])
+
+
 class TicketAttachment(db.Model):
     __tablename__ = 'ticket_attachments'
     id = db.Column(db.Integer, primary_key=True)
@@ -14999,47 +15035,50 @@ def api_v1_external_create_ticket():
                   f'Ticket #{ticket.ticket_number} creado por API key "{api_key.name}" desde {request.remote_addr}. '
                   f'Solicitante: {applicant.email}. Ref externa: {external_ref or "N/A"}.')
 
-        # ─── SUBTAREAS (alias "controls") ─────────────────────────────
-        subtasks_raw = data.get('subtasks') or data.get('controls') or []
+        # ─── SUBTAREAS ─────────────────────────────────────────────────
+        # Prioridad: primero se resuelve por guion (guion_id / guion_code),
+        # y si no viene, se usan los subtasks/controls del payload.
         subtasks_created = []
-        if isinstance(subtasks_raw, list):
-            for idx, st_data in enumerate(subtasks_raw[:50]):  # límite 50 por seguridad
-                if not isinstance(st_data, dict):
-                    continue
-                st_title = (st_data.get('title') or st_data.get('name') or '').strip()
-                if not st_title:
-                    continue
-                st_desc = sanitize_html((st_data.get('description') or '').strip()) if 'sanitize_html' in globals() else (st_data.get('description') or '').strip()
-                st_priority = (st_data.get('priority') or priority).lower().strip()
+        source_guion = None
+
+        # Opción 1: usar un guion preconfigurado
+        guion_id_in = data.get('guion_id') or data.get('guionId')
+        guion_code_in = (data.get('guion_code') or data.get('guionCode') or '').strip().lower()
+        if guion_id_in or guion_code_in:
+            gq = Guion.query
+            if guion_id_in:
+                gq = gq.filter_by(id=guion_id_in)
+            else:
+                gq = gq.filter_by(code=guion_code_in)
+            source_guion = gq.filter_by(company=api_key.company, is_active=True).first()
+            if not source_guion:
+                # Si el proveedor mandó guion pero no existe/está inactivo → hard error para evitar
+                # que se creen tickets huerfanos sin las subtareas esperadas
+                db.session.delete(ticket)
+                db.session.commit()
+                return jsonify({
+                    'success': False,
+                    'error': f'Guión no encontrado o inactivo: {guion_code_in or guion_id_in} (empresa {api_key.company})'
+                }), 400
+
+        if source_guion:
+            gs_list = GuionSubtask.query.filter_by(guion_id=source_guion.id).order_by(GuionSubtask.order_idx).all()
+            for idx, gs in enumerate(gs_list):
+                st_priority = (gs.priority or priority).lower()
                 if st_priority not in ('low', 'medium', 'high', 'critical'):
-                    st_priority = priority
-                st_category = (st_data.get('category') or category).strip()[:100]
-                # Asignatario opcional de la subtarea
-                st_assignee = None
-                st_ass_email = (st_data.get('assigneeEmail') or st_data.get('assignee_email') or '').strip().lower()
-                if st_ass_email:
-                    st_assignee = User.query.filter(
-                        db.func.lower(User.email) == st_ass_email,
-                        User.company == api_key.company,
-                        User.role.in_(['technician', 'admin'])
-                    ).first()
-                # Fallback: assignee del padre
-                if not st_assignee:
-                    st_assignee = assignee
-                # Número de subtarea: TKT-XXX-SNN
-                st_num = f'{ticket.ticket_number}-S{(idx+1):02d}'
+                    st_priority = 'medium'
                 sla_min = sla_map.get(st_priority, 480)
                 st = Subtask(
                     ticket_id=ticket.id,
-                    subtask_number=st_num,
-                    title=st_title[:255],
-                    description=st_desc or None,
-                    category=st_category,
+                    subtask_number=f'{ticket.ticket_number}-S{(idx+1):02d}',
+                    title=gs.title[:255],
+                    description=gs.description,
+                    category=gs.category or category,
                     status='open',
                     priority=st_priority,
                     sla_minutes=sla_min,
                     sla_deadline=datetime.now() + timedelta(minutes=sla_min),
-                    assignee_id=st_assignee.id if st_assignee else None,
+                    assignee_id=gs.assignee_id,   # ← el técnico ya configurado en el guion
                     created_by_id=author.id,
                     order_idx=idx,
                 )
@@ -15047,8 +15086,56 @@ def api_v1_external_create_ticket():
                 subtasks_created.append(st)
             if subtasks_created:
                 db.session.commit()
-                log_audit('api_subtasks_created', author.id if author else None, 'ticket', ticket.id,
-                          f'{len(subtasks_created)} subtareas creadas via API para ticket {ticket.ticket_number}')
+                log_audit('api_subtasks_from_guion', author.id if author else None, 'ticket', ticket.id,
+                          f'{len(subtasks_created)} subtareas creadas desde guion "{source_guion.code}" ({source_guion.name}) '
+                          f'para ticket {ticket.ticket_number}')
+        else:
+            # Opción 2 (fallback / uso ad-hoc): subtareas del payload
+            subtasks_raw = data.get('subtasks') or data.get('controls') or []
+            if isinstance(subtasks_raw, list):
+                for idx, st_data in enumerate(subtasks_raw[:50]):
+                    if not isinstance(st_data, dict):
+                        continue
+                    st_title = (st_data.get('title') or st_data.get('name') or '').strip()
+                    if not st_title:
+                        continue
+                    st_desc = sanitize_html((st_data.get('description') or '').strip()) if 'sanitize_html' in globals() else (st_data.get('description') or '').strip()
+                    st_priority = (st_data.get('priority') or priority).lower().strip()
+                    if st_priority not in ('low', 'medium', 'high', 'critical'):
+                        st_priority = priority
+                    st_category = (st_data.get('category') or category).strip()[:100]
+                    st_assignee = None
+                    st_ass_email = (st_data.get('assigneeEmail') or st_data.get('assignee_email') or '').strip().lower()
+                    if st_ass_email:
+                        st_assignee = User.query.filter(
+                            db.func.lower(User.email) == st_ass_email,
+                            User.company == api_key.company,
+                            User.role.in_(['technician', 'admin'])
+                        ).first()
+                    if not st_assignee:
+                        st_assignee = assignee
+                    st_num = f'{ticket.ticket_number}-S{(idx+1):02d}'
+                    sla_min = sla_map.get(st_priority, 480)
+                    st = Subtask(
+                        ticket_id=ticket.id,
+                        subtask_number=st_num,
+                        title=st_title[:255],
+                        description=st_desc or None,
+                        category=st_category,
+                        status='open',
+                        priority=st_priority,
+                        sla_minutes=sla_min,
+                        sla_deadline=datetime.now() + timedelta(minutes=sla_min),
+                        assignee_id=st_assignee.id if st_assignee else None,
+                        created_by_id=author.id,
+                        order_idx=idx,
+                    )
+                    db.session.add(st)
+                    subtasks_created.append(st)
+                if subtasks_created:
+                    db.session.commit()
+                    log_audit('api_subtasks_created', author.id if author else None, 'ticket', ticket.id,
+                              f'{len(subtasks_created)} subtareas ad-hoc creadas via API para ticket {ticket.ticket_number}')
 
         # ─── ADJUNTOS (base64) ────────────────────────────────────────
         import base64 as _b64
@@ -15211,6 +15298,236 @@ def api_v1_external_get_ticket(ticket_id):
         'resolved_at': ticket.resolved_at.isoformat(timespec='seconds') if ticket.resolved_at else None,
         'sla_deadline': ticket.sla_deadline.isoformat(timespec='seconds') if ticket.sla_deadline else None,
     })
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# GUIONES — Plantillas de subtareas invocables desde la API externa
+# ═════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/admin/guiones', methods=['GET'])
+def api_admin_guiones_list():
+    """Lista todos los guiones de la empresa del admin."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    scope = admin_companies_scope()
+    guiones = Guion.query.filter(Guion.company.in_(scope)).order_by(Guion.company, Guion.name).all()
+    result = []
+    for g in guiones:
+        count = GuionSubtask.query.filter_by(guion_id=g.id).count()
+        result.append({
+            'id': g.id,
+            'code': g.code,
+            'name': g.name,
+            'description': g.description or '',
+            'company': g.company,
+            'default_priority': g.default_priority,
+            'default_category': g.default_category,
+            'is_active': bool(g.is_active),
+            'subtasks_count': count,
+            'created_at': g.created_at.isoformat(timespec='seconds') if g.created_at else None,
+        })
+    return jsonify({'success': True, 'guiones': result})
+
+
+@app.route('/api/admin/guiones', methods=['POST'])
+def api_admin_guiones_create():
+    """Crea un guión nuevo."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    data = request.get_json() or {}
+    code = (data.get('code') or '').strip().lower()
+    name = (data.get('name') or '').strip()
+    company = (data.get('company') or session.get('company') or '').strip()
+
+    if not code or not re.match(r'^[a-z][a-z0-9_-]{1,49}$', code):
+        return jsonify({'success': False, 'error': 'Código inválido: minúsculas/números/-/_, empieza con letra, 2-50 chars'}), 400
+    if not name:
+        return jsonify({'success': False, 'error': 'Nombre requerido'}), 400
+    if company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': f'Sin permiso sobre empresa {company}'}), 403
+    if Guion.query.filter_by(code=code).first():
+        return jsonify({'success': False, 'error': f'Ya existe un guión con código "{code}"'}), 400
+
+    g = Guion(
+        code=code,
+        name=name[:200],
+        description=(data.get('description') or '').strip() or None,
+        company=company,
+        default_priority=(data.get('default_priority') or 'medium').lower(),
+        default_category=(data.get('default_category') or 'General').strip()[:100],
+        is_active=bool(data.get('is_active', True)),
+        created_by_id=session['user_id'],
+    )
+    db.session.add(g)
+    db.session.commit()
+    log_audit('guion_create', session['user_id'], 'guion', g.id, f'Guion "{g.name}" (code={g.code}) creado para {g.company}')
+    return jsonify({'success': True, 'id': g.id, 'code': g.code}), 201
+
+
+@app.route('/api/admin/guiones/<int:guion_id>', methods=['GET'])
+def api_admin_guion_get(guion_id):
+    """Devuelve un guión con sus subtareas."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    g = Guion.query.get_or_404(guion_id)
+    if g.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+    subs = GuionSubtask.query.filter_by(guion_id=g.id).order_by(GuionSubtask.order_idx).all()
+    return jsonify({
+        'success': True,
+        'guion': {
+            'id': g.id, 'code': g.code, 'name': g.name, 'description': g.description or '',
+            'company': g.company, 'default_priority': g.default_priority,
+            'default_category': g.default_category, 'is_active': bool(g.is_active),
+            'subtasks': [{
+                'id': s.id,
+                'order_idx': s.order_idx,
+                'title': s.title,
+                'description': s.description or '',
+                'category': s.category or '',
+                'priority': s.priority or 'medium',
+                'assignee_id': s.assignee_id,
+                'assignee_name': (s.assignee.name if s.assignee else None),
+                'assignee_email': (s.assignee.email if s.assignee else None),
+            } for s in subs]
+        }
+    })
+
+
+@app.route('/api/admin/guiones/<int:guion_id>', methods=['PUT'])
+def api_admin_guion_update(guion_id):
+    """Actualiza metadatos del guión (no las subtareas)."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    g = Guion.query.get_or_404(guion_id)
+    if g.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+    data = request.get_json() or {}
+    if 'name' in data: g.name = (data['name'] or '').strip()[:200] or g.name
+    if 'description' in data: g.description = (data['description'] or '').strip() or None
+    if 'default_priority' in data:
+        p = (data['default_priority'] or 'medium').lower()
+        if p in ('low', 'medium', 'high', 'critical'):
+            g.default_priority = p
+    if 'default_category' in data: g.default_category = (data['default_category'] or 'General').strip()[:100]
+    if 'is_active' in data: g.is_active = bool(data['is_active'])
+    db.session.commit()
+    log_audit('guion_update', session['user_id'], 'guion', g.id, f'Guion "{g.name}" actualizado')
+    return jsonify({'success': True})
+
+
+@app.route('/api/admin/guiones/<int:guion_id>', methods=['DELETE'])
+def api_admin_guion_delete(guion_id):
+    """Elimina un guión y todas sus subtareas asociadas."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    g = Guion.query.get_or_404(guion_id)
+    if g.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+    name, code = g.name, g.code
+    db.session.delete(g)
+    db.session.commit()
+    log_audit('guion_delete', session['user_id'], 'guion', guion_id, f'Guion "{name}" (code={code}) eliminado')
+    return jsonify({'success': True})
+
+
+@app.route('/api/admin/guiones/<int:guion_id>/subtasks', methods=['POST'])
+def api_admin_guion_subtask_create(guion_id):
+    """Agrega una subtarea preconfigurada al guión."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    g = Guion.query.get_or_404(guion_id)
+    if g.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+    data = request.get_json() or {}
+    title = (data.get('title') or '').strip()
+    if not title:
+        return jsonify({'success': False, 'error': 'Título requerido'}), 400
+    priority = (data.get('priority') or g.default_priority or 'medium').lower()
+    if priority not in ('low', 'medium', 'high', 'critical'):
+        priority = 'medium'
+    # Resolver assignee por ID o email
+    assignee_id = data.get('assignee_id')
+    if not assignee_id:
+        ass_email = (data.get('assignee_email') or '').strip().lower()
+        if ass_email:
+            u = User.query.filter(
+                db.func.lower(User.email) == ass_email,
+                User.company == g.company,
+                User.role.in_(['technician', 'admin'])
+            ).first()
+            assignee_id = u.id if u else None
+
+    # Order: siguiente disponible
+    last_order = db.session.query(db.func.coalesce(db.func.max(GuionSubtask.order_idx), -1)).filter_by(guion_id=g.id).scalar()
+
+    gs = GuionSubtask(
+        guion_id=g.id,
+        order_idx=(last_order or 0) + 1,
+        title=title[:255],
+        description=(data.get('description') or '').strip() or None,
+        category=(data.get('category') or g.default_category or '').strip()[:100] or None,
+        priority=priority,
+        assignee_id=assignee_id,
+    )
+    db.session.add(gs)
+    db.session.commit()
+    log_audit('guion_subtask_create', session['user_id'], 'guion', g.id, f'Subtarea "{title}" agregada al guion {g.code}')
+    return jsonify({'success': True, 'id': gs.id}), 201
+
+
+@app.route('/api/admin/guion-subtasks/<int:subtask_id>', methods=['PUT'])
+def api_admin_guion_subtask_update(subtask_id):
+    """Actualiza una subtarea del guión."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    gs = GuionSubtask.query.get_or_404(subtask_id)
+    g = Guion.query.get(gs.guion_id)
+    if not g or g.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+    data = request.get_json() or {}
+    if 'title' in data: gs.title = (data['title'] or '').strip()[:255] or gs.title
+    if 'description' in data: gs.description = (data['description'] or '').strip() or None
+    if 'category' in data: gs.category = (data['category'] or '').strip()[:100] or None
+    if 'priority' in data:
+        p = (data['priority'] or 'medium').lower()
+        if p in ('low', 'medium', 'high', 'critical'):
+            gs.priority = p
+    if 'order_idx' in data:
+        try: gs.order_idx = int(data['order_idx'])
+        except: pass
+    if 'assignee_id' in data:
+        gs.assignee_id = data['assignee_id'] or None
+    elif 'assignee_email' in data:
+        ass_email = (data.get('assignee_email') or '').strip().lower()
+        if ass_email:
+            u = User.query.filter(
+                db.func.lower(User.email) == ass_email,
+                User.company == g.company,
+                User.role.in_(['technician', 'admin'])
+            ).first()
+            gs.assignee_id = u.id if u else None
+        else:
+            gs.assignee_id = None
+    db.session.commit()
+    log_audit('guion_subtask_update', session['user_id'], 'guion', g.id, f'Subtarea "{gs.title}" del guion {g.code} actualizada')
+    return jsonify({'success': True})
+
+
+@app.route('/api/admin/guion-subtasks/<int:subtask_id>', methods=['DELETE'])
+def api_admin_guion_subtask_delete(subtask_id):
+    """Elimina una subtarea del guión."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    gs = GuionSubtask.query.get_or_404(subtask_id)
+    g = Guion.query.get(gs.guion_id)
+    if not g or g.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+    title = gs.title
+    db.session.delete(gs)
+    db.session.commit()
+    log_audit('guion_subtask_delete', session['user_id'], 'guion', g.id, f'Subtarea "{title}" del guion {g.code} eliminada')
+    return jsonify({'success': True})
 
 
 # ─── Admin endpoints para gestionar API Keys ─────────────────────────────────
