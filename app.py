@@ -768,6 +768,23 @@ class GuionSubtask(db.Model):
     assignee = db.relationship('User', foreign_keys=[assignee_id])
 
 
+class UserGuion(db.Model):
+    """M:N: qué especialistas están asignados a qué guiones.
+    Cuando la API externa invoca un guion y una subtarea no tiene assignee_id fijo,
+    se distribuye entre los técnicos asignados aquí (balanceo por carga).
+    Además la UI de Gestión de Usuarios muestra/edita esta relación por técnico."""
+    __tablename__ = 'user_guiones'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    guion_id = db.Column(db.Integer, db.ForeignKey('guiones.id'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    __table_args__ = (db.UniqueConstraint('user_id', 'guion_id', name='uq_user_guion'),)
+
+    user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('guion_assignments', cascade='all, delete-orphan'))
+    guion = db.relationship('Guion', foreign_keys=[guion_id], backref=db.backref('user_assignments', cascade='all, delete-orphan'))
+
+
 class TicketAttachment(db.Model):
     __tablename__ = 'ticket_attachments'
     id = db.Column(db.Integer, primary_key=True)
@@ -15063,11 +15080,37 @@ def api_v1_external_create_ticket():
 
         if source_guion:
             gs_list = GuionSubtask.query.filter_by(guion_id=source_guion.id).order_by(GuionSubtask.order_idx).all()
+
+            # Fallback pool: especialistas asignados a este guion desde Gestión de Usuarios.
+            # Se usan (round-robin por carga) cuando una subtarea no tiene assignee_id fijo.
+            pool_ids = [ug.user_id for ug in UserGuion.query.filter_by(guion_id=source_guion.id).all()]
+            pool_users = User.query.filter(
+                User.id.in_(pool_ids),
+                User.company == source_guion.company,
+                User.is_active == True,
+                User.role.in_(['technician', 'admin'])
+            ).all() if pool_ids else []
+            pool_load = {}
+            for u in pool_users:
+                pool_load[u.id] = Subtask.query.filter(
+                    Subtask.assignee_id == u.id,
+                    Subtask.status.in_(['open', 'in_progress'])
+                ).count()
+
+            def pick_from_pool():
+                if not pool_load:
+                    return None
+                least_id = min(pool_load, key=pool_load.get)
+                pool_load[least_id] += 1  # simular la carga que agrega esta subtarea
+                return least_id
+
             for idx, gs in enumerate(gs_list):
                 st_priority = (gs.priority or priority).lower()
                 if st_priority not in ('low', 'medium', 'high', 'critical'):
                     st_priority = 'medium'
                 sla_min = sla_map.get(st_priority, 480)
+                # 1º prioridad: técnico fijo de la subtarea del guion. 2º: pool de especialistas del guion.
+                resolved_assignee = gs.assignee_id or pick_from_pool()
                 st = Subtask(
                     ticket_id=ticket.id,
                     subtask_number=f'{ticket.ticket_number}-S{(idx+1):02d}',
@@ -15078,7 +15121,7 @@ def api_v1_external_create_ticket():
                     priority=st_priority,
                     sla_minutes=sla_min,
                     sla_deadline=datetime.now() + timedelta(minutes=sla_min),
-                    assignee_id=gs.assignee_id,   # ← el técnico ya configurado en el guion
+                    assignee_id=resolved_assignee,
                     created_by_id=author.id,
                     order_idx=idx,
                 )
@@ -15528,6 +15571,70 @@ def api_admin_guion_subtask_delete(subtask_id):
     db.session.commit()
     log_audit('guion_subtask_delete', session['user_id'], 'guion', g.id, f'Subtarea "{title}" del guion {g.code} eliminada')
     return jsonify({'success': True})
+
+
+# ─── Asignación de guiones a especialistas (M:N desde Gestión de Usuarios) ───
+
+@app.route('/api/admin/users/<int:user_id>/guiones', methods=['GET'])
+def api_user_guiones_get(user_id):
+    """Guiones asignados a un especialista + catálogo de guiones disponibles de su empresa."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    user = User.query.get_or_404(user_id)
+    if user.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+
+    assigned = UserGuion.query.filter_by(user_id=user_id).all()
+    assigned_ids = {a.guion_id for a in assigned}
+    catalog = Guion.query.filter_by(company=user.company, is_active=True).order_by(Guion.name).all()
+
+    return jsonify({
+        'success': True,
+        'user': {'id': user.id, 'name': user.name, 'role': user.role, 'company': user.company},
+        'assigned_guion_ids': list(assigned_ids),
+        'catalog': [{
+            'id': g.id,
+            'code': g.code,
+            'name': g.name,
+            'description': g.description or '',
+            'default_priority': g.default_priority,
+            'default_category': g.default_category,
+            'subtask_count': GuionSubtask.query.filter_by(guion_id=g.id).count(),
+        } for g in catalog]
+    })
+
+
+@app.route('/api/admin/users/<int:user_id>/guiones', methods=['POST'])
+def api_user_guiones_set(user_id):
+    """Reemplaza la lista de guiones asignados al usuario.
+    Body: {guion_ids: [1, 2, 3]}"""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    user = User.query.get_or_404(user_id)
+    if user.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+    if user.role not in ('technician', 'admin'):
+        return jsonify({'success': False, 'error': 'Solo se pueden asignar guiones a técnicos o administradores'}), 400
+
+    data = request.get_json() or {}
+    try:
+        new_ids = [int(x) for x in (data.get('guion_ids') or [])]
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'guion_ids debe ser una lista de IDs enteros'}), 400
+
+    UserGuion.query.filter_by(user_id=user_id).delete()
+    added = 0
+    for gid in new_ids:
+        g = Guion.query.get(gid)
+        if not g or not g.is_active:
+            continue
+        if g.company != user.company:
+            continue
+        db.session.add(UserGuion(user_id=user_id, guion_id=gid))
+        added += 1
+    db.session.commit()
+    log_audit('set_user_guiones', session['user_id'], 'user', user_id, f'{added} guiones asignados a {user.name}')
+    return jsonify({'success': True, 'count': added, 'message': f'{added} guiones asignados'})
 
 
 # ─── Admin endpoints para gestionar API Keys ─────────────────────────────────

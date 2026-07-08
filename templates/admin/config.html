@@ -479,6 +479,34 @@
                     </div>
                 </div>
 
+                <!-- MODAL: Asignar Guiones -->
+                <div id="userGuionesModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;align-items:center;justify-content:center;">
+                    <div style="background:white;border-radius:10px;padding:24px;max-width:640px;width:90%;max-height:85vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:1px solid #e5e7eb;padding-bottom:10px;">
+                            <h2 style="margin:0;color:#111827;font-size:18px;">📜 Asignar Guiones al Especialista</h2>
+                            <button onclick="closeUserGuionesModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#6b7280;">×</button>
+                        </div>
+                        <div id="usrGnUserInfo" style="background:#f5f3ff;border:1px solid #ddd6fe;padding:10px;border-radius:6px;margin-bottom:14px;font-size:13px;color:#5b21b6;">
+                            Cargando usuario...
+                        </div>
+                        <p style="font-size:12px;color:#6b7280;margin:0 0 10px 0;">
+                            Cuando la API externa invoque uno de estos guiones y una subtarea no tenga técnico fijo definido en el guion, se asignará automáticamente a este especialista (balanceo por carga entre los asignados).
+                        </p>
+                        <div style="margin-bottom:10px;">
+                            <input type="text" id="usrGnSearch" placeholder="🔍 Buscar guion..." onkeyup="filterUserGuiones()"
+                                   style="width:100%;padding:9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                        </div>
+                        <div id="usrGnList" style="max-height:380px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:6px;padding:8px;">
+                            <p style="text-align:center;color:#999;padding:20px;">Cargando guiones...</p>
+                        </div>
+                        <div id="usrGnStatus" style="font-size:12px;margin-top:8px;"></div>
+                        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;border-top:1px solid #e5e7eb;padding-top:12px;">
+                            <button onclick="closeUserGuionesModal()" style="padding:9px 16px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Cancelar</button>
+                            <button onclick="saveUserGuiones()" id="usrGnSaveBtn" style="padding:9px 18px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;">💾 Guardar asignación</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- MODAL: Asignar VARIOS Roles Personalizados -->
                 <div id="multiRoleModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;align-items:center;justify-content:center;">
                     <div style="background:white;width:540px;max-width:92vw;max-height:88vh;display:flex;flex-direction:column;border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,0.35);">
@@ -1496,6 +1524,11 @@
                         ? `<button onclick="openUserSubrolesModal(${u.id}, '${escapeU(u.name).replace(/'/g,"\\'")}', '${u.role}')" title="Asignar subroles" style="padding:5px 10px;background:#7c3aed;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">🎖️</button>`
                         : '';
 
+                    // Botón guiones solo para técnicos/admins
+                    const guionesBtn = (u.role === 'technician' || u.role === 'admin')
+                        ? `<button onclick="openUserGuionesModal(${u.id}, '${escapeU(u.name).replace(/'/g,"\\'")}', '${u.role}')" title="Asignar guiones (plantillas de subtareas)" style="padding:5px 10px;background:#8b5cf6;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">📜</button>`
+                        : '';
+
                     html += `
                         <tr id="user-row-${u.id}" style="border-bottom:1px solid #eee;">
                             <td style="padding:12px;">
@@ -1519,6 +1552,7 @@
                             <td style="padding:12px;font-size:12px;color:#666;">${u.last_login || 'Nunca'}</td>
                             <td style="padding:12px;text-align:center;white-space:nowrap;">
                                 ${subrolesBtn}
+                                ${guionesBtn}
                                 <button onclick="openMultiRoleModal(${u.id}, '${escapeU(u.name).replace(/'/g, "\\'")}')" title="Asignar varios roles personalizados" style="padding:5px 10px;background:#a855f7;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">🎭</button>
                                 <button onclick="editUser(${u.id})" title="Editar" style="padding:5px 10px;background:#2563eb;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">✏️</button>
                                 <button onclick="toggleUserActive(${u.id}, ${!u.is_active})" title="${u.is_active ? 'Desactivar' : 'Activar'}" style="padding:5px 10px;background:${u.is_active ? '#6b7280' : '#16a34a'};color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">${u.is_active ? '⏸' : '▶'}</button>
@@ -1603,6 +1637,104 @@
 
         function closeUserSubrolesModal() {
             document.getElementById('userSubrolesModal').style.display = 'none';
+        }
+
+        // ========= ASIGNAR GUIONES A ESPECIALISTA =========
+        let _usrGnCatalog = [];
+        let _usrGnSelected = new Set();
+        let _usrGnUserId = null;
+
+        async function openUserGuionesModal(userId, userName, userRole) {
+            _usrGnUserId = userId;
+            _usrGnSelected = new Set();
+            document.getElementById('usrGnUserInfo').innerHTML =
+                `Asignando guiones a <strong>${escapeU(userName)}</strong> (${escapeU(userRole)})`;
+            document.getElementById('userGuionesModal').style.display = 'flex';
+            document.getElementById('usrGnSearch').value = '';
+            document.getElementById('usrGnList').innerHTML = '<p style="text-align:center;color:#999;padding:20px;">Cargando...</p>';
+            document.getElementById('usrGnStatus').textContent = '';
+
+            try {
+                const r = await fetch('/api/admin/users/' + userId + '/guiones');
+                const d = await r.json();
+                if (!d.success) throw new Error(d.error || 'Error cargando guiones');
+                _usrGnCatalog = d.catalog || [];
+                (d.assigned_guion_ids || []).forEach(id => _usrGnSelected.add(id));
+                renderUserGuionesList();
+            } catch (e) {
+                document.getElementById('usrGnList').innerHTML = '<p style="color:#dc2626;text-align:center;padding:20px;">Error: ' + e.message + '</p>';
+            }
+        }
+
+        function renderUserGuionesList() {
+            const q = (document.getElementById('usrGnSearch').value || '').toLowerCase().trim();
+            const items = _usrGnCatalog.filter(g =>
+                !q || g.name.toLowerCase().includes(q) || (g.code || '').toLowerCase().includes(q) || (g.description || '').toLowerCase().includes(q)
+            );
+            const list = document.getElementById('usrGnList');
+            if (_usrGnCatalog.length === 0) {
+                list.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:20px;">No hay guiones activos para esta empresa. Andá a Config → 📜 Guiones para crear uno.</p>';
+                return;
+            }
+            if (items.length === 0) {
+                list.innerHTML = '<p style="text-align:center;color:#999;padding:20px;">No se encontraron guiones</p>';
+                return;
+            }
+            list.innerHTML = items.map(g => {
+                const checked = _usrGnSelected.has(g.id);
+                return `
+                    <label style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:6px;cursor:pointer;${checked?'background:#f5f3ff;':''}border:1px solid ${checked?'#ddd6fe':'transparent'};margin-bottom:4px;">
+                        <input type="checkbox" ${checked?'checked':''} onchange="toggleUserGuionSelection(${g.id})" style="width:18px;height:18px;cursor:pointer;">
+                        <span style="font-size:20px;">📜</span>
+                        <div style="flex:1;">
+                            <div style="font-weight:600;color:#111827;font-size:13px;">${escapeU(g.name)}</div>
+                            <div style="font-size:11px;color:#6b7280;margin-top:2px;">
+                                <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px;">${escapeU(g.code)}</code>
+                                <span style="margin-left:6px;">${g.subtask_count} subtareas</span>
+                                ${g.default_priority ? `<span style="margin-left:6px;">🎯 ${escapeU(g.default_priority)}</span>` : ''}
+                            </div>
+                            ${g.description ? `<div style="font-size:11px;color:#6b7280;margin-top:3px;">${escapeU(g.description)}</div>` : ''}
+                        </div>
+                    </label>
+                `;
+            }).join('');
+        }
+
+        function filterUserGuiones() { renderUserGuionesList(); }
+
+        function toggleUserGuionSelection(id) {
+            if (_usrGnSelected.has(id)) _usrGnSelected.delete(id);
+            else _usrGnSelected.add(id);
+            renderUserGuionesList();
+        }
+
+        function closeUserGuionesModal() {
+            document.getElementById('userGuionesModal').style.display = 'none';
+        }
+
+        async function saveUserGuiones() {
+            if (!_usrGnUserId) return;
+            const btn = document.getElementById('usrGnSaveBtn');
+            const status = document.getElementById('usrGnStatus');
+            btn.disabled = true;
+            btn.textContent = 'Guardando...';
+            status.textContent = '';
+            try {
+                const r = await fetch('/api/admin/users/' + _usrGnUserId + '/guiones', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({guion_ids: [..._usrGnSelected]})
+                });
+                const d = await r.json();
+                if (!d.success) throw new Error(d.error || 'Error guardando');
+                status.innerHTML = `<span style="color:#059669;font-weight:600;">✓ ${d.message}</span>`;
+                setTimeout(() => { closeUserGuionesModal(); }, 800);
+            } catch (e) {
+                status.innerHTML = `<span style="color:#dc2626;">Error: ${e.message}</span>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '💾 Guardar asignación';
+            }
         }
 
         // ========= MULTI-ROLES PERSONALIZADOS =========
