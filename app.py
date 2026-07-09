@@ -6937,6 +6937,18 @@ def init_db():
         if created_count == 0:
             return
 
+        # Config env para saltearse los tickets demo en produccion
+        # (defualt true para bootstrap inicial; setear false despues del primer deploy)
+        if os.getenv('SEED_DEMO_TICKETS', 'true').lower() in ('false', '0', 'no'):
+            print('[init_db] SEED_DEMO_TICKETS=false → no se crean tickets demo')
+            return
+
+        # Doble guarda: si ya existen tickets en alguna empresa, no re-seedear
+        # (evita que tickets demo re-aparezcan tras un wipe manual)
+        if Ticket.query.count() > 0:
+            print('[init_db] Ya hay tickets en la BD → skip demo tickets')
+            return
+
         # Configuración inicial
         defaults = [
             Config(key='sla_low', value='480'),
