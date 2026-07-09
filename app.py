@@ -2658,11 +2658,18 @@ def admin_config_old():
 
     theme_name = get_company_theme(session.get('company'))
 
+    # Un admin de pash/primatela puede sincronizar tecnicos desde eliot (master)
+    can_sync_from_master = (
+        session.get('company') != MIRROR_SOURCE_COMPANY
+        and session.get('company') in MIRROR_TARGET_COMPANIES
+    )
+
     return render_template('admin/config.html',
                            sla_config=sla_config,
                            themes=THEMES,
                            current_theme=theme_name,
-                           is_master=is_master_admin())
+                           is_master=is_master_admin(),
+                           can_sync_from_master=can_sync_from_master)
 
 @app.route('/admin/orchestrator')
 def admin_orchestrator():
@@ -13621,6 +13628,88 @@ def delete_technician_mirrors(src_user):
     for m in mirrors:
         db.session.delete(m)
     return len(mirrors)
+
+
+@app.route('/api/admin/team/sync-from-master', methods=['POST'])
+def api_admin_team_sync_from_master():
+    """Sincroniza los tecnicos de Eliot (empresa master) a la empresa del admin
+    logueado. Idempotente: crea los que faltan y actualiza los ya espejados.
+    Solo disponible para admins de pash y primatela (Eliot es el origen)."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    admin_company = session.get('company')
+    if admin_company == MIRROR_SOURCE_COMPANY:
+        return jsonify({
+            'success': False,
+            'error': 'Este boton es solo para empresas target (pash/primatela). Eliot es la fuente.'
+        }), 400
+    if admin_company not in MIRROR_TARGET_COMPANIES:
+        return jsonify({'success': False, 'error': 'Empresa no configurada como target de sincronizacion.'}), 400
+
+    # Iterar sobre todos los tecnicos de Eliot y disparar el mirror
+    eliot_techs = User.query.filter_by(
+        company=MIRROR_SOURCE_COMPANY, role='technician'
+    ).all()
+
+    stats = {'created': 0, 'updated': 0, 'skipped_conflict': 0}
+    for t in eliot_techs:
+        existing = User.query.filter_by(
+            mirrored_from_id=t.id, company=admin_company
+        ).first()
+
+        if existing:
+            existing.name = t.name
+            existing.email = t.email
+            existing.role = t.role
+            existing.password_hash = t.password_hash
+            existing.is_active = t.is_active
+            existing.must_change_password = t.must_change_password
+            existing.area = t.area
+            existing.location = t.location
+            existing.phone = t.phone
+            stats['updated'] += 1
+            continue
+
+        # Chequear conflicto con usuario local
+        conflict = User.query.filter(
+            User.company == admin_company,
+            db.or_(
+                User.username == t.username,
+                db.func.lower(User.email) == (t.email or '').lower()
+            )
+        ).first()
+        if conflict:
+            stats['skipped_conflict'] += 1
+            continue
+
+        m = User(
+            username=t.username, name=t.name, email=t.email, role=t.role,
+            company=admin_company, password_hash=t.password_hash,
+            is_active=t.is_active, must_change_password=t.must_change_password,
+            area=t.area, location=t.location, phone=t.phone,
+            mirrored_from_id=t.id,
+        )
+        db.session.add(m)
+        stats['created'] += 1
+
+    db.session.commit()
+    total = stats['created'] + stats['updated']
+    log_audit('sync_technicians_from_master', session['user_id'], 'user', 0,
+              f'Sincronizados {total} tecnicos desde eliot a {admin_company} '
+              f'(nuevos: {stats["created"]}, actualizados: {stats["updated"]}, '
+              f'conflicto local: {stats["skipped_conflict"]})')
+
+    parts = []
+    if stats['created']:
+        parts.append(f'{stats["created"]} nuevo(s)')
+    if stats['updated']:
+        parts.append(f'{stats["updated"]} actualizado(s)')
+    if stats['skipped_conflict']:
+        parts.append(f'{stats["skipped_conflict"]} omitido(s) por conflicto local')
+    msg = 'Sincronizacion completada. ' + (', '.join(parts) if parts else 'Sin cambios.')
+
+    return jsonify({'success': True, 'message': msg, 'stats': stats, 'source_count': len(eliot_techs)})
 
 
 @app.route('/api/admin/team', methods=['POST'])

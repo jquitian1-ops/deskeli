@@ -362,6 +362,13 @@
                         <button onclick="loadTeam()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                             🔄 Recargar
                         </button>
+                        {% if can_sync_from_master %}
+                        <button onclick="syncTechniciansFromMaster()" id="btnSyncMaster"
+                                title="Trae los tecnicos de Manufactureras Eliot (empresa master) y los sincroniza en esta empresa. Idempotente: solo crea los que faltan y actualiza los ya sincronizados."
+                                style="padding: 10px 20px; background: linear-gradient(135deg,#7c3aed,#5b21b6); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                            🔗 Sincronizar técnicos de Eliot
+                        </button>
+                        {% endif %}
                         <span id="user-status" style="align-self: center; font-size: 13px;"></span>
                     </div>
 
@@ -1963,6 +1970,35 @@
         function escapeU(str) {
             if (!str) return '';
             return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
+        async function syncTechniciansFromMaster() {
+            if (!confirm('¿Sincronizar los técnicos de Manufactureras Eliot en esta empresa?\n\nEsto creará los que falten y actualizará nombre, email, contraseña y estado de los que ya estén sincronizados.\n\nLos usuarios locales de esta empresa NO se tocan.')) return;
+            const btn = document.getElementById('btnSyncMaster');
+            const status = document.getElementById('user-status');
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Sincronizando...'; }
+            if (status) { status.textContent = ''; status.style.color = ''; }
+            try {
+                const r = await fetch('/api/admin/team/sync-from-master', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const data = await r.json();
+                if (!data.success) throw new Error(data.error || 'Error');
+                if (status) {
+                    status.style.color = '#059669';
+                    status.textContent = '✓ ' + data.message;
+                }
+                loadTeam();
+            } catch (e) {
+                if (status) {
+                    status.style.color = '#dc2626';
+                    status.textContent = '✗ Error: ' + e.message;
+                }
+                alert('Error sincronizando: ' + e.message);
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = '🔗 Sincronizar técnicos de Eliot'; }
+            }
         }
 
         function toggleNewUser() {
