@@ -8,12 +8,24 @@
  * sanitización, audit log). Este script solo disuade la curiosidad casual.
  *
  * Para desactivar temporalmente en debug: window.__DESKELI_ALLOW_DEVTOOLS = true
+ *
+ * v2 (2026-07-09): Reducidos falsos positivos:
+ * - Threshold subido de 160 a 260 px
+ * - Requiere 3 detecciones consecutivas antes de mostrar overlay
+ * - Removido el "debugger trap" (causaba falsos positivos por GC/pestañas)
+ * - Grace period de 5 seg al arranque
+ * - Ignora dispositivos con touch (móviles/tablets)
  */
 (function () {
     'use strict';
 
     // Escape hatch para debug del propio equipo TI
     if (window.__DESKELI_ALLOW_DEVTOOLS) return;
+
+    // No aplicar en dispositivos táctiles (móvil/tablet — no tienen DevTools típicamente)
+    const isTouchDevice = ('ontouchstart' in window) ||
+                          (navigator.maxTouchPoints > 0) ||
+                          (window.matchMedia && window.matchMedia('(pointer:coarse)').matches);
 
     // ── Bloquear atajos de teclado ──────────────────────────────────
     document.addEventListener('keydown', function (e) {
@@ -37,8 +49,11 @@
     }, true);
 
     // ── Overlay de advertencia ──────────────────────────────────────
+    let __overlayShown = false;
     function showWarning() {
+        if (__overlayShown) return;
         if (document.getElementById('__deskeli_devtools_warn')) return;
+        __overlayShown = true;
         const overlay = document.createElement('div');
         overlay.id = '__deskeli_devtools_warn';
         overlay.style.cssText =
@@ -62,30 +77,40 @@
         document.body.appendChild(overlay);
     }
 
-    // ── Detector: DevTools abierto ──────────────────────────────────
-    // Método 1: diferencia entre outerWidth/innerWidth (heurística clásica)
+    // ── Detector: DevTools abierto (heurística de tamaño de ventana) ──
+    // Solo se activa tras 5 seg de grace period, requiere 3 detecciones
+    // consecutivas y threshold generoso para evitar falsos positivos
+    // por extensiones, zoom del navegador, barras de bookmarks, etc.
+    const THRESHOLD_PX = 260;          // subido de 160 (falsos positivos con extensiones)
+    const CONSECUTIVE_REQUIRED = 3;    // ~3 seg de detección continua
+    const GRACE_PERIOD_MS = 5000;      // no chequear durante el arranque
+    let consecutiveDetections = 0;
+    let startupTime = Date.now();
+
     function checkDevToolsSize() {
-        const threshold = 160;
+        if (__overlayShown) return;
+        if (isTouchDevice) return;
+        if (Date.now() - startupTime < GRACE_PERIOD_MS) return;
+        // Requiere que el navegador reporte outerWidth/innerWidth validos
+        if (!window.outerWidth || !window.innerWidth) return;
+
         const widthDiff = window.outerWidth - window.innerWidth;
         const heightDiff = window.outerHeight - window.innerHeight;
-        if (widthDiff > threshold || heightDiff > threshold) {
-            showWarning();
+
+        // DevTools abierto a un costado o abajo generalmente resta ancho o alto
+        // significativamente. Con threshold de 260 filtramos extensiones y
+        // barras de bookmarks (que rara vez ocupan mas de 200 px).
+        if (widthDiff > THRESHOLD_PX || heightDiff > THRESHOLD_PX) {
+            consecutiveDetections++;
+            if (consecutiveDetections >= CONSECUTIVE_REQUIRED) {
+                showWarning();
+                reportDevtoolsToAudit();
+            }
+        } else {
+            consecutiveDetections = 0;  // reset si vuelve a la normalidad
         }
     }
     setInterval(checkDevToolsSize, 1000);
-
-    // Método 2: debugger trap con tiempo (si DevTools está abierto, el debugger pausa)
-    function debuggerTrap() {
-        const start = performance.now();
-        // eslint-disable-next-line no-debugger
-        debugger;
-        const elapsed = performance.now() - start;
-        if (elapsed > 100) {
-            showWarning();
-            reportDevtoolsToAudit();
-        }
-    }
-    setInterval(debuggerTrap, 2000);
 
     // ── Reportar al audit log del servidor (best-effort) ────────────
     let __reported = false;
@@ -105,13 +130,9 @@
         } catch (e) { /* silent */ }
     }
 
-    // ── Deshabilitar selección + drag de imágenes ───────────────────
-    document.addEventListener('dragstart', function (e) { e.preventDefault(); return false; }, true);
-    document.addEventListener('selectstart', function (e) {
-        // Permitir seleccionar en inputs y textareas (para que se pueda escribir)
-        const tag = (e.target.tagName || '').toLowerCase();
-        if (tag === 'input' || tag === 'textarea') return true;
-        e.preventDefault();
-        return false;
+    // ── Deshabilitar drag de imágenes (solo eso — la selección de texto queda) ──
+    document.addEventListener('dragstart', function (e) {
+        const tag = (e.target && e.target.tagName || '').toLowerCase();
+        if (tag === 'img') { e.preventDefault(); return false; }
     }, true);
 })();
