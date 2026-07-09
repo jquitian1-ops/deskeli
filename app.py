@@ -2335,9 +2335,11 @@ def technician_ticket(ticket_id):
         return redirect(url_for('login'))
 
     ticket = Ticket.query.get_or_404(ticket_id)
+    user = User.query.get(session['user_id'])
 
-    # Validar acceso: misma empresa o admin master (Eliot ve todas)
-    if ticket.company not in admin_companies_scope():
+    # Validar acceso: misma empresa, admin master, o ticket asignado a
+    # alguna identidad espejo del usuario (vista consolidada cross-company)
+    if not can_user_access_ticket(user, ticket):
         return redirect(url_for('technician_dashboard'))
 
     # Obtener mensajes con usuario cargado (para msg.user.name)
@@ -2360,7 +2362,6 @@ def technician_ticket(ticket_id):
     log_audit('view_ticket', session['user_id'], 'ticket', ticket_id,
               f'Técnico vio ticket {ticket.ticket_number}')
 
-    user = User.query.get(session['user_id'])
     assignment_info = get_ticket_assignment_info(ticket)
 
     return render_template('technician/ticket_detail.html',
@@ -2378,7 +2379,6 @@ def technician_dashboard():
 
     user = User.query.get(session['user_id'])
     # Excluir tickets internos del sistema (DMs, chats grupales, etc.)
-    # Solo tickets reales que empiecen con TKT-, AUTO-, o sin prefijo especial conocido
     INTERNAL_PREFIXES = ('DM-', 'CHAT-')
     tickets = [
         t for t in Ticket.query.filter_by(company=user.company).all()
@@ -2391,7 +2391,22 @@ def technician_dashboard():
         [t for t in tickets if t.assignee_id in group_user_ids],
         key=lambda x: x.sla_deadline or datetime.now()
     )
-    my_queue_objs = [t for t in tickets if t.assignee_id == user.id]
+
+    # "Asignados a mi" — incluye tickets asignados a cualquiera de mis identidades
+    # (self + espejos + origen). Esto permite ver tickets de otras empresas cuando
+    # el mismo especialista esta replicado (Eliot espejo en Pash/Primatela).
+    identity_ids = get_user_identity_ids(user)
+    my_queue_objs = [t for t in tickets if t.assignee_id in identity_ids]
+    # Y traer tickets de OTRAS empresas asignados a mis espejos/origen
+    if len(identity_ids) > 1:
+        cross_tickets = [
+            t for t in Ticket.query.filter(
+                Ticket.assignee_id.in_(identity_ids),
+                Ticket.company != user.company
+            ).all()
+            if not (t.ticket_number or '').startswith(INTERNAL_PREFIXES)
+        ]
+        my_queue_objs.extend(cross_tickets)
     my_queue_objs.sort(key=lambda x: x.sla_deadline or datetime.now())
 
     # Enriquecer con info de asignación (quién asignó y cuándo) — evitar N+1 con cache
@@ -2424,8 +2439,9 @@ def technician_dashboard():
     my_queue = [_enrich(t) for t in my_queue_objs]
     queue = team_queue  # compatibilidad
 
-    # Calcular stats correctas para el template
-    my_tickets = [t for t in tickets if t.assignee_id == user.id]
+    # Calcular stats correctas para el template (incluye tickets cross-company
+    # de espejos, para que los KPIs reflejen el trabajo real del especialista)
+    my_tickets = my_queue_objs
     now = datetime.now()
 
     # "A tiempo" considera dos escenarios:
@@ -5855,6 +5871,49 @@ def admin_companies_scope(user_company=None, role=None):
     return [user_company]
 
 
+def can_user_access_ticket(user, ticket):
+    """Determina si `user` tiene permiso para VER/EDITAR este ticket.
+    Reglas:
+    - Si el ticket es de la misma empresa que el user, si.
+    - Si el user es master admin, si (Eliot admin ve todas las empresas).
+    - Si el ticket esta asignado a cualquiera de las identidades espejo del user
+      (misma persona replicada en otras empresas), si — para consolidar la vista
+      del especialista al entrar a Eliot.
+    """
+    if not user or not ticket:
+        return False
+    if ticket.company == user.company:
+        return True
+    if is_master_admin(user.company, user.role):
+        return True
+    if ticket.assignee_id in get_user_identity_ids(user):
+        return True
+    return False
+
+
+def get_user_identity_ids(user):
+    """Devuelve todos los user.id que representan a la misma persona a traves
+    de las empresas espejadas.
+    - Si user es un ESPEJO (mirrored_from_id != NULL): devuelve source + todos
+      los espejos hermanos + el user actual.
+    - Si user es un ORIGEN (o usuario normal sin espejos): devuelve el propio id
+      + todos los espejos que apuntan a el.
+    Uso: consolidar la vista de tickets/subtareas asignados a cualquier
+    identidad del especialista en el dashboard de una empresa."""
+    if not user:
+        return set()
+    ids = {user.id}
+    if user.mirrored_from_id:
+        source_id = user.mirrored_from_id
+        ids.add(source_id)
+        for m in User.query.filter_by(mirrored_from_id=source_id).all():
+            ids.add(m.id)
+    else:
+        for m in User.query.filter_by(mirrored_from_id=user.id).all():
+            ids.add(m.id)
+    return ids
+
+
 def get_my_group_user_ids(user):
     """IDs de tecnicos/admins de la misma empresa que comparten AL MENOS 1 subrol
     con `user`. Incluye al propio user en el resultado. Si el user no tiene subroles,
@@ -8796,16 +8855,23 @@ def api_my_subtasks():
     user = User.query.get(session['user_id'])
 
     try:
-        query = Subtask.query.join(Ticket, Subtask.ticket_id == Ticket.id).filter(
-            Ticket.company == session['company']
-        )
         if scope == 'mine':
-            query = query.filter(Subtask.assignee_id == session['user_id'])
+            # Incluye subtareas asignadas a mis identidades (self + espejos +
+            # origen) sin importar la empresa. Consolida vista cross-company.
+            identity_ids = get_user_identity_ids(user)
+            query = Subtask.query.filter(Subtask.assignee_id.in_(identity_ids))
         elif scope == 'team':
             # "De mis grupos" = subtareas asignadas a tecnicos que comparten
-            # al menos 1 subrol conmigo (incluyendome). Sin asignar NO cuenta.
+            # al menos 1 subrol conmigo, dentro de mi empresa actual.
             group_ids = get_my_group_user_ids(user)
-            query = query.filter(Subtask.assignee_id.in_(group_ids))
+            query = Subtask.query.join(Ticket, Subtask.ticket_id == Ticket.id).filter(
+                Ticket.company == session['company'],
+                Subtask.assignee_id.in_(group_ids)
+            )
+        else:
+            query = Subtask.query.join(Ticket, Subtask.ticket_id == Ticket.id).filter(
+                Ticket.company == session['company']
+            )
         subtasks = query.all()
 
         # Orden: resueltas al final, dentro de cada grupo por SLA ascendente (None al final)
