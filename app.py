@@ -2369,8 +2369,15 @@ def technician_dashboard():
         t for t in Ticket.query.filter_by(company=user.company).all()
         if not (t.ticket_number or '').startswith(INTERNAL_PREFIXES)
     ]
-    team_queue_objs = sorted(tickets, key=lambda x: x.sla_deadline or datetime.now())
-    my_queue_objs = [t for t in team_queue_objs if t.assignee_id == user.id]
+    # "De mis grupos" = tickets asignados a tecnicos que comparten al menos 1
+    # subrol conmigo (incluyendome). Sin asignar NO se muestran aca.
+    group_user_ids = get_my_group_user_ids(user)
+    team_queue_objs = sorted(
+        [t for t in tickets if t.assignee_id in group_user_ids],
+        key=lambda x: x.sla_deadline or datetime.now()
+    )
+    my_queue_objs = [t for t in tickets if t.assignee_id == user.id]
+    my_queue_objs.sort(key=lambda x: x.sla_deadline or datetime.now())
 
     # Enriquecer con info de asignación (quién asignó y cuándo) — evitar N+1 con cache
     _assign_cache = {}
@@ -5826,6 +5833,32 @@ def admin_companies_scope(user_company=None, role=None):
     return [user_company]
 
 
+def get_my_group_user_ids(user):
+    """IDs de tecnicos/admins de la misma empresa que comparten AL MENOS 1 subrol
+    con `user`. Incluye al propio user en el resultado. Si el user no tiene subroles,
+    devuelve solo su propio id (grupo unipersonal).
+    Usado para el filtro 'De mis grupos' en el dashboard del tecnico."""
+    if not user:
+        return set()
+    my_subrole_ids = [a.subrole_id for a in UserSubrole.query.filter_by(user_id=user.id).all()]
+    if not my_subrole_ids:
+        return {user.id}
+    # Otros usuarios que tienen al menos 1 de mis subroles
+    peer_ids = {
+        row.user_id for row in UserSubrole.query
+        .filter(UserSubrole.subrole_id.in_(my_subrole_ids))
+        .all()
+    }
+    peer_ids.add(user.id)
+    # Restringir a misma empresa + roles operativos
+    peers = User.query.filter(
+        User.id.in_(peer_ids),
+        User.company == user.company,
+        User.role.in_(['technician', 'admin'])
+    ).with_entities(User.id).all()
+    return {row.id for row in peers}
+
+
 def get_ticket_assignment_info(ticket):
     """Devuelve un dict {by, source, when} describiendo quién/qué hizo la última asignación.
     Busca primero en audit_logs (manual o auto_assign), luego en agent_actions (orchestrator IA)."""
@@ -8713,11 +8746,12 @@ def api_subtasks_create(ticket_id):
 
 @app.route('/api/technician/my-subtasks', methods=['GET'])
 def api_my_subtasks():
-    """Subtareas. scope=mine (default) → asignadas al técnico; scope=team → todas las del grupo/empresa."""
+    """Subtareas. scope=mine (default) → asignadas al técnico; scope=team → del grupo de subroles."""
     if 'user_id' not in session or session['role'] not in ['technician', 'admin']:
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
 
     scope = request.args.get('scope', 'mine')
+    user = User.query.get(session['user_id'])
 
     try:
         query = Subtask.query.join(Ticket, Subtask.ticket_id == Ticket.id).filter(
@@ -8725,6 +8759,11 @@ def api_my_subtasks():
         )
         if scope == 'mine':
             query = query.filter(Subtask.assignee_id == session['user_id'])
+        elif scope == 'team':
+            # "De mis grupos" = subtareas asignadas a tecnicos que comparten
+            # al menos 1 subrol conmigo (incluyendome). Sin asignar NO cuenta.
+            group_ids = get_my_group_user_ids(user)
+            query = query.filter(Subtask.assignee_id.in_(group_ids))
         subtasks = query.all()
 
         # Orden: resueltas al final, dentro de cada grupo por SLA ascendente (None al final)
