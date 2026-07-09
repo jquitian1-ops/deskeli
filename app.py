@@ -661,6 +661,9 @@ class ReportRecipient(db.Model):
     company = db.Column(db.String(20), nullable=False, index=True)  # eliot|pash|primatela
     title = db.Column(db.String(120))  # cargo: "Gerente TI", "Jefe Soporte"
     team_user_ids = db.Column(db.Text)  # JSON array de user.id que conforman el equipo. NULL/'' = toda la empresa
+    # Especialistas CC: reciben el mismo reporte por email en copia (email de cada user).
+    # NO afecta el filtro de datos — es solo para propagar el envio.
+    cc_user_ids = db.Column(db.Text)     # JSON array de user.id a copiar en el envio
     send_quincenal = db.Column(db.Boolean, default=True)
     send_monthly = db.Column(db.Boolean, default=True)
     send_annual = db.Column(db.Boolean, default=True)
@@ -679,6 +682,18 @@ class ReportRecipient(db.Model):
     def set_team_ids(self, ids):
         ids = [int(i) for i in (ids or []) if str(i).isdigit() or isinstance(i, int)]
         self.team_user_ids = json.dumps(ids) if ids else None
+
+    def get_cc_ids(self):
+        if not self.cc_user_ids:
+            return []
+        try:
+            return [int(x) for x in json.loads(self.cc_user_ids) if str(x).isdigit() or isinstance(x, int)]
+        except Exception:
+            return []
+
+    def set_cc_ids(self, ids):
+        ids = [int(i) for i in (ids or []) if str(i).isdigit() or isinstance(i, int)]
+        self.cc_user_ids = json.dumps(ids) if ids else None
 
 
 class Subtask(db.Model):
@@ -6192,6 +6207,22 @@ def migrate_users_schema():
     print("[migrate_users] Tabla users recreada con UNIQUE compuesto (username, company)")
 
 
+def migrate_report_recipients_cc():
+    """Agrega columna cc_user_ids a report_recipients si no existe."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'report_recipients' not in inspector.get_table_names():
+        return
+    existing_cols = {c['name'] for c in inspector.get_columns('report_recipients')}
+    if 'cc_user_ids' not in existing_cols:
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE report_recipients ADD COLUMN cc_user_ids TEXT"))
+            print("[migrate_report_recipients] Columna cc_user_ids agregada")
+        except Exception as e:
+            print(f"[migrate_report_recipients] error cc_user_ids: {e}")
+
+
 def migrate_report_recipients_team():
     """Agrega columna team_user_ids a report_recipients si no existe."""
     from sqlalchemy import inspect, text
@@ -6860,6 +6891,10 @@ def init_db():
             migrate_report_recipients_team()
         except Exception as _e:
             print(f"[migrate] report_recipients_team: {_e}")
+        try:
+            migrate_report_recipients_cc()
+        except Exception as _e:
+            print(f"[migrate] report_recipients_cc: {_e}")
         migrate_subtasks_schema()
         backfill_subtask_numbers()
         seed_default_subroles()
@@ -14208,6 +14243,8 @@ def api_report_recipients_list():
             'title': r.title or '',
             'team_user_ids': r.get_team_ids(),
             'team_size': len(r.get_team_ids()),
+            'cc_user_ids': r.get_cc_ids(),
+            'cc_size': len(r.get_cc_ids()),
             'send_quincenal': bool(r.send_quincenal),
             'send_monthly': bool(r.send_monthly),
             'send_annual': bool(r.send_annual),
@@ -14344,6 +14381,65 @@ def api_report_recipients_team_set(rid):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/admin/report-recipients/<int:rid>/cc', methods=['GET'])
+def api_report_recipients_cc_get(rid):
+    """Devuelve la lista de tecnicos/admins de la empresa del destinatario
+    marcando quienes estan configurados como CC del reporte."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False}), 401
+    r = ReportRecipient.query.get(rid)
+    if not r or r.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'No encontrado'}), 404
+    cc_ids = set(r.get_cc_ids())
+    users = User.query.filter(
+        User.company == r.company,
+        User.role.in_(['technician', 'admin'])
+    ).order_by(User.role.desc(), User.name).all()
+    return jsonify({
+        'success': True,
+        'recipient': {'id': r.id, 'name': r.name, 'company': r.company, 'email': r.email},
+        'cc_user_ids': list(cc_ids),
+        'users': [{
+            'id': u.id,
+            'name': u.name,
+            'username': u.username,
+            'role': u.role,
+            'role_label': u.role_label or '',
+            'email': u.email,
+            'is_active': bool(u.is_active),
+            'in_cc': u.id in cc_ids,
+        } for u in users]
+    })
+
+
+@app.route('/api/admin/report-recipients/<int:rid>/cc', methods=['PUT'])
+def api_report_recipients_cc_set(rid):
+    """Reemplaza la lista de especialistas CC del destinatario.
+    Body: {cc_user_ids: [1,2,3]}"""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False}), 401
+    r = ReportRecipient.query.get(rid)
+    if not r or r.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'No encontrado'}), 404
+    try:
+        data = request.get_json() or {}
+        ids = data.get('cc_user_ids') or []
+        valid_ids = []
+        if ids:
+            users = User.query.filter(User.id.in_([int(i) for i in ids])).all()
+            for u in users:
+                if u.company == r.company and u.email:
+                    valid_ids.append(u.id)
+        r.set_cc_ids(valid_ids)
+        db.session.commit()
+        log_audit('update_report_recipient_cc', session['user_id'], 'recipient', r.id,
+                  f'CC de {r.name}: {len(valid_ids)} especialistas')
+        return jsonify({'success': True, 'cc_size': len(valid_ids), 'message': f'{len(valid_ids)} especialistas en CC'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/admin/report-recipients/<int:rid>', methods=['DELETE'])
 def api_report_recipients_delete(rid):
     if 'user_id' not in session or session['role'] != 'admin':
@@ -14417,7 +14513,20 @@ def _send_report_to_recipient(recipient, period_type, period_start, period_end):
     subject = f'[DeskEli] Reporte {period_label} {company_display} — {period_start.strftime("%d/%m")} a {period_end.strftime("%d/%m/%Y")}'
     body = build_email_body(metrics, period_label, company_display, recipient.name)
 
-    ok = send_email(recipient.email, subject, body, attachments=attachments, company=recipient.company)
+    # Recolectar emails de los especialistas en CC
+    cc_ids = recipient.get_cc_ids()
+    cc_emails = []
+    if cc_ids:
+        cc_users = User.query.filter(
+            User.id.in_(cc_ids),
+            User.company == recipient.company,
+            User.is_active == True,
+            User.email.isnot(None)
+        ).all()
+        cc_emails = [u.email for u in cc_users if u.email and u.email.lower() != (recipient.email or '').lower()]
+
+    ok = send_email(recipient.email, subject, body, attachments=attachments,
+                    company=recipient.company, cc_emails=cc_emails or None)
     if ok:
         recipient.last_sent_at = datetime.now()
         try:

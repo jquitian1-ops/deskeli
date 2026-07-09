@@ -1132,6 +1132,36 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- MODAL: Especialistas en CC (reciben el email en copia) -->
+                    <div id="ccModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;align-items:center;justify-content:center;">
+                        <div style="background:white;width:560px;max-width:92vw;max-height:88vh;display:flex;flex-direction:column;border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,0.35);">
+                            <div style="padding:18px 22px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">
+                                <h2 style="margin:0;color:#111827;font-size:18px;">✉️ Especialistas en copia (CC)</h2>
+                                <button onclick="closeCcModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#6b7280;">×</button>
+                            </div>
+                            <div style="padding:14px 22px;border-bottom:1px solid #f3f4f6;background:#f9fafb;">
+                                <div id="ccRecipientLabel" style="font-size:14px;color:#374151;"></div>
+                                <p style="margin:6px 0 0;font-size:12px;color:#6b7280;">
+                                    Marcá los técnicos/admins que <strong>recibirán una copia por email</strong> del mismo reporte enviado al destinatario principal. Solo se copian usuarios activos con email válido.
+                                </p>
+                                <input type="text" id="ccSearch" placeholder="🔍 Buscar por nombre o usuario..." onkeyup="filterCcList()"
+                                       style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-top:8px;">
+                                <div style="margin-top:8px;display:flex;gap:6px;font-size:11px;">
+                                    <button type="button" onclick="ccSelectAll(true)" style="padding:4px 10px;background:#dbeafe;color:#1e40af;border:none;border-radius:4px;cursor:pointer;font-weight:600;">✓ Seleccionar todos</button>
+                                    <button type="button" onclick="ccSelectAll(false)" style="padding:4px 10px;background:#fee2e2;color:#991b1b;border:none;border-radius:4px;cursor:pointer;font-weight:600;">✗ Quitar todos</button>
+                                    <span id="ccSelectedCount" style="margin-left:auto;font-size:12px;color:#374151;font-weight:700;">0 seleccionados</span>
+                                </div>
+                            </div>
+                            <div id="ccList" style="overflow-y:auto;flex:1;padding:8px 22px;">
+                                <p style="text-align:center;color:#999;padding:20px;">Cargando técnicos...</p>
+                            </div>
+                            <div style="padding:14px 22px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:8px;">
+                                <button onclick="closeCcModal()" style="padding:9px 16px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Cancelar</button>
+                                <button onclick="saveCcMembers()" id="ccSaveBtn" style="padding:9px 18px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;">💾 Guardar CC</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {% if is_master %}
@@ -3063,6 +3093,10 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                     ? `<span style="background:#ede9fe;color:#6d28d9;padding:3px 9px;border-radius:10px;font-size:11px;font-weight:700;" title="Reporte filtrado a ${rec.team_size} técnico(s)">👥 ${rec.team_size}</span>`
                     : `<span style="background:#f3f4f6;color:#6b7280;padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600;" title="Recibirá tickets de TODA la empresa">🏢 Toda empresa</span>`;
 
+                const ccBadge = (rec.cc_size > 0)
+                    ? ` <span style="background:#f5f3ff;color:#5b21b6;padding:3px 9px;border-radius:10px;font-size:11px;font-weight:700;" title="${rec.cc_size} especialista(s) en CC">✉️ ${rec.cc_size}</span>`
+                    : '';
+
                 html += `
                     <tr style="border-bottom:1px solid #f0f0f0;">
                         <td style="padding:10px;">
@@ -3073,12 +3107,13 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                         <td style="padding:10px;">
                             <span style="background:${comp.color}20;color:${comp.color};padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;">${comp.label}</span>
                         </td>
-                        <td style="padding:10px;text-align:center;">${teamBadge}</td>
+                        <td style="padding:10px;text-align:center;">${teamBadge}${ccBadge}</td>
                         <td style="padding:10px;text-align:center;">${freq.join(' ') || '<span style="color:#9ca3af;font-size:11px;">Ninguna</span>'}</td>
                         <td style="padding:10px;text-align:center;font-size:11px;color:#6b7280;">${rec.last_sent_at || 'Nunca'}</td>
                         <td style="padding:10px;text-align:center;">${statusBadge}</td>
                         <td style="padding:10px;text-align:center;white-space:nowrap;">
-                            <button onclick="openTeamModal(${rec.id})" title="Asignar equipo de trabajo" style="padding:5px 10px;background:#7c3aed;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">👥</button>
+                            <button onclick="openTeamModal(${rec.id})" title="Filtrar datos del reporte por equipo" style="padding:5px 10px;background:#7c3aed;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">👥</button>
+                            <button onclick="openCcModal(${rec.id})" title="Agregar especialistas en copia (CC) del email" style="padding:5px 10px;background:#8b5cf6;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">✉️</button>
                             <button onclick="editRecipient(${rec.id})" style="padding:5px 10px;background:#2563eb;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">✏️</button>
                             <button onclick="toggleRecipientActive(${rec.id}, ${!rec.is_active})" style="padding:5px 10px;background:${rec.is_active ? '#6b7280' : '#16a34a'};color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">${rec.is_active ? '⏸' : '▶'}</button>
                             <button onclick="sendReportToOne(${rec.id}, '${escRep(rec.email)}')" title="Enviar ahora" style="padding:5px 10px;background:#f59e0b;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">📤</button>
@@ -3354,6 +3389,122 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
             alert('Error: ' + e.message);
         } finally {
             btn.disabled = false; btn.textContent = '💾 Guardar equipo';
+        }
+    };
+
+    // ═════ MODAL: Especialistas en CC ═════
+    let _ccUsers = [];
+    let _ccRecipientId = null;
+    let _ccSelected = new Set();
+
+    window.openCcModal = async function(rid) {
+        _ccRecipientId = rid;
+        _ccSelected = new Set();
+        const modal = document.getElementById('ccModal');
+        modal.style.display = 'flex';
+        document.getElementById('ccList').innerHTML = '<p style="text-align:center;color:#999;padding:20px;">Cargando técnicos...</p>';
+        document.getElementById('ccRecipientLabel').textContent = '';
+        document.getElementById('ccSearch').value = '';
+        try {
+            const r = await fetch('/api/admin/report-recipients/' + rid + '/cc');
+            const d = await r.json();
+            if (!d.success) {
+                document.getElementById('ccList').innerHTML = '<p style="color:#dc2626;text-align:center;padding:20px;">Error: ' + (d.error || 'desconocido') + '</p>';
+                return;
+            }
+            _ccUsers = d.users || [];
+            _ccSelected = new Set(d.cc_user_ids || []);
+            const rec = d.recipient || {};
+            document.getElementById('ccRecipientLabel').innerHTML =
+                `<strong>${escRep(rec.name)}</strong> · Email principal: <span style="color:#7c3aed;font-weight:700;">${escRep(rec.email)}</span>`;
+            renderCcList();
+        } catch (e) {
+            document.getElementById('ccList').innerHTML = '<p style="color:#dc2626;text-align:center;padding:20px;">Error: ' + e.message + '</p>';
+        }
+    };
+
+    window.closeCcModal = function() {
+        document.getElementById('ccModal').style.display = 'none';
+    };
+
+    function renderCcList() {
+        const list = document.getElementById('ccList');
+        const search = (document.getElementById('ccSearch').value || '').toLowerCase();
+        const filtered = _ccUsers.filter(u =>
+            !search || u.name.toLowerCase().includes(search) || (u.username || '').toLowerCase().includes(search) || (u.email || '').toLowerCase().includes(search)
+        );
+        if (filtered.length === 0) {
+            list.innerHTML = '<p style="color:#9ca3af;text-align:center;padding:20px;">No hay técnicos/admins en esta empresa.</p>';
+            updateCcCount();
+            return;
+        }
+        let html = '';
+        filtered.forEach(u => {
+            const checked = _ccSelected.has(u.id) ? 'checked' : '';
+            const roleIcon = u.role === 'admin' ? '👑' : '🔧';
+            const inactive = u.is_active ? '' : '<span style="color:#dc2626;font-size:10px;font-weight:700;margin-left:6px;">(INACTIVO)</span>';
+            const noEmail = !u.email ? '<span style="color:#dc2626;font-size:10px;font-weight:700;margin-left:6px;">(SIN EMAIL)</span>' : '';
+            const disabled = (!u.is_active || !u.email) ? 'disabled' : '';
+            html += `
+                <label style="display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid #f3f4f6;cursor:${disabled?'not-allowed':'pointer'};${(u.is_active && u.email) ? '' : 'opacity:0.55;'}" onmouseover="if(!this.querySelector('input').disabled)this.style.background='#f5f3ff'" onmouseout="this.style.background='white'">
+                    <input type="checkbox" data-uid="${u.id}" ${checked} ${disabled} onchange="toggleCcMember(${u.id}, this.checked)" style="width:16px;height:16px;cursor:${disabled?'not-allowed':'pointer'};">
+                    <div style="flex:1;">
+                        <div style="font-weight:600;color:#1f2937;font-size:13px;">${roleIcon} ${escRep(u.name)} ${inactive}${noEmail}</div>
+                        <div style="font-size:11px;color:#6b7280;">@${escRep(u.username)} · ${escRep(u.email || '(sin email)')}</div>
+                    </div>
+                </label>
+            `;
+        });
+        list.innerHTML = html;
+        updateCcCount();
+    }
+
+    window.filterCcList = renderCcList;
+
+    window.toggleCcMember = function(uid, checked) {
+        if (checked) _ccSelected.add(uid);
+        else _ccSelected.delete(uid);
+        updateCcCount();
+    };
+
+    window.ccSelectAll = function(select) {
+        const search = (document.getElementById('ccSearch').value || '').toLowerCase();
+        _ccUsers.forEach(u => {
+            const matches = !search || u.name.toLowerCase().includes(search) || (u.username || '').toLowerCase().includes(search);
+            if (matches && u.is_active && u.email) {
+                if (select) _ccSelected.add(u.id);
+                else _ccSelected.delete(u.id);
+            }
+        });
+        renderCcList();
+    };
+
+    function updateCcCount() {
+        const el = document.getElementById('ccSelectedCount');
+        if (el) el.textContent = `${_ccSelected.size} seleccionado${_ccSelected.size !== 1 ? 's' : ''}`;
+    }
+
+    window.saveCcMembers = async function() {
+        if (!_ccRecipientId) return;
+        const btn = document.getElementById('ccSaveBtn');
+        btn.disabled = true; btn.textContent = '⏳ Guardando...';
+        try {
+            const r = await fetch('/api/admin/report-recipients/' + _ccRecipientId + '/cc', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({cc_user_ids: Array.from(_ccSelected)})
+            });
+            const d = await r.json();
+            if (d.success) {
+                closeCcModal();
+                loadRecipients();
+            } else {
+                alert(d.error || 'Error');
+            }
+        } catch (e) {
+            alert('Error: ' + e.message);
+        } finally {
+            btn.disabled = false; btn.textContent = '💾 Guardar CC';
         }
     };
 
