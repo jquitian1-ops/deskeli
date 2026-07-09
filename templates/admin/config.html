@@ -427,8 +427,8 @@
 
                     <!-- Filtro por rol -->
                     <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                        <input type="text" id="user-search" placeholder="🔍 Buscar usuario..." oninput="loadTeam()" style="flex: 1; min-width: 200px; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px;">
-                        <select id="user-filter-role" onchange="loadTeam()" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px;">
+                        <input type="text" id="user-search" placeholder="🔍 Buscar usuario..." oninput="debouncedLoadTeam()" style="flex: 1; min-width: 200px; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px;">
+                        <select id="user-filter-role" onchange="debouncedLoadTeam()" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px;">
                             <option value="">Todos los roles</option>
                             <option value="admin">👑 Admins</option>
                             <option value="technician">🔧 Técnicos</option>
@@ -1438,6 +1438,17 @@
         }
 
         // EQUIPO - cargar miembros con filtros y acciones
+        // Debounce + cancelacion de requests en vuelo (evita "Error al cargar"
+        // al escribir rapido en el buscador de usuarios)
+        let _loadTeamTimer = null;
+        let _loadTeamController = null;
+        let _loadTeamReqId = 0;
+
+        function debouncedLoadTeam() {
+            clearTimeout(_loadTeamTimer);
+            _loadTeamTimer = setTimeout(loadTeam, 250);
+        }
+
         async function loadTeam() {
             const tbody = document.getElementById('team-tbody');
             const searchEl = document.getElementById('user-search');
@@ -1446,8 +1457,17 @@
             const filterRole = filterRoleEl ? filterRoleEl.value : '';
             tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#999;">Cargando...</td></tr>';
 
+            // Cancelar cualquier fetch en vuelo de una invocacion previa
+            if (_loadTeamController) {
+                try { _loadTeamController.abort(); } catch (e) { /* silent */ }
+            }
+            _loadTeamController = new AbortController();
+            const signal = _loadTeamController.signal;
+            const reqId = ++_loadTeamReqId;
+
             try {
-                const r = await fetch('/api/admin/team');
+                const r = await fetch('/api/admin/team', { signal });
+                if (reqId !== _loadTeamReqId) return;  // llego una respuesta vieja
                 const data = await r.json();
 
                 if (!data.success) {
@@ -1473,17 +1493,19 @@
                     return;
                 }
 
-                // Cargar subroles asignados por usuario (un solo loop)
+                // Cargar subroles asignados por usuario (un solo loop, con signal
+                // compartido para cancelar todo si llega una nueva busqueda)
                 const subrolesByUser = {};
                 await Promise.all(users.map(async u => {
                     try {
-                        const sr = await fetch('/api/admin/users/' + u.id + '/subroles');
+                        const sr = await fetch('/api/admin/users/' + u.id + '/subroles', { signal });
                         const sd = await sr.json();
                         subrolesByUser[u.id] = sd.success ? (sd.subroles || []) : [];
                     } catch (e) {
                         subrolesByUser[u.id] = [];
                     }
                 }));
+                if (reqId !== _loadTeamReqId) return;  // respuesta obsoleta
 
                 // Obtener mapa de roles personalizados para resolver iconos/colores
                 let customRoleMap = window._customRoleMap || {};
@@ -1567,8 +1589,11 @@
                         </tr>
                     `;
                 });
+                if (reqId !== _loadTeamReqId) return;  // respuesta obsoleta
                 tbody.innerHTML = html;
             } catch (err) {
+                if (err && err.name === 'AbortError') return;  // fetch cancelado a proposito
+                if (reqId !== _loadTeamReqId) return;
                 tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#dc2626;">Error: ' + err.message + '</td></tr>';
             }
         }
