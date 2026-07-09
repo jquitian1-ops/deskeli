@@ -445,13 +445,14 @@
                                 <th style="padding: 12px; text-align: left;">Email</th>
                                 <th style="padding: 12px; text-align: left;">Rol</th>
                                 <th style="padding: 12px; text-align: left;">🎖️ Subroles</th>
+                                <th style="padding: 12px; text-align: left;">📜 Guiones</th>
                                 <th style="padding: 12px; text-align: center;">Estado</th>
                                 <th style="padding: 12px; text-align: left;">Último Login</th>
                                 <th style="padding: 12px; text-align: center;">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="team-tbody">
-                            <tr><td colspan="7" style="padding: 20px; text-align: center; color: #999;">Cargando equipo...</td></tr>
+                            <tr><td colspan="8" style="padding: 20px; text-align: center; color: #999;">Cargando equipo...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1455,7 +1456,7 @@
             const filterRoleEl = document.getElementById('user-filter-role');
             const searchTerm = searchEl ? searchEl.value.toLowerCase() : '';
             const filterRole = filterRoleEl ? filterRoleEl.value : '';
-            tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#999;">Cargando...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="padding:20px;text-align:center;color:#999;">Cargando...</td></tr>';
 
             // Cancelar cualquier fetch en vuelo de una invocacion previa
             if (_loadTeamController) {
@@ -1471,7 +1472,7 @@
                 const data = await r.json();
 
                 if (!data.success) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#dc2626;">Error al cargar</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="padding:20px;text-align:center;color:#dc2626;">Error al cargar</td></tr>';
                     return;
                 }
 
@@ -1489,7 +1490,7 @@
                 if (countEl) countEl.textContent = `${users.length} de ${data.team.length} usuarios`;
 
                 if (users.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="padding:30px;text-align:center;color:#999;">No hay usuarios. Click en <strong>➕ Agregar Usuario</strong></td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="padding:30px;text-align:center;color:#999;">No hay usuarios. Click en <strong>➕ Agregar Usuario</strong></td></tr>';
                     return;
                 }
 
@@ -1506,6 +1507,28 @@
                     }
                 }));
                 if (reqId !== _loadTeamReqId) return;  // respuesta obsoleta
+
+                // Cargar guiones asignados por usuario (solo tecnicos/admins)
+                const guionesByUser = {};
+                await Promise.all(users.map(async u => {
+                    if (u.role !== 'technician' && u.role !== 'admin') {
+                        guionesByUser[u.id] = [];
+                        return;
+                    }
+                    try {
+                        const gr = await fetch('/api/admin/users/' + u.id + '/guiones', { signal });
+                        const gd = await gr.json();
+                        if (gd.success) {
+                            const assignedIds = new Set(gd.assigned_guion_ids || []);
+                            guionesByUser[u.id] = (gd.catalog || []).filter(g => assignedIds.has(g.id));
+                        } else {
+                            guionesByUser[u.id] = [];
+                        }
+                    } catch (e) {
+                        guionesByUser[u.id] = [];
+                    }
+                }));
+                if (reqId !== _loadTeamReqId) return;
 
                 // Obtener mapa de roles personalizados para resolver iconos/colores
                 let customRoleMap = window._customRoleMap || {};
@@ -1545,6 +1568,21 @@
                         }
                     }
 
+                    const guiones = guionesByUser[u.id] || [];
+                    let guionesHtml;
+                    if (u.role !== 'technician' && u.role !== 'admin') {
+                        guionesHtml = '<span style="color:#d1d5db;font-size:11px;font-style:italic;">—</span>';
+                    } else if (guiones.length === 0) {
+                        guionesHtml = '<span style="color:#9ca3af;font-size:11px;font-style:italic;">Sin asignar</span>';
+                    } else {
+                        guionesHtml = guiones.slice(0, 3).map(g =>
+                            `<span style="background:#f5f3ff;color:#5b21b6;border:1px solid #ddd6fe;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;margin-right:3px;margin-bottom:3px;display:inline-block;" title="${escapeU(g.name)} (${escapeU(g.code)})">📜 ${escapeU(g.name.length>16?g.name.slice(0,16)+'…':g.name)}</span>`
+                        ).join('');
+                        if (guiones.length > 3) {
+                            guionesHtml += `<span style="background:#f3f4f6;color:#6b7280;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;" title="${guiones.slice(3).map(g=>g.name).join(', ')}">+${guiones.length-3}</span>`;
+                        }
+                    }
+
                     // Botón subroles solo para técnicos/admins
                     const subrolesBtn = (u.role === 'technician' || u.role === 'admin')
                         ? `<button onclick="openUserSubrolesModal(${u.id}, '${escapeU(u.name).replace(/'/g,"\\'")}', '${u.role}')" title="Asignar subroles" style="padding:5px 10px;background:#7c3aed;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">🎖️</button>`
@@ -1574,6 +1612,7 @@
                                     : ''}
                             </td>
                             <td style="padding:12px;max-width:240px;">${subrolesHtml}</td>
+                            <td style="padding:12px;max-width:240px;">${guionesHtml}</td>
                             <td style="padding:12px;text-align:center;">${statusBadge}</td>
                             <td style="padding:12px;font-size:12px;color:#666;">${u.last_login || 'Nunca'}</td>
                             <td style="padding:12px;text-align:center;white-space:nowrap;">
@@ -1594,7 +1633,7 @@
             } catch (err) {
                 if (err && err.name === 'AbortError') return;  // fetch cancelado a proposito
                 if (reqId !== _loadTeamReqId) return;
-                tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#dc2626;">Error: ' + err.message + '</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="padding:20px;text-align:center;color:#dc2626;">Error: ' + err.message + '</td></tr>';
             }
         }
 
@@ -1757,7 +1796,10 @@
                 const d = await r.json();
                 if (!d.success) throw new Error(d.error || 'Error guardando');
                 status.innerHTML = `<span style="color:#059669;font-weight:600;">✓ ${d.message}</span>`;
-                setTimeout(() => { closeUserGuionesModal(); }, 800);
+                setTimeout(() => {
+                    closeUserGuionesModal();
+                    loadTeam();  // refrescar badges de guiones en la tabla
+                }, 800);
             } catch (e) {
                 status.innerHTML = `<span style="color:#dc2626;">Error: ${e.message}</span>`;
             } finally {
