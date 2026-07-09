@@ -365,6 +365,9 @@ class User(db.Model):
     area = db.Column(db.String(120))      # Área/departamento
     location = db.Column(db.String(120))  # Sede/oficina/piso
     phone = db.Column(db.String(40))      # Teléfono / extensión
+    # Si el usuario es un ESPEJO de un tecnico de Eliot en pash/primatela,
+    # aqui va el id del usuario origen en eliot. NULL = usuario local normal.
+    mirrored_from_id = db.Column(db.Integer, index=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
     __table_args__ = (db.UniqueConstraint('username', 'company', name='_user_company_uc'),)
 
@@ -1485,10 +1488,43 @@ def force_change_password():
     user.password_hash = hashlib.pbkdf2_hmac('sha256', new_pw.encode(), user.username.encode(), 100000).hex()
     user.must_change_password = False
     db.session.commit()
+
+    # Si el usuario es un tecnico origen en Eliot (o un espejo que apunta a uno),
+    # sincronizar el nuevo password_hash a todos los espejos hermanos.
+    _sync_password_to_mirrors(user)
+
     log_audit('force_change_password_ok', user.id, 'user', user.id,
               f'Usuario {user.username}@{user.company} cambió su contraseña en primer login')
 
     return redirect(_dashboard_url_for(user.role))
+
+
+def _sync_password_to_mirrors(user):
+    """Si el usuario tiene espejos (o es un espejo), propagar password_hash y
+    must_change_password al origen y a los demas espejos para mantener login unificado."""
+    try:
+        # Encontrar el "origen" (el usuario en Eliot)
+        if user.mirrored_from_id:
+            source = User.query.get(user.mirrored_from_id)
+        elif user.company == MIRROR_SOURCE_COMPANY and user.role == 'technician':
+            source = user
+        else:
+            return
+        if not source:
+            return
+        # Sincronizar el origen (si el que cambio fue un espejo)
+        if source.id != user.id:
+            source.password_hash = user.password_hash
+            source.must_change_password = user.must_change_password
+        # Y todos los espejos
+        for m in User.query.filter_by(mirrored_from_id=source.id).all():
+            if m.id != user.id:
+                m.password_hash = user.password_hash
+                m.must_change_password = user.must_change_password
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f'[mirror] Error sincronizando password a espejos: {e}')
 
 
 def _dashboard_url_for(role):
@@ -6174,6 +6210,15 @@ def migrate_users_role_label():
                 print(f"[migrate_users] Columna {col_name} agregada")
             except Exception as e:
                 print(f"[migrate_users] error agregando {col_name}: {e}")
+    # Espejo de tecnicos de Eliot en Pash/Primatela: referencia al usuario origen
+    if 'mirrored_from_id' not in existing_cols:
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN mirrored_from_id INTEGER"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_mirrored_from_id ON users(mirrored_from_id)"))
+            print("[migrate_users] Columna mirrored_from_id agregada")
+        except Exception as e:
+            print(f"[migrate_users] error agregando mirrored_from_id: {e}")
 
 
 def migrate_mailbox_oauth():
@@ -13411,6 +13456,96 @@ def api_admin_team_import():
     })
 
 
+# ─── Mirroring de técnicos Eliot → Pash/Primatela ───────────────────────────
+# Regla: si un técnico se crea en la empresa master (eliot), automáticamente
+# se replica en pash y primatela con el mismo hash de contraseña, para que
+# pueda loguear a las 3 empresas con la misma credencial y aparezca en la
+# lista de técnicos disponibles de cada una. Los admins de pash/primatela
+# siguen pudiendo crear sus propios técnicos locales (mirrored_from_id NULL).
+
+MIRROR_SOURCE_COMPANY = 'eliot'
+MIRROR_TARGET_COMPANIES = ('pash', 'primatela')
+
+
+def mirror_technician_to_other_companies(src_user):
+    """Crea o actualiza espejos del técnico Eliot en pash/primatela.
+    - Solo aplica si src_user.company == 'eliot' y src_user.role == 'technician'.
+    - Idempotente: si el espejo ya existe, sincroniza name/email/password/is_active.
+    - Si el usuario destino existía como local (mirrored_from_id=NULL), NO lo pisa
+      — respeta ese registro local.
+    """
+    if src_user.company != MIRROR_SOURCE_COMPANY:
+        return 0
+    if src_user.role != 'technician':
+        return 0
+
+    created_or_updated = 0
+    for target_co in MIRROR_TARGET_COMPANIES:
+        # Buscar espejo existente por mirrored_from_id
+        mirror = User.query.filter_by(
+            mirrored_from_id=src_user.id,
+            company=target_co
+        ).first()
+
+        if mirror:
+            # Sincronizar datos
+            mirror.name = src_user.name
+            mirror.email = src_user.email
+            mirror.role = src_user.role
+            mirror.password_hash = src_user.password_hash
+            mirror.is_active = src_user.is_active
+            mirror.must_change_password = src_user.must_change_password
+            mirror.area = src_user.area
+            mirror.location = src_user.location
+            mirror.phone = src_user.phone
+            created_or_updated += 1
+            continue
+
+        # No existe el espejo. Verificar si hay conflicto con un usuario LOCAL
+        # de la empresa destino (mismo username o mismo email → no pisar).
+        conflict = User.query.filter(
+            User.company == target_co,
+            db.or_(
+                User.username == src_user.username,
+                db.func.lower(User.email) == (src_user.email or '').lower()
+            )
+        ).first()
+        if conflict:
+            # Ya hay un usuario local con ese username/email — no lo tocamos.
+            # Si querés que Eliot se apropie de ese registro, seteá su mirrored_from_id
+            # manualmente desde el script de backfill.
+            continue
+
+        # Crear el espejo
+        m = User(
+            username=src_user.username,
+            name=src_user.name,
+            email=src_user.email,
+            role=src_user.role,
+            company=target_co,
+            password_hash=src_user.password_hash,
+            is_active=src_user.is_active,
+            must_change_password=src_user.must_change_password,
+            area=src_user.area,
+            location=src_user.location,
+            phone=src_user.phone,
+            mirrored_from_id=src_user.id,
+        )
+        db.session.add(m)
+        created_or_updated += 1
+    return created_or_updated
+
+
+def delete_technician_mirrors(src_user):
+    """Elimina los espejos cuando se elimina el técnico origen en Eliot."""
+    if src_user.company != MIRROR_SOURCE_COMPANY:
+        return 0
+    mirrors = User.query.filter_by(mirrored_from_id=src_user.id).all()
+    for m in mirrors:
+        db.session.delete(m)
+    return len(mirrors)
+
+
 @app.route('/api/admin/team', methods=['POST'])
 def api_admin_team_create():
     """Crear nuevo usuario en la empresa"""
@@ -13469,6 +13604,13 @@ def api_admin_team_create():
         db.session.add(u)
         db.session.commit()
 
+        # Auto-replicar tecnicos de Eliot en pash/primatela
+        mirrored = mirror_technician_to_other_companies(u)
+        if mirrored:
+            db.session.commit()
+            log_audit('mirror_technician', session['user_id'], 'user', u.id,
+                      f'Tecnico {username} replicado en {mirrored} empresa(s) target')
+
         log_audit('create_user', session['user_id'], 'user', u.id, f'Usuario creado: {username} ({role})')
         return jsonify({'success': True, 'id': u.id, 'message': f'Usuario "{name}" creado'})
     except Exception as e:
@@ -13516,6 +13658,12 @@ def api_admin_team_update(user_id):
             u.must_change_password = True  # Forzar cambio en próximo login
             password_changed = True
         db.session.commit()
+
+        # Sincronizar espejos si el usuario origen es un tecnico de Eliot
+        if u.company == MIRROR_SOURCE_COMPANY and u.role == 'technician':
+            mirror_technician_to_other_companies(u)
+            db.session.commit()
+
         if password_changed:
             log_audit('reset_password', session['user_id'], 'user', u.id, f'Contraseña reseteada: {u.username} ({u.company})')
         else:
@@ -13615,9 +13763,28 @@ def api_admin_team_delete(user_id):
         }), 400
 
     name = u.name
+
+    # Si es tecnico de Eliot, tambien eliminar sus espejos en pash/primatela.
+    # Solo si los espejos no tienen tickets propios asignados.
+    mirrors_deleted = 0
+    if u.company == MIRROR_SOURCE_COMPANY and u.role == 'technician':
+        mirrors = User.query.filter_by(mirrored_from_id=u.id).all()
+        for m in mirrors:
+            m_assigned = Ticket.query.filter_by(assignee_id=m.id).count()
+            m_created = Ticket.query.filter_by(creator_id=m.id).count()
+            if m_assigned == 0 and m_created == 0:
+                db.session.delete(m)
+                mirrors_deleted += 1
+            else:
+                # No podemos borrar el espejo — desactivarlo en su lugar
+                m.is_active = False
+
     db.session.delete(u)
     db.session.commit()
-    log_audit('delete_user', session['user_id'], 'user', user_id, f'Usuario eliminado: {name}')
+    audit_msg = f'Usuario eliminado: {name}'
+    if mirrors_deleted:
+        audit_msg += f' (+ {mirrors_deleted} espejo(s) en pash/primatela)'
+    log_audit('delete_user', session['user_id'], 'user', user_id, audit_msg)
     return jsonify({'success': True, 'message': 'Usuario eliminado'})
 
 
