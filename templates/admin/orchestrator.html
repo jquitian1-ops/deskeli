@@ -201,6 +201,17 @@
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:24px;">
                     <h1 class="page-title" style="margin:0;">🤖 Agent Orchestrator</h1>
                     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        {% if is_master %}
+                        <span style="font-size:12px;color:#6b7280;">Empresa:</span>
+                        <select id="orchCompanySelect" onchange="setOrchCompany(this.value)"
+                                style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;background:white;">
+                            <option value="all">🌐 Todas las empresas</option>
+                            {% for c in available_companies %}
+                            <option value="{{ c.code }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <span style="width:1px;height:22px;background:#e5e7eb;margin:0 4px;"></span>
+                        {% endif %}
                         <span style="font-size:12px;color:#6b7280;">Período:</span>
                         <button class="orch-period-btn" data-period="day"   onclick="setOrchPeriod('day')">📅 Día</button>
                         <button class="orch-period-btn" data-period="week"  onclick="setOrchPeriod('week')">📆 Semana</button>
@@ -462,6 +473,7 @@
     <script>
         let refreshCounter = 30;
         let _orchPeriod = 'all';
+        let _orchCompany = 'all';
         let _orchTrendChart = null;
 
         function setOrchPeriod(period) {
@@ -473,6 +485,12 @@
             refreshCounter = 30;
         }
 
+        function setOrchCompany(company) {
+            _orchCompany = company || 'all';
+            updateDashboard();
+            refreshCounter = 30;
+        }
+
         function _safe(obj, path, def) {
             try {
                 return path.split('.').reduce((o, k) => (o == null ? def : o[k]), obj) ?? def;
@@ -480,16 +498,21 @@
         }
 
         function updateDashboard() {
-            fetch('/api/admin/orchestrator/status?period=' + encodeURIComponent(_orchPeriod))
+            const qs = new URLSearchParams({period: _orchPeriod, company: _orchCompany}).toString();
+            fetch('/api/admin/orchestrator/status?' + qs)
                 .then(r => r.json())
                 .then(data => {
                     if (!data.success) return;
                     const d = data.data || {};
 
-                    // Label
+                    // Label con contexto de empresa
                     const labelEl = document.getElementById('orch-period-label');
                     if (labelEl) {
-                        labelEl.textContent = `Mostrando: ${d.period_label || '—'} · ${d.total_actions || 0} acción(es) registradas`;
+                        const scope = d.scope || [];
+                        const companyTxt = (d.company_filter === 'all' || !d.company_filter)
+                            ? (scope.length > 1 ? `${scope.length} empresas` : (scope[0] || '—'))
+                            : d.company_filter;
+                        labelEl.textContent = `Mostrando: ${d.period_label || '—'} · ${companyTxt} · ${d.total_actions || 0} acción(es) registradas`;
                     }
 
                     // KPIs principales del período

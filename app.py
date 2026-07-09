@@ -2669,9 +2669,21 @@ def admin_orchestrator():
     if orch is not None:
         data = orch.get_dashboard_data(user.company)
 
+    # Master admin puede filtrar por empresa; los demas solo ven la suya.
+    is_master = is_master_admin()
+    available_companies = []
+    if is_master:
+        available_companies = [
+            {'code': c.code, 'name': c.name}
+            for c in Company.query.filter_by(is_active=True).order_by(Company.name).all()
+        ]
+
     return render_template('admin/orchestrator.html',
                            orchestrator_data=data,
-                           company_info=COMPANY_COLORS.get(user.company, {}))
+                           company_info=COMPANY_COLORS.get(user.company, {}),
+                           is_master=is_master,
+                           available_companies=available_companies,
+                           current_company=user.company)
 
 # ═════════════════════════════════════════════════════════════════════════════
 # API ENDPOINTS
@@ -4316,6 +4328,17 @@ def api_orchestrator_status():
     user = User.query.get(session['user_id'])
     company = user.company
     scope = admin_companies_scope() or [company]
+
+    # Filtro por empresa: master admin puede pedir una empresa especifica
+    # via ?company=<code>. Non-master queda restringido a su empresa (ignora el param).
+    requested_company = (request.args.get('company') or '').strip().lower()
+    if is_master_admin() and requested_company:
+        if requested_company in ('all', ''):
+            pass  # scope se queda con todas
+        elif requested_company in scope:
+            scope = [requested_company]
+        # Si piden una que no esta en scope, se ignora silenciosamente
+
     period = (request.args.get('period') or 'all').lower()
     now = datetime.now()
 
@@ -4419,6 +4442,9 @@ def api_orchestrator_status():
             'period': period,
             'period_label': period_label,
             'period_start': period_start.isoformat() if period_start else None,
+            'scope': scope,
+            'company_filter': requested_company or 'all',
+            'is_master': is_master_admin(),
             'total_classified': tc,
             'total_assigned': ta,
             'total_responded': tr,

@@ -34,6 +34,10 @@ from app import (
     Message, AgentAction, MailboxEmail, AuditLog
 )
 
+# Verificacion adicional: si el usuario solo quiere limpiar el contador del
+# Orchestrator de Pash sin borrar tickets, puede correr el modo 'orchestrator-only'
+# con: python scripts/wipe_pash_tickets.py --only-orchestrator --confirm
+
 
 COMPANY = 'pash'
 
@@ -130,6 +134,14 @@ def wipe(dry_run=False):
                 AuditLog.entity_id.in_(subtask_ids)
             ).delete(synchronize_session=False)
 
+        # Purgar TODOS los AgentAction residuales de la empresa (incluye huerfanos
+        # cuyo ticket_id ya no existe). Esto pone en 0 el contador del Orchestrator.
+        agent_actions_purged = AgentAction.query.filter(
+            AgentAction.company == COMPANY
+        ).delete(synchronize_session=False)
+        if agent_actions_purged:
+            print(f'[wipe] AgentActions residuales purgados: {agent_actions_purged}')
+
         # Finalmente los tickets
         Ticket.query.filter(Ticket.company == COMPANY).delete(synchronize_session=False)
 
@@ -141,9 +153,32 @@ def wipe(dry_run=False):
         print(f'[wipe] El proximo ticket sera: TKT-PASH-00001')
 
 
+def wipe_orchestrator_only(dry_run=False):
+    """Limpieza acotada: solo purga los AgentAction del Orchestrator para Pash.
+    NO borra tickets, subtareas, adjuntos ni nada mas.
+    Util cuando el contador del dashboard quedo con basura pero los tickets estan OK."""
+    with app.app_context():
+        count = AgentAction.query.filter(AgentAction.company == COMPANY).count()
+        print(f'[wipe-orch] AgentActions de {COMPANY}: {count}')
+        if not count:
+            print('[wipe-orch] Nada que purgar.')
+            return
+        if dry_run:
+            print('[wipe-orch] DRY RUN — Corre con --confirm para purgar.')
+            return
+        AgentAction.query.filter(AgentAction.company == COMPANY).delete(synchronize_session=False)
+        db.session.commit()
+        print(f'[wipe-orch] ✅ Purgados {count} AgentAction de {COMPANY}. Contador del Orchestrator ahora en 0.')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--confirm', action='store_true',
                         help='Ejecuta el borrado real. Sin este flag, hace dry-run.')
+    parser.add_argument('--only-orchestrator', action='store_true',
+                        help='Modo acotado: solo purga los AgentAction del Orchestrator para pash.')
     args = parser.parse_args()
-    wipe(dry_run=not args.confirm)
+    if args.only_orchestrator:
+        wipe_orchestrator_only(dry_run=not args.confirm)
+    else:
+        wipe(dry_run=not args.confirm)
