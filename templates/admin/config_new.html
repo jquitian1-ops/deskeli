@@ -811,10 +811,11 @@
                     <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin-bottom:18px;">
                         <h3 style="margin:0 0 10px 0;font-size:14px;color:#374151;">➕ Agregar Subrol Personalizado</h3>
                         <div style="display:grid;grid-template-columns:80px 2fr 3fr auto;gap:8px;align-items:end;">
-                            <div>
+                            <div style="position:relative;">
                                 <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Icono</label>
-                                <input id="srNewIcon" type="text" maxlength="3" placeholder="🔧" value="🔧"
-                                       style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;text-align:center;font-size:18px;">
+                                <button type="button" id="srIconPickerBtn" onclick="srToggleIconPicker(event)"
+                                        style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;background:white;cursor:pointer;font-size:22px;line-height:1;">🔧</button>
+                                <input id="srNewIcon" type="hidden" value="🔧">
                             </div>
                             <div>
                                 <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Nombre *</label>
@@ -829,6 +830,19 @@
                             <button onclick="srCreate()" style="padding:9px 16px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;">+ Crear</button>
                         </div>
                         <div id="srStatus" style="font-size:12px;margin-top:8px;"></div>
+
+                        <!-- Picker de iconos (grid) -->
+                        <div id="srIconPicker" style="display:none;margin-top:12px;background:white;border:1px solid #d1d5db;border-radius:8px;padding:12px;box-shadow:0 4px 12px rgba(0,0,0,0.08);">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;">
+                                <input type="text" id="srIconSearch" oninput="srFilterIcons()" placeholder="🔍 Buscar (ej: server, sap, red...)"
+                                       style="flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;">
+                                <input type="text" id="srIconCustom" maxlength="3" placeholder="Pegar emoji custom" oninput="srPickCustom(this.value)"
+                                       style="width:150px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:16px;text-align:center;">
+                                <button type="button" onclick="srToggleIconPicker(event)"
+                                        style="padding:5px 10px;background:#e5e7eb;border:none;border-radius:5px;cursor:pointer;font-size:11px;">Cerrar</button>
+                            </div>
+                            <div id="srIconGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:4px;max-height:320px;overflow-y:auto;padding:4px;"></div>
+                        </div>
                     </div>
 
                     <!-- Lista de subroles -->
@@ -2339,6 +2353,173 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
         }
     }
 
+    // ═════ Icon Picker ═════
+    // Catalogo de iconos con keywords en espanol para el buscador.
+    const SR_ICON_CATALOG = [
+        // Infraestructura / Hardware
+        {i:'🔧', k:'llave herramienta reparacion tools'},
+        {i:'🔨', k:'martillo hammer'},
+        {i:'⚙️', k:'engranaje settings config'},
+        {i:'🛠️', k:'herramientas tools kit'},
+        {i:'🔩', k:'tornillo tuerca screw'},
+        {i:'💻', k:'laptop portatil computador'},
+        {i:'🖥️', k:'desktop computador pc'},
+        {i:'⌨️', k:'teclado keyboard'},
+        {i:'🖱️', k:'mouse raton'},
+        {i:'🖨️', k:'impresora printer imprimir'},
+        {i:'📠', k:'fax'},
+        {i:'💾', k:'disquete backup respaldo'},
+        {i:'💿', k:'cd disco'},
+        {i:'📀', k:'dvd disco'},
+        {i:'🗄️', k:'archivador filecabinet servidor'},
+        // Redes
+        {i:'🌐', k:'red network internet global'},
+        {i:'📡', k:'antena satelite red wifi'},
+        {i:'📶', k:'senal wifi'},
+        {i:'🔌', k:'enchufe cable conexion'},
+        {i:'🖧', k:'servidor red'},
+        {i:'🛰️', k:'satelite comunicacion'},
+        // Seguridad
+        {i:'🔒', k:'candado seguridad security lock'},
+        {i:'🔓', k:'unlock abierto'},
+        {i:'🔐', k:'seguridad encriptacion password'},
+        {i:'🔑', k:'llave key acceso credenciales'},
+        {i:'🗝️', k:'llave antigua acceso'},
+        {i:'🛡️', k:'escudo seguridad firewall proteccion'},
+        {i:'⚔️', k:'seguridad batalla incidente'},
+        {i:'🚨', k:'alarma alerta emergencia'},
+        {i:'🔔', k:'notificacion campana'},
+        // SAP / ERP / Datos
+        {i:'📊', k:'grafico stats reportes datos analytics'},
+        {i:'📈', k:'tendencia grafico crecimiento'},
+        {i:'📉', k:'grafico decrecimiento'},
+        {i:'💰', k:'dinero finanzas fi contabilidad'},
+        {i:'💵', k:'dolar billete pago'},
+        {i:'💳', k:'tarjeta pago credit'},
+        {i:'📦', k:'caja logistica mm materiales inventario'},
+        {i:'🏭', k:'fabrica manufactura pp produccion'},
+        {i:'🚚', k:'camion sd distribucion logistica'},
+        {i:'📝', k:'documento fi factura pedido'},
+        {i:'📋', k:'clipboard tareas checklist'},
+        {i:'📄', k:'documento hoja archivo'},
+        {i:'📁', k:'carpeta folder archivos'},
+        {i:'📂', k:'carpeta abierta'},
+        {i:'🗂️', k:'archivador organizacion'},
+        // Comunicaciones
+        {i:'📧', k:'email correo mail'},
+        {i:'📨', k:'correo entrante recibido'},
+        {i:'📮', k:'buzon mail post'},
+        {i:'📱', k:'movil celular telefono'},
+        {i:'📞', k:'telefono llamada phone'},
+        {i:'☎️', k:'telefono fijo'},
+        {i:'💬', k:'chat mensaje conversacion'},
+        {i:'💭', k:'pensar idea'},
+        // Bases de datos / desarrollo
+        {i:'🗃️', k:'base datos archivos db'},
+        {i:'📚', k:'libros documentacion base conocimiento kb'},
+        {i:'📖', k:'libro manual documentacion'},
+        {i:'🎯', k:'objetivo target meta'},
+        {i:'🐛', k:'bug error insecto abap debug'},
+        {i:'💡', k:'idea solucion bombilla'},
+        {i:'⚡', k:'rayo rapido energia electric'},
+        {i:'🚀', k:'cohete deploy release'},
+        // Nube / Cloud
+        {i:'☁️', k:'nube cloud aws azure'},
+        {i:'🌩️', k:'tormenta nube incidente'},
+        // Roles / personas
+        {i:'👤', k:'usuario user perfil'},
+        {i:'👥', k:'equipo team usuarios'},
+        {i:'👑', k:'admin corona liderazgo'},
+        {i:'🧑‍💼', k:'ejecutivo manager'},
+        {i:'🧑‍🔧', k:'tecnico soporte'},
+        {i:'🧑‍💻', k:'developer programador'},
+        {i:'👨‍🏫', k:'capacitacion training instructor'},
+        // Categorias generales
+        {i:'📌', k:'pin fijar importante'},
+        {i:'🏷️', k:'etiqueta tag label'},
+        {i:'⭐', k:'estrella favorito prioridad'},
+        {i:'✅', k:'ok listo completado'},
+        {i:'❌', k:'error fallo cancel'},
+        {i:'⚠️', k:'advertencia warning cuidado'},
+        {i:'ℹ️', k:'info informacion'},
+        {i:'❓', k:'pregunta duda help'},
+        {i:'🔍', k:'buscar lupa busqueda'},
+        {i:'🎫', k:'ticket entrada'},
+        {i:'📅', k:'calendario fecha agenda'},
+        {i:'⏰', k:'reloj alarma tiempo sla'},
+        {i:'⏱️', k:'cronometro tiempo'},
+        // Ubicacion
+        {i:'🏢', k:'edificio empresa oficina'},
+        {i:'🏬', k:'tienda comercial'},
+        {i:'🏪', k:'store retail'},
+        {i:'📍', k:'ubicacion mapa location'},
+        // Extra techies
+        {i:'🔋', k:'bateria energia'},
+        {i:'💡', k:'idea lampara'},
+        {i:'🎧', k:'audio call center soporte help desk'},
+        {i:'📷', k:'camara video vigilancia'},
+        {i:'🎥', k:'video streaming'},
+        {i:'🎮', k:'juego controller'},
+    ];
+
+    function srRenderIconGrid(filter) {
+        const q = (filter || '').toLowerCase().trim();
+        const grid = document.getElementById('srIconGrid');
+        const items = q ? SR_ICON_CATALOG.filter(it => it.k.includes(q)) : SR_ICON_CATALOG;
+        if (items.length === 0) {
+            grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#9ca3af;padding:14px;font-size:12px;">Sin resultados. Podés pegar cualquier emoji en el campo "Pegar emoji custom" a la derecha.</div>';
+            return;
+        }
+        grid.innerHTML = items.map(it =>
+            `<button type="button" onclick="srPickIcon('${it.i}')" title="${it.k.split(' ')[0]}"
+                     style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:6px;font-size:22px;cursor:pointer;transition:all 0.1s;line-height:1;"
+                     onmouseover="this.style.background='#ede9fe';this.style.borderColor='#7c3aed';"
+                     onmouseout="this.style.background='#f9fafb';this.style.borderColor='#e5e7eb';">${it.i}</button>`
+        ).join('');
+    }
+
+    window.srFilterIcons = function() {
+        const q = document.getElementById('srIconSearch').value;
+        srRenderIconGrid(q);
+    };
+
+    window.srPickIcon = function(icon) {
+        document.getElementById('srNewIcon').value = icon;
+        document.getElementById('srIconPickerBtn').textContent = icon;
+        document.getElementById('srIconPicker').style.display = 'none';
+    };
+
+    window.srPickCustom = function(val) {
+        const v = (val || '').trim();
+        if (!v) return;
+        document.getElementById('srNewIcon').value = v;
+        document.getElementById('srIconPickerBtn').textContent = v;
+    };
+
+    window.srToggleIconPicker = function(evt) {
+        if (evt) evt.stopPropagation();
+        const p = document.getElementById('srIconPicker');
+        const visible = p.style.display !== 'none';
+        if (visible) {
+            p.style.display = 'none';
+        } else {
+            p.style.display = 'block';
+            document.getElementById('srIconSearch').value = '';
+            document.getElementById('srIconCustom').value = '';
+            srRenderIconGrid('');
+            setTimeout(() => document.getElementById('srIconSearch').focus(), 30);
+        }
+    };
+
+    // Cerrar picker al clickear fuera
+    document.addEventListener('click', function(e) {
+        const picker = document.getElementById('srIconPicker');
+        const btn = document.getElementById('srIconPickerBtn');
+        if (!picker || picker.style.display === 'none') return;
+        if (picker.contains(e.target) || (btn && btn.contains(e.target))) return;
+        picker.style.display = 'none';
+    });
+
     window.srCreate = async function() {
         const name = document.getElementById('srNewName').value.trim();
         const icon = document.getElementById('srNewIcon').value.trim() || '🔧';
@@ -2355,6 +2536,8 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                 document.getElementById('srNewName').value = '';
                 document.getElementById('srNewDesc').value = '';
                 document.getElementById('srNewIcon').value = '🔧';
+                const pb = document.getElementById('srIconPickerBtn');
+                if (pb) pb.textContent = '🔧';
                 srShow('✓ ' + data.message, true);
                 srLoad();
             } else {
