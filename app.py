@@ -667,6 +667,8 @@ class ReportRecipient(db.Model):
     send_quincenal = db.Column(db.Boolean, default=True)
     send_monthly = db.Column(db.Boolean, default=True)
     send_annual = db.Column(db.Boolean, default=True)
+    # Alerta lunes: casos del grupo con SLA vencido o >6 dias abiertos
+    send_monday_stuck = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
     last_sent_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.now)
@@ -6282,6 +6284,24 @@ def migrate_report_recipients_cc():
             print(f"[migrate_report_recipients] error cc_user_ids: {e}")
 
 
+def migrate_report_recipients_monday_stuck():
+    """Agrega columna send_monday_stuck a report_recipients si no existe."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'report_recipients' not in inspector.get_table_names():
+        return
+    existing_cols = {c['name'] for c in inspector.get_columns('report_recipients')}
+    if 'send_monday_stuck' not in existing_cols:
+        try:
+            postgresql = db.engine.dialect.name == 'postgresql'
+            bool_default = 'FALSE' if postgresql else '0'
+            with db.engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE report_recipients ADD COLUMN send_monday_stuck BOOLEAN DEFAULT {bool_default}"))
+            print("[migrate_report_recipients] Columna send_monday_stuck agregada")
+        except Exception as e:
+            print(f"[migrate_report_recipients] error send_monday_stuck: {e}")
+
+
 def migrate_report_recipients_team():
     """Agrega columna team_user_ids a report_recipients si no existe."""
     from sqlalchemy import inspect, text
@@ -6954,6 +6974,10 @@ def init_db():
             migrate_report_recipients_cc()
         except Exception as _e:
             print(f"[migrate] report_recipients_cc: {_e}")
+        try:
+            migrate_report_recipients_monday_stuck()
+        except Exception as _e:
+            print(f"[migrate] report_recipients_monday_stuck: {_e}")
         migrate_subtasks_schema()
         backfill_subtask_numbers()
         seed_default_subroles()
@@ -14314,6 +14338,7 @@ def api_report_recipients_list():
             'send_quincenal': bool(r.send_quincenal),
             'send_monthly': bool(r.send_monthly),
             'send_annual': bool(r.send_annual),
+            'send_monday_stuck': bool(r.send_monday_stuck),
             'is_active': bool(r.is_active),
             'last_sent_at': r.last_sent_at.strftime('%d/%m/%Y %H:%M') if r.last_sent_at else None,
         } for r in recipients]
@@ -14342,6 +14367,7 @@ def api_report_recipients_create():
             send_quincenal=bool(data.get('send_quincenal', True)),
             send_monthly=bool(data.get('send_monthly', True)),
             send_annual=bool(data.get('send_annual', True)),
+            send_monday_stuck=bool(data.get('send_monday_stuck', False)),
             is_active=True,
         )
         db.session.add(r)
@@ -14378,6 +14404,7 @@ def api_report_recipients_update(rid):
         if 'send_quincenal' in data: r.send_quincenal = bool(data['send_quincenal'])
         if 'send_monthly' in data: r.send_monthly = bool(data['send_monthly'])
         if 'send_annual' in data: r.send_annual = bool(data['send_annual'])
+        if 'send_monday_stuck' in data: r.send_monday_stuck = bool(data['send_monday_stuck'])
         if 'is_active' in data: r.is_active = bool(data['is_active'])
         db.session.commit()
         log_audit('update_report_recipient', session['user_id'], 'recipient', r.id, f'Destinatario actualizado: {r.name}')
@@ -14604,6 +14631,139 @@ def _send_report_to_recipient(recipient, period_type, period_start, period_end):
     return ok, ('Enviado' if ok else 'Falló el envío SMTP')
 
 
+def _send_monday_stuck_report(recipient):
+    """Envia por email un listado de casos del grupo del destinatario que
+    esten VENCIDOS (SLA expirado) o lleven mas de 6 dias abiertos.
+    Se dispara los lunes automaticamente.
+    Retorna (ok, message)."""
+    now = datetime.now()
+    six_days_ago = now - timedelta(days=6)
+    team_ids = recipient.get_team_ids()
+
+    # Base query: tickets abiertos/en progreso de la empresa
+    q = Ticket.query.filter(
+        Ticket.company == recipient.company,
+        Ticket.status.in_(['open', 'in_progress'])
+    )
+    # Filtrar por grupo del destinatario (si tiene). Si no, todos los tickets
+    # abiertos/en progreso de la empresa.
+    if team_ids:
+        q = q.filter(Ticket.assignee_id.in_(team_ids))
+
+    # Vencidos o antiguos (>6 dias desde creado)
+    q = q.filter(
+        db.or_(
+            db.and_(Ticket.sla_deadline.isnot(None), Ticket.sla_deadline < now),
+            Ticket.created_at < six_days_ago
+        )
+    )
+    stuck_tickets = q.order_by(Ticket.sla_deadline.asc().nullslast()).all()
+
+    if not stuck_tickets:
+        scope = f'equipo de {recipient.name}' if team_ids else 'empresa'
+        print(f'[monday-stuck] {recipient.email}: sin casos vencidos/antiguos del {scope}. No se envía.')
+        return False, 'Sin casos vencidos o >6 días — nada que reportar'
+
+    # Cachear assignees para el listado
+    assignee_ids = {t.assignee_id for t in stuck_tickets if t.assignee_id}
+    assignees = {u.id: u for u in User.query.filter(User.id.in_(assignee_ids)).all()} if assignee_ids else {}
+
+    # Build HTML rows
+    rows = []
+    for t in stuck_tickets:
+        age_days = (now - t.created_at).days if t.created_at else 0
+        if t.sla_deadline and t.sla_deadline < now:
+            sla_overdue_h = int((now - t.sla_deadline).total_seconds() / 3600)
+            sla_status = f'<span style="color:#dc2626;font-weight:700;">⏰ SLA VENCIDO hace {sla_overdue_h}h</span>'
+        elif age_days > 6:
+            sla_status = f'<span style="color:#d97706;font-weight:700;">📅 {age_days} días abierto</span>'
+        else:
+            sla_status = f'<span style="color:#6b7280;">—</span>'
+
+        assignee = assignees.get(t.assignee_id) if t.assignee_id else None
+        assignee_text = f'{assignee.name}' if assignee else '<em style="color:#9ca3af;">Sin asignar</em>'
+
+        priority_colors = {
+            'critical': '#dc2626', 'high': '#ea580c', 'medium': '#ca8a04', 'low': '#16a34a'
+        }
+        prio_color = priority_colors.get(t.priority or 'medium', '#6b7280')
+        prio_label = {'critical': 'Crítica', 'high': 'Alta', 'medium': 'Media', 'low': 'Baja'}.get(t.priority or 'medium', t.priority)
+
+        rows.append(f'''
+            <tr>
+                <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-family:monospace;color:#7c3aed;font-weight:700;">{t.ticket_number}</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;color:#1f2937;">{(t.title or '')[:80]}</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;color:{prio_color};font-weight:600;">{prio_label}</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;color:#374151;">{assignee_text}</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">{sla_status}</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px;">{t.created_at.strftime('%d/%m/%Y') if t.created_at else '—'}</td>
+            </tr>
+        ''')
+
+    company_display = _company_display_name(recipient.company)
+    scope_line = f'Grupo: <strong>{recipient.name}</strong> ({len(team_ids)} especialistas)' if team_ids else f'Alcance: <strong>Toda la empresa {company_display}</strong>'
+    base_url = get_public_base_url() if 'get_public_base_url' in globals() else ''
+    link_hint = f'<p style="font-size:13px;color:#6b7280;">Podés abrir el sistema en <a href="{base_url}" style="color:#7c3aed;">{base_url or "DeskEli"}</a>.</p>' if base_url else ''
+
+    body = f'''
+    <div style="font-family:'Segoe UI',Tahoma,sans-serif;max-width:900px;margin:auto;color:#1f2937;">
+        <div style="background:linear-gradient(135deg,#7c3aed,#5b21b6);padding:24px;border-radius:10px 10px 0 0;color:white;">
+            <h1 style="margin:0;font-size:22px;">🚨 Casos vencidos o &gt;6 días abiertos</h1>
+            <p style="margin:6px 0 0 0;font-size:13px;opacity:0.9;">{company_display} · Lunes {now.strftime('%d/%m/%Y')}</p>
+        </div>
+        <div style="background:white;padding:20px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">
+            <p style="font-size:14px;">Hola <strong>{recipient.name}</strong>,</p>
+            <p style="font-size:14px;">Este es tu resumen semanal de casos que requieren atención. {scope_line}.</p>
+            <p style="font-size:14px;">Se listan casos <strong>abiertos o en progreso</strong> que están <strong>vencidos por SLA</strong> o <strong>llevan más de 6 días</strong>:</p>
+            <div style="background:#fef3c7;border-left:4px solid #d97706;padding:10px 14px;border-radius:5px;margin:14px 0;font-size:14px;">
+                <strong>Total: {len(stuck_tickets)} caso(s)</strong>
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;background:white;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
+                <thead style="background:#f9fafb;">
+                    <tr>
+                        <th style="padding:10px;text-align:left;font-size:11px;text-transform:uppercase;color:#6b7280;">N° Caso</th>
+                        <th style="padding:10px;text-align:left;font-size:11px;text-transform:uppercase;color:#6b7280;">Asunto</th>
+                        <th style="padding:10px;text-align:left;font-size:11px;text-transform:uppercase;color:#6b7280;">Prioridad</th>
+                        <th style="padding:10px;text-align:left;font-size:11px;text-transform:uppercase;color:#6b7280;">Asignado</th>
+                        <th style="padding:10px;text-align:left;font-size:11px;text-transform:uppercase;color:#6b7280;">SLA / Antigüedad</th>
+                        <th style="padding:10px;text-align:left;font-size:11px;text-transform:uppercase;color:#6b7280;">Creado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(rows)}
+                </tbody>
+            </table>
+            {link_hint}
+            <p style="font-size:11px;color:#9ca3af;margin-top:20px;text-align:center;">
+                Este reporte se envía automáticamente los lunes.<br>
+                DeskEli — Sistema de Gestión de Incidencias
+            </p>
+        </div>
+    </div>
+    '''
+
+    subject = f'[DeskEli] 🚨 {len(stuck_tickets)} caso(s) vencido(s) o >6 días — {company_display}'
+
+    # CC especialistas configurados
+    cc_ids = recipient.get_cc_ids()
+    cc_emails = []
+    if cc_ids:
+        cc_users = User.query.filter(
+            User.id.in_(cc_ids),
+            User.company == recipient.company,
+            User.is_active == True,
+            User.email.isnot(None)
+        ).all()
+        cc_emails = [u.email for u in cc_users if u.email and u.email.lower() != (recipient.email or '').lower()]
+
+    ok = send_email(recipient.email, subject, body, company=recipient.company,
+                    cc_emails=cc_emails or None)
+    if ok:
+        log_audit('send_monday_stuck', None, 'recipient', recipient.id,
+                  f'Alerta de lunes ({len(stuck_tickets)} casos) enviada a {recipient.email}')
+    return ok, (f'Enviado ({len(stuck_tickets)} casos)' if ok else 'Falló envío SMTP')
+
+
 def _calc_periods_for_today(today=None):
     """Calcula qué períodos toca enviar HOY. Reglas:
       - QUINCENAL: días 1 y 15 (si cae sábado/domingo, se envía el lunes siguiente).
@@ -14669,10 +14829,8 @@ def _calc_periods_for_today(today=None):
 def report_dispatch_today():
     """Función principal del scheduler: revisa qué reportes toca enviar HOY y los manda."""
     periods = _calc_periods_for_today()
-    if not periods:
-        return 0
-
     sent_total = 0
+
     with app.app_context():
         for period_type, period_start, period_end in periods:
             flag_attr = {'quincenal': 'send_quincenal', 'mensual': 'send_monthly', 'anual': 'send_annual'}[period_type]
@@ -14692,6 +14850,20 @@ def report_dispatch_today():
                 print(f'  → {r.email} [{period_type}]: {msg}')
                 if ok:
                     sent_total += 1
+
+        # ── Alerta LUNES: casos vencidos o >6 dias del grupo ──────────
+        if datetime.now().weekday() == 0:  # 0 = Lunes
+            monday_recipients = ReportRecipient.query.filter(
+                ReportRecipient.is_active == True,
+                ReportRecipient.send_monday_stuck == True
+            ).all()
+            print(f'[report-scheduler] LUNES-STUCK: {len(monday_recipients)} destinatario(s) candidato(s)')
+            for r in monday_recipients:
+                ok, msg = _send_monday_stuck_report(r)
+                print(f'  → {r.email} [lunes-stuck]: {msg}')
+                if ok:
+                    sent_total += 1
+
     return sent_total
 
 
@@ -14791,6 +14963,27 @@ def api_admin_reports_send_now():
             'period_end': period_end.strftime('%Y-%m-%d'),
             'results': results,
         })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/reports/send-monday-stuck-now', methods=['POST'])
+def api_admin_reports_send_monday_stuck_now():
+    """Dispara MANUALMENTE la alerta de lunes (casos vencidos/+6 dias) para
+    un destinatario específico. Útil para probar sin esperar al lunes.
+    Body: {recipient_id: int}"""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False}), 401
+    try:
+        data = request.get_json() or {}
+        recipient_id = data.get('recipient_id')
+        if not recipient_id:
+            return jsonify({'success': False, 'error': 'recipient_id requerido'}), 400
+        r = ReportRecipient.query.get(int(recipient_id))
+        if not r or r.company not in admin_companies_scope():
+            return jsonify({'success': False, 'error': 'Destinatario no encontrado'}), 404
+        ok, msg = _send_monday_stuck_report(r)
+        return jsonify({'success': ok, 'message': msg, 'email': r.email})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

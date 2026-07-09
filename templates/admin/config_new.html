@@ -1037,6 +1037,10 @@
                             <label style="cursor:pointer;"><input type="checkbox" id="rep-quincenal" checked> 📅 Quincenal</label>
                             <label style="cursor:pointer;"><input type="checkbox" id="rep-mensual" checked> 📆 Mensual</label>
                             <label style="cursor:pointer;"><input type="checkbox" id="rep-anual" checked> 🗓️ Anual</label>
+                            <label style="cursor:pointer;color:#b91c1c;"
+                                   title="Envío los lunes con los casos del grupo VENCIDOS o con MÁS DE 6 DÍAS abiertos">
+                                <input type="checkbox" id="rep-monday-stuck"> 🚨 Lunes — casos vencidos / +6 días
+                            </label>
                         </div>
                         <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:8px;">
                             <button type="button" onclick="resetRecipientForm()"
@@ -3085,6 +3089,7 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                 if (rec.send_quincenal) freq.push('<span style="background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:600;">📅 Quincenal</span>');
                 if (rec.send_monthly)   freq.push('<span style="background:#dcfce7;color:#166534;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:600;">📆 Mensual</span>');
                 if (rec.send_annual)    freq.push('<span style="background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:600;">🗓️ Anual</span>');
+                if (rec.send_monday_stuck) freq.push('<span style="background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Lunes con casos vencidos/+6 días">🚨 Lunes</span>');
                 const statusBadge = rec.is_active
                     ? '<span style="background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;">ACTIVO</span>'
                     : '<span style="background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;">INACTIVO</span>';
@@ -3116,7 +3121,8 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                             <button onclick="openCcModal(${rec.id})" title="Agregar especialistas en copia (CC) del email" style="padding:5px 10px;background:#8b5cf6;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">✉️</button>
                             <button onclick="editRecipient(${rec.id})" style="padding:5px 10px;background:#2563eb;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">✏️</button>
                             <button onclick="toggleRecipientActive(${rec.id}, ${!rec.is_active})" style="padding:5px 10px;background:${rec.is_active ? '#6b7280' : '#16a34a'};color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">${rec.is_active ? '⏸' : '▶'}</button>
-                            <button onclick="sendReportToOne(${rec.id}, '${escRep(rec.email)}')" title="Enviar ahora" style="padding:5px 10px;background:#f59e0b;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">📤</button>
+                            <button onclick="sendReportToOne(${rec.id}, '${escRep(rec.email)}')" title="Enviar reporte periodico ahora (test)" style="padding:5px 10px;background:#f59e0b;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">📤</button>
+                            ${rec.send_monday_stuck ? `<button onclick="sendMondayStuckNow(${rec.id}, '${escRep(rec.email)}')" title="Enviar AHORA la alerta de lunes (casos vencidos/+6d)" style="padding:5px 10px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:3px;">🚨</button>` : ''}
                             <button onclick="deleteRecipient(${rec.id}, '${escRep(rec.name).replace(/'/g, "\\'")}')" style="padding:5px 10px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;">🗑️</button>
                         </td>
                     </tr>
@@ -3136,6 +3142,7 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
         document.getElementById('rep-quincenal').checked = true;
         document.getElementById('rep-mensual').checked = true;
         document.getElementById('rep-anual').checked = true;
+        document.getElementById('rep-monday-stuck').checked = false;
         document.getElementById('rep-save-btn').textContent = '💾 Guardar destinatario';
         repStatus('', true);
         window._editing_recipient_id = null;
@@ -3150,6 +3157,7 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
             send_quincenal: document.getElementById('rep-quincenal').checked,
             send_monthly: document.getElementById('rep-mensual').checked,
             send_annual: document.getElementById('rep-anual').checked,
+            send_monday_stuck: document.getElementById('rep-monday-stuck').checked,
         };
         if (!data.name || !data.email || !data.company) {
             repStatus('⚠ Nombre, email y empresa son obligatorios', false);
@@ -3193,6 +3201,7 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
             document.getElementById('rep-quincenal').checked = rec.send_quincenal;
             document.getElementById('rep-mensual').checked = rec.send_monthly;
             document.getElementById('rep-anual').checked = rec.send_annual;
+            document.getElementById('rep-monday-stuck').checked = rec.send_monday_stuck;
             document.getElementById('rep-save-btn').textContent = '💾 Actualizar';
             window._editing_recipient_id = id;
             document.getElementById('panel-reportes').scrollIntoView({behavior: 'smooth'});
@@ -3273,6 +3282,23 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
             } else {
                 const err = (d.results && d.results[0]) ? d.results[0].message : (d.error || 'Error');
                 alert(`✗ Falló: ${err}`);
+            }
+        } catch (e) { alert('Error: ' + e.message); }
+    };
+
+    window.sendMondayStuckNow = async function(id, email) {
+        if (!confirm(`Enviar la alerta de lunes AHORA a ${email}?\n\nSe listan los casos del grupo VENCIDOS o con MÁS DE 6 DÍAS abiertos.`)) return;
+        try {
+            const r = await fetch('/api/admin/reports/send-monday-stuck-now', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({recipient_id: id})
+            });
+            const d = await r.json();
+            if (d.success) {
+                alert(`✓ ${d.message} — enviado a ${email}`);
+            } else {
+                alert(`ℹ ${d.message || d.error || 'Falló envío'}`);
             }
         } catch (e) { alert('Error: ' + e.message); }
     };
