@@ -14659,10 +14659,70 @@ def _send_monday_stuck_report(recipient):
     )
     stuck_tickets = q.order_by(Ticket.sla_deadline.asc().nullslast()).all()
 
+    # Contar tickets activos del grupo (para contexto en el email "al día")
+    active_q = Ticket.query.filter(
+        Ticket.company == recipient.company,
+        Ticket.status.in_(['open', 'in_progress'])
+    )
+    if team_ids:
+        active_q = active_q.filter(Ticket.assignee_id.in_(team_ids))
+    active_total = active_q.count()
+
+    # Emails de CC (comun a los dos flujos)
+    cc_ids = recipient.get_cc_ids()
+    cc_emails = []
+    if cc_ids:
+        cc_users = User.query.filter(
+            User.id.in_(cc_ids),
+            User.company == recipient.company,
+            User.is_active == True,
+            User.email.isnot(None)
+        ).all()
+        cc_emails = [u.email for u in cc_users if u.email and u.email.lower() != (recipient.email or '').lower()]
+
+    company_display = _company_display_name(recipient.company)
+    scope_line = f'Grupo: <strong>{recipient.name}</strong> ({len(team_ids)} especialistas)' if team_ids else f'Alcance: <strong>Toda la empresa {company_display}</strong>'
+
+    # ── Flujo "AL DIA": no hay casos vencidos ni antiguos ──────────
     if not stuck_tickets:
-        scope = f'equipo de {recipient.name}' if team_ids else 'empresa'
-        print(f'[monday-stuck] {recipient.email}: sin casos vencidos/antiguos del {scope}. No se envía.')
-        return False, 'Sin casos vencidos o >6 días — nada que reportar'
+        body_al_dia = f'''
+        <div style="font-family:'Segoe UI',Tahoma,sans-serif;max-width:900px;margin:auto;color:#1f2937;">
+            <div style="background:linear-gradient(135deg,#16a34a,#15803d);padding:24px;border-radius:10px 10px 0 0;color:white;">
+                <h1 style="margin:0;font-size:22px;">✅ Equipo al día</h1>
+                <p style="margin:6px 0 0 0;font-size:13px;opacity:0.9;">{company_display} · Lunes {now.strftime('%d/%m/%Y')}</p>
+            </div>
+            <div style="background:white;padding:20px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">
+                <p style="font-size:14px;">Hola <strong>{recipient.name}</strong>,</p>
+                <p style="font-size:14px;">Buenas noticias: <strong>no hay casos vencidos ni con más de 6 días abiertos</strong> en tu área. {scope_line}.</p>
+
+                <div style="background:#d1fae5;border-left:4px solid #16a34a;padding:14px 18px;border-radius:6px;margin:16px 0;">
+                    <div style="font-size:15px;color:#065f46;font-weight:700;">🎉 El equipo está al día con los casos</div>
+                    <div style="font-size:13px;color:#047857;margin-top:6px;">
+                        {active_total} caso(s) activo(s), todos dentro del SLA y con menos de 6 días de antigüedad.
+                    </div>
+                </div>
+
+                <p style="font-size:13px;color:#374151;">Este es el resumen semanal de lunes:</p>
+                <table style="border-collapse:collapse;font-size:13px;margin:10px 0;">
+                    <tr><td style="padding:6px 12px;color:#6b7280;">Casos activos del grupo:</td><td style="padding:6px 12px;font-weight:700;color:#111827;">{active_total}</td></tr>
+                    <tr><td style="padding:6px 12px;color:#6b7280;">Casos con SLA vencido:</td><td style="padding:6px 12px;font-weight:700;color:#16a34a;">0</td></tr>
+                    <tr><td style="padding:6px 12px;color:#6b7280;">Casos con &gt;6 días abiertos:</td><td style="padding:6px 12px;font-weight:700;color:#16a34a;">0</td></tr>
+                </table>
+
+                <p style="font-size:11px;color:#9ca3af;margin-top:20px;text-align:center;">
+                    Este reporte se envía automáticamente los lunes.<br>
+                    DeskEli — Sistema de Gestión de Incidencias
+                </p>
+            </div>
+        </div>
+        '''
+        subject_al_dia = f'[DeskEli] ✅ Equipo al día — {company_display} · Lunes {now.strftime("%d/%m")}'
+        ok = send_email(recipient.email, subject_al_dia, body_al_dia,
+                        company=recipient.company, cc_emails=cc_emails or None)
+        if ok:
+            log_audit('send_monday_stuck', None, 'recipient', recipient.id,
+                      f'Alerta de lunes (equipo AL DIA — {active_total} activos) enviada a {recipient.email}')
+        return ok, (f'Enviado (equipo al día, {active_total} activos)' if ok else 'Falló envío SMTP')
 
     # Cachear assignees para el listado
     assignee_ids = {t.assignee_id for t in stuck_tickets if t.assignee_id}
@@ -14700,8 +14760,7 @@ def _send_monday_stuck_report(recipient):
             </tr>
         ''')
 
-    company_display = _company_display_name(recipient.company)
-    scope_line = f'Grupo: <strong>{recipient.name}</strong> ({len(team_ids)} especialistas)' if team_ids else f'Alcance: <strong>Toda la empresa {company_display}</strong>'
+    # company_display, scope_line y cc_emails ya se calcularon arriba
     base_url = get_public_base_url() if 'get_public_base_url' in globals() else ''
     link_hint = f'<p style="font-size:13px;color:#6b7280;">Podés abrir el sistema en <a href="{base_url}" style="color:#7c3aed;">{base_url or "DeskEli"}</a>.</p>' if base_url else ''
 
@@ -14743,18 +14802,6 @@ def _send_monday_stuck_report(recipient):
     '''
 
     subject = f'[DeskEli] 🚨 {len(stuck_tickets)} caso(s) vencido(s) o >6 días — {company_display}'
-
-    # CC especialistas configurados
-    cc_ids = recipient.get_cc_ids()
-    cc_emails = []
-    if cc_ids:
-        cc_users = User.query.filter(
-            User.id.in_(cc_ids),
-            User.company == recipient.company,
-            User.is_active == True,
-            User.email.isnot(None)
-        ).all()
-        cc_emails = [u.email for u in cc_users if u.email and u.email.lower() != (recipient.email or '').lower()]
 
     ok = send_email(recipient.email, subject, body, company=recipient.company,
                     cc_emails=cc_emails or None)
