@@ -11,7 +11,7 @@ segunda comunicación con la URL y las instrucciones de ingreso.
 
 | Archivo | Propósito |
 |---|---|
-| `email_eliot.html` | Correo corporativo para Manufactureras Eliot (paleta azul) |
+| `email_eliot.html` | Correo corporativo para Manufacturas Eliot (paleta azul) |
 | `email_pash.html` | Correo corporativo para Pash (paleta púrpura) |
 | `email_primatela.html` | Correo corporativo para Primatela (paleta verde) |
 | `email_texto_plano.txt` | Versión de sólo texto (accesibilidad, Outlook antiguos, filtros) |

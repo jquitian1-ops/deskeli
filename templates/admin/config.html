@@ -365,7 +365,7 @@
                         </button>
                         {% if can_sync_from_master %}
                         <button onclick="syncTechniciansFromMaster()" id="btnSyncMaster"
-                                title="Trae los tecnicos de Manufactureras Eliot (empresa master) y los sincroniza en esta empresa. Idempotente: solo crea los que faltan y actualiza los ya sincronizados."
+                                title="Trae los tecnicos de Manufacturas Eliot (empresa master) y los sincroniza en esta empresa. Idempotente: solo crea los que faltan y actualiza los ya sincronizados."
                                 style="padding: 10px 20px; background: linear-gradient(135deg,#7c3aed,#5b21b6); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                             🔗 Sincronizar técnicos de Eliot
                         </button>
@@ -713,7 +713,7 @@
                 </div>
 
                 {% if is_master %}
-                <!-- SECCION BASE DE DATOS (solo master admin — Manufactureras Eliot) -->
+                <!-- SECCION BASE DE DATOS (solo master admin — Manufacturas Eliot) -->
                 <div class="config-section" id="sec-datos">
                     <div class="section-title">🗄️ Base de Datos</div>
                     <p style="color: #666; margin-bottom: 20px; font-size: 14px;">Configura dónde guardar los datos del sistema. Por defecto usa SQLite local.</p>
@@ -1974,7 +1974,7 @@
         }
 
         async function syncTechniciansFromMaster() {
-            if (!confirm('¿Sincronizar los técnicos de Manufactureras Eliot en esta empresa?\n\nEsto creará los que falten y actualizará nombre, email, contraseña y estado de los que ya estén sincronizados.\n\nLos usuarios locales de esta empresa NO se tocan.')) return;
+            if (!confirm('¿Sincronizar los técnicos de Manufacturas Eliot en esta empresa?\n\nEsto creará los que falten y actualizará nombre, email, contraseña y estado de los que ya estén sincronizados.\n\nLos usuarios locales de esta empresa NO se tocan.')) return;
             const btn = document.getElementById('btnSyncMaster');
             const status = document.getElementById('user-status');
             if (btn) { btn.disabled = true; btn.textContent = '⏳ Sincronizando...'; }

@@ -43,9 +43,9 @@ Puedes ingresar con cualquiera de estos usuarios:
 
 | Usuario | Rol | Empresa | Contraseña |
 |---------|-----|---------|------------|
-| **john** | Empleado | Manufactureras Eliot | (sin contraseña) |
-| **carlos** | Técnico | Manufactureras Eliot | (sin contraseña) |
-| **ana** | Admin | Manufactureras Eliot | (sin contraseña) |
+| **john** | Empleado | Manufacturas Eliot | (sin contraseña) |
+| **carlos** | Técnico | Manufacturas Eliot | (sin contraseña) |
+| **ana** | Admin | Manufacturas Eliot | (sin contraseña) |
 
 **Instrucciones:**
 1. Selecciona el rol que quieres probar (Empleado, Técnico, Admin)

@@ -3,7 +3,7 @@ seed_template_solicitud_usuario.py
 
 Inserta la plantilla "Solicitud Ingreso/Modificación de Usuarios" en las 3
 empresas (idempotente por name+company). Basada en el formato oficial de
-Manufactureras Eliot / Pash / Primatela.
+Manufacturas Eliot / Pash / Primatela.
 
 v2 (2026-07): agrega fecha_ingreso, remplazo, y soporta multiples accesos +
 detalles SAP mediante textareas estructurados (una linea por item).

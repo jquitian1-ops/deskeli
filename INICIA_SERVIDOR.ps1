@@ -63,7 +63,7 @@ Write-Host "    - Contraseña: demo" -ForegroundColor Cyan
 Write-Host ""
 
 Write-Host "  EMPRESAS DISPONIBLES:" -ForegroundColor White
-Write-Host "    1. Manufactureras Eliot (eliot)" -ForegroundColor Cyan
+Write-Host "    1. Manufacturas Eliot (eliot)" -ForegroundColor Cyan
 Write-Host "    2. Pash (pash)" -ForegroundColor Cyan
 Write-Host "    3. Primatela (primatela)" -ForegroundColor Cyan
 Write-Host ""

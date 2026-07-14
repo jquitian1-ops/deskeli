@@ -43,7 +43,7 @@ def setup_test_data(client):
     """Setup test data: companies, users, tickets"""
     with app.app_context():
         # Create companies
-        eliot = Company(code='eliot', name='Manufactureras Eliot', users_limit=100)
+        eliot = Company(code='eliot', name='Manufacturas Eliot', users_limit=100)
         pash = Company(code='pash', name='Pash', users_limit=100)
         primatela = Company(code='primatela', name='Primatela', users_limit=100)
 

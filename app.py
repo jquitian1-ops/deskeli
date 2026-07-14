@@ -270,7 +270,7 @@ def apply_security_headers(response):
 
 # Colores por empresa
 COMPANY_COLORS = {
-    'eliot':     {'name': 'Manufactureras Eliot', 'primary': '#2563eb', 'secondary': '#1e40af', 'icon': '🏭', 'logo': '/static/img/eliot.jpg'},
+    'eliot':     {'name': 'Manufacturas Eliot', 'primary': '#2563eb', 'secondary': '#1e40af', 'icon': '🏭', 'logo': '/static/img/eliot.jpg'},
     'pash':      {'name': 'Pash',                 'primary': '#7c3aed', 'secondary': '#6d28d9', 'icon': '💻', 'logo': '/static/img/pash.png'},
     'primatela': {'name': 'Primatela',            'primary': '#059669', 'secondary': '#047857', 'icon': '🌿', 'logo': '/static/img/primatela.jpg'}
 }
@@ -5397,12 +5397,12 @@ def _get_db_server_version():
 @app.route('/api/config/database', methods=['GET', 'POST'])
 def api_config_database():
     """GET: retorna config actual de BD. POST: guarda nueva configuración.
-    Restringido a admin master (Manufactureras Eliot) — Pash y Primatela
+    Restringido a admin master (Manufacturas Eliot) — Pash y Primatela
     NO pueden ver/cambiar la BD porque es una config global del sistema."""
     if 'user_id' not in session or session['role'] != 'admin':
         return jsonify({'success': False}), 401
     if not is_master_admin():
-        return jsonify({'success': False, 'error': 'Solo el admin master (Manufactureras Eliot) puede gestionar la BD del sistema'}), 403
+        return jsonify({'success': False, 'error': 'Solo el admin master (Manufacturas Eliot) puede gestionar la BD del sistema'}), 403
 
     if request.method == 'GET':
         # Retornar configuración REAL basada en el engine activo, no el env var.
@@ -8145,7 +8145,7 @@ def init_db():
             companies = [
                 Company(
                     code='eliot',
-                    name='Manufactureras Eliot',
+                    name='Manufacturas Eliot',
                     icon='🏭',
                     primary_color='#2563eb',
                     secondary_color='#1e40af'
