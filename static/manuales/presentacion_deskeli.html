@@ -378,6 +378,118 @@
     }
     .stat-label { color: var(--text-muted); font-size: 13px; }
 
+    /* ═════ EMPRESAS DEL GRUPO ═════ */
+    .companies-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 24px;
+        margin-top: 20px;
+    }
+    .company-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 32px 24px;
+        text-align: center;
+        transition: all 0.3s;
+        position: relative;
+        overflow: hidden;
+    }
+    .company-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 4px;
+        background: var(--primary);
+    }
+    .company-card--eliot::before     { background: linear-gradient(90deg, #2563eb, #1e40af); }
+    .company-card--pash::before      { background: linear-gradient(90deg, #7c3aed, #6d28d9); }
+    .company-card--primatela::before { background: linear-gradient(90deg, #059669, #047857); }
+    .company-card:hover {
+        border-color: var(--primary);
+        transform: translateY(-6px);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.25);
+    }
+    .company-logo-wrap {
+        height: 100px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+        background: #fff;
+        border-radius: 12px;
+        padding: 12px;
+    }
+    .company-logo-wrap img {
+        max-height: 76px;
+        max-width: 200px;
+        width: auto;
+        height: auto;
+        object-fit: contain;
+    }
+    .company-card h3 {
+        color: var(--text);
+        font-size: 20px;
+        margin-bottom: 4px;
+    }
+    .company-role {
+        color: var(--text-muted);
+        font-size: 13px;
+        margin-bottom: 16px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .company-features {
+        list-style: none;
+        text-align: left;
+        margin: 0 0 18px 0;
+        padding: 0;
+    }
+    .company-features li {
+        color: var(--text-muted);
+        font-size: 13px;
+        padding: 6px 0 6px 22px;
+        position: relative;
+    }
+    .company-features li::before {
+        content: '✓';
+        position: absolute;
+        left: 0;
+        color: var(--primary-light);
+        font-weight: bold;
+    }
+    .company-pill {
+        display: inline-block;
+        padding: 6px 14px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .segregation-note {
+        margin-top: 32px;
+        background: rgba(124, 58, 237, 0.08);
+        border: 1px solid rgba(124, 58, 237, 0.3);
+        border-radius: 12px;
+        padding: 20px 24px;
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        color: var(--text);
+        font-size: 14px;
+        line-height: 1.6;
+    }
+    .segregation-icon {
+        font-size: 28px;
+        flex-shrink: 0;
+    }
+    .segregation-note code {
+        background: rgba(124, 58, 237, 0.15);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 12px;
+        color: var(--primary-light);
+    }
+
     /* ═════ CTA ═════ */
     .cta-section {
         background: linear-gradient(135deg, var(--primary-dark), var(--primary));
@@ -507,6 +619,7 @@
         <div class="brand-name">Desk<span class="accent">Eli</span></div>
     </div>
     <div class="nav-links">
+        <a href="#empresas">Empresas</a>
         <a href="#portales">Portales</a>
         <a href="#funcionalidades">Funcionalidades</a>
         <a href="#automatizacion">Automatización</a>
@@ -576,6 +689,77 @@
                 <div class="stat-icon">⚡</div>
                 <div class="stat-value">Tiempo real</div>
                 <div class="stat-label">WebSocket · Cambios visibles en &lt;3 seg</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═════ EMPRESAS DEL GRUPO ═════ -->
+<section id="empresas">
+    <div class="container">
+        <span class="section-eyebrow">Empresas del grupo</span>
+        <h2 class="section-title">Una plataforma, tres empresas</h2>
+        <p class="section-subtitle">
+            DeskEli sirve a las tres empresas del grupo con estricta segregación de datos.
+            Cada empresa tiene su propio LDAP, sus técnicos, sus tickets y su rama de auditoría —
+            pero comparte la misma infraestructura de alta disponibilidad.
+        </p>
+
+        <div class="companies-grid">
+            <div class="company-card company-card--eliot">
+                <div class="company-logo-wrap">
+                    <img src="/static/img/eliot.jpg" alt="Manufactureras Eliot" onerror="this.style.display='none'">
+                </div>
+                <h3>Manufactureras Eliot</h3>
+                <p class="company-role">Empresa matriz</p>
+                <ul class="company-features">
+                    <li>Master admin del sistema</li>
+                    <li>Técnicos espejo en Pash y Primatela</li>
+                    <li>Configuración global de BD y temas</li>
+                </ul>
+                <div class="company-pill" style="background:#dbeafe;color:#1e40af;">
+                    Tema Azul Corporativo
+                </div>
+            </div>
+
+            <div class="company-card company-card--pash">
+                <div class="company-logo-wrap">
+                    <img src="/static/img/pash.png" alt="Pash - Telas y Moda" onerror="this.style.display='none'">
+                </div>
+                <h3>Pash — Telas y Moda</h3>
+                <p class="company-role">Retail y moda</p>
+                <ul class="company-features">
+                    <li>Portal segregado y branding propio</li>
+                    <li>Sincronización de técnicos desde Eliot</li>
+                    <li>Reportes ejecutivos independientes</li>
+                </ul>
+                <div class="company-pill" style="background:#ede9fe;color:#6d28d9;">
+                    Tema Púrpura Elegante
+                </div>
+            </div>
+
+            <div class="company-card company-card--primatela">
+                <div class="company-logo-wrap">
+                    <img src="/static/img/primatela.jpg" alt="Primatela" onerror="this.style.display='none'">
+                </div>
+                <h3>Primatela</h3>
+                <p class="company-role">Manufactura textil</p>
+                <ul class="company-features">
+                    <li>Portal segregado y branding propio</li>
+                    <li>Sincronización de técnicos desde Eliot</li>
+                    <li>Alertas SLA por su equipo</li>
+                </ul>
+                <div class="company-pill" style="background:#d1fae5;color:#047857;">
+                    Tema Verde Natural
+                </div>
+            </div>
+        </div>
+
+        <div class="segregation-note">
+            <span class="segregation-icon">🔒</span>
+            <div>
+                <strong>Segregación garantizada:</strong>
+                Un usuario de Pash <em>nunca</em> ve datos de Eliot o Primatela. Cada consulta a la base de datos filtra automáticamente por <code>company_id</code>, y las salas WebSocket están aisladas para que las notificaciones en tiempo real no crucen fronteras.
             </div>
         </div>
     </div>

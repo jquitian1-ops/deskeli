@@ -270,10 +270,11 @@ def apply_security_headers(response):
 
 # Colores por empresa
 COMPANY_COLORS = {
-    'eliot': {'name': 'Manufactureras Eliot', 'primary': '#2563eb', 'secondary': '#1e40af', 'icon': '🏭'},
-    'pash': {'name': 'Pash', 'primary': '#7c3aed', 'secondary': '#6d28d9', 'icon': '💻'},
-    'primatela': {'name': 'Primatela', 'primary': '#059669', 'secondary': '#047857', 'icon': '🌿'}
+    'eliot':     {'name': 'Manufactureras Eliot', 'primary': '#2563eb', 'secondary': '#1e40af', 'icon': '🏭', 'logo': '/static/img/eliot.jpg'},
+    'pash':      {'name': 'Pash',                 'primary': '#7c3aed', 'secondary': '#6d28d9', 'icon': '💻', 'logo': '/static/img/pash.png'},
+    'primatela': {'name': 'Primatela',            'primary': '#059669', 'secondary': '#047857', 'icon': '🌿', 'logo': '/static/img/primatela.jpg'}
 }
+COMPANY_LOGOS = {code: cfg['logo'] for code, cfg in COMPANY_COLORS.items()}
 
 THEMES = {
     'blue':     {'primary': '#2563eb', 'name': 'Azul Profesional'},
@@ -1391,6 +1392,7 @@ def api_company_theme():
         'company_code': company.code,
         'company_name': company.name,
         'icon': company.icon,
+        'logo_url': COMPANY_LOGOS.get(company.code, ''),
         'primary_color': company.primary_color,
         'secondary_color': company.secondary_color
     })
@@ -2494,6 +2496,7 @@ def technician_dashboard():
                            team_queue=team_queue,
                            stats=stats,
                            user=user,
+                           company=COMPANY_COLORS.get(session.get('company')),
                            theme_color=theme_color,
                            current_theme=theme_name)
 

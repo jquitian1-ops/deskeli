@@ -47,10 +47,25 @@
         }
 
         .company-badge {
-            background: rgba(255, 255, 255, 0.2);
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 14px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #1f2937;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        }
+        .company-badge img {
+            height: 28px;
+            width: auto;
+            max-width: 90px;
+            object-fit: contain;
+            border-radius: 4px;
+            background: white;
+            padding: 2px;
         }
 
         .logout-btn {
@@ -517,7 +532,16 @@
                 </div>
             </div>
             <div class="header-right">
-                <div class="company-badge">{{ company.icon }} {{ company.name }}</div>
+                <div class="company-badge" title="{{ company.name }}">
+                    {% if company.logo %}
+                        <img src="{{ company.logo }}" alt="{{ company.name }}"
+                             onerror="this.style.display='none';this.nextElementSibling.style.display='inline';">
+                        <span style="display:none;">{{ company.icon }}</span>
+                    {% else %}
+                        <span>{{ company.icon }}</span>
+                    {% endif %}
+                    <span>{{ company.name }}</span>
+                </div>
                 <a href="/static/manuales/manual_empleado.html" target="_blank" class="logout-btn" title="Abrir manual del portal de empleados">📖 Manual</a>
                 <a href="/logout" class="logout-btn">Salir</a>
             </div>
