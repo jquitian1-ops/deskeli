@@ -5,6 +5,9 @@ Inserta la plantilla "Solicitud Ingreso/Modificación de Usuarios" en las 3
 empresas (idempotente por name+company). Basada en el formato oficial de
 Manufactureras Eliot / Pash / Primatela.
 
+v2 (2026-07): agrega fecha_ingreso, remplazo, y soporta multiples accesos +
+detalles SAP mediante textareas estructurados (una linea por item).
+
 Uso (Coolify terminal):
     python scripts/seed_template_solicitud_usuario.py
 """
@@ -43,7 +46,9 @@ Centro de Costo:          {{centro_costo}}
 Unidad de Negocio:        {{unidad_negocio}}
 Ubicación:                {{ubicacion}}
 Tipo de Contrato:         {{tipo_contrato}}
-Usuario de Red (si tiene): {{usuario_red}}
+Fecha de Ingreso:         {{fecha_ingreso}}
+¿Es reemplazo?:           {{remplazo}}
+Usuario de Red actual:    {{usuario_red}}
 
 ▶ JUSTIFICACIÓN DE LOS ACCESOS
 
@@ -51,15 +56,17 @@ Usuario de Red (si tiene): {{usuario_red}}
 
 ▶ II. LISTA DE ACCESOS SOLICITADOS
 
-Nombre del acceso:       {{acceso_nombre}}
-Descripción:             {{acceso_descripcion}}
-Usuario espejo:          {{usuario_espejo}}
-Costo estimado:          {{costo}}
+Formato (uno por línea): NOMBRE | DESCRIPCIÓN | USUARIO ESPEJO | COSTO
+
+{{accesos_lista}}
+
+Total estimado: {{costo_total}}
 
 ▶ DETALLE SAP (si aplica)
 
-Versión:                 {{sap_version}}
-Ambiente:                {{sap_ambiente}}
+Formato (uno por línea): VERSIÓN | AMBIENTE
+
+{{sap_detalle}}
 
 ▶ APROBACIÓN
 
@@ -82,49 +89,49 @@ FORM_FIELDS = [
         'label': '👤 Nombre completo del usuario',
         'type': 'text',
         'required': True,
-        'placeholder': 'Ej: JENNY ALEJANDRA ROA QUEVEDO'
+        'placeholder': 'Ej: ROSARIO MARISCAL'
     },
     {
         'name': 'documento',
         'label': '🪪 Documento de identidad',
         'type': 'text',
         'required': True,
-        'placeholder': 'Ej: 1030701080'
+        'placeholder': 'Ej: 3852273'
     },
     {
         'name': 'cargo',
         'label': '💼 Cargo',
         'type': 'text',
         'required': True,
-        'placeholder': 'Ej: Analista Planeación Financiera'
+        'placeholder': 'Ej: LIDER DE TIENDA'
     },
     {
         'name': 'telefono',
         'label': '📞 Teléfono / celular de contacto',
         'type': 'text',
         'required': False,
-        'placeholder': 'Ej: 3133520058'
+        'placeholder': 'Ej: +59177631301 (incluir código país si es internacional)'
     },
     {
         'name': 'gerencia',
         'label': '🏢 Gerencia',
         'type': 'text',
         'required': True,
-        'placeholder': 'Ej: FINANCIERA, COMERCIAL, OPERACIONES'
+        'placeholder': 'Ej: COMERCIAL TEKS, FINANCIERA, OPERACIONES'
     },
     {
         'name': 'jefe_inmediato',
         'label': '👔 Jefe inmediato',
         'type': 'text',
         'required': True,
-        'placeholder': 'Nombre completo del jefe inmediato'
+        'placeholder': 'Ej: GRACIELA FLOREZ CORDERO'
     },
     {
         'name': 'centro_costo',
         'label': '💰 Centro de costo / División',
         'type': 'text',
         'required': True,
-        'placeholder': 'Ej: 1030900310301000102 - PLANEACIÓN FINANCIERA'
+        'placeholder': 'Ej: 21700001151800000002 - GERENCIA VENTAS PORTOFINO'
     },
     {
         'name': 'unidad_negocio',
@@ -135,10 +142,10 @@ FORM_FIELDS = [
     },
     {
         'name': 'ubicacion',
-        'label': '📍 Ubicación / sede',
+        'label': '📍 Ubicación / sede / país',
         'type': 'text',
         'required': True,
-        'placeholder': 'Ej: ELIOT CALLE 19, PASH CENTRO, PRIMATELA NORTE'
+        'placeholder': 'Ej: ELIOT CALLE 19 · PASH CENTRO · PANAMA U OTROS PAISES · BOLIVIA'
     },
     {
         'name': 'tipo_contrato',
@@ -148,64 +155,74 @@ FORM_FIELDS = [
         'options': ['FIJO', 'TEMPORAL', 'CONTRATISTA', 'PRÁCTICAS', 'OTRO']
     },
     {
+        'name': 'fecha_ingreso',
+        'label': '📅 Fecha de ingreso',
+        'type': 'date',
+        'required': True,
+        'placeholder': 'AAAA-MM-DD'
+    },
+    {
+        'name': 'remplazo',
+        'label': '🔁 ¿Es reemplazo de otro colaborador?',
+        'type': 'select',
+        'required': True,
+        'options': ['NO', 'SÍ']
+    },
+    {
         'name': 'usuario_red',
         'label': '🔑 Usuario de red actual (si existe)',
         'type': 'text',
         'required': False,
-        'placeholder': 'Ej: yroa (dejar vacío si es nuevo)'
+        'placeholder': 'Ej: rmariscal (0 o vacío si es nuevo)'
     },
     {
         'name': 'justificacion',
         'label': '📝 Justificación de los accesos',
         'type': 'textarea',
         'required': True,
-        'placeholder': 'Ej: Solicito acceso a FMS PAISES en SAP para gestión financiera del mercado internacional'
+        'placeholder': 'Ej: Se solicitan equipos para Rosario Mariscal en Bolivia.'
     },
 
     # ── II. LISTA DE ACCESOS ────────────────────────────────────
+    # Un textarea estructurado para listar cualquier cantidad de accesos.
+    # Formato por linea: NOMBRE | DESCRIPCIÓN | USUARIO ESPEJO | COSTO
     {
-        'name': 'acceso_nombre',
-        'label': '🎯 Nombre del acceso solicitado',
-        'type': 'text',
-        'required': True,
-        'placeholder': 'Ej: SAP, VPN, Correo, SharePoint, ERP'
-    },
-    {
-        'name': 'acceso_descripcion',
-        'label': '📃 Descripción detallada del acceso',
+        'name': 'accesos_lista',
+        'label': '🎯 Lista de accesos solicitados (uno por línea)',
         'type': 'textarea',
         'required': True,
-        'placeholder': 'Ej: Solicito acceso a FMS PAISES en SAP, no cuento con usuarios tengo usuario de RISE'
+        'placeholder': (
+            'Formato: NOMBRE | DESCRIPCIÓN | USUARIO ESPEJO | COSTO\n\n'
+            'Ejemplo:\n'
+            'ELEMENTOS DE TECNOLOGIA | MOUSE USB, PORTATIL CI7/16GB/500GB SSD | N/A | -\n'
+            'HERRAMIENTAS OFIMÁTICAS | LICENCIA OFFICE 365 E3 TEAMS | N/A | 140\n'
+            'CREACION VPN | DAR ACCESO A VPN | N/A | -\n'
+            'ULTRASYSTEM | CREAR USUARIOS CON PERMISOS DE TIENDAS PARA BOLIVIA | TIENDA | -\n'
+            'SAP PASH | N/A | TIENDA PAISES | -\n'
+            'SAP | CREAR SAP RISE Y SAP PAISES | TIENDA PAISES | 1300'
+        )
     },
     {
-        'name': 'usuario_espejo',
-        'label': '👥 Usuario espejo (perfil a copiar)',
+        'name': 'costo_total',
+        'label': '💵 Costo total estimado (suma)',
         'type': 'text',
         'required': False,
-        'placeholder': 'Ej: Mlopez (opcional)'
-    },
-    {
-        'name': 'costo',
-        'label': '💵 Costo estimado (si aplica)',
-        'type': 'text',
-        'required': False,
-        'placeholder': 'Ej: 1300'
+        'placeholder': 'Ej: 1440'
     },
 
-    # ── DETALLE SAP (opcional) ──────────────────────────────────
+    # ── DETALLE SAP (opcional, uno por línea) ───────────────────
     {
-        'name': 'sap_version',
-        'label': '🔧 Versión SAP (si aplica)',
-        'type': 'text',
+        'name': 'sap_detalle',
+        'label': '🔧 Detalle SAP (uno por línea: VERSIÓN | AMBIENTE)',
+        'type': 'textarea',
         'required': False,
-        'placeholder': 'Ej: FMS PAISES, S/4HANA, ECC 6.0'
-    },
-    {
-        'name': 'sap_ambiente',
-        'label': '🌐 Ambiente SAP',
-        'type': 'select',
-        'required': False,
-        'options': ['NO APLICA', 'PRODUCTIVO', 'CALIDAD', 'DESARROLLO', 'TODOS']
+        'placeholder': (
+            'Dejar vacío si no aplica.\n\n'
+            'Formato: VERSIÓN | AMBIENTE\n\n'
+            'Ejemplo:\n'
+            'RISE | PRODUCTIVO\n'
+            'FMS PAISES | PRODUCTIVO'
+        )
     },
 
     # ── APROBACIÓN ──────────────────────────────────────────────
@@ -214,14 +231,14 @@ FORM_FIELDS = [
         'label': '✅ Jefe inmediato que aprueba',
         'type': 'text',
         'required': True,
-        'placeholder': 'Nombre completo (ej: MARGARITA MARIA SALAZAR HUERTAS)'
+        'placeholder': 'Nombre completo (ej: GRACIELA FLOREZ CORDERO)'
     },
     {
         'name': 'aprobador_area',
         'label': '✅ Responsable del área solicitante',
         'type': 'text',
         'required': True,
-        'placeholder': 'Nombre completo (ej: CRISTIAN GEOVANNY MOLINA ALEAGA)'
+        'placeholder': 'Nombre completo (ej: GRACIELA FLOREZ CORDERO)'
     },
 ]
 
@@ -235,7 +252,6 @@ def run():
         for co in companies:
             existing = Template.query.filter_by(name=TEMPLATE_NAME, company=co).first()
             if existing:
-                # Actualizar contenido (permite iterar sobre el diseño)
                 existing.description = TEMPLATE_DESC
                 existing.title_template = TITLE_TEMPLATE
                 existing.description_template = DESCRIPTION_TEMPLATE
