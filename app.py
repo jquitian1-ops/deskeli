@@ -5011,12 +5011,14 @@ def _get_oauth_token_for_imap(tenant_id, client_id, client_secret):
 
 def _imap_xoauth2_authenticate(conn, user, token):
     """Autentica una conexión IMAP usando SASL XOAUTH2 con token de Microsoft.
-    Lanza imaplib.IMAP4.error si falla."""
-    import base64
+    Lanza imaplib.IMAP4.error si falla.
+
+    Importante: imaplib.authenticate() aplica base64 al retorno del callback
+    internamente. Si devolvemos ya base64-encoded, se hace doble encoding y
+    Office 365 responde con 'AUTHENTICATE command error: BAD Command Argument
+    Error. 12'. Hay que retornar los BYTES CRUDOS del SASL auth string."""
     auth_string = f'user={user}\x01auth=Bearer {token}\x01\x01'
-    auth_b64 = base64.b64encode(auth_string.encode('utf-8'))
-    # En imaplib, AUTHENTICATE requiere un callable que devuelve el desafío
-    conn.authenticate('XOAUTH2', lambda x: auth_b64)
+    conn.authenticate('XOAUTH2', lambda x: auth_string.encode('utf-8'))
 
 
 def _imap_connect_and_login(mb):
