@@ -387,7 +387,11 @@ class Ticket(db.Model):
     sla_minutes = db.Column(db.Integer)
     sla_deadline = db.Column(db.DateTime)
     sla_alerts_sent = db.Column(db.String(20), default='')  # CSV de thresholds enviados, ej: "30,60,100"
-    rating = db.Column(db.Integer)  # 1-5 stars
+    rating = db.Column(db.Integer)  # 1-5 stars (CSAT)
+    rating_comment = db.Column(db.Text)  # Comentario textual del usuario al calificar
+    rating_nps = db.Column(db.Integer)  # NPS 0-10 (¿recomendarías el servicio?)
+    rating_at = db.Column(db.DateTime)  # cuándo se calificó
+    reminder_sent_at = db.Column(db.DateTime)  # 48h después de resolver, si no calificó
     time_worked_seconds = db.Column(db.Integer, default=0)
     version = db.Column(db.Integer, default=1)  # Optimistic locking
     # Datos de contacto del solicitante (snapshot al momento de crear el ticket)
@@ -2734,6 +2738,213 @@ def admin_orchestrator():
                            is_master=is_master,
                            available_companies=available_companies,
                            current_company=user.company)
+
+
+# ─── Dashboard CSAT ───────────────────────────────────────────────────────────
+@app.route('/admin/csat')
+def admin_csat():
+    """Dashboard de satisfacción del cliente (CSAT + NPS)"""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return redirect(url_for('login'))
+
+    user = User.query.get(session['user_id'])
+    is_master = is_master_admin()
+    available_companies = []
+    if is_master:
+        available_companies = [
+            {'code': c.code, 'name': c.name}
+            for c in Company.query.filter_by(is_active=True).order_by(Company.name).all()
+        ]
+
+    return render_template('admin/csat.html',
+                           company_info=COMPANY_COLORS.get(user.company, {}),
+                           is_master=is_master,
+                           available_companies=available_companies,
+                           current_company=user.company)
+
+
+@app.route('/api/admin/csat/summary')
+def api_admin_csat_summary():
+    """Métricas de CSAT/NPS para dashboard admin.
+
+    Query params:
+      - company: 'eliot'|'pash'|'primatela'|'all' (default: user's company)
+      - days: rango en días (default 90)
+    """
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+
+    company_filter = request.args.get('company', session.get('company'))
+    try:
+        days = int(request.args.get('days', 90))
+    except (ValueError, TypeError):
+        days = 90
+    days = max(1, min(days, 730))
+
+    since = datetime.now() - timedelta(days=days)
+    scope = admin_companies_scope()
+
+    q = Ticket.query.filter(
+        Ticket.rating.isnot(None),
+        Ticket.rating_at >= since,
+        Ticket.company.in_(scope)
+    )
+    if company_filter and company_filter != 'all':
+        if company_filter not in scope:
+            return jsonify({'success': False, 'error': 'Sin acceso a esa empresa'}), 403
+        q = q.filter(Ticket.company == company_filter)
+
+    rated = q.all()
+    total = len(rated)
+
+    if total == 0:
+        return jsonify({
+            'success': True,
+            'total': 0,
+            'avg_rating': None,
+            'nps': None,
+            'distribution': {str(i): 0 for i in range(1, 6)},
+            'promoters': 0, 'passives': 0, 'detractors': 0,
+            'trend': [],
+            'by_technician': [],
+            'worst_recent': [],
+            'best_recent': [],
+            'comments_recent': []
+        })
+
+    # Promedio CSAT
+    ratings = [t.rating for t in rated]
+    avg_rating = round(sum(ratings) / len(ratings), 2)
+
+    # Distribución de estrellas
+    distribution = {str(i): 0 for i in range(1, 6)}
+    for r in ratings:
+        distribution[str(r)] = distribution.get(str(r), 0) + 1
+
+    # NPS
+    nps_scores = [t.rating_nps for t in rated if t.rating_nps is not None]
+    promoters = sum(1 for n in nps_scores if n >= 9)
+    passives = sum(1 for n in nps_scores if 7 <= n <= 8)
+    detractors = sum(1 for n in nps_scores if n <= 6)
+    nps_total = len(nps_scores)
+    nps_score = round(((promoters - detractors) / nps_total) * 100, 1) if nps_total else None
+
+    # Tendencia semanal (últimas 12 semanas)
+    trend = []
+    from collections import defaultdict
+    weekly = defaultdict(list)
+    for t in rated:
+        # ISO week key: YYYY-Www
+        week_key = t.rating_at.strftime('%Y-W%V') if t.rating_at else 'unknown'
+        weekly[week_key].append(t.rating)
+    for wk in sorted(weekly.keys())[-12:]:
+        vals = weekly[wk]
+        trend.append({
+            'week': wk,
+            'avg': round(sum(vals) / len(vals), 2),
+            'count': len(vals)
+        })
+
+    # Por técnico (top 20 con más calificaciones)
+    tech_stats = defaultdict(lambda: {'ratings': [], 'nps': []})
+    for t in rated:
+        if t.assignee_id:
+            tech_stats[t.assignee_id]['ratings'].append(t.rating)
+            if t.rating_nps is not None:
+                tech_stats[t.assignee_id]['nps'].append(t.rating_nps)
+
+    by_technician = []
+    for uid, data in tech_stats.items():
+        u = User.query.get(uid)
+        if not u:
+            continue
+        r_list = data['ratings']
+        n_list = data['nps']
+        n_prom = sum(1 for n in n_list if n >= 9)
+        n_det = sum(1 for n in n_list if n <= 6)
+        by_technician.append({
+            'id': uid,
+            'name': u.name,
+            'company': u.company,
+            'count': len(r_list),
+            'avg_rating': round(sum(r_list) / len(r_list), 2),
+            'nps': round(((n_prom - n_det) / len(n_list)) * 100, 1) if n_list else None
+        })
+    by_technician.sort(key=lambda x: (-x['count'], -x['avg_rating']))
+
+    # Peores calificaciones recientes (últimas 15)
+    worst = sorted([t for t in rated if t.rating <= 3], key=lambda t: t.rating_at or t.updated_at, reverse=True)[:15]
+    worst_recent = [{
+        'id': t.id,
+        'number': t.ticket_number,
+        'title': t.title[:80],
+        'rating': t.rating,
+        'nps': t.rating_nps,
+        'comment': (t.rating_comment or '')[:200],
+        'assignee': t.assignee.name if t.assignee else '—',
+        'company': t.company,
+        'rated_at': t.rating_at.strftime('%Y-%m-%d %H:%M') if t.rating_at else ''
+    } for t in worst]
+
+    # Mejores calificaciones recientes (últimas 10 con 5 estrellas)
+    best = sorted([t for t in rated if t.rating == 5], key=lambda t: t.rating_at or t.updated_at, reverse=True)[:10]
+    best_recent = [{
+        'id': t.id,
+        'number': t.ticket_number,
+        'title': t.title[:80],
+        'rating': t.rating,
+        'comment': (t.rating_comment or '')[:200],
+        'assignee': t.assignee.name if t.assignee else '—',
+        'company': t.company,
+        'rated_at': t.rating_at.strftime('%Y-%m-%d %H:%M') if t.rating_at else ''
+    } for t in best]
+
+    # Últimos comentarios (con cualquier rating)
+    with_comments = [t for t in rated if t.rating_comment]
+    with_comments.sort(key=lambda t: t.rating_at or t.updated_at, reverse=True)
+    comments_recent = [{
+        'id': t.id,
+        'number': t.ticket_number,
+        'rating': t.rating,
+        'nps': t.rating_nps,
+        'comment': t.rating_comment,
+        'assignee': t.assignee.name if t.assignee else '—',
+        'company': t.company,
+        'rated_at': t.rating_at.strftime('%Y-%m-%d %H:%M') if t.rating_at else ''
+    } for t in with_comments[:25]]
+
+    # Response rate: cuántos tickets resueltos fueron calificados
+    resolved_q = Ticket.query.filter(
+        Ticket.status == 'resolved',
+        Ticket.resolved_at >= since,
+        Ticket.company.in_(scope)
+    )
+    if company_filter and company_filter != 'all':
+        resolved_q = resolved_q.filter(Ticket.company == company_filter)
+    resolved_count = resolved_q.count()
+    response_rate = round((total / resolved_count) * 100, 1) if resolved_count else 0
+
+    return jsonify({
+        'success': True,
+        'total': total,
+        'resolved_total': resolved_count,
+        'response_rate': response_rate,
+        'avg_rating': avg_rating,
+        'nps': nps_score,
+        'nps_total': nps_total,
+        'promoters': promoters,
+        'passives': passives,
+        'detractors': detractors,
+        'distribution': distribution,
+        'trend': trend,
+        'by_technician': by_technician[:20],
+        'worst_recent': worst_recent,
+        'best_recent': best_recent,
+        'comments_recent': comments_recent,
+        'days': days,
+        'company_filter': company_filter or 'all'
+    })
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 # API ENDPOINTS
@@ -6492,6 +6703,11 @@ def migrate_tickets_schema():
         ('user_area', "VARCHAR(120)"),
         ('user_location', "VARCHAR(120)"),
         ('user_phone', "VARCHAR(40)"),
+        # CSAT extendido
+        ('rating_comment', "TEXT"),
+        ('rating_nps', "INTEGER"),
+        ('rating_at', "TIMESTAMP"),
+        ('reminder_sent_at', "TIMESTAMP"),
     ]
     with db.engine.begin() as conn:
         for col_name, col_type in additions:
@@ -8160,9 +8376,21 @@ def api_save_ticket_rating(ticket_id):
 
     data = request.json or {}
     rating = data.get('rating', 0)
+    comment = (data.get('comment') or '').strip()[:2000]
+    nps_raw = data.get('nps')
 
     if not (1 <= rating <= 5):
         return jsonify({'success': False, 'error': 'Rating inválido'}), 400
+
+    # NPS opcional: 0-10 si viene
+    nps_score = None
+    if nps_raw is not None and nps_raw != '':
+        try:
+            nps_score = int(nps_raw)
+            if not (0 <= nps_score <= 10):
+                return jsonify({'success': False, 'error': 'NPS debe estar entre 0 y 10'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'NPS inválido'}), 400
 
     # La calificación debe darla el creador (usuario final), no el técnico
     if ticket.creator_id != session['user_id'] and session.get('role') != 'admin':
@@ -8172,6 +8400,11 @@ def api_save_ticket_rating(ticket_id):
         }), 403
 
     ticket.rating = rating
+    if comment:
+        ticket.rating_comment = comment
+    if nps_score is not None:
+        ticket.rating_nps = nps_score
+    ticket.rating_at = datetime.now()
     ticket.updated_at = datetime.now()
     # Si aún no estaba resuelto, marcarlo (caso raro: usuario califica antes de cierre)
     if ticket.status != 'resolved':
@@ -8180,7 +8413,9 @@ def api_save_ticket_rating(ticket_id):
     db.session.commit()
 
     log_audit('ticket_rated', session['user_id'], 'ticket', ticket_id,
-              f"Ticket calificado con {rating}/5 por usuario final")
+              f"Ticket calificado con {rating}/5"
+              + (f" (NPS: {nps_score})" if nps_score is not None else '')
+              + (" con comentario" if comment else ''))
 
     return jsonify({
         'success': True,
