@@ -83,6 +83,18 @@
     a.ticket-link:hover { text-decoration: underline; }
 </style>
     <script src="/static/js/session_guard.js"></script>
+    <script>
+        // Modo embebido: si esta página se carga dentro de un iframe del dashboard admin,
+        // ocultamos el header duplicado y ajustamos padding.
+        if (window.self !== window.top) {
+            document.documentElement.classList.add('embed-mode');
+        }
+    </script>
+    <style>
+        html.embed-mode .header { display: none; }
+        html.embed-mode .container { margin-top: 12px; }
+        html.embed-mode body { background: transparent; }
+    </style>
 </head>
 <body>
 

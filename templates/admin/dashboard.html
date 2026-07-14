@@ -632,13 +632,13 @@
                 <a class="sidebar-link" data-tab="10" onclick="switchTab(10)">
                     <span><span class="sl-icon">🤖</span>Orchestrator</span>
                 </a>
-                <a class="sidebar-link" href="/admin/csat">
+                <a class="sidebar-link" data-tab="12" onclick="switchTab(12)">
                     <span><span class="sl-icon">😊</span>Satisfacción (CSAT)</span>
                 </a>
-                <a class="sidebar-link" href="/admin/kb">
+                <a class="sidebar-link" data-tab="13" onclick="switchTab(13)">
                     <span><span class="sl-icon">📚</span>Base de Conocimiento</span>
                 </a>
-                <a class="sidebar-link" href="/admin/approvals">
+                <a class="sidebar-link" data-tab="14" onclick="switchTab(14)">
                     <span><span class="sl-icon">🔐</span>Flujos de Aprobación</span>
                 </a>
             </div>
@@ -678,6 +678,9 @@
             <button class="tab-btn" onclick="switchTab(8)">🎫 Tickets</button>
             <button class="tab-btn" onclick="switchTab(9)">⚙️ Configuración</button>
             <button class="tab-btn" onclick="switchTab(10)">🤖 Orchestrator</button>
+            <button class="tab-btn" onclick="switchTab(12)">😊 CSAT</button>
+            <button class="tab-btn" onclick="switchTab(13)">📚 KB</button>
+            <button class="tab-btn" onclick="switchTab(14)">🔐 Aprobaciones</button>
         </div>
 
         <!-- TAB 1: RESUMEN -->
@@ -1869,6 +1872,21 @@
             </div>
         </div>
 
+        <!-- TAB 12: CSAT (iframe lazy) -->
+        <div class="tab-content">
+            <iframe id="iframe-csat" data-src="/admin/csat?embed=1" style="width:100%; height:85vh; border:none; border-radius:8px; background:white;"></iframe>
+        </div>
+
+        <!-- TAB 13: BASE DE CONOCIMIENTO (iframe lazy) -->
+        <div class="tab-content">
+            <iframe id="iframe-kb" data-src="/admin/kb?embed=1" style="width:100%; height:85vh; border:none; border-radius:8px; background:white;"></iframe>
+        </div>
+
+        <!-- TAB 14: FLUJOS DE APROBACIÓN (iframe lazy) -->
+        <div class="tab-content">
+            <iframe id="iframe-approvals" data-src="/admin/approvals?embed=1" style="width:100%; height:85vh; border:none; border-radius:8px; background:white;"></iframe>
+        </div>
+
         <!-- MODAL CREAR TICKET (ADMIN) -->
         <div id="createTicketModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
             <div style="background:white;border-radius:10px;padding:24px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
@@ -2764,6 +2782,9 @@
             if (index === 8) loadTicketsTab();
             if (index === 9) loadIframeOnce('iframe-config');
             if (index === 10) loadOrchestratorData();
+            if (index === 12) loadIframeOnce('iframe-csat');
+            if (index === 13) loadIframeOnce('iframe-kb');
+            if (index === 14) loadIframeOnce('iframe-approvals');
         };
 
         function loadIframeOnce(id) {

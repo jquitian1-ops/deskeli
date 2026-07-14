@@ -72,6 +72,16 @@
     .kb-preview a:hover { text-decoration: underline; }
 </style>
     <script src="/static/js/session_guard.js"></script>
+    <script>
+        if (window.self !== window.top) {
+            document.documentElement.classList.add('embed-mode');
+        }
+    </script>
+    <style>
+        html.embed-mode .header { display: none; }
+        html.embed-mode .layout { margin-top: 12px; }
+        html.embed-mode body { background: transparent; }
+    </style>
 </head>
 <body>
 
