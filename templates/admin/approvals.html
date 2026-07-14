@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Aprobaciones · DeskEli</title>
+<link rel="icon" href="/static/eli.png" type="image/png">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f9fafb; color: #1f2937; }
+    .header { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 20px 40px; display: flex; justify-content: space-between; align-items: center; }
+    .header h1 { font-size: 20px; }
+    .header a { color: white; text-decoration: none; font-size: 14px; opacity: 0.9; margin-left: 14px; }
+
+    .container { max-width: 1200px; margin: 24px auto; padding: 0 24px; }
+    .toolbar { background: white; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .toolbar select { padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+    .btn-new { padding: 10px 20px; background: #16a34a; color: white; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; margin-left: auto; }
+    .btn-new:hover { background: #15803d; }
+
+    .workflow-card { background: white; border-radius: 10px; padding: 20px 24px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 4px solid #7c3aed; }
+    .workflow-card.inactive { opacity: 0.5; border-left-color: #9ca3af; }
+    .workflow-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; }
+    .workflow-name { font-size: 17px; font-weight: 700; color: #1f2937; }
+    .workflow-badges { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .badge.co { background: #ede9fe; color: #6d28d9; }
+    .badge.priority { background: #fef3c7; color: #92400e; }
+    .badge.category { background: #dbeafe; color: #1e40af; }
+    .badge.template { background: #f3e8ff; color: #6b21a8; }
+    .badge.active { background: #d1fae5; color: #065f46; }
+    .badge.inactive-b { background: #fee2e2; color: #991b1b; }
+
+    .approvers-list { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed #e5e7eb; flex-wrap: wrap; }
+    .step { background: #f3f4f6; border-radius: 8px; padding: 6px 14px; font-size: 13px; }
+    .step strong { color: #1f2937; }
+    .step small { color: #6b7280; display: block; font-size: 11px; }
+    .arrow { color: #9ca3af; }
+
+    .actions { display: flex; gap: 8px; }
+    .actions button { padding: 6px 12px; border: 1px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .actions button:hover { border-color: #7c3aed; color: #7c3aed; }
+    .actions button.danger:hover { border-color: #dc2626; color: #dc2626; }
+
+    /* Modal */
+    .modal-back { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; padding: 20px; overflow-y: auto; }
+    .modal-back.active { display: flex; align-items: flex-start; justify-content: center; }
+    .modal { background: white; border-radius: 12px; max-width: 700px; width: 100%; margin: 20px 0; padding: 24px 28px; }
+    .modal h2 { margin-bottom: 16px; }
+    .modal .field { margin-bottom: 14px; }
+    .modal label { display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .modal input, .modal select, .modal textarea { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; }
+    .modal textarea { min-height: 60px; resize: vertical; }
+    .modal .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .modal .toolbar-btns { display: flex; gap: 10px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e7eb; }
+    .btn { padding: 10px 18px; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; }
+    .btn-primary { background: #7c3aed; color: white; }
+    .btn-secondary { background: #e5e7eb; color: #374151; }
+    .btn-danger { background: #dc2626; color: white; margin-right: auto; }
+
+    .step-editor { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 8px; background: #fafafa; display: flex; gap: 8px; align-items: center; }
+    .step-editor .num { font-weight: 700; color: #7c3aed; }
+    .step-editor select { flex: 1; }
+    .step-editor input { flex: 1; }
+    .step-editor .rm { background: none; border: none; color: #dc2626; cursor: pointer; font-size: 16px; }
+    .add-step { padding: 8px 14px; background: #eef2ff; color: #4f46e5; border: 1px dashed #7c3aed; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; width: 100%; }
+    .add-step:hover { background: #e0e7ff; }
+
+    .empty { text-align: center; padding: 60px 30px; color: #9ca3af; background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .loading { text-align: center; padding: 40px; color: #6b7280; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <h1>🔐 Flujos de aprobación</h1>
+        <div style="font-size:12px;opacity:0.85;">Reglas para que ciertos tickets requieran visto bueno antes de ir al equipo TI</div>
+    </div>
+    <div>
+        <a href="/admin/dashboard">← Volver</a>
+        <a href="/logout">Salir</a>
+    </div>
+</div>
+
+<div class="container">
+    <div class="toolbar">
+        {% if is_master and available_companies %}
+        <label style="font-size:13px;font-weight:600;">Empresa:</label>
+        <select id="companyFilter" onchange="loadWorkflows()">
+            <option value="all">Todas</option>
+            {% for c in available_companies %}
+            <option value="{{ c.code }}" {% if c.code == current_company %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        <button class="btn-new" onclick="openNewWorkflow()">＋ Nuevo workflow</button>
+    </div>
+
+    <div id="workflowList">
+        <div class="loading">Cargando…</div>
+    </div>
+</div>
+
+<!-- Modal editor -->
+<div class="modal-back" id="modalBack" onclick="if(event.target===this) closeModal()">
+    <div class="modal">
+        <h2 id="modalTitle">Nuevo workflow</h2>
+        <input type="hidden" id="wfId">
+
+        <div class="field">
+            <label>Nombre del workflow</label>
+            <input type="text" id="wfName" placeholder="Ej: Solicitud de acceso a SAP" maxlength="120">
+        </div>
+
+        <div class="field">
+            <label>Descripción (opcional)</label>
+            <textarea id="wfDesc" placeholder="Explicá cuándo se dispara y por qué"></textarea>
+        </div>
+
+        <div class="row">
+            <div class="field">
+                <label>Empresa</label>
+                <select id="wfCompany">
+                    {% for c in available_companies %}
+                    <option value="{{ c.code }}">{{ c.name }}</option>
+                    {% endfor %}
+                    {% if not available_companies %}
+                    <option value="{{ current_company }}">{{ current_company }}</option>
+                    {% endif %}
+                </select>
+            </div>
+            <div class="field">
+                <label>Activo</label>
+                <select id="wfActive"><option value="1">Sí</option><option value="0">No</option></select>
+            </div>
+        </div>
+
+        <div style="background:#f3f4f6;padding:12px;border-radius:8px;margin:10px 0 14px;">
+            <div style="font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Condiciones que disparan el workflow (todas se cumplen con AND)</div>
+            <div class="row">
+                <div class="field" style="margin-bottom:0;">
+                    <label>Categoría (opcional)</label>
+                    <input type="text" id="wfCategory" placeholder="Ej: Accesos, Compras, RRHH">
+                </div>
+                <div class="field" style="margin-bottom:0;">
+                    <label>Prioridad (opcional)</label>
+                    <select id="wfPriority">
+                        <option value="">Cualquiera</option>
+                        <option value="low">Baja</option>
+                        <option value="medium">Media</option>
+                        <option value="high">Alta</option>
+                        <option value="critical">Crítica</option>
+                    </select>
+                </div>
+            </div>
+            <div class="field" style="margin-top:8px;margin-bottom:0;">
+                <label>Plantilla usada (opcional)</label>
+                <input type="text" id="wfTemplate" placeholder="Ej: Solicitud ingreso/modificación de usuarios">
+                <small style="color:#9ca3af;">Debe coincidir con el nombre exacto de la plantilla en Configuración → Plantillas</small>
+            </div>
+        </div>
+
+        <div class="field">
+            <label>Cadena de aprobadores (en orden)</label>
+            <div id="stepsList"></div>
+            <button type="button" class="add-step" onclick="addStep()">＋ Agregar aprobador</button>
+        </div>
+
+        <div class="toolbar-btns">
+            <button class="btn btn-danger" id="btnDelete" style="display:none;" onclick="deleteWorkflow()">🗑 Eliminar</button>
+            <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+            <button class="btn btn-primary" onclick="saveWorkflow()">💾 Guardar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const AVAILABLE_COMPANIES = {{ available_companies|tojson if available_companies else '[]' }};
+const CURRENT_COMPANY = "{{ current_company }}";
+let workflows = [];
+let allUsers = {}; // por empresa
+
+async function loadWorkflows() {
+    const companyEl = document.getElementById('companyFilter');
+    const company = companyEl ? companyEl.value : 'all';
+    const params = new URLSearchParams();
+    if (company) params.set('company', company);
+    try {
+        const r = await fetch(`/api/admin/approval-workflows?${params}`);
+        const data = await r.json();
+        workflows = data.workflows || [];
+        renderList();
+    } catch (e) {
+        document.getElementById('workflowList').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+    }
+}
+
+function renderList() {
+    if (!workflows.length) {
+        document.getElementById('workflowList').innerHTML = `
+            <div class="empty">
+                <div style="font-size:48px;margin-bottom:12px;">🔐</div>
+                <div>No hay workflows configurados todavía.</div>
+                <div style="margin-top:8px;font-size:13px;">Creá uno con el botón verde para que ciertas solicitudes pasen por aprobación antes de ir al equipo TI.</div>
+            </div>`;
+        return;
+    }
+    let html = '';
+    workflows.forEach(w => {
+        html += `
+            <div class="workflow-card ${w.is_active ? '' : 'inactive'}">
+                <div class="workflow-header">
+                    <div>
+                        <div class="workflow-name">${esc(w.name)}</div>
+                        ${w.description ? `<div style="color:#6b7280;font-size:13px;margin-top:4px;">${esc(w.description)}</div>` : ''}
+                        <div class="workflow-badges">
+                            <span class="badge co">🏢 ${esc(w.company)}</span>
+                            ${w.trigger_category ? `<span class="badge category">📁 ${esc(w.trigger_category)}</span>` : ''}
+                            ${w.trigger_priority ? `<span class="badge priority">${esc(w.trigger_priority.toUpperCase())}</span>` : ''}
+                            ${w.trigger_template_name ? `<span class="badge template">📋 ${esc(w.trigger_template_name)}</span>` : ''}
+                            <span class="badge ${w.is_active ? 'active' : 'inactive-b'}">${w.is_active ? '● Activo' : '○ Inactivo'}</span>
+                        </div>
+                    </div>
+                    <div class="actions">
+                        <button onclick="editWorkflow(${w.id})">✏️ Editar</button>
+                    </div>
+                </div>
+                <div class="approvers-list">
+                    ${w.approvers.map((a, i) => `
+                        ${i > 0 ? '<span class="arrow">→</span>' : ''}
+                        <div class="step">
+                            <strong>${a.order}. ${esc(a.user_name)}</strong>
+                            <small>${esc(a.role_label || 'sin rol')}</small>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    });
+    document.getElementById('workflowList').innerHTML = html;
+}
+
+async function fetchUsersForCompany(company) {
+    if (allUsers[company]) return allUsers[company];
+    try {
+        const r = await fetch(`/api/admin/users?company=${company}`);
+        const data = await r.json();
+        allUsers[company] = data.users || data;
+        return allUsers[company];
+    } catch { return []; }
+}
+
+async function openNewWorkflow() {
+    document.getElementById('modalTitle').textContent = 'Nuevo workflow';
+    document.getElementById('wfId').value = '';
+    document.getElementById('wfName').value = '';
+    document.getElementById('wfDesc').value = '';
+    document.getElementById('wfCategory').value = '';
+    document.getElementById('wfPriority').value = '';
+    document.getElementById('wfTemplate').value = '';
+    document.getElementById('wfCompany').value = CURRENT_COMPANY;
+    document.getElementById('wfActive').value = '1';
+    document.getElementById('btnDelete').style.display = 'none';
+    document.getElementById('stepsList').innerHTML = '';
+    await addStep();
+    document.getElementById('modalBack').classList.add('active');
+}
+
+async function editWorkflow(id) {
+    const w = workflows.find(x => x.id === id);
+    if (!w) return;
+    document.getElementById('modalTitle').textContent = 'Editar: ' + w.name;
+    document.getElementById('wfId').value = w.id;
+    document.getElementById('wfName').value = w.name;
+    document.getElementById('wfDesc').value = w.description;
+    document.getElementById('wfCategory').value = w.trigger_category;
+    document.getElementById('wfPriority').value = w.trigger_priority;
+    document.getElementById('wfTemplate').value = w.trigger_template_name;
+    document.getElementById('wfCompany').value = w.company;
+    document.getElementById('wfActive').value = w.is_active ? '1' : '0';
+    document.getElementById('btnDelete').style.display = 'inline-block';
+    document.getElementById('stepsList').innerHTML = '';
+    for (const step of w.approvers) {
+        await addStep(step);
+    }
+    document.getElementById('modalBack').classList.add('active');
+}
+
+async function addStep(existing) {
+    const company = document.getElementById('wfCompany').value;
+    const users = await fetchUsersForCompany(company);
+    const wrap = document.createElement('div');
+    wrap.className = 'step-editor';
+    const num = document.getElementById('stepsList').children.length + 1;
+    const opts = users.map(u => `<option value="${u.id}" ${existing && existing.user_id === u.id ? 'selected' : ''}>${esc(u.name)} (${esc(u.role_label || u.role)})</option>`).join('');
+    wrap.innerHTML = `
+        <span class="num">${num}.</span>
+        <select class="step-user"><option value="">Seleccionar…</option>${opts}</select>
+        <input type="text" class="step-label" placeholder="Etiqueta (Jefe, Gerente, etc)" value="${existing ? esc(existing.role_label) : ''}" maxlength="120">
+        <button type="button" class="rm" onclick="this.parentNode.remove(); renumberSteps();">✕</button>
+    `;
+    document.getElementById('stepsList').appendChild(wrap);
+}
+
+function renumberSteps() {
+    document.querySelectorAll('#stepsList .step-editor .num').forEach((el, i) => el.textContent = (i + 1) + '.');
+}
+
+async function saveWorkflow() {
+    const id = document.getElementById('wfId').value;
+    const approvers = [];
+    document.querySelectorAll('#stepsList .step-editor').forEach((el, i) => {
+        const uid = el.querySelector('.step-user').value;
+        if (uid) {
+            approvers.push({
+                order: i + 1,
+                user_id: parseInt(uid),
+                role_label: el.querySelector('.step-label').value.trim()
+            });
+        }
+    });
+    if (!approvers.length) {
+        alert('Agregá al menos un aprobador válido');
+        return;
+    }
+    const payload = {
+        name: document.getElementById('wfName').value.trim(),
+        description: document.getElementById('wfDesc').value.trim(),
+        company: document.getElementById('wfCompany').value,
+        trigger_category: document.getElementById('wfCategory').value.trim(),
+        trigger_priority: document.getElementById('wfPriority').value,
+        trigger_template_name: document.getElementById('wfTemplate').value.trim(),
+        is_active: document.getElementById('wfActive').value === '1',
+        approvers: approvers
+    };
+    if (!payload.name) { alert('Nombre requerido'); return; }
+    try {
+        const url = id ? `/api/admin/approval-workflows/${id}` : '/api/admin/approval-workflows';
+        const method = id ? 'PUT' : 'POST';
+        const r = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error);
+        closeModal();
+        loadWorkflows();
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+async function deleteWorkflow() {
+    const id = document.getElementById('wfId').value;
+    if (!id) return;
+    if (!confirm('¿Eliminar este workflow? Las aprobaciones ya emitidas quedan pero no se disparan nuevas.')) return;
+    try {
+        const r = await fetch(`/api/admin/approval-workflows/${id}`, {method: 'DELETE'});
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error);
+        closeModal();
+        loadWorkflows();
+    } catch (e) { alert('Error: ' + e.message); }
+}
+
+function closeModal() { document.getElementById('modalBack').classList.remove('active'); }
+function esc(str) { if (!str) return ''; const div = document.createElement('div'); div.textContent = String(str); return div.innerHTML; }
+document.addEventListener('DOMContentLoaded', loadWorkflows);
+</script>
+
+</body>
+</html>

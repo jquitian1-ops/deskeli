@@ -861,6 +861,54 @@ class KnowledgeArticleFeedback(db.Model):
 
     article = db.relationship('KnowledgeArticle', backref=db.backref('feedback_entries', cascade='all, delete-orphan'))
 
+
+class ApprovalWorkflow(db.Model):
+    """Plantilla reutilizable de flujo de aprobación.
+
+    Un workflow define QUÉ tickets requieren aprobación (por categoría/prioridad)
+    y QUIÉN debe aprobar (lista ordenada de aprobadores por rol/usuario).
+    """
+    __tablename__ = 'approval_workflows'
+    id = db.Column(db.Integer, primary_key=True)
+    company = db.Column(db.String(20), nullable=False, index=True)
+    name = db.Column(db.String(120), nullable=False)
+    description = db.Column(db.Text)
+    # Condiciones que activan el workflow (todas se cumplen con AND)
+    trigger_category = db.Column(db.String(80))  # ej "Accesos"; None = cualquier categoría
+    trigger_priority = db.Column(db.String(20))  # low|medium|high|critical; None = cualquiera
+    trigger_template_name = db.Column(db.String(200))  # match por plantilla usada
+    # Lista de aprobadores en orden. JSON array de {"order": 1, "user_id": 5, "role_label": "Jefe"}
+    approvers_json = db.Column(db.Text, nullable=False, default='[]')
+    is_active = db.Column(db.Boolean, default=True, index=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class Approval(db.Model):
+    """Instancia concreta de una aprobación pendiente sobre un ticket.
+
+    Cuando un workflow se dispara, se crean N Approval records (uno por paso).
+    Solo el que tiene `order` mínimo con status `pending` es el activo.
+    """
+    __tablename__ = 'approvals'
+    id = db.Column(db.Integer, primary_key=True)
+    ticket_id = db.Column(db.Integer, db.ForeignKey('tickets.id'), nullable=False, index=True)
+    workflow_id = db.Column(db.Integer, db.ForeignKey('approval_workflows.id'))
+    approver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    approver_role_label = db.Column(db.String(120))  # snapshot del rol/etiqueta
+    order = db.Column(db.Integer, nullable=False, default=1)
+    status = db.Column(db.String(20), default='pending', index=True)  # pending, approved, rejected, skipped
+    comment = db.Column(db.Text)
+    token = db.Column(db.String(80), unique=True, index=True)  # link seguro por email
+    decision_at = db.Column(db.DateTime)
+    notified_at = db.Column(db.DateTime)  # cuándo se envió el email
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    ticket = db.relationship('Ticket', backref=db.backref('approvals', cascade='all, delete-orphan'))
+    approver = db.relationship('User', foreign_keys=[approver_id])
+    workflow = db.relationship('ApprovalWorkflow')
+
 # ═════════════════════════════════════════════════════════════════════════════
 # FUNCIONES DE UTILIDAD
 # ═════════════════════════════════════════════════════════════════════════════
@@ -2036,6 +2084,19 @@ def employee_create():
 
         db.session.add(ticket)
         db.session.commit()
+
+        # Aprobaciones multi-nivel: si algún workflow matchea, entra en cola de aprobación
+        try:
+            template_name_used = request.form.get('template_name') or None
+            match = find_matching_workflow(ticket, template_name=template_name_used)
+            if match:
+                workflow, steps = match
+                create_approvals_for_ticket(ticket, workflow, steps)
+                db.session.commit()
+                log_audit('ticket_pending_approval', user.id, 'ticket', ticket.id,
+                          f"Ticket {ticket.ticket_number} en espera de aprobación (workflow: {workflow.name})")
+        except Exception as e:
+            print(f"[approvals] Error al procesar workflow para ticket {ticket.id}: {e}")
 
         # Auditoría específica cuando el empleado elevó la prioridad
         if priority in ('high', 'critical') and priority_reason:
@@ -3292,6 +3353,458 @@ def api_kb_search():
         'count': len(articles),
         'articles': [_kb_serialize(a) for a in articles],
         'categories': categories
+    })
+
+
+# ─── Aprobaciones multi-nivel ──────────────────────────────────────────────────
+import secrets
+
+
+def _approvals_serialize_workflow(w, include_approvers=True):
+    approvers = []
+    try:
+        approvers = json.loads(w.approvers_json or '[]')
+    except Exception:
+        approvers = []
+    d = {
+        'id': w.id,
+        'company': w.company,
+        'name': w.name,
+        'description': w.description or '',
+        'trigger_category': w.trigger_category or '',
+        'trigger_priority': w.trigger_priority or '',
+        'trigger_template_name': w.trigger_template_name or '',
+        'is_active': w.is_active,
+        'created_at': w.created_at.isoformat() if w.created_at else None,
+        'approvers_count': len(approvers),
+    }
+    if include_approvers:
+        # Enriquecer con datos del usuario
+        enriched = []
+        for step in approvers:
+            uid = step.get('user_id')
+            u = User.query.get(uid) if uid else None
+            enriched.append({
+                'order': step.get('order', len(enriched) + 1),
+                'user_id': uid,
+                'user_name': u.name if u else '(usuario eliminado)',
+                'user_email': u.email if u else '',
+                'role_label': step.get('role_label', '')
+            })
+        d['approvers'] = enriched
+    return d
+
+
+def _approvals_serialize_approval(a, include_token=False):
+    return {
+        'id': a.id,
+        'ticket_id': a.ticket_id,
+        'ticket_number': a.ticket.ticket_number if a.ticket else '',
+        'ticket_title': a.ticket.title if a.ticket else '',
+        'workflow_id': a.workflow_id,
+        'workflow_name': a.workflow.name if a.workflow else '',
+        'approver_id': a.approver_id,
+        'approver_name': a.approver.name if a.approver else '',
+        'approver_role_label': a.approver_role_label or '',
+        'order': a.order,
+        'status': a.status,
+        'comment': a.comment or '',
+        'decision_at': a.decision_at.isoformat() if a.decision_at else None,
+        'created_at': a.created_at.isoformat() if a.created_at else None,
+        'token': a.token if include_token else None
+    }
+
+
+def find_matching_workflow(ticket, template_name=None):
+    """Devuelve el primer workflow activo cuyas condiciones matcheen el ticket.
+    None si ninguno aplica.
+    """
+    q = ApprovalWorkflow.query.filter_by(company=ticket.company, is_active=True)
+    workflows = q.order_by(ApprovalWorkflow.id.desc()).all()
+    for w in workflows:
+        # AND semantics: cada trigger no-vacío debe matchear
+        if w.trigger_category and (ticket.category or '').lower() != w.trigger_category.lower():
+            continue
+        if w.trigger_priority and ticket.priority != w.trigger_priority:
+            continue
+        if w.trigger_template_name and template_name and template_name.lower() != w.trigger_template_name.lower():
+            continue
+        # Si tiene trigger_template_name pero no viene template en el ticket, no aplica
+        if w.trigger_template_name and not template_name:
+            continue
+        # Validar que tenga al menos 1 aprobador
+        try:
+            steps = json.loads(w.approvers_json or '[]')
+        except Exception:
+            steps = []
+        if not steps:
+            continue
+        return w, steps
+    return None
+
+
+def create_approvals_for_ticket(ticket, workflow, steps):
+    """Crea los N Approval records y marca el ticket como pending_approval.
+    Envía email al primer aprobador."""
+    for i, step in enumerate(steps):
+        uid = step.get('user_id')
+        if not uid:
+            continue
+        approval = Approval(
+            ticket_id=ticket.id,
+            workflow_id=workflow.id,
+            approver_id=uid,
+            approver_role_label=step.get('role_label', ''),
+            order=step.get('order', i + 1),
+            status='pending',
+            token=secrets.token_urlsafe(32)
+        )
+        db.session.add(approval)
+    ticket.status = 'pending_approval'
+    ticket.updated_at = datetime.now()
+    db.session.flush()
+
+    # Notificar al primer aprobador
+    first = Approval.query.filter_by(ticket_id=ticket.id).order_by(Approval.order.asc()).first()
+    if first:
+        _send_approval_email(first)
+
+
+def _send_approval_email(approval):
+    """Envía email al aprobador con link al ticket. Silencioso si SMTP falla."""
+    try:
+        approver = approval.approver
+        ticket = approval.ticket
+        if not approver or not approver.email or not ticket:
+            return
+        subject = f"[DeskEli] Aprobación requerida · Ticket {ticket.ticket_number}"
+        body = f"""
+        <html><body style="font-family:Segoe UI,sans-serif;color:#1f2937;">
+        <div style="max-width:600px;margin:20px auto;padding:24px;background:#f9fafb;border-radius:10px;">
+            <h2 style="color:#7c3aed;margin:0 0 10px;">🔐 Se requiere tu aprobación</h2>
+            <p>Hola <strong>{approver.name}</strong>,</p>
+            <p>El ticket <strong>{ticket.ticket_number}</strong> ({ticket.title}) requiere tu revisión como {approval.approver_role_label or 'aprobador'}.</p>
+            <div style="background:white;padding:16px;border-radius:8px;margin:14px 0;">
+                <p><strong>Solicitante:</strong> {ticket.creator.name if ticket.creator else '—'}</p>
+                <p><strong>Prioridad:</strong> {ticket.priority}</p>
+                <p><strong>Categoría:</strong> {ticket.category or '—'}</p>
+                <p><strong>Descripción:</strong></p>
+                <div style="background:#f3f4f6;padding:10px;border-radius:4px;font-size:13px;">
+                    {(ticket.description or '')[:500]}{'...' if len(ticket.description or '') > 500 else ''}
+                </div>
+            </div>
+            <p>Revisá el detalle y aprobá o rechazá desde el enlace:</p>
+            <a href="{request.host_url.rstrip('/')}/approvals/decide/{approval.token}"
+               style="display:inline-block;padding:12px 24px;background:#7c3aed;color:white;text-decoration:none;border-radius:6px;font-weight:700;">
+                Ver ticket y decidir
+            </a>
+            <p style="font-size:12px;color:#9ca3af;margin-top:24px;">
+                Enviado automáticamente por DeskEli — no responder a este correo.
+            </p>
+        </div>
+        </body></html>
+        """
+        send_email(
+            to_email=approver.email,
+            subject=subject,
+            body=body,
+            company=approval.ticket.company
+        )
+        approval.notified_at = datetime.now()
+        db.session.commit()
+    except Exception as e:
+        print(f"[approvals] Error enviando email: {e}")
+
+
+def _finalize_approval_chain(ticket):
+    """Después de una decisión, chequea si toda la cadena terminó y actualiza el ticket."""
+    all_approvals = Approval.query.filter_by(ticket_id=ticket.id).order_by(Approval.order.asc()).all()
+    if not all_approvals:
+        return
+
+    # ¿Algún rechazo?
+    rejected = [a for a in all_approvals if a.status == 'rejected']
+    if rejected:
+        ticket.status = 'rejected'
+        ticket.updated_at = datetime.now()
+        return
+
+    # ¿Todos aprobados?
+    pending = [a for a in all_approvals if a.status == 'pending']
+    if not pending:
+        # Toda la cadena aprobó → el ticket va a la cola normal
+        ticket.status = 'open'
+        ticket.updated_at = datetime.now()
+        return
+
+    # Hay pendientes → notificar al siguiente en la cola
+    next_pending = min(pending, key=lambda a: a.order)
+    if not next_pending.notified_at:
+        _send_approval_email(next_pending)
+
+
+# Admin: gestor de workflows
+@app.route('/admin/approvals')
+def admin_approvals():
+    if 'user_id' not in session or session['role'] != 'admin':
+        return redirect(url_for('login'))
+    user = User.query.get(session['user_id'])
+    is_master = is_master_admin()
+    available_companies = []
+    if is_master:
+        available_companies = [
+            {'code': c.code, 'name': c.name}
+            for c in Company.query.filter_by(is_active=True).order_by(Company.name).all()
+        ]
+    return render_template('admin/approvals.html',
+                           company_info=COMPANY_COLORS.get(user.company, {}),
+                           is_master=is_master,
+                           available_companies=available_companies,
+                           current_company=user.company)
+
+
+@app.route('/api/admin/approval-workflows', methods=['GET'])
+def api_admin_workflows_list():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+    scope = admin_companies_scope()
+    company_filter = request.args.get('company')
+    q = ApprovalWorkflow.query.filter(ApprovalWorkflow.company.in_(scope))
+    if company_filter and company_filter != 'all':
+        if company_filter not in scope:
+            return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+        q = q.filter(ApprovalWorkflow.company == company_filter)
+    workflows = q.order_by(ApprovalWorkflow.updated_at.desc()).all()
+    return jsonify({'success': True, 'workflows': [_approvals_serialize_workflow(w) for w in workflows]})
+
+
+@app.route('/api/admin/approval-workflows', methods=['POST'])
+def api_admin_workflow_create():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+    data = request.json or {}
+    name = (data.get('name') or '').strip()
+    company = data.get('company') or session.get('company')
+    if not name:
+        return jsonify({'success': False, 'error': 'Nombre requerido'}), 400
+    if company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso a esa empresa'}), 403
+
+    approvers = data.get('approvers') or []
+    if not isinstance(approvers, list) or not approvers:
+        return jsonify({'success': False, 'error': 'Al menos un aprobador es requerido'}), 400
+
+    # Validar aprobadores
+    clean_approvers = []
+    for i, step in enumerate(approvers):
+        uid = step.get('user_id')
+        if not uid:
+            return jsonify({'success': False, 'error': f'Aprobador #{i+1} sin user_id'}), 400
+        u = User.query.get(uid)
+        if not u or u.company != company:
+            return jsonify({'success': False, 'error': f'Aprobador #{i+1} inválido o de otra empresa'}), 400
+        clean_approvers.append({
+            'order': i + 1,
+            'user_id': uid,
+            'role_label': (step.get('role_label') or '').strip()[:120]
+        })
+
+    w = ApprovalWorkflow(
+        company=company,
+        name=name[:120],
+        description=(data.get('description') or '').strip(),
+        trigger_category=(data.get('trigger_category') or '').strip() or None,
+        trigger_priority=(data.get('trigger_priority') or '').strip() or None,
+        trigger_template_name=(data.get('trigger_template_name') or '').strip() or None,
+        approvers_json=json.dumps(clean_approvers),
+        is_active=bool(data.get('is_active', True)),
+        created_by_id=session['user_id']
+    )
+    db.session.add(w)
+    db.session.commit()
+    log_audit('approval_workflow_created', session['user_id'], 'approval_workflow', w.id,
+              f"Workflow de aprobación creado: {name} ({company})")
+    return jsonify({'success': True, 'workflow': _approvals_serialize_workflow(w)})
+
+
+@app.route('/api/admin/approval-workflows/<int:wid>', methods=['PUT'])
+def api_admin_workflow_update(wid):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+    w = ApprovalWorkflow.query.get(wid)
+    if not w:
+        return jsonify({'success': False, 'error': 'No encontrado'}), 404
+    if w.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+    data = request.json or {}
+    if 'name' in data:
+        w.name = (data['name'] or '').strip()[:120]
+    if 'description' in data:
+        w.description = (data['description'] or '').strip()
+    if 'trigger_category' in data:
+        w.trigger_category = (data['trigger_category'] or '').strip() or None
+    if 'trigger_priority' in data:
+        w.trigger_priority = (data['trigger_priority'] or '').strip() or None
+    if 'trigger_template_name' in data:
+        w.trigger_template_name = (data['trigger_template_name'] or '').strip() or None
+    if 'is_active' in data:
+        w.is_active = bool(data['is_active'])
+    if 'approvers' in data:
+        approvers = data['approvers'] or []
+        if not approvers:
+            return jsonify({'success': False, 'error': 'Al menos un aprobador es requerido'}), 400
+        clean = []
+        for i, step in enumerate(approvers):
+            uid = step.get('user_id')
+            u = User.query.get(uid) if uid else None
+            if not u or u.company != w.company:
+                return jsonify({'success': False, 'error': f'Aprobador #{i+1} inválido'}), 400
+            clean.append({
+                'order': i + 1,
+                'user_id': uid,
+                'role_label': (step.get('role_label') or '').strip()[:120]
+            })
+        w.approvers_json = json.dumps(clean)
+    w.updated_at = datetime.now()
+    db.session.commit()
+    log_audit('approval_workflow_updated', session['user_id'], 'approval_workflow', w.id, f"Workflow actualizado: {w.name}")
+    return jsonify({'success': True, 'workflow': _approvals_serialize_workflow(w)})
+
+
+@app.route('/api/admin/approval-workflows/<int:wid>', methods=['DELETE'])
+def api_admin_workflow_delete(wid):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+    w = ApprovalWorkflow.query.get(wid)
+    if not w:
+        return jsonify({'success': False}), 404
+    if w.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+    name = w.name
+    db.session.delete(w)
+    db.session.commit()
+    log_audit('approval_workflow_deleted', session['user_id'], 'approval_workflow', wid, f"Workflow eliminado: {name}")
+    return jsonify({'success': True})
+
+
+# Página para el aprobador (link del email)
+@app.route('/approvals/decide/<token>')
+def approvals_decide_page(token):
+    approval = Approval.query.filter_by(token=token).first()
+    if not approval:
+        return "Enlace de aprobación inválido o expirado.", 404
+    # Debe estar logueado como el aprobador (o admin master)
+    if 'user_id' not in session:
+        # Redirigir a login y volver acá
+        return redirect(url_for('login') + f'?next={request.path}')
+    user = User.query.get(session['user_id'])
+    if not user or (user.id != approval.approver_id and not is_master_admin(user.company, user.role)):
+        return "No autorizado. Solo el aprobador designado puede decidir.", 403
+    ticket = approval.ticket
+    return render_template('approvals/decide.html',
+                           approval=approval,
+                           ticket=ticket,
+                           user=user,
+                           company_info=COMPANY_COLORS.get(user.company, {}))
+
+
+@app.route('/api/approvals/<token>/decision', methods=['POST'])
+def api_approval_decision(token):
+    approval = Approval.query.filter_by(token=token).first()
+    if not approval:
+        return jsonify({'success': False, 'error': 'Enlace inválido'}), 404
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Sesión requerida'}), 401
+    user = User.query.get(session['user_id'])
+    if user.id != approval.approver_id and not is_master_admin(user.company, user.role):
+        return jsonify({'success': False, 'error': 'No sos el aprobador designado'}), 403
+    if approval.status != 'pending':
+        return jsonify({'success': False, 'error': f'Ya fue {approval.status} el {approval.decision_at}'}), 400
+
+    # Solo permitir decidir si es el paso actual (no saltear)
+    prior_pending = Approval.query.filter(
+        Approval.ticket_id == approval.ticket_id,
+        Approval.order < approval.order,
+        Approval.status == 'pending'
+    ).count()
+    if prior_pending > 0:
+        return jsonify({'success': False, 'error': 'Aún hay aprobadores previos pendientes'}), 400
+
+    data = request.json or {}
+    action = data.get('action')  # 'approve' | 'reject'
+    comment = (data.get('comment') or '').strip()[:1000]
+
+    if action not in ('approve', 'reject'):
+        return jsonify({'success': False, 'error': 'Acción inválida'}), 400
+    if action == 'reject' and not comment:
+        return jsonify({'success': False, 'error': 'El rechazo requiere un comentario'}), 400
+
+    approval.status = 'approved' if action == 'approve' else 'rejected'
+    approval.decision_at = datetime.now()
+    approval.comment = comment
+    db.session.flush()
+
+    # Actualizar cadena
+    ticket = approval.ticket
+    _finalize_approval_chain(ticket)
+    db.session.commit()
+
+    # Log
+    log_audit(f'ticket_{approval.status}', user.id, 'approval', approval.id,
+              f"Ticket {ticket.ticket_number} {approval.status} por {user.name} (paso {approval.order}): {comment[:200]}")
+
+    # Notificar al creador si fue rechazado (o si la cadena completa aprobó)
+    try:
+        if ticket.status == 'rejected' and ticket.creator and ticket.creator.email:
+            send_email(
+                to_email=ticket.creator.email,
+                subject=f"[DeskEli] Tu solicitud {ticket.ticket_number} fue rechazada",
+                body=f"""<html><body style="font-family:Segoe UI;color:#1f2937;">
+                    <div style="max-width:560px;margin:20px auto;padding:22px;background:#fef2f2;border-left:4px solid #dc2626;border-radius:8px;">
+                        <h2 style="color:#991b1b;">Solicitud rechazada</h2>
+                        <p>Tu ticket <strong>{ticket.ticket_number}</strong> ({ticket.title}) fue rechazado por {user.name} ({approval.approver_role_label or 'aprobador'}).</p>
+                        <p><strong>Motivo:</strong> {comment}</p>
+                    </div></body></html>""",
+                company=ticket.company
+            )
+        elif ticket.status == 'open' and ticket.creator and ticket.creator.email:
+            send_email(
+                to_email=ticket.creator.email,
+                subject=f"[DeskEli] Tu solicitud {ticket.ticket_number} fue aprobada",
+                body=f"""<html><body style="font-family:Segoe UI;color:#1f2937;">
+                    <div style="max-width:560px;margin:20px auto;padding:22px;background:#f0fdf4;border-left:4px solid #16a34a;border-radius:8px;">
+                        <h2 style="color:#15803d;">Solicitud aprobada</h2>
+                        <p>Tu ticket <strong>{ticket.ticket_number}</strong> ({ticket.title}) fue aprobado y pasa al equipo de TI para su atención.</p>
+                    </div></body></html>""",
+                company=ticket.company
+            )
+    except Exception:
+        pass
+
+    return jsonify({'success': True, 'ticket_status': ticket.status, 'action': approval.status})
+
+
+@app.route('/api/approvals/pending')
+def api_approvals_my_pending():
+    """Mis aprobaciones pendientes (widget en dashboards)."""
+    if 'user_id' not in session:
+        return jsonify({'success': False}), 401
+    approvals = Approval.query.filter_by(approver_id=session['user_id'], status='pending').all()
+    # Filtrar solo los que son el paso activo (no hay previos pendientes)
+    active = []
+    for a in approvals:
+        prior = Approval.query.filter(
+            Approval.ticket_id == a.ticket_id,
+            Approval.order < a.order,
+            Approval.status == 'pending'
+        ).count()
+        if prior == 0:
+            active.append(a)
+    active.sort(key=lambda x: x.created_at or datetime.min, reverse=True)
+    return jsonify({
+        'success': True,
+        'count': len(active),
+        'approvals': [_approvals_serialize_approval(a, include_token=True) for a in active]
     })
 
 

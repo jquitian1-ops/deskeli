@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Aprobar Ticket {{ ticket.ticket_number }} · DeskEli</title>
+<link rel="icon" href="/static/eli.png" type="image/png">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f9fafb; color: #1f2937; }
+    .header { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 20px 40px; }
+    .header-inner { max-width: 900px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+    .header a { color: white; text-decoration: none; font-size: 14px; opacity: 0.9; }
+
+    .container { max-width: 800px; margin: 30px auto; padding: 0 24px; }
+
+    .ticket-card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow: hidden; margin-bottom: 20px; }
+    .ticket-header { background: linear-gradient(135deg, #7c3aed, #4f46e5); color: white; padding: 20px 26px; }
+    .ticket-header h1 { font-size: 22px; margin-bottom: 4px; }
+    .ticket-header .num { opacity: 0.85; font-size: 13px; font-family: monospace; }
+    .ticket-body { padding: 24px 26px; }
+
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 16px; }
+    .field-item label { display: block; font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .field-item .value { font-size: 14px; color: #1f2937; }
+    .priority-badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .priority-badge.critical { background: #fee2e2; color: #991b1b; }
+    .priority-badge.high { background: #fed7aa; color: #9a3412; }
+    .priority-badge.medium { background: #fef3c7; color: #92400e; }
+    .priority-badge.low { background: #d1fae5; color: #065f46; }
+
+    .description-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; white-space: pre-wrap; font-size: 13px; line-height: 1.6; color: #374151; max-height: 400px; overflow-y: auto; }
+
+    .approval-chain { background: white; border-radius: 12px; padding: 20px 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; }
+    .approval-chain h2 { font-size: 16px; margin-bottom: 14px; color: #1f2937; }
+    .chain-list { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .chain-step { padding: 10px 14px; border-radius: 8px; background: #f3f4f6; border: 1px solid #e5e7eb; }
+    .chain-step.approved { background: #d1fae5; border-color: #16a34a; }
+    .chain-step.rejected { background: #fee2e2; border-color: #dc2626; }
+    .chain-step.current { background: #ede9fe; border-color: #7c3aed; box-shadow: 0 2px 8px rgba(124,58,237,0.2); }
+    .chain-step .who { font-size: 13px; font-weight: 700; }
+    .chain-step .role { font-size: 11px; color: #6b7280; }
+    .chain-step .status { font-size: 11px; margin-top: 4px; font-weight: 600; }
+    .chain-arrow { color: #d1d5db; font-size: 20px; }
+
+    .decision-card { background: white; border-radius: 12px; padding: 24px 28px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .decision-card h2 { font-size: 18px; margin-bottom: 14px; }
+    .decision-card textarea { width: 100%; padding: 12px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-family: inherit; resize: vertical; min-height: 90px; font-size: 14px; }
+    .decision-buttons { display: flex; gap: 12px; margin-top: 16px; }
+    .btn-decision { flex: 1; padding: 14px; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+    .btn-approve { background: #16a34a; color: white; }
+    .btn-approve:hover { background: #15803d; box-shadow: 0 4px 12px rgba(22,163,74,0.3); }
+    .btn-reject { background: #dc2626; color: white; }
+    .btn-reject:hover { background: #b91c1c; box-shadow: 0 4px 12px rgba(220,38,38,0.3); }
+
+    .status-msg { padding: 14px 18px; border-radius: 8px; margin-top: 16px; text-align: center; font-weight: 700; }
+    .status-msg.success { background: #d1fae5; color: #065f46; }
+    .status-msg.error { background: #fee2e2; color: #991b1b; }
+
+    .already-decided { padding: 22px; background: #f3f4f6; border-radius: 8px; text-align: center; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-inner">
+        <div style="display:flex;align-items:center;gap:14px;">
+            <img src="/static/deskeli-logo.png" alt="Eli" onerror="this.style.display='none'" style="width:40px;height:40px;border-radius:50%;border:2px solid white;object-fit:cover;">
+            <div>
+                <div style="font-weight:700;font-size:16px;">🔐 Decisión de aprobación</div>
+                <div style="font-size:12px;opacity:0.85;">Como <strong>{{ approval.approver_role_label or 'aprobador' }}</strong> asignado</div>
+            </div>
+        </div>
+        <a href="/{{ user.role }}/dashboard">← Panel</a>
+    </div>
+</div>
+
+<div class="container">
+
+    <!-- Ticket -->
+    <div class="ticket-card">
+        <div class="ticket-header">
+            <div class="num">{{ ticket.ticket_number }}</div>
+            <h1>{{ ticket.title }}</h1>
+        </div>
+        <div class="ticket-body">
+            <div class="field-row">
+                <div class="field-item">
+                    <label>Solicitante</label>
+                    <div class="value">{{ ticket.creator.name if ticket.creator else '—' }}<br><small style="color:#6b7280;">{{ ticket.creator.email if ticket.creator else '' }}</small></div>
+                </div>
+                <div class="field-item">
+                    <label>Prioridad</label>
+                    <div class="value"><span class="priority-badge {{ ticket.priority }}">{{ ticket.priority }}</span></div>
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field-item">
+                    <label>Categoría</label>
+                    <div class="value">{{ ticket.category or '—' }}</div>
+                </div>
+                <div class="field-item">
+                    <label>Creado</label>
+                    <div class="value">{{ ticket.created_at.strftime('%Y-%m-%d %H:%M') if ticket.created_at else '' }}</div>
+                </div>
+            </div>
+            <div class="field-item" style="margin-top:12px;">
+                <label>Descripción</label>
+                <div class="description-box">{{ ticket.description }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cadena de aprobación -->
+    <div class="approval-chain">
+        <h2>🔗 Cadena de aprobación</h2>
+        <div class="chain-list">
+            {% set current_pending_order = namespace(val=None) %}
+            {% for a in ticket.approvals|sort(attribute='order') %}
+                {% if a.status == 'pending' and not current_pending_order.val %}
+                    {% set current_pending_order.val = a.order %}
+                {% endif %}
+            {% endfor %}
+
+            {% for a in ticket.approvals|sort(attribute='order') %}
+                {% if not loop.first %}<span class="chain-arrow">→</span>{% endif %}
+                <div class="chain-step
+                    {% if a.status == 'approved' %}approved
+                    {% elif a.status == 'rejected' %}rejected
+                    {% elif a.order == current_pending_order.val %}current
+                    {% endif %}">
+                    <div class="who">{{ a.order }}. {{ a.approver.name if a.approver else '—' }}</div>
+                    <div class="role">{{ a.approver_role_label or 'sin rol' }}</div>
+                    <div class="status">
+                        {% if a.status == 'approved' %}✅ Aprobado
+                        {% elif a.status == 'rejected' %}✗ Rechazado
+                        {% elif a.order == current_pending_order.val %}⏳ Pendiente (activo)
+                        {% else %}○ En espera
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Decisión -->
+    <div class="decision-card">
+        {% if approval.status != 'pending' %}
+            <div class="already-decided">
+                Esta aprobación ya fue <strong>{{ 'aprobada' if approval.status == 'approved' else 'rechazada' }}</strong>
+                el {{ approval.decision_at.strftime('%Y-%m-%d %H:%M') if approval.decision_at else '' }}.
+                {% if approval.comment %}
+                <div style="margin-top:10px;font-style:italic;color:#4b5563;">"{{ approval.comment }}"</div>
+                {% endif %}
+            </div>
+        {% else %}
+            <h2>Tu decisión</h2>
+            <p style="color:#6b7280;font-size:13px;margin-bottom:14px;">Al aprobar, el ticket pasa al siguiente aprobador (o al equipo TI si sos el último). Al rechazar, el proceso se detiene y se avisa al solicitante.</p>
+
+            <textarea id="commentBox" placeholder="Comentario (opcional para aprobar, obligatorio para rechazar)"></textarea>
+
+            <div class="decision-buttons">
+                <button class="btn-decision btn-approve" onclick="decide('approve')">✅ Aprobar</button>
+                <button class="btn-decision btn-reject" onclick="decide('reject')">✗ Rechazar</button>
+            </div>
+            <div id="statusMsg"></div>
+        {% endif %}
+    </div>
+
+</div>
+
+<script>
+const TOKEN = "{{ approval.token }}";
+
+async function decide(action) {
+    const comment = document.getElementById('commentBox').value.trim();
+    if (action === 'reject' && !comment) {
+        alert('El rechazo requiere un comentario explicando el motivo.');
+        return;
+    }
+    if (!confirm(`¿Confirmás ${action === 'approve' ? 'APROBAR' : 'RECHAZAR'} este ticket?`)) return;
+    try {
+        const r = await fetch(`/api/approvals/${TOKEN}/decision`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action, comment})
+        });
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error);
+        const msg = document.getElementById('statusMsg');
+        msg.innerHTML = `<div class="status-msg success">✅ Decisión registrada: ${data.action === 'approved' ? 'Aprobado' : 'Rechazado'}. Ticket ahora en estado: <strong>${data.ticket_status}</strong>.</div>`;
+        setTimeout(() => window.location.reload(), 2000);
+    } catch (e) {
+        document.getElementById('statusMsg').innerHTML = `<div class="status-msg error">✗ Error: ${e.message}</div>`;
+    }
+}
+</script>
+
+</body>
+</html>
