@@ -1,7 +1,11 @@
 # Material de comunicación — DeskEli
 
 Piezas listas para difundir DeskEli a los empleados de las 3 empresas.
-**Sin fecha de lanzamiento** — sirven en cualquier momento (evergreen).
+
+**Modo teaser (previo al lanzamiento):** los correos NO incluyen enlace de
+acceso a la plataforma. Están diseñados para generar expectativa y anunciar
+que DeskEli está en camino. Cuando la plataforma esté lista, se hará una
+segunda comunicación con la URL y las instrucciones de ingreso.
 
 ## Archivos
 

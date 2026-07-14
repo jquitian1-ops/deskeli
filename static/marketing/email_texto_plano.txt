@@ -1,31 +1,31 @@
-Asunto: Presentamos DeskEli — Tu nueva mesa de ayuda TI
+Asunto: Presentamos DeskEli — Nuestra próxima mesa de ayuda TI
 
 Estimado colaborador,
 
-Nos complace anunciar la puesta en marcha de DESKELI, la nueva plataforma
+Nos complace anticiparte que estamos preparando DESKELI, la próxima plataforma
 corporativa para la gestión de solicitudes e incidencias de tecnología.
 
-Con DeskEli, cada requerimiento de TI queda registrado, priorizado y con
+Con DeskEli, cada requerimiento de TI quedará registrado, priorizado y con
 seguimiento hasta su resolución, sin depender del correo ni de llamadas
 telefónicas.
 
 
-ACCESO A LA PLATAFORMA
+📣 MUY PRONTO
 ────────────────────────────────────────────
-    https://deskeli.eliotproyectos.tech/login
+Estamos afinando los últimos detalles junto al equipo de TI.
+Te comunicaremos oportunamente la fecha de disponibilidad y las
+instrucciones de acceso.
 
-Ingresá con tu usuario y contraseña de red corporativa.
 
-
-¿QUÉ CAMBIA PARA VOS?
+¿QUÉ CAMBIARÁ PARA VOS?
 ────────────────────────────────────────────
 
   [1] Registro inmediato
-      Creá un ticket en menos de un minuto desde tu computadora,
+      Podrás crear un ticket en menos de un minuto desde tu computadora,
       sin depender de correos ni llamadas.
 
   [2] Visibilidad total
-      Consultá el estado de tu solicitud en tiempo real. Sabés siempre
+      Consultarás el estado de tu solicitud en tiempo real. Sabrás siempre
       quién la atiende y en qué etapa está.
 
   [3] Autoservicio
@@ -33,39 +33,40 @@ Ingresá con tu usuario y contraseña de red corporativa.
       comunes. Solución inmediata, sin necesidad de crear ticket.
 
   [4] SLA comprometido
-      Cada ticket tiene un tiempo máximo de respuesta según su prioridad.
-      Vas a saber exactamente cuándo esperar respuesta.
+      Cada ticket tendrá un tiempo máximo de respuesta según su prioridad.
+      Sabrás exactamente cuándo esperar respuesta.
 
 
-CÓMO COMENZAR A USAR DESKELI
+ASÍ FUNCIONARÁ CUANDO ESTÉ DISPONIBLE
 ────────────────────────────────────────────
 
-  1. Ingresá a deskeli.eliotproyectos.tech/login con tu usuario de red.
+  1. Ingresarás con tus credenciales de red corporativa desde cualquier
+     navegador moderno.
 
-  2. Antes de crear un ticket, buscá en la BASE DE CONOCIMIENTO
-     (botón "Ayuda"). Muchas dudas se resuelven al instante.
+  2. Antes de crear un ticket, podrás consultar la BASE DE CONOCIMIENTO
+     con guías paso a paso. Muchas dudas se resolverán al instante.
 
-  3. Si necesitás abrir un caso, hacé clic en CREAR TICKET, describí
-     el problema y elegí la categoría correspondiente.
+  3. Cuando necesites abrir un caso, describirás el problema, elegirás la
+     categoría y quedará asignado automáticamente al equipo correcto.
 
-  4. Recibirás notificaciones automáticas cada vez que tu ticket cambie
-     de estado. Al cierre, podrás calificar la atención recibida.
+  4. Recibirás notificaciones automáticas cuando tu ticket cambie de
+     estado. Al cierre, podrás calificar la atención recibida.
 
 
 CIFRAS QUE RESPALDAN LA PLATAFORMA
 ────────────────────────────────────────────
 
   • Menos de 3 segundos de latencia en actualizaciones en vivo
-  • 100 % de trazabilidad: cada acción queda registrada
+  • 100 % de trazabilidad: cada acción quedará registrada
   • Disponible 24 horas al día, todos los días del año
 
 
-¿NECESITÁS AYUDA?
+¿QUÉ SIGUE?
 ────────────────────────────────────────────
 
-Consultá el manual del portal de empleados, disponible en la propia
-plataforma en el botón "Manual", o comunicate con el equipo de TI
-de tu sede.
+Estamos completando los últimos ajustes junto al equipo de TI. En una
+próxima comunicación te enviaremos la URL de acceso, un manual de bienvenida
+y los canales de soporte para tu primer ingreso.
 
 
 Cordialmente,
@@ -77,4 +78,4 @@ Dirección de Tecnología
 Este correo fue enviado a colaboradores de [Empresa] como parte de las
 comunicaciones oficiales de la Dirección de Tecnología.
 
-DeskEli · Plataforma corporativa de gestión de incidencias TI
+DeskEli · Plataforma corporativa de gestión de incidencias TI (próximamente)
