@@ -824,6 +824,43 @@ class TicketAttachment(db.Model):
     uploaded_by = db.relationship('User', foreign_keys=[uploaded_by_id])
     ticket = db.relationship('Ticket', backref=db.backref('attachments', cascade='all, delete-orphan'))
 
+
+class KnowledgeArticle(db.Model):
+    """Artículo de la base de conocimiento. Puede ser por empresa o global."""
+    __tablename__ = 'knowledge_articles'
+    id = db.Column(db.Integer, primary_key=True)
+    company = db.Column(db.String(20), index=True)  # NULL = visible para todas las empresas
+    title = db.Column(db.String(200), nullable=False)
+    slug = db.Column(db.String(220), unique=True, nullable=False, index=True)
+    body = db.Column(db.Text, nullable=False)  # markdown
+    excerpt = db.Column(db.String(300))  # resumen corto para listados
+    category = db.Column(db.String(80), index=True)
+    tags = db.Column(db.Text)  # CSV o JSON array
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    is_published = db.Column(db.Boolean, default=True, index=True)
+    is_public = db.Column(db.Boolean, default=False)  # accesible sin login
+    views = db.Column(db.Integer, default=0)
+    helpful_count = db.Column(db.Integer, default=0)
+    not_helpful_count = db.Column(db.Integer, default=0)
+    version = db.Column(db.Integer, default=1)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    author = db.relationship('User', foreign_keys=[author_id])
+
+
+class KnowledgeArticleFeedback(db.Model):
+    __tablename__ = 'knowledge_article_feedback'
+    id = db.Column(db.Integer, primary_key=True)
+    article_id = db.Column(db.Integer, db.ForeignKey('knowledge_articles.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # nullable si es anonimo
+    is_helpful = db.Column(db.Boolean, nullable=False)
+    comment = db.Column(db.Text)
+    ip_addr = db.Column(db.String(45))
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    article = db.relationship('KnowledgeArticle', backref=db.backref('feedback_entries', cascade='all, delete-orphan'))
+
 # ═════════════════════════════════════════════════════════════════════════════
 # FUNCIONES DE UTILIDAD
 # ═════════════════════════════════════════════════════════════════════════════
@@ -2943,6 +2980,370 @@ def api_admin_csat_summary():
         'comments_recent': comments_recent,
         'days': days,
         'company_filter': company_filter or 'all'
+    })
+
+
+# ─── Base de Conocimiento (KB) ────────────────────────────────────────────────
+import unicodedata
+
+
+def _kb_slugify(text: str, max_len: int = 200) -> str:
+    """Genera un slug URL-safe a partir de un texto."""
+    if not text:
+        return 'articulo'
+    txt = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+    txt = txt.lower()
+    txt = re.sub(r'[^a-z0-9]+', '-', txt).strip('-')
+    return (txt or 'articulo')[:max_len]
+
+
+def _kb_unique_slug(base_slug: str, exclude_id: int = None) -> str:
+    """Devuelve slug único agregando -2, -3, ... si ya existe."""
+    slug = base_slug
+    n = 2
+    while True:
+        q = KnowledgeArticle.query.filter_by(slug=slug)
+        if exclude_id is not None:
+            q = q.filter(KnowledgeArticle.id != exclude_id)
+        if not q.first():
+            return slug
+        slug = f"{base_slug}-{n}"
+        n += 1
+
+
+def _kb_article_scope():
+    """Empresas cuyo KB puede ver el usuario actual (incluye globales)."""
+    role = session.get('role')
+    user_company = session.get('company')
+    if role == 'admin' and is_master_admin():
+        return [c.code for c in Company.query.filter_by(is_active=True).all()]
+    return [user_company] if user_company else []
+
+
+def _kb_serialize(a, include_body=False):
+    return {
+        'id': a.id,
+        'title': a.title,
+        'slug': a.slug,
+        'excerpt': a.excerpt or '',
+        'category': a.category or '',
+        'tags': [t.strip() for t in (a.tags or '').split(',') if t.strip()],
+        'company': a.company or 'global',
+        'is_published': a.is_published,
+        'is_public': a.is_public,
+        'views': a.views or 0,
+        'helpful_count': a.helpful_count or 0,
+        'not_helpful_count': a.not_helpful_count or 0,
+        'version': a.version or 1,
+        'author': a.author.name if a.author else None,
+        'created_at': a.created_at.isoformat() if a.created_at else None,
+        'updated_at': a.updated_at.isoformat() if a.updated_at else None,
+        'body': a.body if include_body else None,
+    }
+
+
+# ─── Admin: CRUD de artículos ───────────────────────────────
+@app.route('/admin/kb')
+def admin_kb():
+    """Gestor de la base de conocimiento (admin)"""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return redirect(url_for('login'))
+    user = User.query.get(session['user_id'])
+    is_master = is_master_admin()
+    available_companies = []
+    if is_master:
+        available_companies = [
+            {'code': c.code, 'name': c.name}
+            for c in Company.query.filter_by(is_active=True).order_by(Company.name).all()
+        ]
+    return render_template('admin/kb.html',
+                           company_info=COMPANY_COLORS.get(user.company, {}),
+                           is_master=is_master,
+                           available_companies=available_companies,
+                           current_company=user.company)
+
+
+@app.route('/api/admin/kb/articles', methods=['GET'])
+def api_admin_kb_list():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+
+    scope = _kb_article_scope()
+    company_filter = request.args.get('company')
+    q = KnowledgeArticle.query
+    if company_filter and company_filter not in ('all', ''):
+        if company_filter == 'global':
+            q = q.filter(KnowledgeArticle.company.is_(None))
+        else:
+            if company_filter not in scope:
+                return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+            q = q.filter(KnowledgeArticle.company == company_filter)
+    else:
+        q = q.filter(db.or_(KnowledgeArticle.company.in_(scope), KnowledgeArticle.company.is_(None)))
+
+    search = (request.args.get('q') or '').strip()
+    if search:
+        like = f'%{search}%'
+        q = q.filter(db.or_(
+            KnowledgeArticle.title.ilike(like),
+            KnowledgeArticle.body.ilike(like),
+            KnowledgeArticle.tags.ilike(like),
+            KnowledgeArticle.category.ilike(like)
+        ))
+
+    articles = q.order_by(KnowledgeArticle.updated_at.desc()).limit(500).all()
+    return jsonify({
+        'success': True,
+        'count': len(articles),
+        'articles': [_kb_serialize(a) for a in articles]
+    })
+
+
+@app.route('/api/admin/kb/articles/<int:article_id>', methods=['GET'])
+def api_admin_kb_get(article_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+    a = KnowledgeArticle.query.get(article_id)
+    if not a:
+        return jsonify({'success': False, 'error': 'Artículo no encontrado'}), 404
+    scope = _kb_article_scope()
+    if a.company and a.company not in scope:
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+    return jsonify({'success': True, 'article': _kb_serialize(a, include_body=True)})
+
+
+@app.route('/api/admin/kb/articles', methods=['POST'])
+def api_admin_kb_create():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+    data = request.json or {}
+    title = (data.get('title') or '').strip()
+    body = (data.get('body') or '').strip()
+    if not title or not body:
+        return jsonify({'success': False, 'error': 'Título y cuerpo son obligatorios'}), 400
+    company = data.get('company') or None  # None = global
+    if company == 'global':
+        company = None
+    if company and company not in _kb_article_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso a esa empresa'}), 403
+    # Solo master admin puede crear artículos globales
+    if company is None and not is_master_admin():
+        return jsonify({'success': False, 'error': 'Solo el admin master puede crear artículos globales'}), 403
+
+    slug = _kb_unique_slug(_kb_slugify(title))
+    a = KnowledgeArticle(
+        title=title[:200],
+        slug=slug,
+        body=body,
+        excerpt=(data.get('excerpt') or body[:280]).strip()[:300],
+        category=(data.get('category') or '').strip()[:80] or None,
+        tags=','.join([t.strip() for t in (data.get('tags') or []) if t.strip()]) if isinstance(data.get('tags'), list) else (data.get('tags') or '')[:500],
+        company=company,
+        author_id=session['user_id'],
+        is_published=bool(data.get('is_published', True)),
+        is_public=bool(data.get('is_public', False)),
+        version=1
+    )
+    db.session.add(a)
+    db.session.commit()
+    log_audit('kb_article_created', session['user_id'], 'kb_article', a.id, f"Artículo KB creado: {title}")
+    return jsonify({'success': True, 'article': _kb_serialize(a, include_body=True)})
+
+
+@app.route('/api/admin/kb/articles/<int:article_id>', methods=['PUT'])
+def api_admin_kb_update(article_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+    a = KnowledgeArticle.query.get(article_id)
+    if not a:
+        return jsonify({'success': False, 'error': 'No encontrado'}), 404
+    scope = _kb_article_scope()
+    if a.company and a.company not in scope:
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+    data = request.json or {}
+
+    new_title = (data.get('title') or a.title).strip()
+    if new_title != a.title:
+        a.title = new_title[:200]
+        a.slug = _kb_unique_slug(_kb_slugify(new_title), exclude_id=a.id)
+    if 'body' in data:
+        a.body = (data.get('body') or '').strip()
+    if 'excerpt' in data:
+        a.excerpt = (data.get('excerpt') or '')[:300]
+    if 'category' in data:
+        a.category = (data.get('category') or '').strip()[:80] or None
+    if 'tags' in data:
+        if isinstance(data['tags'], list):
+            a.tags = ','.join([t.strip() for t in data['tags'] if t.strip()])
+        else:
+            a.tags = (data.get('tags') or '')[:500]
+    if 'is_published' in data:
+        a.is_published = bool(data['is_published'])
+    if 'is_public' in data:
+        a.is_public = bool(data['is_public'])
+    if 'company' in data:
+        new_co = data['company'] or None
+        if new_co == 'global':
+            new_co = None
+        if new_co and new_co not in scope:
+            return jsonify({'success': False, 'error': 'Sin acceso a esa empresa'}), 403
+        if new_co is None and not is_master_admin():
+            return jsonify({'success': False, 'error': 'Solo master admin puede globalizar'}), 403
+        a.company = new_co
+
+    a.version = (a.version or 1) + 1
+    a.updated_at = datetime.now()
+    db.session.commit()
+    log_audit('kb_article_updated', session['user_id'], 'kb_article', a.id, f"Artículo KB actualizado: {a.title}")
+    return jsonify({'success': True, 'article': _kb_serialize(a, include_body=True)})
+
+
+@app.route('/api/admin/kb/articles/<int:article_id>', methods=['DELETE'])
+def api_admin_kb_delete(article_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+    a = KnowledgeArticle.query.get(article_id)
+    if not a:
+        return jsonify({'success': False}), 404
+    scope = _kb_article_scope()
+    if a.company and a.company not in scope:
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+    title = a.title
+    db.session.delete(a)
+    db.session.commit()
+    log_audit('kb_article_deleted', session['user_id'], 'kb_article', article_id, f"Artículo KB eliminado: {title}")
+    return jsonify({'success': True})
+
+
+# ─── Portal público (empleados/técnicos): leer KB ─────────
+@app.route('/kb')
+def kb_public_index():
+    """Portal de base de conocimiento (visible a cualquier usuario autenticado)."""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    user = User.query.get(session['user_id'])
+    return render_template('kb/index.html',
+                           company_info=COMPANY_COLORS.get(user.company, {}),
+                           user=user)
+
+
+@app.route('/kb/<slug>')
+def kb_public_article(slug):
+    """Vista de un artículo del KB."""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    user = User.query.get(session['user_id'])
+    a = KnowledgeArticle.query.filter_by(slug=slug, is_published=True).first()
+    if not a:
+        return render_template('kb/not_found.html', user=user), 404
+    # Segregación: si el artículo tiene empresa, solo esa empresa lo ve
+    if a.company and a.company != user.company and not is_master_admin(user.company, user.role):
+        return render_template('kb/not_found.html', user=user), 404
+    # Incrementar vistas
+    a.views = (a.views or 0) + 1
+    db.session.commit()
+    return render_template('kb/article.html',
+                           article=a,
+                           company_info=COMPANY_COLORS.get(user.company, {}),
+                           user=user)
+
+
+@app.route('/api/kb/search')
+def api_kb_search():
+    """Búsqueda pública de artículos (usuario autenticado)."""
+    if 'user_id' not in session:
+        return jsonify({'success': False}), 401
+    user = User.query.get(session['user_id'])
+    search = (request.args.get('q') or '').strip()
+    category = (request.args.get('category') or '').strip()
+
+    q = KnowledgeArticle.query.filter(
+        KnowledgeArticle.is_published == True,
+        db.or_(
+            KnowledgeArticle.company == user.company,
+            KnowledgeArticle.company.is_(None)
+        )
+    )
+    if search:
+        like = f'%{search}%'
+        q = q.filter(db.or_(
+            KnowledgeArticle.title.ilike(like),
+            KnowledgeArticle.body.ilike(like),
+            KnowledgeArticle.tags.ilike(like)
+        ))
+    if category:
+        q = q.filter(KnowledgeArticle.category == category)
+
+    articles = q.order_by(KnowledgeArticle.views.desc(), KnowledgeArticle.updated_at.desc()).limit(50).all()
+
+    # Categorías disponibles (para chips en UI)
+    cats_q = db.session.query(KnowledgeArticle.category).filter(
+        KnowledgeArticle.is_published == True,
+        db.or_(
+            KnowledgeArticle.company == user.company,
+            KnowledgeArticle.company.is_(None)
+        ),
+        KnowledgeArticle.category.isnot(None)
+    ).distinct().all()
+    categories = sorted(set(c[0] for c in cats_q if c[0]))
+
+    return jsonify({
+        'success': True,
+        'count': len(articles),
+        'articles': [_kb_serialize(a) for a in articles],
+        'categories': categories
+    })
+
+
+@app.route('/api/kb/article/<int:article_id>/feedback', methods=['POST'])
+def api_kb_feedback(article_id):
+    """El usuario marca útil/no útil un artículo (idempotente por usuario)."""
+    if 'user_id' not in session:
+        return jsonify({'success': False}), 401
+    a = KnowledgeArticle.query.get(article_id)
+    if not a:
+        return jsonify({'success': False}), 404
+    data = request.json or {}
+    is_helpful = bool(data.get('helpful'))
+    comment = (data.get('comment') or '').strip()[:500]
+
+    # ¿Ya dio feedback antes? Actualizarlo en vez de duplicar
+    existing = KnowledgeArticleFeedback.query.filter_by(
+        article_id=article_id, user_id=session['user_id']
+    ).first()
+
+    if existing:
+        # Ajustar contadores si cambia el signo
+        if existing.is_helpful != is_helpful:
+            if existing.is_helpful:
+                a.helpful_count = max(0, (a.helpful_count or 0) - 1)
+            else:
+                a.not_helpful_count = max(0, (a.not_helpful_count or 0) - 1)
+            if is_helpful:
+                a.helpful_count = (a.helpful_count or 0) + 1
+            else:
+                a.not_helpful_count = (a.not_helpful_count or 0) + 1
+        existing.is_helpful = is_helpful
+        existing.comment = comment
+    else:
+        fb = KnowledgeArticleFeedback(
+            article_id=article_id,
+            user_id=session['user_id'],
+            is_helpful=is_helpful,
+            comment=comment,
+            ip_addr=request.remote_addr
+        )
+        db.session.add(fb)
+        if is_helpful:
+            a.helpful_count = (a.helpful_count or 0) + 1
+        else:
+            a.not_helpful_count = (a.not_helpful_count or 0) + 1
+
+    db.session.commit()
+    return jsonify({
+        'success': True,
+        'helpful_count': a.helpful_count,
+        'not_helpful_count': a.not_helpful_count
     })
 
 

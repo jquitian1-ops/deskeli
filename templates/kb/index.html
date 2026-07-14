@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Base de Conocimiento · DeskEli</title>
+<link rel="icon" href="/static/eli.png" type="image/png">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f9fafb; color: #1f2937; }
+    .header { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 24px 40px; }
+    .header-inner { max-width: 1000px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+    .header h1 { font-size: 22px; }
+    .header a { color: white; text-decoration: none; font-size: 14px; opacity: 0.9; margin-left: 14px; }
+
+    .hero { max-width: 1000px; margin: 0 auto; padding: 40px 40px 20px; text-align: center; }
+    .hero h2 { font-size: 30px; margin-bottom: 10px; color: #1f2937; }
+    .hero p { color: #6b7280; font-size: 15px; margin-bottom: 24px; }
+    .search-mega { max-width: 600px; margin: 0 auto; position: relative; }
+    .search-mega input { width: 100%; padding: 16px 20px 16px 52px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); transition: all 0.2s; }
+    .search-mega input:focus { outline: none; border-color: #7c3aed; box-shadow: 0 6px 20px rgba(124,58,237,0.2); }
+    .search-mega::before { content: '🔍'; position: absolute; left: 18px; top: 50%; transform: translateY(-50%); font-size: 20px; }
+
+    .container { max-width: 1000px; margin: 30px auto; padding: 0 40px; }
+    .categories { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; justify-content: center; }
+    .cat-chip { padding: 6px 14px; background: white; border: 1px solid #d1d5db; border-radius: 999px; cursor: pointer; font-size: 13px; color: #374151; transition: all 0.15s; }
+    .cat-chip:hover { border-color: #7c3aed; }
+    .cat-chip.active { background: #7c3aed; color: white; border-color: #7c3aed; }
+
+    .article-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+    .article-card { background: white; border-radius: 10px; padding: 20px 22px; border: 1px solid #e5e7eb; text-decoration: none; color: inherit; transition: all 0.2s; }
+    .article-card:hover { border-color: #7c3aed; transform: translateY(-3px); box-shadow: 0 6px 16px rgba(124,58,237,0.12); }
+    .article-card h3 { font-size: 16px; color: #1f2937; margin-bottom: 8px; }
+    .article-card .excerpt { color: #6b7280; font-size: 13px; line-height: 1.5; margin-bottom: 12px; min-height: 40px; }
+    .article-card .footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #9ca3af; }
+    .article-card .category { display: inline-block; padding: 3px 10px; background: #f3f4f6; border-radius: 999px; font-size: 11px; font-weight: 600; color: #4b5563; }
+
+    .empty { text-align: center; padding: 60px 30px; color: #9ca3af; }
+    .loading { text-align: center; padding: 40px; color: #6b7280; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-inner">
+        <div style="display:flex;align-items:center;gap:14px;">
+            <img src="/static/deskeli-logo.png" alt="Eli" onerror="this.style.display='none'" style="width:44px;height:44px;border-radius:50%;border:2px solid white;object-fit:cover;">
+            <div>
+                <h1>📚 Base de Conocimiento</h1>
+                <div style="font-size:12px;opacity:0.85;">Guías, tutoriales y soluciones a problemas frecuentes</div>
+            </div>
+        </div>
+        <div>
+            <a href="/{{ user.role }}/dashboard">← Volver</a>
+            <a href="/logout">Salir</a>
+        </div>
+    </div>
+</div>
+
+<section class="hero">
+    <h2>¿En qué te podemos ayudar?</h2>
+    <p>Buscá tu problema y encontrá la solución paso a paso sin necesidad de crear un ticket.</p>
+    <div class="search-mega">
+        <input type="text" id="searchInput" placeholder="Ej: ¿cómo cambio mi contraseña?" oninput="debouncedLoad()" autocomplete="off" autofocus>
+    </div>
+</section>
+
+<div class="container">
+    <div class="categories" id="categoryFilters"></div>
+    <div id="articleList">
+        <div class="loading">Cargando…</div>
+    </div>
+</div>
+
+<script>
+let currentCategory = '';
+let debounceTimer = null;
+
+function debouncedLoad() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(loadArticles, 250);
+}
+
+async function loadArticles() {
+    const q = document.getElementById('searchInput').value;
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (currentCategory) params.set('category', currentCategory);
+
+    try {
+        const r = await fetch(`/api/kb/search?${params}`);
+        const data = await r.json();
+        renderCategories(data.categories || []);
+        renderArticles(data.articles || []);
+    } catch (e) {
+        document.getElementById('articleList').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+    }
+}
+
+function renderCategories(cats) {
+    const el = document.getElementById('categoryFilters');
+    let html = `<div class="cat-chip ${currentCategory === '' ? 'active' : ''}" onclick="setCategory('')">Todas</div>`;
+    cats.forEach(c => {
+        html += `<div class="cat-chip ${currentCategory === c ? 'active' : ''}" onclick="setCategory('${escAttr(c)}')">${esc(c)}</div>`;
+    });
+    el.innerHTML = html;
+}
+
+function setCategory(c) {
+    currentCategory = c;
+    loadArticles();
+}
+
+function renderArticles(arts) {
+    const el = document.getElementById('articleList');
+    if (!arts.length) {
+        el.innerHTML = `<div class="empty">
+            <div style="font-size:48px;margin-bottom:12px;">📭</div>
+            <div>No encontramos artículos que coincidan.</div>
+            <div style="margin-top:8px;font-size:13px;">¿No encontrás lo que buscás? <a href="/{{ user.role }}/create" style="color:#7c3aed;font-weight:600;">Creá un ticket</a></div>
+        </div>`;
+        return;
+    }
+    el.innerHTML = `<div class="article-list">${arts.map(a => `
+        <a href="/kb/${esc(a.slug)}" class="article-card">
+            <h3>${esc(a.title)}</h3>
+            <div class="excerpt">${esc(a.excerpt || 'Sin resumen')}</div>
+            <div class="footer">
+                ${a.category ? `<span class="category">${esc(a.category)}</span>` : '<span></span>'}
+                <span>👁 ${a.views} · 👍 ${a.helpful_count}</span>
+            </div>
+        </a>
+    `).join('')}</div>`;
+}
+
+function esc(str) {
+    if (str === null || str === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+}
+function escAttr(str) {
+    return String(str).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+}
+
+document.addEventListener('DOMContentLoaded', loadArticles);
+</script>
+
+</body>
+</html>

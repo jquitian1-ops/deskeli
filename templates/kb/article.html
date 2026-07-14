@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>{{ article.title }} · DeskEli KB</title>
+<link rel="icon" href="/static/eli.png" type="image/png">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f9fafb; color: #1f2937; line-height: 1.6; }
+    .header { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 18px 40px; }
+    .header-inner { max-width: 900px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+    .header a { color: white; text-decoration: none; font-size: 14px; opacity: 0.9; margin-left: 14px; }
+    .header a:hover { opacity: 1; }
+
+    .breadcrumb { max-width: 900px; margin: 20px auto 0; padding: 0 40px; font-size: 13px; color: #6b7280; }
+    .breadcrumb a { color: #7c3aed; text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+
+    .article { max-width: 900px; margin: 20px auto; padding: 0 40px; }
+    .article-header { background: white; border-radius: 12px 12px 0 0; padding: 32px 40px 24px; border-bottom: 1px solid #e5e7eb; }
+    .article-header h1 { font-size: 30px; color: #1f2937; margin-bottom: 12px; line-height: 1.3; }
+    .article-meta { display: flex; gap: 12px; align-items: center; font-size: 12px; color: #6b7280; flex-wrap: wrap; }
+    .article-meta .category { padding: 3px 12px; background: #ede9fe; color: #6d28d9; border-radius: 999px; font-weight: 600; }
+    .article-meta .tag { padding: 3px 10px; background: #f3f4f6; color: #4b5563; border-radius: 999px; }
+
+    .article-body { background: white; padding: 32px 40px; border-radius: 0 0 12px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); font-size: 15px; color: #374151; }
+    .article-body h1 { font-size: 26px; margin: 24px 0 12px; color: #1f2937; }
+    .article-body h2 { font-size: 22px; margin: 22px 0 10px; color: #1f2937; }
+    .article-body h3 { font-size: 18px; margin: 18px 0 8px; color: #1f2937; }
+    .article-body p { margin: 12px 0; }
+    .article-body ul, .article-body ol { margin: 12px 0 12px 28px; }
+    .article-body li { margin: 6px 0; }
+    .article-body code { background: #f3f4f6; padding: 2px 8px; border-radius: 4px; font-size: 13px; color: #7c3aed; font-family: 'Consolas', 'Menlo', monospace; }
+    .article-body pre { background: #1f2937; color: #f9fafb; padding: 18px; border-radius: 8px; overflow-x: auto; margin: 14px 0; font-family: 'Consolas', monospace; font-size: 13px; }
+    .article-body pre code { background: transparent; color: inherit; padding: 0; }
+    .article-body a { color: #7c3aed; text-decoration: none; }
+    .article-body a:hover { text-decoration: underline; }
+    .article-body blockquote { border-left: 4px solid #7c3aed; padding: 8px 16px; background: #faf5ff; margin: 14px 0; color: #4b5563; font-style: italic; }
+    .article-body img { max-width: 100%; border-radius: 6px; margin: 12px 0; }
+    .article-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 20px 0; }
+
+    .feedback { background: linear-gradient(135deg, #f5f3ff, #fdf4ff); border-radius: 12px; padding: 24px 30px; margin-top: 30px; text-align: center; }
+    .feedback h3 { font-size: 18px; margin-bottom: 12px; color: #1f2937; }
+    .feedback-buttons { display: flex; gap: 12px; justify-content: center; margin: 14px 0; }
+    .feedback-btn { padding: 10px 24px; border: 2px solid #d1d5db; background: white; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.15s; font-size: 14px; }
+    .feedback-btn:hover { border-color: #7c3aed; }
+    .feedback-btn.helpful { color: #16a34a; }
+    .feedback-btn.helpful:hover, .feedback-btn.helpful.selected { border-color: #16a34a; background: #d1fae5; }
+    .feedback-btn.not-helpful { color: #dc2626; }
+    .feedback-btn.not-helpful:hover, .feedback-btn.not-helpful.selected { border-color: #dc2626; background: #fee2e2; }
+    .feedback-comment { margin-top: 12px; display: none; }
+    .feedback-comment textarea { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-family: inherit; resize: vertical; min-height: 60px; }
+    .feedback-comment button { margin-top: 8px; padding: 8px 18px; background: #7c3aed; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .feedback-status { margin-top: 12px; font-weight: 600; }
+
+    .cta-ticket { margin-top: 20px; padding: 18px; background: white; border-radius: 10px; text-align: center; border: 1px dashed #d1d5db; }
+    .cta-ticket a { color: #7c3aed; font-weight: 600; text-decoration: none; }
+
+    .article-stats { display: flex; gap: 20px; justify-content: center; margin-top: 14px; font-size: 12px; color: #6b7280; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-inner">
+        <div>
+            <a href="/kb" style="font-size:16px;font-weight:700;opacity:1;">📚 Base de Conocimiento</a>
+        </div>
+        <div>
+            <a href="/kb">← Ver todos</a>
+            <a href="/{{ user.role }}/dashboard">Panel</a>
+            <a href="/logout">Salir</a>
+        </div>
+    </div>
+</div>
+
+<div class="breadcrumb">
+    <a href="/kb">📚 Base de conocimiento</a> ›
+    {% if article.category %}<a href="/kb?category={{ article.category|urlencode }}">{{ article.category }}</a> › {% endif %}
+    <span>{{ article.title[:60] }}</span>
+</div>
+
+<article class="article">
+    <div class="article-header">
+        <h1>{{ article.title }}</h1>
+        <div class="article-meta">
+            {% if article.category %}<span class="category">📁 {{ article.category }}</span>{% endif %}
+            {% for t in (article.tags or '').split(',') if t.strip() %}
+                <span class="tag">#{{ t.strip() }}</span>
+            {% endfor %}
+            <span>👁 {{ article.views }} vistas</span>
+            <span>👍 {{ article.helpful_count }}</span>
+            {% if article.author %}<span>· por {{ article.author.name }}</span>{% endif %}
+            <span>· actualizado {{ article.updated_at.strftime('%Y-%m-%d') if article.updated_at else '' }}</span>
+        </div>
+    </div>
+
+    <div class="article-body" id="articleBody"></div>
+
+    <!-- Feedback -->
+    <div class="feedback">
+        <h3>¿Este artículo te resolvió el problema?</h3>
+        <div class="feedback-buttons">
+            <button class="feedback-btn helpful" id="btnHelpful" onclick="giveFeedback(true)">👍 Sí, gracias</button>
+            <button class="feedback-btn not-helpful" id="btnNotHelpful" onclick="giveFeedback(false)">👎 No, sigo con el problema</button>
+        </div>
+        <div class="feedback-comment" id="commentArea">
+            <textarea id="fbComment" placeholder="¿Qué le faltó a este artículo?"></textarea>
+            <button onclick="sendComment()">Enviar comentario</button>
+        </div>
+        <div class="feedback-status" id="fbStatus"></div>
+    </div>
+
+    <div class="cta-ticket">
+        ¿No encontrás lo que necesitás?
+        <a href="/{{ user.role }}/create">Creá un ticket →</a>
+    </div>
+</article>
+
+<script>
+const ARTICLE_ID = {{ article.id }};
+const RAW_BODY = {{ article.body|tojson }};
+
+// Markdown mínimo — suficiente para KB básica
+function renderMarkdown(md) {
+    let h = md;
+
+    // Escape HTML primero
+    h = h.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // Bloques de código ```
+    h = h.replace(/```([\s\S]*?)```/g, (m, code) => `<pre><code>${code}</code></pre>`);
+    // Inline code
+    h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+
+    // Headers
+    h = h.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    h = h.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    h = h.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+    // Blockquote
+    h = h.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+    // Listas
+    h = h.replace(/^\s*[-\*] (.+)$/gm, '<li>$1</li>');
+    h = h.replace(/(<li>[\s\S]+?<\/li>\n?)+/g, m => '<ul>' + m + '</ul>');
+    h = h.replace(/^\s*(\d+)\. (.+)$/gm, '<li>$2</li>');
+
+    // Links
+    h = h.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    // Imágenes
+    h = h.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
+
+    // Bold / italic
+    h = h.replace(/\*\*([^\*\n]+)\*\*/g, '<strong>$1</strong>');
+    h = h.replace(/\*([^\*\n]+)\*/g, '<em>$1</em>');
+
+    // HR
+    h = h.replace(/^---+$/gm, '<hr>');
+
+    // Párrafos (dobles saltos)
+    h = h.split(/\n\n+/).map(block => {
+        block = block.trim();
+        if (!block) return '';
+        if (/^<(h[1-3]|ul|ol|pre|blockquote|hr)/i.test(block)) return block;
+        return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
+    }).join('\n');
+
+    return h;
+}
+
+document.getElementById('articleBody').innerHTML = renderMarkdown(RAW_BODY);
+
+let currentChoice = null;
+async function giveFeedback(helpful) {
+    currentChoice = helpful;
+    document.getElementById('btnHelpful').classList.toggle('selected', helpful);
+    document.getElementById('btnNotHelpful').classList.toggle('selected', !helpful);
+    if (!helpful) {
+        document.getElementById('commentArea').style.display = 'block';
+    } else {
+        document.getElementById('commentArea').style.display = 'none';
+    }
+    await postFeedback(helpful, '');
+}
+
+async function sendComment() {
+    const comment = document.getElementById('fbComment').value.trim();
+    if (currentChoice === null) return;
+    await postFeedback(currentChoice, comment);
+    document.getElementById('fbStatus').innerHTML = '<span style="color:#16a34a;">✅ Gracias por tu comentario</span>';
+}
+
+async function postFeedback(helpful, comment) {
+    try {
+        const r = await fetch(`/api/kb/article/${ARTICLE_ID}/feedback`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({helpful, comment})
+        });
+        const data = await r.json();
+        if (data.success) {
+            document.getElementById('fbStatus').innerHTML = helpful
+                ? '<span style="color:#16a34a;">✅ ¡Genial! Marcado como útil</span>'
+                : '<span style="color:#4b5563;">Gracias por avisarnos. Vamos a mejorar este artículo.</span>';
+        }
+    } catch (e) {
+        document.getElementById('fbStatus').innerHTML = '<span style="color:#dc2626;">Error al guardar</span>';
+    }
+}
+</script>
+
+</body>
+</html>
