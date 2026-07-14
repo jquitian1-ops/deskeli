@@ -3873,6 +3873,27 @@ def api_health():
         'timestamp': datetime.now().isoformat()
     })
 
+
+@app.route('/api/session/ping')
+def api_session_ping():
+    """Keep-alive de sesión. Devuelve 200 si autenticado, 401 si expiró.
+
+    El frontend llama a este endpoint cada 5 min para que la cookie de sesión
+    se renueve automáticamente (SESSION_REFRESH_EACH_REQUEST=True por default)
+    y para detectar temprano que la sesión murió.
+    """
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'authenticated': False}), 401
+    session.permanent = True  # asegurar que se renueva la cookie
+    return jsonify({
+        'success': True,
+        'authenticated': True,
+        'user_id': session.get('user_id'),
+        'role': session.get('role'),
+        'company': session.get('company'),
+        'server_time': datetime.now().isoformat(timespec='seconds')
+    })
+
 # Detección de categoría a partir del texto del usuario.
 # Cada categoría tiene términos fuertes (high-confidence) y débiles (apoyo).
 CATEGORY_HINTS = {
