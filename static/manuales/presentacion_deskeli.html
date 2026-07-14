@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeskEli — Presentación Ejecutiva</title>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; scroll-padding-top: 90px; }
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, sans-serif;
+        background: #0b0b13;
+        color: #e5e7eb;
+        line-height: 1.6;
+        overflow-x: hidden;
+    }
+    :root {
+        --primary: #7c3aed;
+        --primary-dark: #5b21b6;
+        --primary-mid: #6d28d9;
+        --primary-light: #a78bfa;
+        --primary-lighter: #c4b5fd;
+        --bg-dark: #0b0b13;
+        --bg-panel: #12121e;
+        --bg-card: #1a1a2e;
+        --border: #26263a;
+        --text: #e5e7eb;
+        --text-muted: #9ca3af;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #3b82f6;
+    }
+
+    /* ═════ NAV ═════ */
+    .topnav {
+        position: sticky; top: 0; z-index: 1000;
+        background: rgba(11,11,19,0.85);
+        backdrop-filter: blur(14px);
+        border-bottom: 1px solid var(--border);
+        padding: 14px 32px;
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-logo {
+        width: 40px; height: 40px; border-radius: 50%;
+        border: 2px solid var(--primary);
+        object-fit: cover;
+    }
+    .brand-name { font-size: 18px; font-weight: 800; letter-spacing: 0.5px; }
+    .brand-name .accent { color: var(--primary-light); }
+    .nav-links { display: flex; gap: 8px; flex-wrap: wrap; }
+    .nav-links a {
+        color: var(--text-muted); text-decoration: none;
+        padding: 6px 12px; border-radius: 5px; font-size: 13px; font-weight: 600;
+        transition: all 0.15s;
+    }
+    .nav-links a:hover { color: var(--primary-light); background: rgba(124,58,237,0.1); }
+
+    /* ═════ HERO ═════ */
+    .hero {
+        position: relative;
+        padding: 100px 40px 120px;
+        background: radial-gradient(ellipse at top, rgba(124,58,237,0.35), transparent 60%),
+                    radial-gradient(ellipse at bottom left, rgba(59,130,246,0.2), transparent 50%),
+                    var(--bg-dark);
+        text-align: center;
+        overflow: hidden;
+    }
+    .hero::before {
+        content: '';
+        position: absolute; inset: 0;
+        background-image:
+            radial-gradient(circle at 20% 30%, rgba(124,58,237,0.15) 0%, transparent 40%),
+            radial-gradient(circle at 80% 70%, rgba(167,139,250,0.15) 0%, transparent 40%);
+        pointer-events: none;
+    }
+    .hero-logo {
+        width: 140px; height: 140px; border-radius: 50%;
+        border: 4px solid var(--primary);
+        box-shadow: 0 0 50px rgba(124,58,237,0.6), 0 0 100px rgba(124,58,237,0.3);
+        margin-bottom: 30px;
+        animation: heroFloat 4s ease-in-out infinite;
+        position: relative; z-index: 2;
+    }
+    @keyframes heroFloat {
+        0%, 100% { transform: translateY(0) rotate(0); }
+        50% { transform: translateY(-14px) rotate(-3deg); }
+    }
+    .hero h1 {
+        font-size: 64px; font-weight: 900; letter-spacing: -1.5px;
+        margin-bottom: 20px; position: relative; z-index: 2;
+        background: linear-gradient(135deg, #fff 30%, var(--primary-light));
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent;
+        line-height: 1.05;
+    }
+    .hero .tagline {
+        font-size: 22px; color: var(--text-muted);
+        max-width: 720px; margin: 0 auto 40px;
+        position: relative; z-index: 2;
+    }
+    .hero .kpi-strip {
+        display: flex; justify-content: center; gap: 60px; flex-wrap: wrap;
+        margin-top: 50px; position: relative; z-index: 2;
+    }
+    .kpi-hero {
+        text-align: center;
+    }
+    .kpi-hero .value {
+        font-size: 40px; font-weight: 800; color: var(--primary-light);
+        display: block; letter-spacing: -1px;
+    }
+    .kpi-hero .label {
+        font-size: 12px; color: var(--text-muted); text-transform: uppercase;
+        letter-spacing: 1px; margin-top: 4px;
+    }
+
+    /* ═════ SECTIONS ═════ */
+    section { padding: 90px 40px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .section-eyebrow {
+        display: inline-block;
+        color: var(--primary-light);
+        text-transform: uppercase; letter-spacing: 2px;
+        font-size: 12px; font-weight: 700;
+        padding: 4px 12px;
+        background: rgba(124,58,237,0.15);
+        border-radius: 20px;
+        margin-bottom: 16px;
+    }
+    h2.section-title {
+        font-size: 42px; font-weight: 800; letter-spacing: -0.5px;
+        margin-bottom: 14px; color: #fff;
+    }
+    .section-subtitle {
+        font-size: 17px; color: var(--text-muted);
+        max-width: 720px; margin-bottom: 50px; line-height: 1.55;
+    }
+    h3 { font-size: 22px; margin: 22px 0 10px; color: #fff; }
+    p { margin-bottom: 12px; color: var(--text-muted); font-size: 15px; }
+
+    /* ═════ 3 PORTALES ═════ */
+    .portals-grid {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+    }
+    .portal-card {
+        background: linear-gradient(135deg, var(--bg-card), var(--bg-panel));
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 32px 28px;
+        transition: all 0.3s;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+    }
+    .portal-card::before {
+        content: '';
+        position: absolute; top: 0; left: 0; right: 0; height: 3px;
+        background: var(--gradient, linear-gradient(90deg, var(--primary), var(--primary-light)));
+    }
+    .portal-card:hover {
+        transform: translateY(-8px);
+        border-color: var(--primary);
+        box-shadow: 0 20px 60px rgba(124,58,237,0.25);
+    }
+    .portal-icon {
+        font-size: 48px; margin-bottom: 20px; display: inline-block;
+        filter: drop-shadow(0 4px 12px rgba(124,58,237,0.4));
+    }
+    .portal-card h3 { color: #fff; font-size: 24px; margin-bottom: 10px; }
+    .portal-card p { font-size: 14px; margin-bottom: 20px; }
+    .portal-card ul { padding-left: 0; list-style: none; }
+    .portal-card li {
+        color: var(--text); font-size: 13.5px;
+        padding: 8px 0 8px 26px; position: relative;
+        border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    .portal-card li:first-child { border-top: none; }
+    .portal-card li::before {
+        content: '✓'; position: absolute; left: 0; top: 8px;
+        color: var(--primary-light); font-weight: 700;
+    }
+    .portal-empleado { --gradient: linear-gradient(90deg, #3b82f6, #06b6d4); }
+    .portal-tecnico  { --gradient: linear-gradient(90deg, #10b981, #34d399); }
+    .portal-admin    { --gradient: linear-gradient(90deg, #7c3aed, #a78bfa); }
+
+    /* ═════ FEATURE ACCORDION ═════ */
+    .features-list { display: flex; flex-direction: column; gap: 12px; }
+    .feature-item {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        transition: all 0.2s;
+    }
+    .feature-item.open {
+        border-color: var(--primary);
+        box-shadow: 0 6px 24px rgba(124,58,237,0.15);
+    }
+    .feature-header {
+        padding: 18px 24px;
+        cursor: pointer;
+        display: flex; align-items: center; gap: 16px;
+        transition: background 0.15s;
+    }
+    .feature-header:hover { background: rgba(124,58,237,0.06); }
+    .feature-header .fh-icon {
+        font-size: 28px; flex-shrink: 0;
+        width: 48px; height: 48px;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(124,58,237,0.15);
+        border-radius: 10px;
+    }
+    .feature-header .fh-text { flex: 1; }
+    .feature-header .fh-title {
+        font-size: 17px; font-weight: 700; color: #fff; margin-bottom: 3px;
+    }
+    .feature-header .fh-subtitle {
+        font-size: 13px; color: var(--text-muted);
+    }
+    .feature-header .fh-chevron {
+        color: var(--primary-light); font-size: 22px;
+        transition: transform 0.25s;
+    }
+    .feature-item.open .fh-chevron { transform: rotate(180deg); }
+    .feature-body {
+        max-height: 0; overflow: hidden;
+        transition: max-height 0.4s ease;
+        padding: 0 24px;
+    }
+    .feature-item.open .feature-body {
+        max-height: 1200px; padding: 0 24px 24px 88px;
+    }
+    .feature-body p { font-size: 14.5px; color: var(--text); line-height: 1.7; margin: 8px 0; }
+    .feature-body ul { padding-left: 24px; margin: 10px 0; }
+    .feature-body li { color: var(--text-muted); font-size: 14px; margin-bottom: 5px; }
+
+    /* ═════ TABS ═════ */
+    .tabs-bar {
+        display: flex; gap: 4px;
+        background: var(--bg-panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 4px;
+        margin-bottom: 24px;
+        overflow-x: auto;
+    }
+    .tab-btn {
+        padding: 10px 18px;
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        border-radius: 7px;
+        cursor: pointer;
+        font-size: 13.5px; font-weight: 600;
+        transition: all 0.15s;
+        white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--primary-light); }
+    .tab-btn.active {
+        background: var(--primary);
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(124,58,237,0.4);
+    }
+    .tab-panel { display: none; animation: fadeIn 0.3s ease; }
+    .tab-panel.active { display: block; }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ═════ MOCKUPS ═════ */
+    .mockup {
+        background: linear-gradient(135deg, #fff, #f9fafb);
+        color: #1f2937;
+        border-radius: 12px;
+        padding: 24px;
+        margin: 20px 0;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    .mockup-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding-bottom: 14px; border-bottom: 2px solid #e5e7eb;
+        margin-bottom: 16px;
+    }
+    .mockup-title { font-weight: 700; color: #111827; font-size: 15px; }
+    .mockup-badge {
+        padding: 4px 10px; border-radius: 4px;
+        font-size: 10px; font-weight: 700; text-transform: uppercase;
+    }
+    .mockup-badge.admin { background: #fbbf24; color: #78350f; }
+    .mockup-badge.tech  { background: #3b82f6; color: white; }
+    .mockup-badge.emp   { background: #10b981; color: white; }
+
+    .kpi-grid {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px;
+    }
+    .kpi-mini {
+        background: linear-gradient(135deg, #faf5ff, #f3e8ff);
+        border: 1px solid #e9d5ff;
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+    }
+    .kpi-mini .v { font-size: 24px; font-weight: 800; color: #5b21b6; }
+    .kpi-mini .l { font-size: 10px; color: #6b7280; text-transform: uppercase; margin-top: 2px; }
+
+    .mock-ticket {
+        background: white; padding: 14px 16px;
+        border-radius: 6px; margin-bottom: 8px;
+        border-left: 4px solid #7c3aed;
+        display: flex; justify-content: space-between; align-items: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .mock-ticket-info { flex: 1; }
+    .mock-ticket-title { font-weight: 700; color: #111827; font-size: 13px; margin-bottom: 3px; }
+    .mock-ticket-meta { font-size: 11px; color: #6b7280; }
+    .mock-badge {
+        padding: 3px 8px; border-radius: 4px;
+        font-size: 10px; font-weight: 700; text-transform: uppercase;
+    }
+
+    /* ═════ WORKFLOW ═════ */
+    .workflow {
+        display: flex; align-items: stretch; gap: 12px;
+        overflow-x: auto; padding: 20px 0;
+    }
+    .step {
+        min-width: 200px; flex: 1;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px;
+        position: relative;
+    }
+    .step:not(:last-child)::after {
+        content: '➜'; position: absolute;
+        right: -22px; top: 50%; transform: translateY(-50%);
+        font-size: 26px; color: var(--primary);
+        z-index: 2;
+    }
+    .step-num {
+        display: inline-block;
+        background: var(--primary);
+        color: #fff; width: 32px; height: 32px;
+        border-radius: 50%; text-align: center;
+        line-height: 32px; font-weight: 800;
+        margin-bottom: 12px;
+    }
+    .step h4 { color: #fff; font-size: 16px; margin-bottom: 6px; }
+    .step p { font-size: 13px; margin: 0; }
+
+    /* ═════ STAT GRID ═════ */
+    .stat-grid {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;
+    }
+    .stat-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+        text-align: center;
+        transition: all 0.2s;
+    }
+    .stat-card:hover {
+        border-color: var(--primary);
+        transform: translateY(-4px);
+    }
+    .stat-icon { font-size: 40px; margin-bottom: 12px; }
+    .stat-value {
+        font-size: 32px; font-weight: 800;
+        background: linear-gradient(135deg, var(--primary-light), var(--primary));
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 4px;
+    }
+    .stat-label { color: var(--text-muted); font-size: 13px; }
+
+    /* ═════ CTA ═════ */
+    .cta-section {
+        background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+        border-radius: 24px;
+        padding: 60px 40px;
+        text-align: center;
+        margin: 40px 20px;
+        position: relative;
+        overflow: hidden;
+    }
+    .cta-section::before {
+        content: ''; position: absolute; inset: 0;
+        background: radial-gradient(ellipse at center, rgba(255,255,255,0.1), transparent 60%);
+    }
+    .cta-section h2 { color: #fff; font-size: 36px; margin-bottom: 14px; }
+    .cta-section p { color: rgba(255,255,255,0.9); font-size: 17px; max-width: 600px; margin: 0 auto 24px; }
+    .cta-btn {
+        display: inline-block;
+        padding: 14px 32px;
+        background: #fff; color: var(--primary-dark);
+        text-decoration: none; font-weight: 700;
+        border-radius: 8px; margin: 0 8px;
+        transition: all 0.2s;
+    }
+    .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,0,0,0.3); }
+    .cta-btn.secondary {
+        background: transparent; color: #fff;
+        border: 2px solid rgba(255,255,255,0.4);
+    }
+    .cta-btn.secondary:hover { background: rgba(255,255,255,0.1); }
+
+    /* ═════ FAQ ═════ */
+    .faq-item {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        margin-bottom: 10px;
+        overflow: hidden;
+    }
+    .faq-q {
+        padding: 18px 22px;
+        cursor: pointer;
+        font-weight: 600; color: #fff;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .faq-q:hover { background: rgba(124,58,237,0.06); }
+    .faq-q::after {
+        content: '+'; color: var(--primary-light); font-size: 22px;
+        transition: transform 0.25s;
+    }
+    .faq-item.open .faq-q::after { transform: rotate(45deg); }
+    .faq-a {
+        max-height: 0; overflow: hidden;
+        transition: max-height 0.35s ease;
+        padding: 0 22px;
+    }
+    .faq-item.open .faq-a {
+        max-height: 500px; padding: 0 22px 18px;
+    }
+    .faq-a p { color: var(--text-muted); font-size: 14px; margin: 0; }
+
+    /* ═════ CALLOUT ═════ */
+    .callout {
+        display: flex; gap: 14px;
+        background: linear-gradient(135deg, rgba(124,58,237,0.1), rgba(59,130,246,0.06));
+        border: 1px solid rgba(124,58,237,0.3);
+        border-left: 4px solid var(--primary);
+        border-radius: 10px;
+        padding: 18px 22px;
+        margin: 20px 0;
+    }
+    .callout-icon { font-size: 28px; flex-shrink: 0; }
+    .callout p { color: var(--text); font-size: 14.5px; margin: 0; }
+    .callout strong { color: #fff; }
+
+    /* ═════ INTEGRACIONES ═════ */
+    .logos-strip {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 16px; margin: 30px 0;
+    }
+    .logo-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        transition: all 0.2s;
+    }
+    .logo-card:hover {
+        border-color: var(--primary);
+        transform: translateY(-3px);
+    }
+    .logo-card .icon { font-size: 40px; margin-bottom: 10px; }
+    .logo-card .name { font-weight: 700; color: #fff; font-size: 14px; margin-bottom: 4px; }
+    .logo-card .desc { color: var(--text-muted); font-size: 11px; }
+
+    /* ═════ FOOTER ═════ */
+    footer {
+        background: #05050b;
+        padding: 40px;
+        text-align: center;
+        border-top: 1px solid var(--border);
+        color: var(--text-muted);
+        font-size: 13px;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+        .hero h1 { font-size: 42px; }
+        .hero .tagline { font-size: 18px; }
+        .hero .kpi-strip { gap: 30px; }
+        .kpi-hero .value { font-size: 30px; }
+        .portals-grid { grid-template-columns: 1fr; }
+        h2.section-title { font-size: 30px; }
+        section { padding: 60px 20px; }
+        .step:not(:last-child)::after { display: none; }
+        .workflow { flex-direction: column; }
+    }
+</style>
+</head>
+<body>
+
+<!-- ═════ NAV ═════ -->
+<nav class="topnav">
+    <div class="brand">
+        <img src="/static/eli.png" alt="Eli" class="brand-logo" onerror="this.style.display='none'">
+        <div class="brand-name">Desk<span class="accent">Eli</span></div>
+    </div>
+    <div class="nav-links">
+        <a href="#portales">Portales</a>
+        <a href="#funcionalidades">Funcionalidades</a>
+        <a href="#automatizacion">Automatización</a>
+        <a href="#integraciones">Integraciones</a>
+        <a href="#seguridad">Seguridad</a>
+        <a href="#faq">FAQ</a>
+    </div>
+</nav>
+
+<!-- ═════ HERO ═════ -->
+<section class="hero" style="padding-top:60px;">
+    <img src="/static/eli.png" alt="Eli" class="hero-logo" onerror="this.style.display='none'">
+    <h1>Gestión inteligente<br>de incidencias TI</h1>
+    <p class="tagline">
+        DeskEli centraliza las solicitudes de soporte, mide SLA en tiempo real y
+        automatiza la asignación con IA — todo en una plataforma multi-empresa.
+    </p>
+
+    <div class="kpi-strip">
+        <div class="kpi-hero">
+            <span class="value">8.000+</span>
+            <div class="label">Empleados atendidos</div>
+        </div>
+        <div class="kpi-hero">
+            <span class="value">100+</span>
+            <div class="label">Técnicos TI</div>
+        </div>
+        <div class="kpi-hero">
+            <span class="value">3</span>
+            <div class="label">Empresas segregadas</div>
+        </div>
+        <div class="kpi-hero">
+            <span class="value">&lt;3s</span>
+            <div class="label">Actualización tiempo real</div>
+        </div>
+    </div>
+</section>
+
+<!-- ═════ VALOR ═════ -->
+<section id="valor">
+    <div class="container">
+        <span class="section-eyebrow">¿Qué es DeskEli?</span>
+        <h2 class="section-title">La mesa de ayuda que conecta empleados, técnicos y gerencia</h2>
+        <p class="section-subtitle">
+            Diseñada para operar simultáneamente en 3 empresas (Manufactureras Eliot,
+            Pash, Primatela) con estricta segregación de datos y roles. Todo se
+            configura desde el panel administrativo — sin tocar código.
+        </p>
+
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🎯</div>
+                <div class="stat-value">SLA</div>
+                <div class="stat-label">Cumplimiento medido por prioridad — automáticamente</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🤖</div>
+                <div class="stat-value">4 Agentes IA</div>
+                <div class="stat-label">Clasificar, asignar, responder, escalar</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🔐</div>
+                <div class="stat-value">Multi-tenant</div>
+                <div class="stat-label">Datos aislados por empresa · Auditoría 12 meses</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⚡</div>
+                <div class="stat-value">Tiempo real</div>
+                <div class="stat-label">WebSocket · Cambios visibles en &lt;3 seg</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═════ 3 PORTALES ═════ -->
+<section id="portales" style="background: var(--bg-panel);">
+    <div class="container">
+        <span class="section-eyebrow">Los 3 portales</span>
+        <h2 class="section-title">Una experiencia para cada rol</h2>
+        <p class="section-subtitle">
+            Cada usuario ve solo lo que necesita, con permisos y flujos
+            específicos según su función.
+        </p>
+
+        <div class="portals-grid">
+            <div class="portal-card portal-empleado">
+                <div class="portal-icon">👤</div>
+                <h3>Portal del Empleado</h3>
+                <p>Autoservicio con guía inteligente y visibilidad total de sus casos.</p>
+                <ul>
+                    <li>Crear tickets con plantillas guiadas</li>
+                    <li>Bot IA sugiere soluciones antes de crear el caso</li>
+                    <li>Chat directo con el técnico asignado</li>
+                    <li>Ver estado y SLA en tiempo real</li>
+                    <li>Adjuntar capturas, PDFs, videos</li>
+                    <li>Notificaciones por email en cambios de estado</li>
+                </ul>
+            </div>
+
+            <div class="portal-card portal-tecnico">
+                <div class="portal-icon">🔧</div>
+                <h3>Portal del Técnico</h3>
+                <p>Cola priorizada, cronómetro por caso, y colaboración por grupos.</p>
+                <ul>
+                    <li>Dashboard con "Mis casos" y "Grupo de trabajo"</li>
+                    <li>SLA visual (verde/amarillo/rojo) por ticket</li>
+                    <li>Cronómetro para medir tiempo trabajado</li>
+                    <li>Crear subtareas y asignarlas a colegas</li>
+                    <li>Escalar casos con justificación</li>
+                    <li>Manual interactivo integrado</li>
+                </ul>
+            </div>
+
+            <div class="portal-card portal-admin">
+                <div class="portal-icon">👑</div>
+                <h3>Portal del Administrador</h3>
+                <p>Gobierno completo: usuarios, reglas, integraciones y reportes.</p>
+                <ul>
+                    <li>Dashboard con KPIs en vivo</li>
+                    <li>Kanban de tickets por estado</li>
+                    <li>Gestión de usuarios, roles y subroles</li>
+                    <li>Reportes automáticos programados</li>
+                    <li>Config de SLA, plantillas, integraciones</li>
+                    <li>Auditoría completa de acciones</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═════ FLUJO DE UN TICKET ═════ -->
+<section id="flujo">
+    <div class="container">
+        <span class="section-eyebrow">Flujo típico</span>
+        <h2 class="section-title">De la solicitud a la resolución</h2>
+        <p class="section-subtitle">Un ticket sigue este camino con visibilidad total en cada paso.</p>
+
+        <div class="workflow">
+            <div class="step">
+                <div class="step-num">1</div>
+                <h4>Empleado crea</h4>
+                <p>Con plantilla guiada o descripción libre. El bot IA sugiere soluciones antes.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <h4>IA clasifica</h4>
+                <p>Categoría, prioridad, urgencia — evalúa contexto histórico y palabras clave.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <h4>Auto-asignación</h4>
+                <p>Al técnico con matching de subrol + menor carga. Balanceo automático.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">4</div>
+                <h4>Trabajo + SLA</h4>
+                <p>Técnico resuelve. Sistema monitorea SLA, alerta al 50%, 100%, 200%.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">5</div>
+                <h4>Cierre auditado</h4>
+                <p>Solución documentada. Notificación al usuario. KPIs actualizados.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═════ FUNCIONALIDADES ═════ -->
+<section id="funcionalidades" style="background: var(--bg-panel);">
+    <div class="container">
+        <span class="section-eyebrow">Funcionalidades</span>
+        <h2 class="section-title">Todo lo que necesita una mesa de ayuda enterprise</h2>
+        <p class="section-subtitle">Explorá cada funcionalidad con detalle.</p>
+
+        <div class="features-list">
+            <div class="feature-item">
+                <div class="feature-header" onclick="toggleFeature(this)">
+                    <div class="fh-icon">📋</div>
+                    <div class="fh-text">
+                        <div class="fh-title">Sistema de Tickets Multi-empresa</div>
+                        <div class="fh-subtitle">Estados, prioridades, categorías y numeración automática por empresa</div>
+                    </div>
+                    <div class="fh-chevron">▼</div>
+                </div>
+                <div class="feature-body">
+                    <p>Cada empresa tiene su propia numeración (<code>TKT-ELIOT-00001</code>, <code>TKT-PASH-00001</code>, <code>TKT-PRIMATELA-00001</code>) y los datos NO se mezclan entre empresas — un técnico de Eliot no puede ver tickets de Pash (salvo master admin).</p>
+                    <ul>
+                        <li>4 estados: Abierto → En Progreso → Esperando Usuario → Resuelto</li>
+                        <li>4 prioridades: Crítica · Alta · Media · Baja (con SLA configurable)</li>
+                        <li>Categorías + tags personalizables por empresa</li>
+                        <li>Búsqueda full-text (Ctrl+K) con &lt;200ms de respuesta en 1M tickets</li>
+                        <li>Historial completo de cambios por ticket</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="feature-item">
+                <div class="feature-header" onclick="toggleFeature(this)">
+                    <div class="fh-icon">⏱️</div>
+                    <div class="fh-text">
+                        <div class="fh-title">Gestión de SLA</div>
+                        <div class="fh-subtitle">Tiempos por prioridad con escalación automática y pausas inteligentes</div>
+                    </div>
+                    <div class="fh-chevron">▼</div>
+                </div>
+                <div class="feature-body">
+                    <p>El SLA se mide en tiempo real y se representa visualmente con código de colores:</p>
+                    <ul>
+                        <li>🟢 Verde: &lt;50% del tiempo consumido</li>
+                        <li>🟡 Amarillo: 50–100% del tiempo</li>
+                        <li>🔴 Rojo: SLA vencido (con % de sobrepaso)</li>
+                    </ul>
+                    <p><strong>Escalación automática:</strong> al 50% notifica al técnico, al 100% notifica al líder + canal Teams, al 200% notifica al gerente.</p>
+                    <p><strong>Pausa de SLA:</strong> cuando el ticket pasa a "Esperando Usuario", el cronómetro se pausa — no penaliza al técnico por demoras del usuario.</p>
+                </div>
+            </div>
+
+            <div class="feature-item">
+                <div class="feature-header" onclick="toggleFeature(this)">
+                    <div class="fh-icon">✅</div>
+                    <div class="fh-text">
+                        <div class="fh-title">Subtareas y Colaboración</div>
+                        <div class="fh-subtitle">Dividí tickets complejos en pasos con asignados independientes</div>
+                    </div>
+                    <div class="fh-chevron">▼</div>
+                </div>
+                <div class="feature-body">
+                    <p>Un ticket puede tener múltiples subtareas, cada una con su propio técnico asignado, SLA, estado y adjuntos. Ideal para casos donde intervienen varias áreas (ej. redes + hardware + accesos).</p>
+                    <ul>
+                        <li>Numeración automática: <code>TKT-ELIOT-00042-S01</code>, <code>-S02</code>...</li>
+                        <li>Progreso visual del ticket padre (X% resuelto)</li>
+                        <li>Chat de comentarios por subtarea</li>
+                        <li>Adjuntos propios de la subtarea</li>
+                        <li>Vista de "acceso al caso padre" desde la subtarea</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="feature-item">
+                <div class="feature-header" onclick="toggleFeature(this)">
+                    <div class="fh-icon">📎</div>
+                    <div class="fh-text">
+                        <div class="fh-title">Adjuntos y Evidencia</div>
+                        <div class="fh-subtitle">Archivos vinculados al ticket con validación de tipo y tamaño</div>
+                    </div>
+                    <div class="fh-chevron">▼</div>
+                </div>
+                <div class="feature-body">
+                    <p>Empleados y técnicos pueden adjuntar archivos hasta 25 MB por archivo. Almacenamiento en disco (no en BD) con nombres únicos generados.</p>
+                    <ul>
+                        <li>Tipos permitidos: PDF, imágenes (PNG/JPG/GIF), Office, ZIP, TXT, CSV, logs, emails (EML/MSG)</li>
+                        <li>Compresión automática de imágenes &gt;1920px (ahorro de disco)</li>
+                        <li>Visualización desde el caso Y desde las subtareas del mismo caso</li>
+                        <li>Registro auditado: quién subió, cuándo, tamaño</li>
+                        <li>Descarga con nombre original preservado</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="feature-item">
+                <div class="feature-header" onclick="toggleFeature(this)">
+                    <div class="fh-icon">👥</div>
+                    <div class="fh-text">
+                        <div class="fh-title">Gestión de Usuarios y Roles</div>
+                        <div class="fh-subtitle">3 roles base + subroles de especialización + roles personalizados</div>
+                    </div>
+                    <div class="fh-chevron">▼</div>
+                </div>
+                <div class="feature-body">
+                    <p><strong>Roles base</strong> (permisos del sistema): 👤 Empleado, 🔧 Técnico, 👑 Administrador.</p>
+                    <p><strong>Subroles</strong> (especializaciones): SAP, Redes, Impresoras, Hardware, Seguridad, etc. Se usan para asignación automática por afinidad.</p>
+                    <p><strong>Roles personalizados</strong>: etiquetas visuales adicionales (Líder Nivel 2, Backup del jefe, etc.) sin cambiar permisos.</p>
+                    <p><strong>Espejo cross-empresa</strong>: un técnico creado en Eliot aparece automáticamente en Pash y Primatela — mismo login, casos consolidados en un dashboard.</p>
+                </div>
+            </div>
+
+            <div class="feature-item">
+                <div class="feature-header" onclick="toggleFeature(this)">
+                    <div class="fh-icon">📜</div>
+                    <div class="fh-text">
+                        <div class="fh-title">Guiones (Plantillas de Subtareas)</div>
+                        <div class="fh-subtitle">Estructuras predefinidas invocables desde la API externa</div>
+                    </div>
+                    <div class="fh-chevron">▼</div>
+                </div>
+                <div class="feature-body">
+                    <p>Un <strong>guión</strong> es una plantilla con subtareas ya definidas y técnicos preasignados. Ideal cuando un proveedor externo (auditoría, compliance) crea tickets recurrentes con la misma estructura.</p>
+                    <p>El proveedor solo manda <code>{"guion_code": "auditoria-q1"}</code> + adjuntos → DeskEli crea automáticamente el ticket padre + todas las subtareas asignadas a los especialistas correctos.</p>
+                    <p>Si un especialista cambia de rol, se actualiza el guion desde el panel admin — el proveedor no se entera del cambio, sigue mandando el mismo <code>guion_code</code>.</p>
+                </div>
+            </div>
+
+            <div class="feature-item">
+                <div class="feature-header" onclick="toggleFeature(this)">
+                    <div class="fh-icon">🎨</div>
+                    <div class="fh-text">
+                        <div class="fh-title">Plantillas de Ticket</div>
+                        <div class="fh-subtitle">Formularios guiados por tipo de problema (Software, Red, SAP, etc.)</div>
+                    </div>
+                    <div class="fh-chevron">▼</div>
+                </div>
+                <div class="feature-body">
+                    <p>El empleado no llena un ticket vacío: elige una plantilla y responde un formulario estructurado. Cada campo tiene tipo específico (texto, textarea, select, fecha).</p>
+                    <p><strong>Plantillas del sistema:</strong> Software, Hardware, Impresora, Red, SAP, Accesos, Correo, Capacitación.</p>
+                    <p><strong>Plantillas personalizadas:</strong> el admin puede crear nuevas plantillas por área (ej. "Solicitud de ingreso de usuarios" con 20 campos guiados).</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═════ AUTOMATIZACIÓN ═════ -->
+<section id="automatizacion">
+    <div class="container">
+        <span class="section-eyebrow">Automatización con IA</span>
+        <h2 class="section-title">4 agentes que trabajan por vos</h2>
+        <p class="section-subtitle">
+            El Agent Orchestrator coordina 4 agentes especializados que procesan
+            cada ticket sin intervención humana.
+        </p>
+
+        <div class="tabs-bar">
+            <button class="tab-btn active" onclick="switchTab('classifier')">🎯 Classifier</button>
+            <button class="tab-btn" onclick="switchTab('assignor')">👤 Assignor</button>
+            <button class="tab-btn" onclick="switchTab('responder')">💬 Responder</button>
+            <button class="tab-btn" onclick="switchTab('escalator')">📈 Escalator</button>
+        </div>
+
+        <div class="tab-panel active" id="tab-classifier">
+            <h3>🎯 Agent Classifier</h3>
+            <p>Al crear un ticket, analiza el título + descripción para determinar:</p>
+            <ul>
+                <li><strong>Categoría</strong> (Software, Red, Hardware, SAP...)</li>
+                <li><strong>Prioridad sugerida</strong> según urgencia detectada en el texto</li>
+                <li><strong>Tags</strong> automáticos para reporting</li>
+            </ul>
+            <p>Cada decisión queda en el log con nivel de confianza (%). Si baja del 70%, se marca como "revisar" y el técnico puede corregir.</p>
+        </div>
+
+        <div class="tab-panel" id="tab-assignor">
+            <h3>👤 Agent Assignor</h3>
+            <p>Elige al técnico ideal para cada ticket:</p>
+            <ul>
+                <li>Filtra técnicos con <strong>subroles matcheando la categoría</strong></li>
+                <li>Balanceo por <strong>carga actual</strong> — al que tenga menos tickets</li>
+                <li>Considera <strong>historial de éxito</strong> en categorías similares</li>
+                <li>Fallback: si nadie matchea, queda en cola general</li>
+            </ul>
+        </div>
+
+        <div class="tab-panel" id="tab-responder">
+            <h3>💬 Agent Responder</h3>
+            <p>Sugiere respuestas iniciales al usuario mientras el técnico se conecta:</p>
+            <ul>
+                <li>Consulta la base de conocimiento (KB) buscando casos similares</li>
+                <li>Sugiere pasos de autoresolución cuando aplica</li>
+                <li>Si el problema es común (contraseña, VPN), puede resolver sin ticket</li>
+                <li>Integrado con Anthropic Claude para respuestas naturales</li>
+            </ul>
+        </div>
+
+        <div class="tab-panel" id="tab-escalator">
+            <h3>📈 Agent Escalator</h3>
+            <p>Monitorea tickets cada 5 minutos y escala si:</p>
+            <ul>
+                <li><strong>SLA al 80%+</strong> con &gt;30 min sin actividad → notifica al técnico</li>
+                <li><strong>SLA vencido</strong> → notifica al líder + canal Teams</li>
+                <li><strong>Bloqueado 2+ horas</strong> sin updates → sugiere reasignación</li>
+                <li>Genera reporte semanal (lunes) con casos vencidos o &gt;6 días abiertos</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<!-- ═════ INTEGRACIONES ═════ -->
+<section id="integraciones" style="background: var(--bg-panel);">
+    <div class="container">
+        <span class="section-eyebrow">Integraciones</span>
+        <h2 class="section-title">Se conecta con lo que ya usan</h2>
+        <p class="section-subtitle">
+            Sin islas de datos. DeskEli se integra con las herramientas corporativas
+            que ya están en producción.
+        </p>
+
+        <div class="logos-strip">
+            <div class="logo-card">
+                <div class="icon">🔐</div>
+                <div class="name">Microsoft Entra ID</div>
+                <div class="desc">SSO OAuth 2.0 por empresa</div>
+            </div>
+            <div class="logo-card">
+                <div class="icon">🏛</div>
+                <div class="name">LDAP / Active Directory</div>
+                <div class="desc">Autenticación corporativa</div>
+            </div>
+            <div class="logo-card">
+                <div class="icon">💬</div>
+                <div class="name">Microsoft Teams</div>
+                <div class="desc">Alertas por canal / webhook</div>
+            </div>
+            <div class="logo-card">
+                <div class="icon">📧</div>
+                <div class="name">SMTP / IMAP</div>
+                <div class="desc">Emails salientes + Email→Ticket</div>
+            </div>
+            <div class="logo-card">
+                <div class="icon">📦</div>
+                <div class="name">Office 365</div>
+                <div class="desc">Buzones vía OAuth XOAUTH2</div>
+            </div>
+            <div class="logo-card">
+                <div class="icon">🤖</div>
+                <div class="name">Anthropic Claude</div>
+                <div class="desc">IA para bot + agentes</div>
+            </div>
+            <div class="logo-card">
+                <div class="icon">🔑</div>
+                <div class="name">API REST + JWT</div>
+                <div class="desc">Sistemas externos crean tickets</div>
+            </div>
+            <div class="logo-card">
+                <div class="icon">🖥</div>
+                <div class="name">Monitoreo Servidores</div>
+                <div class="desc">Ping cada 5 min → auto-ticket</div>
+            </div>
+        </div>
+
+        <div class="callout" style="margin-top:40px;">
+            <div class="callout-icon">🔌</div>
+            <div>
+                <p><strong>API externa</strong> — Proveedores autorizados pueden crear tickets vía HTTP POST con Bearer token. Incluye soporte para adjuntos base64, guiones preconfigurados y filtrado por empresa. Documentación completa incluida.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═════ REPORTES ═════ -->
+<section id="reportes">
+    <div class="container">
+        <span class="section-eyebrow">Reportes Ejecutivos</span>
+        <h2 class="section-title">Métricas que llegan solas</h2>
+        <p class="section-subtitle">
+            Reportes automáticos por email con PDF + Excel. Programados o bajo demanda.
+        </p>
+
+        <div class="tabs-bar">
+            <button class="tab-btn active" onclick="switchTab('quincenal')">📅 Quincenal</button>
+            <button class="tab-btn" onclick="switchTab('mensual')">📆 Mensual</button>
+            <button class="tab-btn" onclick="switchTab('anual')">🗓️ Anual</button>
+            <button class="tab-btn" onclick="switchTab('lunes')">🚨 Lunes (Alerta)</button>
+        </div>
+
+        <div class="tab-panel active" id="tab-quincenal">
+            <h3>📅 Reporte Quincenal</h3>
+            <p>Se envía los días 1 y 15 de cada mes. Cubre los últimos 15 días con:</p>
+            <ul>
+                <li>Total de tickets creados / resueltos / vencidos</li>
+                <li>Cumplimiento SLA por prioridad</li>
+                <li>Top 5 categorías con más incidentes</li>
+                <li>Ranking de técnicos (velocidad + calidad)</li>
+                <li>Gráficos comparativos vs quincena anterior</li>
+            </ul>
+        </div>
+
+        <div class="tab-panel" id="tab-mensual">
+            <h3>📆 Reporte Mensual</h3>
+            <p>El primer día hábil de cada mes, con el detalle completo del mes anterior:</p>
+            <ul>
+                <li>Resumen ejecutivo con highlights</li>
+                <li>Métricas de servicio (MTTR, primera respuesta, reapertura)</li>
+                <li>Análisis por categoría, prioridad y unidad de negocio</li>
+                <li>Detalle de tickets críticos que superaron SLA</li>
+                <li>Recomendaciones automáticas basadas en patrones</li>
+            </ul>
+        </div>
+
+        <div class="tab-panel" id="tab-anual">
+            <h3>🗓️ Reporte Anual</h3>
+            <p>El 1 de enero con el consolidado del año anterior:</p>
+            <ul>
+                <li>Volumen total de tickets · comparativa vs año previo</li>
+                <li>Evolución mensual de KPIs</li>
+                <li>Tendencias por categoría y usuario</li>
+                <li>Cumplimiento SLA anual por prioridad</li>
+                <li>Datos para presentación a directorio</li>
+            </ul>
+        </div>
+
+        <div class="tab-panel" id="tab-lunes">
+            <h3>🚨 Alerta de Lunes</h3>
+            <p>Todos los lunes por la mañana, específico para líderes de área:</p>
+            <ul>
+                <li>Lista de casos <strong>vencidos por SLA</strong> del grupo</li>
+                <li>Casos con <strong>más de 6 días abiertos</strong> aunque no venzan aún</li>
+                <li>Si el grupo está al día: mensaje verde ✅ "Equipo al día"</li>
+                <li>Incluye asignado, prioridad, edad, tiempo de sobrepaso</li>
+                <li>CC configurable a especialistas del grupo</li>
+            </ul>
+        </div>
+
+        <div class="callout">
+            <div class="callout-icon">👥</div>
+            <div>
+                <p><strong>Personalización por destinatario</strong> — Cada reporte se filtra al equipo del destinatario (opcional) y puede tener múltiples especialistas en copia. El gerente ve todo, el líder de red solo ve red.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═════ SEGURIDAD ═════ -->
+<section id="seguridad" style="background: var(--bg-panel);">
+    <div class="container">
+        <span class="section-eyebrow">Seguridad</span>
+        <h2 class="section-title">Nivel enterprise por defecto</h2>
+        <p class="section-subtitle">Todos los controles activos sin configuración adicional.</p>
+
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🔒</div>
+                <div class="stat-value">PBKDF2</div>
+                <div class="stat-label">100k iteraciones + salt por usuario</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⚡</div>
+                <div class="stat-value">&lt;1 seg</div>
+                <div class="stat-label">Revocación JWT en logout</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🛡️</div>
+                <div class="stat-value">RBAC</div>
+                <div class="stat-label">Permisos por rol validados por endpoint</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🔐</div>
+                <div class="stat-value">Fernet</div>
+                <div class="stat-label">Secretos cifrados en BD (LDAP, SMTP, OAuth)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📋</div>
+                <div class="stat-value">12 meses</div>
+                <div class="stat-label">Retención de audit log (política)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🚫</div>
+                <div class="stat-value">5 intentos</div>
+                <div class="stat-label">Bloqueo automático de cuenta · 15 min</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⏰</div>
+                <div class="stat-value">15 min</div>
+                <div class="stat-label">Timeout de sesión · Aviso 60 seg antes</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">💾</div>
+                <div class="stat-value">Diario</div>
+                <div class="stat-label">Backup automático a las 2 AM · Retención 30 días</div>
+            </div>
+        </div>
+
+        <div class="callout" style="margin-top:30px;">
+            <div class="callout-icon">🏢</div>
+            <div>
+                <p><strong>Segregación estricta por empresa</strong> — Toda consulta filtra automáticamente por <code>company_id</code>. Un usuario de Pash NO puede ver tickets, técnicos, ni configuración de Eliot o Primatela. La única excepción es el admin master (Eliot) para gobierno global.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═════ MOCKUPS ═════ -->
+<section id="mockups">
+    <div class="container">
+        <span class="section-eyebrow">Vista previa</span>
+        <h2 class="section-title">Así se ve en acción</h2>
+        <p class="section-subtitle">Mockups del panel administrativo y del portal técnico.</p>
+
+        <div class="mockup">
+            <div class="mockup-header">
+                <div class="mockup-title">📊 Panel Admin — Dashboard</div>
+                <div class="mockup-badge admin">👑 ADMIN</div>
+            </div>
+            <div class="kpi-grid">
+                <div class="kpi-mini"><div class="v">48</div><div class="l">Abiertos</div></div>
+                <div class="kpi-mini"><div class="v">23</div><div class="l">En Progreso</div></div>
+                <div class="kpi-mini"><div class="v">156</div><div class="l">Resueltos</div></div>
+                <div class="kpi-mini"><div class="v">5</div><div class="l">SLA Rojo</div></div>
+                <div class="kpi-mini"><div class="v">94%</div><div class="l">Cumplimiento</div></div>
+                <div class="kpi-mini"><div class="v">12</div><div class="l">Técnicos activos</div></div>
+            </div>
+        </div>
+
+        <div class="mockup">
+            <div class="mockup-header">
+                <div class="mockup-title">🔧 Cola del Técnico — Mis casos</div>
+                <div class="mockup-badge tech">🔧 TÉCNICO</div>
+            </div>
+            <div class="mock-ticket" style="border-left-color:#dc2626;">
+                <div class="mock-ticket-info">
+                    <div class="mock-ticket-title">TKT-ELIOT-00147 · SAP no responde en módulo FI</div>
+                    <div class="mock-ticket-meta">Prioridad: 🔴 Crítica · Creado hace 1h · Asignado por IA</div>
+                </div>
+                <span class="mock-badge" style="background:#fee2e2;color:#991b1b;">⏰ SLA 15min</span>
+            </div>
+            <div class="mock-ticket" style="border-left-color:#f59e0b;">
+                <div class="mock-ticket-info">
+                    <div class="mock-ticket-title">TKT-ELIOT-00145 · Impresora piso 3 sin tóner</div>
+                    <div class="mock-ticket-meta">Prioridad: 🟡 Media · Creado hace 3h</div>
+                </div>
+                <span class="mock-badge" style="background:#fef3c7;color:#92400e;">⏱ 4h restantes</span>
+            </div>
+            <div class="mock-ticket" style="border-left-color:#10b981;">
+                <div class="mock-ticket-info">
+                    <div class="mock-ticket-title">TKT-ELIOT-00142 · Solicitud VPN Rosario</div>
+                    <div class="mock-ticket-meta">Prioridad: 🟢 Baja · Creado ayer</div>
+                </div>
+                <span class="mock-badge" style="background:#d1fae5;color:#065f46;">✓ 22h restantes</span>
+            </div>
+        </div>
+
+        <div class="mockup">
+            <div class="mockup-header">
+                <div class="mockup-title">👤 Portal Empleado — Crear Ticket</div>
+                <div class="mockup-badge emp">👤 EMPLEADO</div>
+            </div>
+            <p style="color:#6b7280;font-size:13px;margin:0 0 12px;">Selecciona plantilla o describí el problema:</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;">
+                <div style="background:#f9fafb;padding:14px;border-radius:8px;border:1px solid #e5e7eb;text-align:center;">🖨️<br><small style="color:#374151;font-weight:600;">Impresora</small></div>
+                <div style="background:#f9fafb;padding:14px;border-radius:8px;border:1px solid #e5e7eb;text-align:center;">🌐<br><small style="color:#374151;font-weight:600;">Red</small></div>
+                <div style="background:#f9fafb;padding:14px;border-radius:8px;border:1px solid #e5e7eb;text-align:center;">💻<br><small style="color:#374151;font-weight:600;">Software</small></div>
+                <div style="background:#f9fafb;padding:14px;border-radius:8px;border:1px solid #e5e7eb;text-align:center;">📊<br><small style="color:#374151;font-weight:600;">SAP</small></div>
+                <div style="background:#f9fafb;padding:14px;border-radius:8px;border:1px solid #e5e7eb;text-align:center;">🔑<br><small style="color:#374151;font-weight:600;">Accesos</small></div>
+                <div style="background:#faf5ff;padding:14px;border-radius:8px;border:2px dashed #a78bfa;text-align:center;">✍️<br><small style="color:#5b21b6;font-weight:600;">Libre</small></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═════ CTA ═════ -->
+<div class="cta-section">
+    <h2>Listo para ver DeskEli funcionando</h2>
+    <p>Explorá la aplicación en vivo o consultá los manuales por rol.</p>
+    <a href="https://deskeli.eliotproyectos.tech/login" class="cta-btn">🚀 Ir a la aplicación</a>
+    <a href="/static/manuales/manual_admin.html" class="cta-btn secondary">📖 Manual Admin</a>
+    <a href="/static/manuales/manual_tecnico.html" class="cta-btn secondary">📖 Manual Técnico</a>
+    <a href="/static/manuales/manual_empleado.html" class="cta-btn secondary">📖 Manual Empleado</a>
+</div>
+
+<!-- ═════ FAQ ═════ -->
+<section id="faq" style="background: var(--bg-panel);">
+    <div class="container">
+        <span class="section-eyebrow">Preguntas frecuentes</span>
+        <h2 class="section-title">Lo que suelen preguntar</h2>
+        <p class="section-subtitle">Si no está acá, escribinos y lo agregamos.</p>
+
+        <div class="faq-item">
+            <div class="faq-q" onclick="toggleFaq(this)">¿Cómo se aíslan los datos entre empresas?</div>
+            <div class="faq-a"><p>Cada consulta a la base de datos filtra por <code>company_id</code> del usuario autenticado. Los WebSockets usan "rooms" separadas por empresa, y la búsqueda full-text también respeta ese límite. Solo el admin master (Manufactureras Eliot) puede saltar la segregación para tareas de gobierno global.</p></div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q" onclick="toggleFaq(this)">¿Qué pasa si el servidor se cae?</div>
+            <div class="faq-a"><p>DeskEli incluye un <strong>watchdog</strong> que reinicia el proceso ante fallas repetidas y notifica al admin si se sobrepasa un umbral. Los tickets NO se pierden — SQLite en modo WAL permite lecturas concurrentes durante escrituras. Backups diarios a las 2 AM UTC con retención de 30 días.</p></div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q" onclick="toggleFaq(this)">¿Cuánto cuesta agregar una empresa nueva?</div>
+            <div class="faq-a"><p>Cero configuración adicional en infraestructura. El admin master crea la empresa desde la UI (código, nombre, ícono, colores) y ya. Después crea el primer admin de esa empresa y ese admin gestiona su tenant. Todos comparten servidor pero ven datos separados.</p></div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q" onclick="toggleFaq(this)">¿La IA reemplaza al equipo técnico?</div>
+            <div class="faq-a"><p>No. La IA <strong>asiste</strong>: clasifica, sugiere asignación, propone respuestas iniciales, escala automáticamente. Cada decisión queda auditada con nivel de confianza. El técnico siempre puede override cualquier decisión. La IA acelera el trabajo repetitivo — no lo elimina.</p></div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q" onclick="toggleFaq(this)">¿Se integra con nuestro Active Directory?</div>
+            <div class="faq-a"><p>Sí. Podés usar LDAP tradicional o migrar a Microsoft Entra ID (OAuth 2.0) — ambos coexisten. Cada empresa configura su propio tenant/servidor. Los usuarios entran con su cuenta corporativa sin gestionar una password adicional.</p></div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q" onclick="toggleFaq(this)">¿Cómo funcionan los reportes automáticos?</div>
+            <div class="faq-a"><p>El admin configura destinatarios con nombre, email, empresa y qué frecuencias recibir (quincenal, mensual, anual, o alerta lunes). Cada destinatario puede tener un <strong>grupo</strong> asociado (filtra datos) y una lista de <strong>especialistas en CC</strong> (multiplica el envío). El scheduler corre a las 7 AM y dispara los que toca ese día.</p></div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q" onclick="toggleFaq(this)">¿Escala a millones de tickets?</div>
+            <div class="faq-a"><p>Sí. SQLite en modo WAL soporta hasta ~500 usuarios concurrentes sin degradación. Si necesitás más, la BD migra a PostgreSQL solo cambiando la variable <code>DATABASE_URL</code> — sin cambios de código. La búsqueda usa FTS5 (índice full-text) que responde &lt;200ms con 1M de tickets indexados.</p></div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q" onclick="toggleFaq(this)">¿Podemos personalizar sin desarrolladores?</div>
+            <div class="faq-a"><p>Todo lo importante se configura desde la UI del admin — sin tocar código:</p><ul style="margin-top:8px;padding-left:20px;color:var(--text-muted);"><li>SLA por prioridad, plantillas de ticket, tags, categorías</li><li>Temas visuales por empresa (colores, íconos, logos)</li><li>Reglas de asignación (subroles + prioridad de matching)</li><li>Webhooks Teams por evento y por canal</li><li>Buzones IMAP para email → ticket</li><li>API Keys para sistemas externos</li></ul></div>
+        </div>
+    </div>
+</section>
+
+<footer>
+    <p>© 2026 DeskEli · Sistema de Gestión de Incidencias TI · v2.1</p>
+    <p style="margin-top:8px;font-size:11px;">Diseñado para Manufactureras Eliot · Pash · Primatela</p>
+</footer>
+
+<script>
+    function toggleFeature(el) {
+        const item = el.parentElement;
+        const wasOpen = item.classList.contains('open');
+        document.querySelectorAll('.feature-item').forEach(i => i.classList.remove('open'));
+        if (!wasOpen) item.classList.add('open');
+    }
+
+    function toggleFaq(el) {
+        const item = el.parentElement;
+        item.classList.toggle('open');
+    }
+
+    function switchTab(tabId) {
+        // Only affect the tabs group closest to the clicked button
+        const btn = event.currentTarget;
+        const bar = btn.closest('.tabs-bar');
+        const section = bar.closest('section');
+
+        section.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        section.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        const target = section.querySelector('#tab-' + tabId);
+        if (target) target.classList.add('active');
+    }
+
+    // Smooth reveal on scroll
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+            if (e.isIntersecting) {
+                e.target.style.opacity = '1';
+                e.target.style.transform = 'translateY(0)';
+            }
+        });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('section, .portal-card, .stat-card, .feature-item, .logo-card').forEach(el => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(20px)';
+        el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+        observer.observe(el);
+    });
+
+    // Auto-open first FAQ for engagement
+    setTimeout(() => {
+        const firstFaq = document.querySelector('.faq-item');
+        if (firstFaq) firstFaq.classList.add('open');
+    }, 800);
+</script>
+
+</body>
+</html>
