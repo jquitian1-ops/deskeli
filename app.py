@@ -17468,6 +17468,46 @@ def _api_key_has_scope(api_key, scope):
     return scope in scopes or '*' in scopes
 
 
+def _safe_str(v, default: str = '') -> str:
+    """Normaliza cualquier valor JSON a string listo para .strip()/.lower().
+
+    Casos que maneja:
+    - None → default
+    - str  → tal cual
+    - list/tuple → los une con '\\n' (útil cuando el caller envía descripciones
+      multilínea como lista de párrafos, típico de Aranda / Postman)
+    - dict → JSON string
+    - int/float/bool → str()
+
+    Sin esto, patrones como `(data.get('x') or '').strip()` explotan con
+    "'list' object has no attribute 'strip'" cuando el cliente manda
+    listas donde el server espera strings.
+    """
+    if v is None:
+        return default
+    if isinstance(v, str):
+        return v
+    if isinstance(v, (list, tuple)):
+        parts = []
+        for x in v:
+            if x is None:
+                continue
+            if isinstance(x, (str, int, float, bool)):
+                parts.append(str(x))
+            else:
+                try:
+                    parts.append(json.dumps(x, ensure_ascii=False))
+                except Exception:
+                    parts.append(str(x))
+        return '\n'.join(parts) if parts else default
+    if isinstance(v, dict):
+        try:
+            return json.dumps(v, ensure_ascii=False)
+        except Exception:
+            return str(v)
+    return str(v)
+
+
 @app.route('/api/v1/external/tickets', methods=['POST'])
 def api_v1_external_create_ticket():
     """Crear un ticket desde una integración externa, con subtareas (controls) y adjuntos.
@@ -17539,8 +17579,8 @@ def api_v1_external_create_ticket():
         return jsonify({'success': False, 'error': 'Token sin scope tickets:create'}), 403
 
     data = request.get_json(silent=True) or {}
-    subject = (data.get('subject') or data.get('title') or '').strip()[:200]
-    description = (data.get('description') or '').strip()
+    subject = _safe_str(data.get('subject') or data.get('title')).strip()[:200]
+    description = _safe_str(data.get('description')).strip()
     if not subject or not description:
         return jsonify({'success': False, 'error': 'Faltan campos requeridos: subject y description'}), 400
 
@@ -17549,7 +17589,7 @@ def api_v1_external_create_ticket():
 
     # Resolver solicitante
     applicant = None
-    applicant_email = (data.get('applicantEmail') or data.get('applicant_email') or '').strip().lower()
+    applicant_email = _safe_str(data.get('applicantEmail') or data.get('applicant_email')).strip().lower()
     applicant_id_in = data.get('applicantId') or data.get('applicant_id')
     if applicant_email:
         applicant = User.query.filter(
@@ -17573,7 +17613,7 @@ def api_v1_external_create_ticket():
 
     # Resolver asignatario opcional
     assignee = None
-    assignee_email = (data.get('assigneeEmail') or data.get('assignee_email') or '').strip().lower()
+    assignee_email = _safe_str(data.get('assigneeEmail') or data.get('assignee_email')).strip().lower()
     assignee_id_in = data.get('assigneeId') or data.get('assignee_id')
     if assignee_email:
         assignee = User.query.filter(
@@ -17587,18 +17627,18 @@ def api_v1_external_create_ticket():
             assignee = None
 
     # Categoría y prioridad
-    category = (data.get('category') or 'General').strip()[:100]
-    priority = (data.get('priority') or 'medium').lower().strip()
+    category = (_safe_str(data.get('category')).strip() or 'General')[:100]
+    priority = (_safe_str(data.get('priority')).strip().lower() or 'medium')
     if priority not in ('low', 'medium', 'high', 'critical'):
         priority = 'medium'
 
     # Contacto del solicitante
-    user_area = (data.get('userArea') or data.get('user_area') or applicant.area or '').strip()[:120] or None
-    user_location = (data.get('userLocation') or data.get('user_location') or applicant.location or '').strip()[:120] or None
-    user_phone = (data.get('userPhone') or data.get('user_phone') or applicant.phone or '').strip()[:40] or None
+    user_area = (_safe_str(data.get('userArea') or data.get('user_area') or applicant.area).strip()[:120]) or None
+    user_location = (_safe_str(data.get('userLocation') or data.get('user_location') or applicant.location).strip()[:120]) or None
+    user_phone = (_safe_str(data.get('userPhone') or data.get('user_phone') or applicant.phone).strip()[:40]) or None
 
     # Referencia externa (Aranda style) y campos adicionales
-    external_ref = (data.get('externalRef') or data.get('external_ref') or '').strip()[:100]
+    external_ref = _safe_str(data.get('externalRef') or data.get('external_ref')).strip()[:100]
     additional_fields = data.get('listAdditionalField') or data.get('additional_fields') or []
     if external_ref or additional_fields:
         meta_lines = []
@@ -17654,7 +17694,7 @@ def api_v1_external_create_ticket():
 
         # Opción 1: usar un guion preconfigurado
         guion_id_in = data.get('guion_id') or data.get('guionId')
-        guion_code_in = (data.get('guion_code') or data.get('guionCode') or '').strip().lower()
+        guion_code_in = _safe_str(data.get('guion_code') or data.get('guionCode')).strip().lower()
         if guion_id_in or guion_code_in:
             gq = Guion.query
             if guion_id_in:
@@ -17733,16 +17773,19 @@ def api_v1_external_create_ticket():
                 for idx, st_data in enumerate(subtasks_raw[:50]):
                     if not isinstance(st_data, dict):
                         continue
-                    st_title = (st_data.get('title') or st_data.get('name') or '').strip()
+                    # _safe_str tolera que el caller mande listas u otros tipos
+                    # en cualquier campo (bug clásico de "'list' object has no attribute 'strip'")
+                    st_title = _safe_str(st_data.get('title') or st_data.get('name')).strip()
                     if not st_title:
                         continue
-                    st_desc = sanitize_html((st_data.get('description') or '').strip()) if 'sanitize_html' in globals() else (st_data.get('description') or '').strip()
-                    st_priority = (st_data.get('priority') or priority).lower().strip()
+                    st_desc_raw = _safe_str(st_data.get('description')).strip()
+                    st_desc = sanitize_html(st_desc_raw) if ('sanitize_html' in globals() and st_desc_raw) else st_desc_raw
+                    st_priority = (_safe_str(st_data.get('priority')).strip().lower() or priority)
                     if st_priority not in ('low', 'medium', 'high', 'critical'):
                         st_priority = priority
-                    st_category = (st_data.get('category') or category).strip()[:100]
+                    st_category = (_safe_str(st_data.get('category')).strip() or category)[:100]
                     st_assignee = None
-                    st_ass_email = (st_data.get('assigneeEmail') or st_data.get('assignee_email') or '').strip().lower()
+                    st_ass_email = _safe_str(st_data.get('assigneeEmail') or st_data.get('assignee_email')).strip().lower()
                     if st_ass_email:
                         st_assignee = User.query.filter(
                             db.func.lower(User.email) == st_ass_email,
@@ -17790,10 +17833,10 @@ def api_v1_external_create_ticket():
             for att_data in attachments_raw[:20]:  # límite 20 por request
                 if not isinstance(att_data, dict):
                     continue
-                filename = (att_data.get('filename') or 'archivo').strip()[:255]
-                b64_content = att_data.get('content_base64') or att_data.get('content') or ''
-                mime = (att_data.get('mime') or att_data.get('mime_type') or '').strip()[:120] or 'application/octet-stream'
-                attach_to = (att_data.get('attach_to') or 'both').lower().strip()
+                filename = (_safe_str(att_data.get('filename')).strip() or 'archivo')[:255]
+                b64_content = _safe_str(att_data.get('content_base64') or att_data.get('content'))
+                mime = (_safe_str(att_data.get('mime') or att_data.get('mime_type')).strip() or 'application/octet-stream')[:120]
+                attach_to = (_safe_str(att_data.get('attach_to')).strip().lower() or 'both')
                 if attach_to not in ('ticket', 'subtasks', 'both'):
                     attach_to = 'both'
                 if not b64_content:
