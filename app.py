@@ -3018,6 +3018,172 @@ def api_admin_auto_close_run_now():
     })
 
 
+@app.route('/api/admin/guiones/diagnostico')
+def api_admin_guiones_diagnostico():
+    """Diagnóstico global de todos los guiones de la empresa del admin.
+
+    Devuelve un resumen ejecutivo indicando cuáles guiones tienen problemas
+    de asignación (pool vacío, técnicos filtrados, subtareas sin asignar).
+    """
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+
+    scope = admin_companies_scope()
+    guiones = Guion.query.filter(Guion.company.in_(scope)).order_by(Guion.company, Guion.name).all()
+
+    result = []
+    for g in guiones:
+        gs_list = GuionSubtask.query.filter_by(guion_id=g.id).all()
+        ug_ids = [ug.user_id for ug in UserGuion.query.filter_by(guion_id=g.id).all()]
+
+        # Contar cuántos técnicos válidos hay en el pool
+        valid_pool_count = 0
+        invalid_pool = []
+        for uid in ug_ids:
+            u = User.query.get(uid)
+            if not u:
+                invalid_pool.append(f'ID {uid}: NO EXISTE')
+                continue
+            if u.company != g.company:
+                invalid_pool.append(f'{u.name}: empresa {u.company} ≠ guion {g.company}')
+                continue
+            if not u.is_active:
+                invalid_pool.append(f'{u.name}: INACTIVO')
+                continue
+            if u.role not in ('technician', 'admin'):
+                invalid_pool.append(f'{u.name}: rol {u.role}')
+                continue
+            valid_pool_count += 1
+
+        # Cuántas subtareas tienen assignee fijo válido
+        fixed_valid = 0
+        for gs in gs_list:
+            if gs.assignee_id:
+                u = User.query.get(gs.assignee_id)
+                if u and u.company == g.company and u.is_active and u.role in ('technician', 'admin'):
+                    fixed_valid += 1
+
+        # Análisis: si se dispara este guion, ¿cuántas subtareas quedarían sin asignar?
+        if not gs_list:
+            status = '⚠ Sin subtareas'
+            color = 'red'
+        elif fixed_valid == len(gs_list):
+            status = '✅ OK (todas fijas)'
+            color = 'green'
+        elif fixed_valid + (1 if valid_pool_count > 0 else 0) >= len(gs_list) and valid_pool_count > 0:
+            status = f'✅ OK ({fixed_valid} fijas + {valid_pool_count} en pool)'
+            color = 'green'
+        elif valid_pool_count > 0:
+            status = f'✅ OK (pool con {valid_pool_count} técnico(s))'
+            color = 'green'
+        else:
+            missing = len(gs_list) - fixed_valid
+            status = f'⚠ {missing} subtarea(s) quedarán SIN ASIGNAR (pool vacío)'
+            color = 'red'
+
+        result.append({
+            'id': g.id,
+            'code': g.code,
+            'name': g.name,
+            'company': g.company,
+            'is_active': g.is_active,
+            'subtasks_total': len(gs_list),
+            'subtasks_with_fixed_assignee': fixed_valid,
+            'pool_size_raw': len(ug_ids),
+            'pool_size_valid': valid_pool_count,
+            'pool_issues': invalid_pool,
+            'status': status,
+            'status_color': color,
+            'diagnostic_url': f'/api/admin/guiones/{g.id}/pool-info',
+        })
+
+    return jsonify({
+        'success': True,
+        'total_guiones': len(result),
+        'con_problemas': sum(1 for r in result if r['status_color'] == 'red'),
+        'guiones': result
+    })
+
+
+@app.route('/admin/guiones/diagnostico')
+def admin_guiones_diagnostico_page():
+    """Página HTML simple para visualizar el diagnóstico."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return redirect(url_for('login'))
+    return """<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Diagnóstico de guiones · DeskEli</title>
+<style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f9fafb; color: #1f2937; padding: 30px 40px; }
+    h1 { color: #7c3aed; margin-bottom: 20px; }
+    .summary { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+    .card { background: white; border-radius: 10px; padding: 20px 24px; margin-bottom: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); border-left: 4px solid #d1d5db; }
+    .card.ok { border-left-color: #16a34a; }
+    .card.bad { border-left-color: #dc2626; background: #fef2f2; }
+    .card h3 { color: #1f2937; margin-bottom: 6px; }
+    .card .code { font-family: monospace; color: #6b7280; font-size: 12px; }
+    .card .status { font-weight: 700; margin-top: 8px; }
+    .card .status.ok { color: #16a34a; }
+    .card .status.bad { color: #dc2626; }
+    .metrics { display: flex; gap: 20px; margin-top: 10px; font-size: 13px; color: #4b5563; }
+    .metrics span strong { color: #1f2937; }
+    .issues { margin-top: 8px; padding: 10px 14px; background: #fef3c7; border-radius: 6px; font-size: 12px; color: #92400e; }
+    .issues ul { padding-left: 20px; margin-top: 4px; }
+    a.btn { display: inline-block; margin-top: 10px; padding: 6px 14px; background: #4f46e5; color: white; text-decoration: none; border-radius: 6px; font-size: 12px; }
+    a.back { display: inline-block; margin-bottom: 20px; color: #4f46e5; text-decoration: none; }
+</style>
+</head>
+<body>
+<a href="/admin/dashboard" class="back">← Volver al panel</a>
+<h1>🔍 Diagnóstico de asignación de Guiones</h1>
+<div id="content">Cargando…</div>
+
+<script>
+fetch('/api/admin/guiones/diagnostico')
+  .then(r => r.json())
+  .then(data => {
+    if (!data.success) {
+      document.getElementById('content').innerHTML = '<div class="card bad">Error: ' + (data.error || 'no se pudo cargar') + '</div>';
+      return;
+    }
+    let html = '<div class="summary">';
+    html += '<strong>Total guiones:</strong> ' + data.total_guiones + '  ·  ';
+    html += '<strong style="color:' + (data.con_problemas > 0 ? '#dc2626' : '#16a34a') + ';">Con problemas: ' + data.con_problemas + '</strong>';
+    html += '</div>';
+
+    data.guiones.forEach(g => {
+      html += '<div class="card ' + (g.status_color === 'red' ? 'bad' : 'ok') + '">';
+      html += '<h3>' + esc(g.name) + ' <span class="code">(code: ' + esc(g.code) + ' · empresa: ' + esc(g.company) + ')</span></h3>';
+      html += '<div class="status ' + (g.status_color === 'red' ? 'bad' : 'ok') + '">' + esc(g.status) + '</div>';
+      html += '<div class="metrics">';
+      html += '<span><strong>' + g.subtasks_total + '</strong> subtareas</span>';
+      html += '<span><strong>' + g.subtasks_with_fixed_assignee + '</strong> con técnico fijo</span>';
+      html += '<span><strong>' + g.pool_size_valid + '</strong> en pool válido';
+      if (g.pool_size_raw !== g.pool_size_valid) html += ' <em>(de ' + g.pool_size_raw + ' asignados)</em>';
+      html += '</span>';
+      html += '<span>' + (g.is_active ? '✅ Activo' : '❌ Inactivo') + '</span>';
+      html += '</div>';
+      if (g.pool_issues && g.pool_issues.length) {
+        html += '<div class="issues"><strong>⚠ Técnicos filtrados del pool:</strong><ul>';
+        g.pool_issues.forEach(i => html += '<li>' + esc(i) + '</li>');
+        html += '</ul></div>';
+      }
+      html += '<a href="' + g.diagnostic_url + '" class="btn" target="_blank">🔬 Ver detalle JSON</a>';
+      html += '</div>';
+    });
+    document.getElementById('content').innerHTML = html;
+  }).catch(e => {
+    document.getElementById('content').innerHTML = '<div class="card bad">Error: ' + e.message + '</div>';
+  });
+
+function esc(s) { const d = document.createElement('div'); d.textContent = String(s || ''); return d.innerHTML; }
+</script>
+</body>
+</html>"""
+
+
 @app.route('/api/admin/guiones/<int:guion_id>/pool-info')
 def api_admin_guion_pool_info(guion_id):
     """Diagnóstico completo del pool de asignación de un guion.
