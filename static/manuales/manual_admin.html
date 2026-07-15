@@ -429,6 +429,12 @@
         <a href="#guiones" onclick="showSection('guiones')">📜 Guiones (subtareas)</a>
         <a href="#asignacion" onclick="showSection('asignacion')">🎯 Asignación automática</a>
         <a href="#bot" onclick="showSection('bot')">🤖 Bot de autoservicio</a>
+        <a href="#aprobaciones" onclick="showSection('aprobaciones')">🔐 Flujos de aprobación</a>
+
+        <h3>Experiencia del usuario</h3>
+        <a href="#kb-admin" onclick="showSection('kb-admin')">📚 Base de Conocimiento</a>
+        <a href="#csat" onclick="showSection('csat')">😊 Satisfacción (CSAT/NPS)</a>
+        <a href="#session-guard" onclick="showSection('session-guard')">⏰ Sesión y expiración</a>
 
         <h3>Integraciones</h3>
         <a href="#teams" onclick="showSection('teams')">💬 Microsoft Teams</a>
@@ -1080,6 +1086,269 @@
                 <div class="callout-content">
                     <div class="callout-title">Control de costos</div>
                     <p>Cada consulta al bot consume tokens de la API Claude. El sistema cachea respuestas y monitorea el uso. Si te acercás al límite mensual, activá el fallback (solo KB local, sin llamadas Claude).</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- APROBACIONES MULTI-NIVEL -->
+        <section class="section" id="sec-aprobaciones">
+            <h2 class="section-title"><span class="emoji">🔐</span>Flujos de aprobación multi-nivel</h2>
+            <p class="section-subtitle">Ciertos tickets requieren visto bueno antes de llegar al equipo TI. Configurá quién aprueba qué.</p>
+
+            <p>Un <strong>flujo de aprobación</strong> retiene un ticket en estado <em>pending_approval</em> hasta que uno o varios responsables lo aprueben. Ideal para: solicitudes de acceso a SAP, compras costosas, ingresos/bajas de usuarios, cambios de nivel de permiso, etc.</p>
+
+            <h3>Estructura de un workflow</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">🎯</div>
+                    <h4>Condición (trigger)</h4>
+                    <p>Combinación de <strong>categoría + prioridad + plantilla</strong>. Todas se aplican con lógica AND. Si un ticket matchea, se dispara.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔗</div>
+                    <h4>Cadena de aprobadores</h4>
+                    <p>Lista ordenada de usuarios. El paso N sólo se activa cuando N-1 aprobó. Cada aprobador tiene una etiqueta descriptiva ("Jefe inmediato", "Gerente TI").</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📧</div>
+                    <h4>Notificaciones</h4>
+                    <p>Cada paso genera email automático al aprobador. Al final de la cadena, el solicitante recibe email con el resultado (aprobado/rechazado).</p>
+                </div>
+            </div>
+
+            <h3>Crear un workflow</h3>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-title">1. Abrí el módulo</div>
+                    <div class="step-desc">Sidebar → <strong>Sistema → 🔐 Flujos de Aprobación</strong>. Se abre embebido en el panel derecho (no en pestaña nueva).</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">2. Nuevo workflow</div>
+                    <div class="step-desc">Cliqueá <strong>＋ Nuevo workflow</strong>. Poné nombre, descripción, y elegí la empresa (solo master admin ve todas las empresas).</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">3. Definí la condición</div>
+                    <div class="step-desc">Categoría (ej: <em>"Accesos"</em>), Prioridad (opcional), Plantilla usada (opcional, coincide con el nombre exacto). Los tres son AND.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">4. Cadena de aprobadores</div>
+                    <div class="step-desc">Agregá <strong>＋ Agregar aprobador</strong> en el orden que quieras. Cada uno debe pertenecer a la empresa del workflow. Etiquetá su rol.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">5. Activar y guardar</div>
+                    <div class="step-desc">Marcá <em>Activo = Sí</em> y guardá. Desde ese momento, cada ticket nuevo que cumpla la condición dispara el flujo automáticamente.</div>
+                </div>
+            </div>
+
+            <h3>Ejemplo típico</h3>
+            <div class="callout callout-info">
+                <div class="callout-icon">📌</div>
+                <div class="callout-content">
+                    <div class="callout-title">Solicitud de acceso a SAP</div>
+                    <p><strong>Trigger:</strong> categoría "Accesos" + plantilla "Solicitud ingreso/modificación de usuarios"</p>
+                    <p><strong>Cadena:</strong> Jefe Inmediato → Gerente TI → Analista de Seguridad</p>
+                    <p>Cuando un empleado usa esa plantilla, el ticket se queda en <em>pending_approval</em> hasta que los 3 aprueben en orden. Si el jefe rechaza, no llega al gerente. Si aprueban todos, el ticket entra a la cola normal del equipo TI.</p>
+                </div>
+            </div>
+
+            <h3>Estados de ticket relacionados</h3>
+            <ul>
+                <li><strong>pending_approval</strong> → esperando decisión. No aparece en la cola de técnicos.</li>
+                <li><strong>open</strong> → cadena aprobada, disponible para el equipo TI.</li>
+                <li><strong>rejected</strong> → alguien rechazó. Notificación automática al solicitante con el motivo.</li>
+            </ul>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">⚠️</div>
+                <div class="callout-content">
+                    <div class="callout-title">Rechazo requiere comentario</div>
+                    <p>El aprobador no puede rechazar sin explicar. El comentario queda en el audit log y se envía por email al solicitante.</p>
+                </div>
+            </div>
+
+            <h3>Widget en el header del técnico</h3>
+            <p>Si un técnico está en la cadena de un workflow, cuando tiene aprobaciones pendientes verá un botón <strong>🔐 Aprobaciones</strong> con badge rojo en el header del portal técnico. Al cliquear abre un modal con la lista de decisiones pendientes.</p>
+        </section>
+
+        <!-- BASE DE CONOCIMIENTO FORMAL -->
+        <section class="section" id="sec-kb-admin">
+            <h2 class="section-title"><span class="emoji">📚</span>Base de Conocimiento (KB)</h2>
+            <p class="section-subtitle">Publicá artículos con Markdown para que los empleados resuelvan solos los problemas frecuentes</p>
+
+            <div class="callout callout-info">
+                <div class="callout-icon">💡</div>
+                <div class="callout-content">
+                    <div class="callout-title">¿Por qué es una inversión</div>
+                    <p>Cada artículo bien publicado <strong>reduce ~30% los tickets repetidos</strong> de esa temática. Es el ROI más alto del sistema: escribís una vez, se lee decenas o cientos de veces.</p>
+                </div>
+            </div>
+
+            <h3>Acceso</h3>
+            <p>Sidebar → <strong>Sistema → 📚 Base de Conocimiento</strong>. Se abre embebido en el panel derecho.</p>
+            <p>El portal público donde los usuarios finales consumen los artículos es <code>/kb</code>. Los empleados llegan desde el botón <strong>📚 Ayuda</strong> del header de su portal, y los técnicos desde el botón <strong>📚 KB</strong>.</p>
+
+            <h3>Estructura de un artículo</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">📝</div>
+                    <h4>Título + slug</h4>
+                    <p>El slug se genera automáticamente del título (ej: <em>"Cómo cambiar tu contraseña"</em> → <code>como-cambiar-tu-contrasena</code>). Editable desde el modal.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🖊</div>
+                    <h4>Cuerpo (Markdown)</h4>
+                    <p>Soporta <code>#</code> títulos, <code>**negrita**</code>, <code>*cursiva*</code>, listas, código, bloques con <code>```</code>, enlaces, imágenes. Vista previa integrada.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📁</div>
+                    <h4>Categoría + tags</h4>
+                    <p>Categoría (ej: "Correo", "SAP", "Redes") para agrupar. Tags (CSV) para búsqueda.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🏢</div>
+                    <h4>Empresa</h4>
+                    <p><strong>Global</strong> (visible en las 3 empresas — solo master admin) o específica (Eliot / Pash / Primatela).</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">✅</div>
+                    <h4>Publicado</h4>
+                    <p>Marcá cuando esté listo. Los borradores no aparecen en el portal público.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🌐</div>
+                    <h4>Público sin login</h4>
+                    <p>Opcional: si activás, el artículo es accesible sin autenticarse (útil para guías generales).</p>
+                </div>
+            </div>
+
+            <h3>Cómo se mide su utilidad</h3>
+            <p>Cada artículo lleva contadores automáticos:</p>
+            <ul>
+                <li><strong>👁 Vistas:</strong> cuántas veces se abrió.</li>
+                <li><strong>👍 Útil / 👎 No útil:</strong> feedback explícito de los lectores. El usuario puede dejar comentario si marca "No útil".</li>
+                <li><strong>🔢 Versión:</strong> cada edición incrementa el número (para auditoría).</li>
+            </ul>
+
+            <h3>Buenas prácticas para escribir</h3>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-title">Título con la pregunta del usuario</div>
+                    <div class="step-desc">Ej: <em>"¿Cómo restablezco mi contraseña de red?"</em> mejor que "Restablecimiento AD".</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Pasos numerados, no párrafos largos</div>
+                    <div class="step-desc">Usá listas ordenadas. El usuario escanea, no lee.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Imágenes con flechas rojas</div>
+                    <div class="step-desc">Screenshots señalando dónde cliquear. Ayudan más que 100 palabras.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Actualizá según feedback</div>
+                    <div class="step-desc">Cuando un artículo tenga 5+ 👎, es hora de reescribirlo. El comentario del usuario te dice qué falta.</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CSAT / NPS DASHBOARD -->
+        <section class="section" id="sec-csat">
+            <h2 class="section-title"><span class="emoji">😊</span>Satisfacción (CSAT / NPS)</h2>
+            <p class="section-subtitle">Dashboard de satisfacción del cliente con métricas, tendencia y comentarios</p>
+
+            <p>Cuando un ticket pasa a estado <strong>Resuelto</strong>, el usuario final tiene la opción de calificarlo con estrellas (1-5), agregar un comentario (obligatorio si &le;3 estrellas) y responder un NPS (0-10, opcional). Estos datos alimentan el dashboard CSAT.</p>
+
+            <h3>Acceso</h3>
+            <p>Sidebar → <strong>Sistema → 😊 Satisfacción (CSAT)</strong>. Se abre embebido en el panel derecho. Los filtros permiten cambiar empresa (solo master admin) y período (30 días a 2 años).</p>
+
+            <h3>KPIs principales</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">⭐</div>
+                    <h4>CSAT promedio</h4>
+                    <p>Promedio de estrellas de todas las calificaciones. Verde ≥4.3, amarillo 3.5-4.2, rojo &lt;3.5.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🎯</div>
+                    <h4>NPS</h4>
+                    <p><code>(promotores - detractores) / total × 100</code>. Verde ≥50, amarillo 0-49, rojo &lt;0.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📥</div>
+                    <h4>Tasa de respuesta</h4>
+                    <p>% de tickets resueltos que fueron calificados. Meta: &gt;30% (la gente suele no calificar).</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🟢</div>
+                    <h4>Promotores</h4>
+                    <p>Cantidad de usuarios que respondieron NPS 9-10.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔴</div>
+                    <h4>Detractores</h4>
+                    <p>Cantidad de usuarios que respondieron NPS 0-6. Estos son los que hay que analizar primero.</p>
+                </div>
+            </div>
+
+            <h3>Bloques del dashboard</h3>
+            <ul>
+                <li><strong>Distribución de estrellas:</strong> gráfico de barras horizontal con la cantidad de 5⭐ / 4⭐ / 3⭐ / 2⭐ / 1⭐.</li>
+                <li><strong>Composición NPS:</strong> barra de proporción visual (rojo detractores / amarillo pasivos / verde promotores).</li>
+                <li><strong>Tendencia semanal:</strong> gráfico de las últimas 12 semanas mostrando el CSAT promedio de cada una.</li>
+                <li><strong>Comentarios recientes:</strong> feed de los últimos 25 comentarios textuales, con rating y NPS de cada uno.</li>
+                <li><strong>Ranking por técnico:</strong> tabla con CSAT y NPS individual de cada técnico (top 20 con más encuestas).</li>
+                <li><strong>Peores calificaciones:</strong> lista de tickets con 1-3⭐ para acción inmediata.</li>
+            </ul>
+
+            <div class="callout callout-info">
+                <div class="callout-icon">📊</div>
+                <div class="callout-content">
+                    <div class="callout-title">Rutina mensual sugerida</div>
+                    <ol>
+                        <li>Abrí el dashboard con filtro <em>"Últimos 30 días"</em>.</li>
+                        <li>Chequeá si CSAT bajó respecto al mes anterior. Si sí → investigá.</li>
+                        <li>Revisá los <strong>3 peores calificados</strong> y hablá con el técnico responsable.</li>
+                        <li>Leé los comentarios de los detractores NPS. Suelen tener oro para mejoras.</li>
+                        <li>Si algún técnico tiene CSAT&lt;3.5 → una sesión 1:1 con él.</li>
+                    </ol>
+                </div>
+            </div>
+        </section>
+
+        <!-- SESSION GUARD -->
+        <section class="section" id="sec-session-guard">
+            <h2 class="section-title"><span class="emoji">⏰</span>Sesión y expiración (Session Guard)</h2>
+            <p class="section-subtitle">Cómo la app maneja sesiones expiradas para evitar errores confusos</p>
+
+            <p>La sesión del usuario dura <strong>8 horas de inactividad</strong>. Si el usuario deja el panel abierto y no interactúa por más tiempo, la próxima acción daría "Error al cargar" genérico. Para evitarlo, hay un guardián global de sesión (<code>/static/js/session_guard.js</code>) que:</p>
+
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">🔒</div>
+                    <h4>Intercepta 401</h4>
+                    <p>Cuando el servidor responde 401 (sesión expirada), muestra un modal claro con botón "Iniciar sesión nuevamente" que redirige a login y vuelve a la página anterior.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔄</div>
+                    <h4>Keep-alive</h4>
+                    <p>Cada 5 minutos hace ping a <code>/api/session/ping</code> para renovar la cookie. Mientras la pestaña esté activa, la sesión no expira.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🚫</div>
+                    <h4>Expulsión forzada</h4>
+                    <p>Si expulsaste a un usuario desde Sesiones y Expulsión, su próxima acción muestra "Sesión terminada por administrador" y lo saca al login inmediatamente.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">⚠️</div>
+                    <h4>Errores servidor</h4>
+                    <p>Errores 429 (rate limit) y 500 (server error) muestran toasts descriptivos en vez de "Error al cargar" genérico.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-info">
+                <div class="callout-icon">🛠</div>
+                <div class="callout-content">
+                    <div class="callout-title">Cuándo aparece el modal "Tu sesión expiró"</div>
+                    <p>Solo si el usuario dejó la pestaña oculta por más de 5 min (el keep-alive no corre en pestañas ocultas para ahorrar recursos) o si el contenedor se reinició (Coolify redeploy).</p>
                 </div>
             </div>
         </section>

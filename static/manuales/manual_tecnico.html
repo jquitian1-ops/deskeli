@@ -487,6 +487,8 @@
 
         <h3>Extras</h3>
         <a href="#reportes" onclick="showSection('reportes')">📈 Mi productividad</a>
+        <a href="#kb" onclick="showSection('kb')">📚 Base de conocimiento</a>
+        <a href="#aprobaciones" onclick="showSection('aprobaciones')">🔐 Aprobaciones pendientes</a>
         <a href="#trucos" onclick="showSection('trucos')">💡 Trucos y atajos</a>
         <a href="#faq" onclick="showSection('faq')">❓ FAQ</a>
         <a href="#quiz" onclick="showSection('quiz')">🎓 Pon a prueba</a>
@@ -1122,6 +1124,102 @@
                     <h4>Ranking</h4>
                     <p>Tu posición dentro del equipo (opcional, si el admin lo habilita).</p>
                 </div>
+            </div>
+        </section>
+
+        <!-- ─── BASE DE CONOCIMIENTO ─── -->
+        <section class="section" id="sec-kb">
+            <h2 class="section-title"><span class="emoji">📚</span>Base de Conocimiento</h2>
+            <p class="section-subtitle">Tu biblioteca de soluciones documentadas — para consultar y también para redirigir a usuarios</p>
+
+            <p>La base de conocimiento (KB) es el módulo donde el equipo TI publica artículos con las soluciones a los problemas más comunes. Como técnico la usás de 3 formas:</p>
+
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">🔍</div>
+                    <h4>Consulta rápida</h4>
+                    <p>Antes de responder un ticket, buscá en la KB por si el problema ya está documentado. Ahorrás tiempo de investigación.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔗</div>
+                    <h4>Enviar el link al usuario</h4>
+                    <p>Si el problema tiene un artículo publicado, respondé el ticket con el link a <code>/kb/&lt;slug&gt;</code>. El usuario resuelve solo.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">✍️</div>
+                    <h4>Sugerir mejoras</h4>
+                    <p>Si un artículo está desactualizado, avisale al admin (o el propio botón 👎 tiene un campo para comentarios).</p>
+                </div>
+            </div>
+
+            <h3>Cómo acceder</h3>
+            <p>En el header del panel técnico, arriba a la derecha, tenés el botón <strong>📚 KB</strong>. Un clic abre el portal de la base de conocimiento en la misma pestaña. Volvés al panel con el botón "← Volver".</p>
+
+            <h3>Buenas prácticas</h3>
+            <ul>
+                <li><strong>Si un ticket se repite 3+ veces:</strong> sugerí al admin crear un artículo. Los tickets repetidos son la mejor señal de un vacío en la KB.</li>
+                <li><strong>Al cerrar un ticket con solución novedosa:</strong> comentale al admin para que documente el proceso.</li>
+                <li><strong>Al enviar el link al usuario:</strong> agregá una nota corta explicando por qué le mandás ese artículo específicamente.</li>
+            </ul>
+
+            <div style="background:#f5f3ff;border-left:4px solid #7c3aed;padding:14px 18px;border-radius:6px;margin:14px 0;">
+                <strong>💡 Tip pro:</strong> los artículos publicados como <em>"globales"</em> son visibles para las 3 empresas. Los que tienen empresa específica solo los ven los usuarios de esa empresa.
+            </div>
+        </section>
+
+        <!-- ─── APROBACIONES ─── -->
+        <section class="section" id="sec-aprobaciones">
+            <h2 class="section-title"><span class="emoji">🔐</span>Aprobaciones pendientes</h2>
+            <p class="section-subtitle">Cuando sos el aprobador designado de una solicitud, tu decisión desbloquea el ticket</p>
+
+            <p>Ciertos tickets — por su categoría, prioridad o plantilla — requieren visto bueno antes de llegar a la cola de trabajo. El admin configura los <em>flujos de aprobación</em> con una cadena de responsables. Si te designan como aprobador, vas a recibir:</p>
+
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">📧</div>
+                    <h4>Email de notificación</h4>
+                    <p>Con el detalle del ticket, quién lo solicitó, y un botón "Ver ticket y decidir" que te lleva a la página segura de decisión.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔴</div>
+                    <h4>Badge en el header</h4>
+                    <p>Un botón "🔐 Aprobaciones" con contador rojo aparece al lado de "Crear Ticket". Se actualiza cada 60 segundos.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📋</div>
+                    <h4>Bandeja de decisión</h4>
+                    <p>Cliqueando el badge se abre un modal con todas tus aprobaciones pendientes activas.</p>
+                </div>
+            </div>
+
+            <h3>Cómo aprobar o rechazar</h3>
+            <div class="steps" style="counter-reset:step;">
+                <div class="step">
+                    <div class="step-title">1. Abrir el ticket</div>
+                    <div class="step-desc">Cliqueá el link del email o el botón "Revisar y decidir →" en la bandeja. Se abre una página con el ticket completo (título, descripción, solicitante, prioridad).</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">2. Revisar la cadena</div>
+                    <div class="step-desc">Debajo del ticket vas a ver el <strong>timeline de la cadena de aprobación</strong>: cuántos aprobadores hay, quién ya decidió y qué paso viene después.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">3. Escribir comentario (obligatorio si rechazás)</div>
+                    <div class="step-desc">Para aprobar, el comentario es opcional. Para rechazar, es <strong>obligatorio</strong> y debe explicar el motivo. Se guarda en el audit log y el solicitante lo recibe por email.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">4. Confirmar</div>
+                    <div class="step-desc">Cliqueá <strong>✅ Aprobar</strong> o <strong>✗ Rechazar</strong>. Aparece un modal de confirmación. Una vez decidido, no se puede deshacer.</div>
+                </div>
+            </div>
+
+            <h3>Qué pasa después</h3>
+            <ul>
+                <li><strong>Aprobás:</strong> si sos el último de la cadena, el ticket pasa al estado normal y va a la cola del equipo TI. Si hay más aprobadores, se notifica al siguiente por email automáticamente.</li>
+                <li><strong>Rechazás:</strong> el ticket pasa a estado <em>rejected</em> y el solicitante recibe email con tu motivo. La cadena queda cerrada.</li>
+            </ul>
+
+            <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:14px 18px;border-radius:6px;margin:14px 0;">
+                <strong>⚠️ No podés decidir fuera de orden.</strong> Si el sistema dice "Aún hay aprobadores previos pendientes", quiere decir que otro aprobador de un paso anterior todavía no decidió. Esperá o cordinás con esa persona.
             </div>
         </section>
 

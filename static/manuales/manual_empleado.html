@@ -321,6 +321,7 @@
 
         <h3>Uso diario</h3>
         <a href="#dashboard" onclick="showSection('dashboard')">📊 El dashboard</a>
+        <a href="#kb" onclick="showSection('kb')">📚 Base de conocimiento</a>
         <a href="#crear" onclick="showSection('crear')">➕ Crear un ticket</a>
         <a href="#prioridad" onclick="showSection('prioridad')">🎯 Elegir prioridad</a>
         <a href="#adjuntos" onclick="showSection('adjuntos')">📎 Adjuntar archivos</a>
@@ -332,6 +333,7 @@
         <a href="#ver-tickets" onclick="showSection('ver-tickets')">📂 Ver mis tickets</a>
         <a href="#detalle" onclick="showSection('detalle')">💬 Detalle y chat</a>
         <a href="#estados" onclick="showSection('estados')">🔄 Estados</a>
+        <a href="#calificar" onclick="showSection('calificar')">⭐ Calificar el servicio</a>
 
         <h3>Extras</h3>
         <a href="#trucos" onclick="showSection('trucos')">💡 Trucos</a>
@@ -822,7 +824,112 @@
 
             <div class="nav-arrows">
                 <button onclick="showSection('detalle')">← Detalle</button>
+                <button onclick="showSection('calificar')">Siguiente → ⭐ Calificar el servicio</button>
+            </div>
+        </section>
+
+        <!-- CALIFICAR (CSAT + NPS + comentario) -->
+        <section id="calificar">
+            <h2>⭐ Calificar el servicio recibido</h2>
+            <p class="lead">Cuando un técnico resuelve tu ticket, tu opinión ayuda al equipo de TI a mejorar. La calificación es rápida (30 segundos) y anónima para el ranking de técnicos.</p>
+
+            <div class="card tip">
+                <div class="card-title">🎯 ¿Por qué calificar?</div>
+                <p>Es el único indicador real de que la solución te dejó conforme. Sin tu calificación, TI no sabe si el problema quedó bien resuelto ni puede identificar cuáles técnicos hacen mejor trabajo.</p>
+            </div>
+
+            <h3>Los 3 elementos de la calificación</h3>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-title">1. Estrellas (obligatorio)</div>
+                    <div class="step-desc">De <strong>1 a 5 estrellas</strong>. 1 = muy mala, 5 = excelente. Es lo mínimo que se pide.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">2. Comentario (obligatorio si calificás 1-3)</div>
+                    <div class="step-desc">Si diste 3 estrellas o menos, se te pide que expliques <strong>qué salió mal</strong>. Este texto lo revisa el jefe del equipo TI, no el técnico que atendió tu caso. Es tu voz para que las cosas mejoren.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">3. NPS (opcional, 0-10)</div>
+                    <div class="step-desc">Botones del 0 al 10 con la pregunta: "¿Qué tan probable es que recomendarías DeskEli a un compañero?". Es una métrica de fidelidad que ayuda a la dirección de TI a medir la percepción global del servicio.</div>
+                </div>
+            </div>
+
+            <h3>Cómo aparecen las estrellas</h3>
+            <p>Cuando tu ticket pasa a estado <strong>Resuelto</strong>, entrás al detalle y vas a ver un panel verde con la frase <em>"🎉 ¡Tu ticket fue resuelto!"</em>. Debajo aparecen las 5 estrellas ⭐☆☆☆☆. Hacés clic en el número de estrellas que corresponda y se despliega automáticamente el comentario y los botones de NPS.</p>
+
+            <div class="card">
+                <div class="card-title">📊 Interpretación NPS (para que sepas cómo se lee)</div>
+                <ul>
+                    <li><span style="color:#dc2626;font-weight:700;">0-6 = Detractor</span> — recomiendas negativamente el servicio</li>
+                    <li><span style="color:#f59e0b;font-weight:700;">7-8 = Pasivo</span> — ni fu ni fa, no lo recomiendas activamente</li>
+                    <li><span style="color:#16a34a;font-weight:700;">9-10 = Promotor</span> — lo recomiendas con entusiasmo</li>
+                </ul>
+            </div>
+
+            <div class="card warn">
+                <div class="card-title">⚠️ Si diste 5 estrellas por error</div>
+                <p>Una vez enviada la calificación no se puede modificar. Si te equivocaste, contactá al equipo de TI para que el admin la borre y puedas volver a calificar.</p>
+            </div>
+
+            <h3>¿Y si reabro el ticket?</h3>
+            <p>Si reabrís un ticket que ya habías calificado (porque la solución no funcionó realmente), <strong>la calificación anterior se borra</strong>. Cuando el ticket vuelva a resolverse, vas a poder calificarlo nuevamente con base en la nueva solución.</p>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('estados')">← Estados</button>
                 <button onclick="showSection('trucos')">Siguiente → 💡 Trucos</button>
+            </div>
+        </section>
+
+        <!-- BASE DE CONOCIMIENTO -->
+        <section id="kb">
+            <h2>📚 Base de Conocimiento (Autoservicio)</h2>
+            <p class="lead">Antes de crear un ticket, buscá tu problema en la base de conocimiento. Muchas soluciones ya están documentadas y podés resolverlo vos mismo en segundos.</p>
+
+            <div class="card tip">
+                <div class="card-title">💡 ¿Por qué usarla?</div>
+                <p>Los tickets tardan minutos u horas en asignarse a un técnico. La base de conocimiento te da la respuesta al instante. Además, cada vez que la usás, evitás carga al equipo TI y mejorás la respuesta para todos.</p>
+            </div>
+
+            <h3>Cómo acceder</h3>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-title">Botón 📚 Ayuda en el header</div>
+                    <div class="step-desc">En el dashboard, arriba a la derecha, tenés el botón <strong>📚 Ayuda</strong>. Un clic te lleva al portal de la base de conocimiento.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Buscador central</div>
+                    <div class="step-desc">Escribí lo que buscás (ej: <em>"cómo cambio mi contraseña"</em>, <em>"no puedo entrar a SAP"</em>). El sistema filtra artículos por título, contenido y etiquetas.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Filtros por categoría</div>
+                    <div class="step-desc">Debajo del buscador hay chips con las categorías disponibles (Correo, Redes, SAP, Hardware, etc.). Cliqueá el que te interese para filtrar.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Abrir el artículo</div>
+                    <div class="step-desc">Cliqueá cualquier tarjeta para leer el artículo completo. Están escritos paso a paso con imágenes y ejemplos.</div>
+                </div>
+            </div>
+
+            <h3>Marcar como útil / no útil</h3>
+            <p>Al final de cada artículo hay dos botones: <strong>👍 Sí, gracias</strong> y <strong>👎 No, sigo con el problema</strong>. Este feedback es súper importante porque:</p>
+            <ul>
+                <li>Ayuda a otros usuarios a identificar qué artículos son buenos.</li>
+                <li>Los admin ven cuáles artículos necesitan mejorarse.</li>
+                <li>Si marcás "No", podés dejar un comentario explicando qué le falta.</li>
+            </ul>
+
+            <div class="card">
+                <div class="card-title">🎯 Buenas búsquedas</div>
+                <p>Escribí lo esencial del problema, no la pregunta completa:</p>
+                <ul>
+                    <li>✅ Bien: <em>"cambiar contraseña red"</em></li>
+                    <li>❌ Mal: <em>"hola necesito ayuda porque no me acuerdo cuál es mi contraseña"</em></li>
+                </ul>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('dashboard')">← Dashboard</button>
+                <button onclick="showSection('crear')">Siguiente → ➕ Crear ticket</button>
             </div>
         </section>
 
