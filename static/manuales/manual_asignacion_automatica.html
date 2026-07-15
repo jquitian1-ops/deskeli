@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Guía: Configurar técnicos para asignación automática · DeskEli</title>
+<link rel="icon" href="/static/eli.png" type="image/png">
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f9fafb; color: #1f2937; line-height: 1.65; }
+    .container { max-width: 900px; margin: 0 auto; padding: 30px 40px 60px; }
+
+    /* Header */
+    .hero { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 40px 40px 32px; border-radius: 14px; margin-bottom: 30px; text-align: center; }
+    .hero h1 { font-size: 30px; font-weight: 800; margin-bottom: 8px; }
+    .hero p { opacity: 0.95; font-size: 15px; }
+    .hero .badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 12px; }
+
+    /* Table of contents */
+    .toc { background: white; border-radius: 12px; padding: 22px 28px; margin-bottom: 30px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); border-left: 5px solid #7c3aed; }
+    .toc h2 { font-size: 15px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+    .toc ol { padding-left: 20px; }
+    .toc li { padding: 4px 0; }
+    .toc a { color: #4f46e5; text-decoration: none; font-weight: 600; }
+    .toc a:hover { text-decoration: underline; }
+
+    /* Sections */
+    section { background: white; border-radius: 12px; padding: 30px 34px; margin-bottom: 22px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+    section h2 { font-size: 22px; color: #1f2937; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid #ede9fe; }
+    section h3 { font-size: 17px; color: #4f46e5; margin: 20px 0 10px; }
+    section p { color: #374151; margin-bottom: 12px; }
+    section ul, section ol { margin-left: 22px; margin-bottom: 12px; color: #374151; }
+    section li { padding: 4px 0; }
+    section code { background: #ede9fe; color: #6d28d9; padding: 2px 8px; border-radius: 4px; font-size: 13px; font-family: 'Consolas', monospace; }
+
+    /* Cards */
+    .card { background: #f9fafb; border-radius: 8px; padding: 16px 20px; border-left: 4px solid #7c3aed; margin: 14px 0; }
+    .card.info { border-left-color: #3b82f6; background: #eff6ff; }
+    .card.warn { border-left-color: #f59e0b; background: #fffbeb; }
+    .card.success { border-left-color: #16a34a; background: #f0fdf4; }
+    .card.danger { border-left-color: #dc2626; background: #fef2f2; }
+    .card-title { font-weight: 700; color: #1f2937; margin-bottom: 6px; }
+
+    /* Steps */
+    .step { display: flex; gap: 16px; margin: 16px 0; align-items: flex-start; }
+    .step-num { background: linear-gradient(135deg, #7c3aed, #4f46e5); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; flex-shrink: 0; }
+    .step-body { flex: 1; }
+    .step-body h4 { margin-bottom: 4px; color: #1f2937; font-size: 16px; }
+    .step-body p { margin-bottom: 6px; }
+
+    /* Algorithm visualization */
+    .algorithm { background: #1f2937; color: #e5e7eb; padding: 20px 24px; border-radius: 10px; font-family: 'Consolas', monospace; font-size: 13px; line-height: 1.7; margin: 14px 0; overflow-x: auto; }
+    .algorithm .kw { color: #a78bfa; }
+    .algorithm .num { color: #fbbf24; }
+    .algorithm .cm { color: #6b7280; font-style: italic; }
+
+    /* Formula */
+    .formula { background: linear-gradient(135deg, #ede9fe, #ddd6fe); border-radius: 8px; padding: 18px 24px; text-align: center; font-size: 17px; font-weight: 700; color: #4c1d95; margin: 14px 0; }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13px; }
+    th { background: #f3f4f6; text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; border-bottom: 2px solid #e5e7eb; }
+    td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; }
+    tr:hover td { background: #fafafa; }
+
+    /* Buttons demo */
+    .btn-demo { display: inline-block; padding: 8px 16px; background: linear-gradient(135deg, #7c3aed, #4f46e5); color: white; border-radius: 6px; font-weight: 600; font-size: 13px; margin: 4px 2px; }
+    .btn-demo.gray { background: #e5e7eb; color: #374151; }
+
+    /* Nav */
+    .top-nav { text-align: right; margin-bottom: 16px; }
+    .top-nav a { color: #7c3aed; text-decoration: none; font-size: 13px; }
+    .top-nav a:hover { text-decoration: underline; }
+
+    .footer-note { text-align: center; color: #9ca3af; font-size: 13px; padding: 24px 0; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+    <div class="top-nav">
+        <a href="/admin/dashboard">← Volver al panel</a>
+    </div>
+
+    <div class="hero">
+        <div class="badge">GUÍA DEL ADMINISTRADOR</div>
+        <h1>🎯 Asignación automática de tickets</h1>
+        <p>Cómo configurar tu equipo para que DeskEli asigne cada ticket al técnico correcto, sin intervención manual.</p>
+    </div>
+
+    <!-- TOC -->
+    <div class="toc">
+        <h2>📑 Contenido</h2>
+        <ol>
+            <li><a href="#como-funciona">Cómo funciona el algoritmo</a></li>
+            <li><a href="#requisitos">Requisitos previos</a></li>
+            <li><a href="#paso1">Paso 1 — Crear usuarios técnicos</a></li>
+            <li><a href="#paso2">Paso 2 — Definir categorías de tickets</a></li>
+            <li><a href="#paso3">Paso 3 — Asignar subroles / especializaciones</a></li>
+            <li><a href="#paso4">Paso 4 — Configurar perfil IA (habilidades)</a></li>
+            <li><a href="#paso5">Paso 5 — Establecer capacidad máxima por técnico</a></li>
+            <li><a href="#probar">Cómo probar que funciona</a></li>
+            <li><a href="#troubleshooting">Diagnóstico: si no está asignando</a></li>
+            <li><a href="#buenas-practicas">Buenas prácticas</a></li>
+        </ol>
+    </div>
+
+    <!-- 1. CÓMO FUNCIONA -->
+    <section id="como-funciona">
+        <h2>1️⃣ Cómo funciona el algoritmo</h2>
+
+        <p>Cuando se crea un ticket (desde el portal empleado, técnico, correo o API), DeskEli busca automáticamente al mejor técnico usando esta lógica:</p>
+
+        <div class="algorithm">
+<span class="cm"># Para cada técnico activo de la empresa:</span>
+<span class="kw">score</span> = tickets_activos <span class="cm"># cantidad actual de casos abiertos + en progreso</span>
+<span class="kw">if</span> categoría del ticket ∈ especialidades del técnico:
+    <span class="kw">score</span> -= <span class="num">5</span>  <span class="cm"># bonus por coincidencia de habilidad</span>
+
+<span class="cm"># Ganador: técnico con score MÁS BAJO</span>
+<span class="kw">técnico_asignado</span> = min(scores)
+</div>
+
+        <div class="formula">
+            🏆 Menor carga + coincidencia de skill = <em>ganador</em>
+        </div>
+
+        <div class="card info">
+            <div class="card-title">💡 Ejemplo práctico</div>
+            <p>Un empleado crea ticket categoría <strong>"Correo"</strong>. El sistema evalúa:</p>
+            <table>
+                <thead>
+                    <tr><th>Técnico</th><th>Tickets activos</th><th>Especialidad Correo</th><th>Score final</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Juan (Redes)</td><td>3</td><td>No</td><td>3</td></tr>
+                    <tr><td>María (Correo)</td><td>4</td><td>Sí</td><td>-1 ✅ Ganadora</td></tr>
+                    <tr><td>Pedro (Hardware)</td><td>2</td><td>No</td><td>2</td></tr>
+                </tbody>
+            </table>
+            <p>María gana aunque tiene MÁS carga que Pedro, porque el bonus de especialidad (-5) le baja mucho el score.</p>
+        </div>
+
+        <div class="card warn">
+            <div class="card-title">⚠️ Sin configuración, todos son iguales</div>
+            <p>Si no tenés perfiles configurados, el sistema simplemente reparte por <strong>menor carga</strong>. Los tickets se distribuyen en rotación entre los técnicos disponibles — que ya es útil, pero pierde el poder del emparejamiento por especialidad.</p>
+        </div>
+    </section>
+
+    <!-- 2. REQUISITOS -->
+    <section id="requisitos">
+        <h2>2️⃣ Requisitos previos</h2>
+        <p>Antes de arrancar, verificá que tenés:</p>
+        <ul>
+            <li>✅ Acceso al portal como <strong>administrador</strong></li>
+            <li>✅ Al menos 2 usuarios con rol <strong>Técnico</strong> creados</li>
+            <li>✅ Un catálogo de <strong>categorías de tickets</strong> (Correo, Redes, SAP, Hardware, etc.)</li>
+            <li>✅ Idealmente: un catálogo de <strong>subroles</strong> definido</li>
+        </ul>
+    </section>
+
+    <!-- 3. PASO 1 -->
+    <section id="paso1">
+        <h2>3️⃣ Paso 1 — Crear usuarios técnicos</h2>
+
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+                <h4>Andá a Gestión de Usuarios</h4>
+                <p>Panel admin → sidebar → <strong>Equipo → Gestión de Usuarios</strong>.</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+                <h4>Nuevo usuario</h4>
+                <p>Cliqueá <span class="btn-demo">＋ Agregar usuario</span> y completá:</p>
+                <ul>
+                    <li><strong>Nombre completo:</strong> ej "Juan Pérez"</li>
+                    <li><strong>Usuario / Email:</strong> ej "jperez@empresa.com"</li>
+                    <li><strong>Rol:</strong> selecciona <code>🔧 Técnico</code> (crítico — sin esto no entra al pool de asignación)</li>
+                    <li><strong>Empresa:</strong> Eliot, Pash o Primatela</li>
+                    <li><strong>Activo:</strong> ✅ (obligatorio para recibir tickets)</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+                <h4>Repetí para cada técnico del equipo</h4>
+                <p>Ideal: mínimo 2-3 técnicos por empresa para que el algoritmo tenga con quién comparar.</p>
+            </div>
+        </div>
+
+        <div class="card warn">
+            <div class="card-title">🚫 Qué EXCLUYE del algoritmo</div>
+            <ul style="margin-top: 4px;">
+                <li>Usuarios con rol <strong>Empleado</strong> o <strong>Admin</strong> (solo se asigna a "technician")</li>
+                <li>Usuarios <strong>desactivados</strong> (toggle <code>is_active = false</code>)</li>
+                <li>Usuarios de otra empresa (segregación multi-tenant)</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- 4. PASO 2 -->
+    <section id="paso2">
+        <h2>4️⃣ Paso 2 — Definir categorías de tickets</h2>
+
+        <p>Las categorías son el "puente" entre el ticket y la especialidad del técnico. Cuanto más específicas, mejor asigna el algoritmo.</p>
+
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+                <h4>Andá a Configuración → Tags y Categorías</h4>
+                <p>Panel admin → <strong>Configuración</strong> → busca la sección <strong>Tags / Categorías</strong>.</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+                <h4>Creá al menos estas categorías básicas</h4>
+                <table>
+                    <thead>
+                        <tr><th>Categoría</th><th>Ejemplos de tickets que caen ahí</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Correo</td><td>No envía, spam, firma, buzón lleno</td></tr>
+                        <tr><td>Redes</td><td>WiFi, VPN, sin internet, IP</td></tr>
+                        <tr><td>Hardware</td><td>Monitor, teclado, impresora, PC no prende</td></tr>
+                        <tr><td>SAP</td><td>Error en transacción, accesos SAP, contraseña SAP</td></tr>
+                        <tr><td>Accesos</td><td>Alta usuario, cambio permisos, restablecer contraseña</td></tr>
+                        <tr><td>Software</td><td>Instalación de programas, licencias, Office</td></tr>
+                        <tr><td>General</td><td>Cualquier otra cosa</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card info">
+            <div class="card-title">💡 Regla de oro</div>
+            <p>Usá categorías de <strong>1 palabra</strong> (Correo, Redes) para que sea fácil matchearlas con el nombre del técnico o sus especialidades. Categorías tipo "Problemas de acceso al sistema" son demasiado largas.</p>
+        </div>
+    </section>
+
+    <!-- 5. PASO 3 -->
+    <section id="paso3">
+        <h2>5️⃣ Paso 3 — Asignar subroles / especializaciones</h2>
+
+        <p>Los <strong>subroles</strong> son etiquetas de especialidad. Un técnico puede tener varios (ej: "Redes + Windows Server + VPN"). El algoritmo los usa para el bonus de coincidencia.</p>
+
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+                <h4>Definí el catálogo de subroles</h4>
+                <p>Panel admin → <strong>Configuración</strong> → <strong>Subroles / Especializaciones de Técnicos</strong>. Creá subroles con ícono y nombre.</p>
+                <p>Ejemplos típicos:</p>
+                <table>
+                    <thead><tr><th>Ícono</th><th>Nombre</th><th>Descripción</th></tr></thead>
+                    <tbody>
+                        <tr><td>🌐</td><td>Redes</td><td>Firewall, switching, WiFi, VPN</td></tr>
+                        <tr><td>💾</td><td>Servidores</td><td>Windows Server, Linux, virtualización</td></tr>
+                        <tr><td>💻</td><td>Hardware</td><td>Instalación de PCs, impresoras</td></tr>
+                        <tr><td>📧</td><td>Correo</td><td>Exchange, Outlook, Office 365</td></tr>
+                        <tr><td>🏢</td><td>SAP</td><td>Módulos SAP, ABAP, transacciones</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+                <h4>Asigná subroles a cada técnico</h4>
+                <p>Volvé a <strong>Gestión de Usuarios</strong>, editá cada técnico y en la columna <strong>Subroles</strong> asignale los que le correspondan.</p>
+                <p>Un técnico puede tener <strong>múltiples subroles</strong> (ej: Juan sabe Redes Y Servidores).</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 6. PASO 4 -->
+    <section id="paso4">
+        <h2>6️⃣ Paso 4 — Configurar Perfil IA (habilidades detalladas)</h2>
+
+        <p>El <strong>Perfil IA</strong> es la configuración más granular: define habilidades específicas con nivel de proficiencia (0-100). Esto lo usan los agentes IA para asignaciones aún más finas.</p>
+
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+                <h4>Andá a Perfiles IA</h4>
+                <p>Panel admin → <strong>Configuración</strong> → <strong>Perfiles IA</strong> (o <strong>Especialistas</strong>).</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+                <h4>Agregá un perfil por técnico</h4>
+                <p>Seleccioná el técnico del desplegable y agregá sus habilidades con nivel:</p>
+                <table>
+                    <thead><tr><th>Técnico</th><th>Habilidades (Nivel 0-100)</th></tr></thead>
+                    <tbody>
+                        <tr><td>Juan Pérez</td><td>Redes:90, Windows:80, VPN:70</td></tr>
+                        <tr><td>María López</td><td>Correo:95, Office365:90, Outlook:85</td></tr>
+                        <tr><td>Pedro Gómez</td><td>Hardware:80, Impresoras:70, PC:75</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card info">
+            <div class="card-title">💡 Diferencia entre Subrole y Perfil IA</div>
+            <ul style="margin-top:4px;">
+                <li><strong>Subrole:</strong> etiqueta visible en la UI (icono + nombre). Sirve para agrupar y filtrar visualmente. Uso: "mostrar solo tickets del grupo Redes".</li>
+                <li><strong>Perfil IA:</strong> tabla técnica con habilidades + nivel. Uso: el algoritmo hace matching preciso "necesito alguien con Redes ≥80".</li>
+            </ul>
+            <p style="margin-top:8px;">En la práctica, usá <strong>subroles</strong> para el flujo diario y <strong>Perfiles IA</strong> solo si tenés varias personas con la misma especialidad y necesitás ordenar por experiencia.</p>
+        </div>
+    </section>
+
+    <!-- 7. PASO 5 -->
+    <section id="paso5">
+        <h2>7️⃣ Paso 5 — Capacidad máxima por técnico</h2>
+
+        <p>En el perfil de cada técnico podés fijar un <strong>máximo de tickets simultáneos</strong>. Cuando un técnico llega a ese límite, el algoritmo deja de asignarle nuevos casos.</p>
+
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+                <h4>Andá al perfil del técnico</h4>
+                <p>Configuración → Perfiles IA → seleccioná al técnico</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+                <h4>Ajustá "Máximo de tickets"</h4>
+                <p>Default: 5. Recomendación por tipo de técnico:</p>
+                <table>
+                    <thead><tr><th>Perfil</th><th>Máximo sugerido</th></tr></thead>
+                    <tbody>
+                        <tr><td>Junior (aprendiendo)</td><td>3-4</td></tr>
+                        <tr><td>Semi-senior</td><td>5-7</td></tr>
+                        <tr><td>Senior</td><td>8-10</td></tr>
+                        <tr><td>Especialista dedicado</td><td>10-15</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card warn">
+            <div class="card-title">⚠️ Este límite es "blando" hoy</div>
+            <p>La implementación actual usa la carga solo como criterio de <em>ranking</em>, no como bloqueo absoluto. Si TODOS los técnicos están al máximo, sigue asignando al de menor carga. Para bloqueo absoluto, avisale a un desarrollador que quieras <em>overflow queue</em>.</p>
+        </div>
+    </section>
+
+    <!-- 8. PROBAR -->
+    <section id="probar">
+        <h2>✅ Cómo probar que funciona</h2>
+
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+                <h4>Loguéate como empleado de prueba</h4>
+                <p>(o pedile a alguien) y creá un ticket con una categoría específica que tenga técnico especializado. Por ej: categoría "Correo" y María es tu experta de Correo.</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+                <h4>Verificá que se asignó</h4>
+                <p>Volvé al panel admin. Andá a <strong>Tickets</strong> y buscá el ticket recién creado. En la columna <strong>Asignado a</strong> debería aparecer el técnico correcto (María en el ejemplo).</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+                <h4>Confirmá en el audit log</h4>
+                <p>Sidebar → <strong>Datos & seguridad → Logs y auditoría</strong> → buscá eventos <code>auto_assign</code>. Vas a ver la línea:<br>
+                <code style="background:#f3f4f6;padding:8px 12px;display:inline-block;margin-top:6px;">auto_assign · Ticket asignado automáticamente a técnico #<ID></code></p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-body">
+                <h4>Repite con distintas categorías</h4>
+                <p>Creá 5-10 tickets con diferentes categorías. Debería ver una distribución variada según especialidades.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 9. TROUBLESHOOTING -->
+    <section id="troubleshooting">
+        <h2>🔧 Diagnóstico: si no está asignando</h2>
+
+        <h3>Síntoma 1: Los tickets quedan sin asignar</h3>
+        <div class="card danger">
+            <div class="card-title">Verificar</div>
+            <ul>
+                <li>¿Hay al menos un usuario con rol <code>technician</code> en la empresa del ticket? <em>(sin técnicos, no se puede asignar)</em></li>
+                <li>¿El técnico está <code>is_active=true</code>? Un usuario desactivado no recibe casos</li>
+                <li>¿La empresa del ticket coincide con la empresa del técnico? La segregación multi-tenant no cruza empresas</li>
+            </ul>
+        </div>
+
+        <h3>Síntoma 2: Todos los tickets van al mismo técnico</h3>
+        <div class="card danger">
+            <div class="card-title">Verificar</div>
+            <ul>
+                <li>¿Solo tenés un técnico creado? El algoritmo elige entre los que hay</li>
+                <li>¿El resto de los técnicos están al máximo de tickets? Chequeá cargas</li>
+                <li>¿Los otros técnicos tienen la especialidad de la categoría? Sin match, la carga define solo</li>
+            </ul>
+        </div>
+
+        <h3>Síntoma 3: Los tickets se asignan pero al técnico equivocado</h3>
+        <div class="card danger">
+            <div class="card-title">Verificar</div>
+            <ul>
+                <li>¿La categoría del ticket coincide con el <strong>nombre del técnico</strong> por casualidad? (Ej: técnico "Correa" recibe todos los tickets "Correo" por match de string)</li>
+                <li>¿Las especialidades del técnico coinciden con la categoría? La lógica compara texto — <em>"Correo" vs "Emails"</em> no matchea</li>
+                <li>Solución: renombrá la categoría para que use la misma palabra que el subrole del técnico</li>
+            </ul>
+        </div>
+
+        <h3>Síntoma 4: Correos que entran por buzón no se asignan</h3>
+        <div class="card danger">
+            <div class="card-title">Verificar</div>
+            <ul>
+                <li>La categoría por default del buzón puede no matchear ningún técnico</li>
+                <li>Configurá la categoría del buzón (Configuración → Buzones → editar) para que use una categoría que sí tenga técnicos especializados</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- 10. BUENAS PRÁCTICAS -->
+    <section id="buenas-practicas">
+        <h2>💎 Buenas prácticas</h2>
+
+        <ol>
+            <li>
+                <strong>Menos categorías, más precisas.</strong> Es mejor tener 7-10 categorías cortas y claras que 30 categorías largas. El algoritmo necesita matchear texto — mientras más simple, mejor.
+            </li>
+            <li>
+                <strong>Un técnico = múltiples subroles.</strong> No forces a alguien a una sola especialidad. Un Junior podría tener "Hardware + PC + Impresoras" mientras un Senior tiene "Redes + Servers + SAP + Correo".
+            </li>
+            <li>
+                <strong>Revisá cargas 1 vez por semana.</strong> Andá a <strong>Time Tracking</strong> (Sistema → ⏱ Time Tracking) y mirá el ranking de horas por técnico. Si alguien concentra 60%+, ajustá subroles o contratá.
+            </li>
+            <li>
+                <strong>Usá el override manual cuando haga falta.</strong> El algoritmo asigna, pero cualquier técnico puede <strong>reasignar</strong> un ticket a un compañero si no es su especialidad. No luches contra la asignación automática — usála como default inteligente.
+            </li>
+            <li>
+                <strong>Onboarding: crear técnico + subrol + perfil IA de una.</strong> Cuando entra alguien nuevo al equipo, hacé los 3 pasos el mismo día para que empiece a recibir tickets según su expertise desde el primer momento.
+            </li>
+            <li>
+                <strong>Monitorear el Orchestrator dashboard.</strong> Sidebar → <strong>🤖 Orchestrator</strong> → ver las estadísticas del <em>Assignor</em> (uno de los 4 agentes IA). Muestra cuántas asignaciones automáticas hizo, con qué confianza, y qué método usó.
+            </li>
+            <li>
+                <strong>Documentar decisiones inusuales.</strong> Si un técnico solo debe atender tickets críticos, ponelo en su <strong>descripción del rol</strong> para que el resto del equipo sepa el criterio.
+            </li>
+        </ol>
+
+        <div class="card success">
+            <div class="card-title">🎯 Meta ideal después de configurar</div>
+            <p>Después de configurar bien tu equipo, <strong>+80% de los tickets nuevos deberían asignarse solos al técnico correcto</strong>. El otro 20% (casos raros, escalaciones especiales) requieren asignación manual — que es normal y esperado en cualquier ITSM.</p>
+        </div>
+    </section>
+
+    <div class="footer-note">
+        ⚙️ DeskEli · Guía de configuración de asignación automática · Versión 1.0
+    </div>
+
+</div>
+
+</body>
+</html>
