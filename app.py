@@ -2941,6 +2941,83 @@ def admin_csat():
                            current_company=user.company)
 
 
+@app.route('/api/admin/auto-close-config', methods=['GET'])
+def api_admin_auto_close_get():
+    """Devuelve la configuración actual del auto-cierre + estadísticas."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+
+    cfg = Config.query.filter_by(key='auto_close_hours').first()
+    hours = int(cfg.value) if (cfg and cfg.value and cfg.value.strip().isdigit()) else 24
+
+    scope = admin_companies_scope()
+    # Cuántos tickets serían candidatos ahora mismo
+    cutoff = datetime.now() - timedelta(hours=hours)
+    candidates = Ticket.query.filter(
+        Ticket.company.in_(scope),
+        Ticket.status == 'resolved',
+        Ticket.resolved_at.isnot(None),
+        Ticket.resolved_at <= cutoff
+    ).count() if hours > 0 else 0
+
+    return jsonify({
+        'success': True,
+        'hours': hours,
+        'enabled': hours > 0,
+        'candidates_now': candidates,
+        'note': 'hours=0 deshabilita el auto-cierre'
+    })
+
+
+@app.route('/api/admin/auto-close-config', methods=['POST'])
+def api_admin_auto_close_set():
+    """Configura las horas para auto-cierre. hours=0 lo deshabilita."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+    if not is_master_admin():
+        return jsonify({'success': False, 'error': 'Solo el admin master puede cambiar esta configuración'}), 403
+
+    data = request.get_json() or {}
+    try:
+        hours = int(data.get('hours', 24))
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'hours debe ser un entero'}), 400
+    if hours < 0 or hours > 720:  # máx 30 días
+        return jsonify({'success': False, 'error': 'hours debe estar entre 0 y 720'}), 400
+
+    cfg = Config.query.filter_by(key='auto_close_hours').first()
+    if cfg:
+        cfg.value = str(hours)
+    else:
+        db.session.add(Config(key='auto_close_hours', value=str(hours)))
+    db.session.commit()
+
+    log_audit('config_auto_close', session['user_id'], 'config', None,
+              f'Auto-cierre configurado a {hours}h ({"deshabilitado" if hours == 0 else "activo"})')
+    return jsonify({'success': True, 'hours': hours, 'enabled': hours > 0})
+
+
+@app.route('/api/admin/auto-close/run-now', methods=['POST'])
+def api_admin_auto_close_run_now():
+    """Dispara el auto-cierre inmediatamente (sin esperar al scheduler)."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+
+    before = Ticket.query.filter(Ticket.status == 'closed').count()
+    try:
+        auto_close_resolved_tickets()
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    after = Ticket.query.filter(Ticket.status == 'closed').count()
+    closed = after - before
+
+    return jsonify({
+        'success': True,
+        'closed_now': closed,
+        'message': f'{closed} ticket(s) cerrado(s) manualmente'
+    })
+
+
 @app.route('/api/admin/guiones/<int:guion_id>/pool-info')
 def api_admin_guion_pool_info(guion_id):
     """Diagnóstico completo del pool de asignación de un guion.
@@ -7172,6 +7249,90 @@ def check_sla_alerts():
         if sent_count > 0:
             db.session.commit()
             print(f'[sla-alert] {sent_count} alertas enviadas')
+
+
+def auto_close_resolved_tickets():
+    """Cierra automáticamente los tickets que estén en estado 'resolved' por
+    más de AUTO_CLOSE_HOURS horas (default 24h, configurable en Config).
+
+    Racional: un ticket resuelto ya no requiere acción del equipo TI. Pasarlo
+    a 'closed' saca del feed activo, mejora las métricas de "SLA a tiempo" y
+    fuerza al usuario a reabrir explícitamente si algo no quedó bien.
+
+    Se ejecuta desde un scheduler cada 30 minutos.
+    """
+    with app.app_context():
+        try:
+            # Ventana configurable desde Config('auto_close_hours', '24')
+            cfg = Config.query.filter_by(key='auto_close_hours').first()
+            hours = int(cfg.value) if (cfg and cfg.value and cfg.value.strip().isdigit()) else 24
+            if hours <= 0:
+                return  # Feature deshabilitado
+
+            cutoff = datetime.now() - timedelta(hours=hours)
+            candidates = Ticket.query.filter(
+                Ticket.status == 'resolved',
+                Ticket.resolved_at.isnot(None),
+                Ticket.resolved_at <= cutoff
+            ).all()
+
+            if not candidates:
+                return
+
+            closed_count = 0
+            for t in candidates:
+                try:
+                    t.status = 'closed'
+                    t.updated_at = datetime.now()
+                    log_audit(
+                        'ticket_auto_closed',
+                        None,
+                        'ticket',
+                        t.id,
+                        f'Ticket {t.ticket_number} cerrado automáticamente ({hours}h desde resolución)'
+                    )
+                    closed_count += 1
+                except Exception as e:
+                    print(f'[auto-close] Error cerrando ticket {t.id}: {e}')
+
+            db.session.commit()
+            if closed_count > 0:
+                print(f'[auto-close] {closed_count} ticket(s) resueltos hace >{hours}h → cerrados automáticamente')
+
+                # Emitir websocket por empresa para refrescar dashboards
+                try:
+                    from collections import defaultdict
+                    by_company = defaultdict(list)
+                    for t in candidates:
+                        by_company[t.company].append(t.id)
+                    for company, ids in by_company.items():
+                        socketio.emit('tickets_auto_closed', {
+                            'count': len(ids),
+                            'ticket_ids': ids,
+                            'hours': hours
+                        }, room=f'company_{company}')
+                except Exception:
+                    pass
+
+        except Exception as e:
+            try: db.session.rollback()
+            except Exception: pass
+            print(f'[auto-close] Error general: {e}')
+
+
+def start_auto_close_scheduler():
+    """Scheduler que cierra tickets resueltos hace >24h. Corre cada 30 minutos."""
+    def loop():
+        time.sleep(90)  # esperar 90s al arranque para no bloquear
+        while True:
+            try:
+                auto_close_resolved_tickets()
+            except Exception as e:
+                print(f'[auto-close-scheduler] Error: {e}')
+            time.sleep(1800)  # cada 30 min
+    thread = Thread(target=loop, daemon=True)
+    thread.start()
+    print('[auto-close] Scheduler iniciado (revisión cada 30 min, cierre a 24h)')
 
 
 def start_sla_alert_scheduler():
@@ -18757,6 +18918,11 @@ def bootstrap_app():
     # NUEVO: Reportes automáticos (quincenal/mensual/anual)
     try:
         start_report_scheduler()
+    except NameError:
+        pass
+    # NUEVO: Cierre automático de tickets resueltos hace >24h
+    try:
+        start_auto_close_scheduler()
     except NameError:
         pass
 
