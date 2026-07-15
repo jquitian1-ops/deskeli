@@ -1,127 +1,132 @@
 # Ejemplos de integración con la API DeskEli
 
-Cómo consumir la API REST de DeskEli para crear tickets con múltiples subtareas
-y adjuntos desde una integración externa (Aranda, scripts propios, otras plataformas).
+Cómo consumir la API REST de DeskEli para crear tickets **usando guiones
+preconfigurados** — la forma correcta de integrar sistemas externos.
 
-## Endpoint
+## 🎯 Flujo correcto: GUIONES
+
+En DeskEli las subtareas **NO se envían desde el sistema externo**. Se definen
+UNA sola vez en el panel admin (llamadas "Guiones") y el sistema externo solo
+envía el `guion_code`.
+
+```
+┌─────────────────────────────────┐
+│  Sistema externo (Aranda,       │       ┌────────────────────────────┐
+│  script Python, portal Web)     │       │  Panel admin DeskEli:      │
+│                                 │       │                            │
+│  POST /api/v1/external/tickets  │──►────│  Guión 'cambio-clave-sap'  │
+│  {                              │       │  ├─ Subtarea 1: Verificar  │
+│    subject: "...",              │       │  ├─ Subtarea 2: Cambiar    │
+│    description: "...",          │       │  ├─ Subtarea 3: Notificar  │
+│    applicantEmail: "...",       │       │  └─ Subtarea 4: Validar    │
+│    guion_code: "cambio-clave-sap"│      │  (con técnicos asignados)  │
+│  }                              │       └────────────────────────────┘
+└─────────────────────────────────┘                     │
+                                                        ▼
+                                            ┌───────────────────────┐
+                                            │  Ticket TKT-ELIOT-00042│
+                                            │  ✓ Subtareas creadas  │
+                                            │  ✓ Técnicos asignados │
+                                            │  ✓ Prioridades OK     │
+                                            └───────────────────────┘
+```
+
+### Ventajas de este enfoque
+
+- ✅ **Cambios sin código**: si cambia el proceso, el admin edita el guión y no toca la integración
+- ✅ **Técnicos asignados centralmente**: el admin sabe quién atiende qué, no el sistema origen
+- ✅ **Auditoría clara**: cada ticket queda linkeado al guión que ejecutó
+- ✅ **Payload mínimo**: 5 campos vs 30+ campos ad-hoc
+- ✅ **Sin errores de tipo**: nada de listas donde el server espera strings
+
+---
+
+## 📋 Cómo crear un guión (Panel admin)
+
+**Se hace una sola vez, cuando definís el proceso.**
+
+1. Login como admin en DeskEli
+2. Sidebar → **Automatización → Guiones**
+3. Click **＋ Nuevo Guión** y completar:
+
+   | Campo | Ejemplo | Descripción |
+   |---|---|---|
+   | `code` | `cambio-clave-sap-rise` | Identificador único, sin espacios ni acentos. Es lo que envía el sistema externo. |
+   | `name` | `Cambio de clave SAP RISE` | Etiqueta amigable para el admin |
+   | `description` | `Procedimiento estándar para renovar claves de acceso SAP RISE` | Documentación interna |
+   | `company` | `eliot` / `pash` / `primatela` | Empresa dueña del guión |
+   | `default_priority` | `high` | Se aplica a subtareas que no especifiquen prioridad |
+   | `default_category` | `SAP` | Se aplica a subtareas sin categoría |
+   | `is_active` | ✅ | Solo los activos se pueden invocar |
+
+4. Dentro del guión, click **＋ Nueva Subtarea** y agregar los pasos del proceso:
+
+   | Campo | Ejemplo |
+   |---|---|
+   | `order_idx` | `0`, `1`, `2`, ... — orden de creación |
+   | `title` | `Paso 1: Verificar identidad del solicitante` |
+   | `description` | `Confirmar por email/telefono que la solicitud es legítima` |
+   | `priority` | `critical` / `high` / `medium` / `low` |
+   | `category` | Opcional, sobrescribe `default_category` |
+   | `assignee` | Técnico específico, o vacío (usa pool round-robin) |
+
+5. **(Opcional)** Asignar un pool de especialistas al guión:
+   - Sidebar → **Equipo → Gestión de Usuarios**
+   - Editar un técnico → columna **Guiones** → agregarlo al guión
+   - Cuando una subtarea NO tenga técnico fijo, se asigna por round-robin entre los especialistas del pool
+
+---
+
+## 🔑 Generar un token de API
+
+1. Sidebar → **Configuración → API Keys** (o **Tokens**)
+2. Click **＋ Nuevo token**:
+   - **Nombre:** ej "Integración Aranda", "Script Nolberto"
+   - **Empresa:** la empresa cuyos tickets se van a crear
+   - **Scopes:** ✅ **`tickets:create`** (imprescindible)
+   - **Expiración:** opcional. Recomendado 6-12 meses
+3. Copiá el token que empieza con `dsk_t_...` — **solo se muestra una vez**
+
+---
+
+## 📮 Endpoint
 
 ```
 POST https://deskeli.eliotproyectos.tech/api/v1/external/tickets
 ```
 
-## Autenticación
-
 Header obligatorio:
-
 ```
 X-Authorization: Bearer <TOKEN>
+Content-Type: application/json
 ```
 
-o también:
+## 📝 Payload mínimo (con guión)
 
+```json
+{
+  "subject": "Cambio clave SAP RISE 4",
+  "description": "Renovación trimestral de clave para BASIS-SAP",
+  "applicantEmail": "basis-sap@patprimo.com.co",
+  "guion_code": "cambio-clave-sap-rise"
+}
 ```
-Authorization: Bearer <TOKEN>
-```
 
-## Cómo generar un token
+Con eso alcanza. **Todo lo demás lo define el guión.**
 
-1. Ingresá al portal admin de DeskEli
-2. Andá a **Configuración → API Keys** (o **Tokens**)
-3. Cliqueá **Nuevo token** con estos datos:
-   - **Nombre:** una descripción amigable (ej: "Integración Aranda", "Script pruebas Nolberto")
-   - **Empresa:** la empresa cuyos tickets se van a crear (Eliot / Pash / Primatela)
-   - **Scopes:** marcá **`tickets:create`** (imprescindible)
-   - **Expiración:** opcional. Recomendado 6-12 meses
-4. Copiá el token que empieza con `dsk_t_...` — **solo se muestra una vez**
-5. Pegalo en `API_TOKEN` del script
+### Campos opcionales del ticket padre
 
-## Archivos de ejemplo
-
-| Archivo | Descripción |
+| Campo | Descripción |
 |---|---|
-| `ejemplo_api_tickets.py` | 4 ejemplos completos en Python (subtareas ad-hoc, desde guión, con adjuntos, procedimiento largo) |
-| `ejemplo_api_curl.sh` | Ejemplo rápido en cURL para probar desde terminal |
+| `priority` | Sobrescribe la prioridad default del guión (para el ticket, no para las subtareas) |
+| `category` | Categoría del ticket padre |
+| `userArea` | Área del solicitante |
+| `userLocation` | Sede/piso |
+| `userPhone` | Teléfono de contacto |
+| `externalRef` | Tu referencia (útil para trazar cross-system) |
+| `attachments` | Array de archivos en base64 |
 
-## Estructura del payload
-
-### Ticket padre (campos principales)
-
-| Campo | Tipo | Obligatorio | Descripción |
-|---|---|:---:|---|
-| `subject` | string | ✅ | Título del ticket (máx 200 caracteres) |
-| `description` | string | ✅ | Descripción larga (acepta HTML sanitizado) |
-| `category` | string | opcional | Categoría (ej: "SAP", "Redes"). Default: `"General"` |
-| `priority` | string | opcional | `low` / `medium` / `high` / `critical`. Default: `medium` |
-| `applicantEmail` | string | ✅ | Email del solicitante (debe existir en la BD) |
-| `applicantId` | int | opcional | Alternativa al email, ID del usuario |
-| `authorId` | int | opcional | Quién registra el ticket (para trazabilidad). Fallback: applicant |
-| `assigneeEmail` | string | opcional | Técnico al que asignar. Sin esto, se asigna automáticamente |
-| `userArea` | string | opcional | Área/departamento del solicitante |
-| `userLocation` | string | opcional | Sede/edificio/piso |
-| `userPhone` | string | opcional | Contacto del solicitante |
-| `externalRef` | string | opcional | Referencia externa (útil para tracing cross-system) |
-
-### Subtareas (2 modos, mutuamente excluyentes)
-
-**Modo A — Desde guión preconfigurado:**
-
-```json
-{
-  "guion_code": "onboarding_usuario"
-}
-```
-
-O por id:
-```json
-{
-  "guion_id": 5
-}
-```
-
-Los guiones se definen en el panel admin. Cada guión genera N subtareas
-automáticamente con orden, prioridad y técnico definidos.
-
-**Modo B — Subtareas ad-hoc en el payload:**
-
-```json
-{
-  "subtasks": [
-    {
-      "title": "Paso 1: Backup",
-      "description": "Ejecutar backup completo",
-      "priority": "high",
-      "category": "SAP",
-      "assigneeEmail": "tecnico1@empresa.com"
-    },
-    { "title": "Paso 2: Migración", "priority": "high", ... },
-    { "title": "Paso 3: Pruebas", "priority": "medium", ... }
-  ]
-}
-```
-
-⚠ **Si mandás `guion_code` Y `subtasks` juntos, gana el guión** y se ignoran
-los subtasks del payload.
-
-### Adjuntos (en base64)
-
-```json
-{
-  "attachments": [
-    {
-      "filename": "acta.pdf",
-      "content_base64": "JVBERi0xLjMK...",
-      "mime": "application/pdf",
-      "attach_to": "both"
-    }
-  ]
-}
-```
-
-- `attach_to`: `"ticket"` (solo padre), `"subtasks"` (se copia a todas las subtareas), `"both"` (default)
-- Límite: **20 adjuntos por request, 50 MB por archivo**
-- Tipos permitidos: PDF, DOC/DOCX, XLS/XLSX, PPT, TXT, CSV, PNG/JPG/GIF, ZIP/RAR/7Z
-
-## Respuesta esperada (201 Created)
+## 📦 Respuesta esperada (201 Created)
 
 ```json
 {
@@ -130,45 +135,49 @@ los subtasks del payload.
   "ticket_number": "TKT-ELIOT-00042",
   "url": "https://deskeli.eliotproyectos.tech/technician/ticket/42",
   "subtasks": [
-    {"id": 12, "subtask_number": "TKT-ELIOT-00042-S01", "title": "Control 1: Backup"},
-    {"id": 13, "subtask_number": "TKT-ELIOT-00042-S02", "title": "Control 2: Migración"},
-    {"id": 14, "subtask_number": "TKT-ELIOT-00042-S03", "title": "Control 3: Pruebas"}
-  ],
-  "attachments": {
-    "ticket": 1,
-    "subtasks": 3
-  }
+    {"id": 12, "subtask_number": "TKT-ELIOT-00042-S01", "title": "Paso 1: Verificar identidad"},
+    {"id": 13, "subtask_number": "TKT-ELIOT-00042-S02", "title": "Paso 2: Cambiar clave"},
+    {"id": 14, "subtask_number": "TKT-ELIOT-00042-S03", "title": "Paso 3: Notificar al usuario"},
+    {"id": 15, "subtask_number": "TKT-ELIOT-00042-S04", "title": "Paso 4: Validar acceso"}
+  ]
 }
 ```
 
-## Errores comunes
+## ⚠ Errores comunes
 
 | Status | Error | Causa |
 |:---:|---|---|
-| 400 | `Faltan campos requeridos: subject y description` | Payload sin los campos obligatorios |
+| 400 | `Guión no encontrado o inactivo: cambio-clave-sap-rise (empresa eliot)` | El `guion_code` no existe, o está inactivo, o pertenece a otra empresa |
 | 400 | `Solicitante no encontrado. Envía applicantEmail o applicantId válido.` | El email del solicitante no existe en la BD |
-| 400 | `Guión no encontrado o inactivo` | El `guion_code` no matchea o está inactivo para esta empresa |
-| 401 | `Falta header X-Authorization: Bearer <token>` | Header ausente o formato inválido |
 | 401 | `Token inválido o revocado` | Token no existe o fue revocado |
-| 401 | `Token expirado` | Pasó la fecha de expiración |
 | 403 | `Token sin scope tickets:create` | El token no tiene permiso para crear tickets |
-| 403 | `Solicitante no pertenece a la empresa` | El email es de otra empresa distinta a la del token |
 
-## Buenas prácticas
+## 📂 Archivos de ejemplo
 
-1. **Un token por integración.** Si tenés varios sistemas llamando a DeskEli, generá un token para cada uno. Facilita revocar sin afectar otros.
-2. **Guardá el token en variables de entorno**, nunca hard-coded en el script.
-3. **Usá `externalRef`** para tracing bidireccional entre tu sistema y DeskEli.
-4. **Preferí guiones preconfigurados** sobre subtareas ad-hoc. Los guiones se definen 1 vez y todos los tickets siguen la misma estructura — mejor para auditoría.
-5. **Comprimí los adjuntos grandes** antes de convertir a base64. Base64 aumenta el tamaño ~33%, así que un PDF de 40 MB queda cerca del límite.
-6. **Manejá los códigos de error** en tu script para reintentar o alertar según corresponda.
+| Archivo | Descripción |
+|---|---|
+| `ejemplo_api_tickets.py` | 4 casos de uso en Python (guión simple, guión con overrides, guión + adjuntos, batch) |
+| `ejemplo_api_curl.sh` | Ejemplo rápido con cURL |
 
-## Soporte
+## 💡 Buenas prácticas
 
-Si algo no funciona, verificá:
-1. El token está activo y no expirado (Panel admin → API Keys)
-2. El solicitante existe en la BD con el email exacto
-3. El JSON está bien formado (validá con jq: `echo '$payload' | jq .`)
-4. Los adjuntos están correctamente codificados en base64 (sin saltos de línea)
+1. **Definí un guión por proceso, no por cliente.** Ejemplo: `cambio-clave-sap-rise` sirve para todos los usuarios, no crees `cambio-clave-juan`, `cambio-clave-maria`.
 
-Para soporte técnico, contactá al equipo de TI de Manufacturas Eliot.
+2. **Naming convention consistente:** `verbo-sustantivo-especificacion` — ej `alta-usuario-sap`, `baja-usuario-general`, `cambio-clave-vpn`.
+
+3. **Un token por integrador.** Si tenés Aranda + otro script + otro sistema llamando, generá 3 tokens distintos. Facilita revocar sin cortar todo.
+
+4. **Guardá el token en variables de entorno** (nunca hard-coded).
+
+5. **Usá `externalRef`** con la referencia de tu sistema origen para poder buscar el ticket cuando te lo mencionen.
+
+6. **No inventes guiones al momento**: si el proceso es nuevo, primero coordiná con el admin de DeskEli para que lo cree, después llamalo.
+
+## 🆘 Soporte
+
+Si algo no funciona:
+
+1. Verificá que el guión existe: Panel admin → Automatización → Guiones. Debe aparecer en la lista con `is_active` = ✅
+2. Verificá que el `code` es exacto: minúsculas, sin espacios, sin acentos
+3. Verificá que la empresa del token coincide con la del guión
+4. Con la corrección `dd87308`, los errores ya vienen como JSON legible — buscá el campo `error` en la respuesta

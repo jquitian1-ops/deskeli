@@ -2,8 +2,17 @@
 ejemplo_api_tickets.py
 ======================
 
-Ejemplos completos de cómo consumir la API de DeskEli para crear tickets con
-múltiples subtareas y adjuntos desde una integración externa.
+Ejemplo de integración con la API de DeskEli usando GUIONES preconfigurados.
+
+Un GUION es una plantilla de subtareas que el admin de DeskEli define UNA VEZ
+en el panel. La integración externa solo necesita conocer el `guion_code` y no
+tiene que saber nada sobre técnicos, prioridades ni estructura de subtareas.
+
+Ventajas del enfoque con guiones vs enviar subtareas explícitas:
+- ✅ Cambios en el proceso no requieren tocar el código del integrador
+- ✅ Los técnicos asignados los define el admin, no el sistema origen
+- ✅ Auditoría más limpia: sabés qué versión del proceso ejecutó qué ticket
+- ✅ Menos payload (2 líneas vs 30) → menos errores de tipos
 
 Endpoint : POST https://deskeli.eliotproyectos.tech/api/v1/external/tickets
 Auth     : Header 'X-Authorization: Bearer <TOKEN>'
@@ -14,17 +23,40 @@ Requisitos:
 
 Uso:
     py ejemplo_api_tickets.py
-
-Antes de correr:
-    1. Panel admin → Configuración → API Keys → Nuevo token con scope tickets:create
-    2. Copiá el token que empieza con 'dsk_t_...' y pegalo en API_TOKEN
-    3. Ajustá URL, empresa, correos de solicitante y técnicos según tu instalación
 """
 
 import requests
 import json
-import base64
-from pathlib import Path
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PASO 0 — Antes de correr este script (una sola vez):
+# ═══════════════════════════════════════════════════════════════════════════
+# 1. Crear el GUIÓN en el panel admin de DeskEli:
+#    a. Login como admin → sidebar → Automatización → Guiones
+#    b. Botón "＋ Nuevo Guión" y completar:
+#       - code:  "cambio-clave-sap-rise"      (identificador único, sin espacios)
+#       - name:  "Cambio de clave SAP RISE"   (etiqueta amigable)
+#       - description: "Procedimiento completo para cambio de clave..."
+#       - company: eliot / pash / primatela
+#       - default_priority: high
+#       - default_category: SAP
+#       - is_active: ✅
+#    c. Dentro del guión, agregar las SUBTAREAS (una por paso del proceso).
+#       Cada subtarea puede tener:
+#       - title:       ej "Paso 1: Verificar identidad del solicitante"
+#       - description: instrucciones detalladas del paso
+#       - priority:    critical/high/medium/low
+#       - category:    (opcional, hereda del guión)
+#       - assignee:    técnico específico o vacío (usa pool round-robin)
+#       - order_idx:   orden de ejecución (0, 1, 2, ...)
+#    d. Opcional: en Gestión de Usuarios → columna "Guiones", asignar
+#       especialistas al guión (pool de asignación round-robin).
+#
+# 2. Generar el API TOKEN:
+#    Sidebar → Configuración → API Keys → Nuevo token con scope tickets:create
+#    Copiar el token que empieza con 'dsk_t_...' y pegarlo abajo.
+# ═══════════════════════════════════════════════════════════════════════════
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -32,7 +64,7 @@ from pathlib import Path
 # ═══════════════════════════════════════════════════════════════════════════
 
 API_URL = 'https://deskeli.eliotproyectos.tech/api/v1/external/tickets'
-API_TOKEN = 'dsk_t_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'  # ← reemplazá con tu token
+API_TOKEN = 'dsk_t_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'  # ← tu token
 
 HEADERS = {
     'X-Authorization': f'Bearer {API_TOKEN}',
@@ -42,248 +74,150 @@ HEADERS = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EJEMPLO 1: Ticket con 3 subtareas ad-hoc (sin guión preconfigurado)
+# EJEMPLO 1 (RECOMENDADO): Crear ticket desde un GUIÓN preconfigurado
 # ═══════════════════════════════════════════════════════════════════════════
-def ejemplo_1_subtareas_adhoc():
-    """Un ticket con 3 subtareas creadas explícitamente en el payload.
+def ejemplo_desde_guion():
+    """El ticket se crea con un simple payload. Las subtareas, técnicos
+    asignados, prioridades y orden salen del guión definido en el panel."""
 
-    Cada subtarea puede tener su propia prioridad, categoría y técnico asignado.
-    Si no se especifican, heredan del ticket padre.
-    """
     payload = {
-        # ─── Datos del ticket padre ─────────────────────────────────────
-        "subject": "Migración de módulo SAP-MM a nuevo servidor",
+        # ─── Datos del ticket padre ──────────────────────────────────────
+        "subject": "RV: cambio clave sap rise 4",
         "description": (
-            "Solicitud para migrar el módulo SAP-MM del ambiente PRD al nuevo "
-            "servidor SAP-RISE. La migración debe hacerse en horario nocturno "
-            "para minimizar impacto operativo.\n\n"
-            "Detalles técnicos en el documento adjunto (si aplica)."
+            "Solicito el cambio de clave para el ambiente SAP RISE 4. "
+            "Usuario: BASIS-SAP. Motivo: renovación periódica trimestral."
         ),
-        "category": "SAP",
-        "priority": "high",
 
-        # ─── Solicitante y autor ─────────────────────────────────────────
-        "applicantEmail": "usuario.solicitante@eliotcompany.com",
-        "authorId": 1,  # opcional: id del que registra el ticket. Fallback: applicant
-
-        # ─── Contacto del solicitante ────────────────────────────────────
-        "userArea": "Producción",
-        "userLocation": "Planta CALLE 19 · Piso 2",
+        # ─── Solicitante ─────────────────────────────────────────────────
+        "applicantEmail": "basis-sap@patprimo.com.co",
+        "userArea": "Basis SAP",
         "userPhone": "+57 300 555 1234",
 
-        # ─── Referencia externa (para trazabilidad cross-system) ─────────
+        # ─── Referencia externa (para tracing bidireccional) ─────────────
         "externalRef": "REQ-2026-0142",
 
-        # ─── SUBTAREAS: se crean 3 subtareas del ticket padre ────────────
-        "subtasks": [
-            {
-                "title": "Control 1: Backup pre-migración",
-                "description": (
-                    "Ejecutar backup completo de SAP-MM antes de iniciar. "
-                    "Verificar tamaño del backup y validar restauración de prueba."
-                ),
-                "priority": "critical",
-                "category": "SAP",
-                "assigneeEmail": "tecnico.backup@eliotcompany.com"
-            },
-            {
-                "title": "Control 2: Migración de datos",
-                "description": (
-                    "Copiar datos del ambiente PRD al servidor RISE. "
-                    "Validar consistencia con checksum MD5."
-                ),
-                "priority": "high",
-                "category": "SAP",
-                "assigneeEmail": "tecnico.sap@eliotcompany.com"
-            },
-            {
-                "title": "Control 3: Pruebas post-migración",
-                "description": (
-                    "Ejecutar las 5 transacciones críticas (MM01, MM02, ME21N, "
-                    "MIRO, MB1B) y validar que retornen los mismos resultados "
-                    "que en el ambiente PRD anterior."
-                ),
-                "priority": "high",
-                "category": "SAP",
-                "assigneeEmail": "tecnico.qa@eliotcompany.com"
-            }
-        ]
+        # ─── EL GUIÓN ───────────────────────────────────────────────────
+        # Este es el único campo especial: dispara la creación automática
+        # de las subtareas definidas en el guión.
+        "guion_code": "cambio-clave-sap-rise"
+
+        # Alternativa por id numérico:
+        #   "guion_id": 7
     }
 
-    print("\n═══ EJEMPLO 1: 3 subtareas ad-hoc ═══")
+    print("\n═══ Ticket desde guión 'cambio-clave-sap-rise' ═══")
     r = requests.post(API_URL, headers=HEADERS, data=json.dumps(payload))
     _print_response(r)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EJEMPLO 2: Ticket que dispara un GUION preconfigurado
+# EJEMPLO 2: Guión + campos opcionales para override de prioridad/asignación
 # ═══════════════════════════════════════════════════════════════════════════
-def ejemplo_2_desde_guion():
-    """Ticket que usa un guión (script de subtareas) ya definido en DeskEli.
+def ejemplo_con_overrides():
+    """Se dispara el guión pero se sobrescriben algunos valores.
 
-    Los guiones se crean en Panel admin → Automatización → Guiones. Cada
-    guión tiene:
-    - Un code único (ej: 'sap_upgrade', 'onboarding_usuario')
-    - Una lista de subtareas con orden, prioridad, técnico fijo o pool
-    - Puede tener un pool de técnicos (asignación round-robin por carga)
-
-    Cuando se envía 'guion_code' en el payload, se ignoran los 'subtasks' y
-    se generan automáticamente las subtareas definidas en el guión.
+    IMPORTANTE: los campos priority/category del ticket padre se aplican al
+    ticket. La prioridad de cada SUBTAREA sale del guión (no del payload).
+    Si en un caso necesitás elevar la prioridad de todas las subtareas,
+    definí eso en el guión, no acá.
     """
+
     payload = {
-        "subject": "Onboarding TI: nuevo empleado José García",
+        "subject": "URGENTE: cambio clave SAP - producción caída",
         "description": (
-            "Solicitud de habilitación de accesos para el nuevo empleado "
-            "José García que ingresa el 2026-08-01. Todos los accesos del "
-            "guión de onboarding estándar."
+            "Se necesita cambio de clave con urgencia. El acceso actual "
+            "no permite login y hay usuarios de negocio bloqueados en el ERP."
         ),
-        "category": "Accesos",
-        "priority": "medium",
+        "priority": "critical",           # override del default del guión
+        "category": "SAP",
 
-        "applicantEmail": "rrhh@eliotcompany.com",
-        "userArea": "RRHH",
-        "userPhone": "+57 601 555 2000",
+        "applicantEmail": "basis-sap@patprimo.com.co",
+        "userArea": "Basis SAP",
+        "externalRef": "INC-2026-0399",
 
-        # ─── GUION: dispara la creación automática de subtareas ──────────
-        "guion_code": "onboarding_usuario",   # code del guion definido en admin
-        # Alternativa: "guion_id": 5
-
-        # NOTA: si mandás guion_code Y subtasks, guion_code tiene prioridad
-        # y los subtasks del payload se ignoran.
+        # Guión que dispara las subtareas
+        "guion_code": "cambio-clave-sap-rise"
     }
 
-    print("\n═══ EJEMPLO 2: Desde guion preconfigurado ═══")
+    print("\n═══ Ticket con guión + overrides ═══")
     r = requests.post(API_URL, headers=HEADERS, data=json.dumps(payload))
     _print_response(r)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EJEMPLO 3: Ticket con múltiples subtareas + adjuntos (base64)
+# EJEMPLO 3: Guión + adjuntos (base64)
 # ═══════════════════════════════════════════════════════════════════════════
-def ejemplo_3_con_adjuntos():
-    """Ticket con subtareas + archivos adjuntos codificados en base64.
+def ejemplo_guion_con_adjuntos():
+    """Ticket con guión + archivos adjuntos codificados en base64.
 
-    Los adjuntos pueden ir al ticket padre, a las subtareas, o a ambos
-    (según el campo 'attach_to').
+    Los adjuntos van al ticket padre (o a todas las subtareas, según attach_to).
+    El guión sigue disparando sus subtareas normalmente.
     """
-
-    # Leer un archivo de prueba y codificar en base64
-    # (para el ejemplo, generamos un PDF ficticio de prueba)
-    fake_pdf = b'%PDF-1.4\n%\xe2\xe3\xcf\xd3\n(Este es un PDF de prueba para DeskEli)'
-    pdf_b64 = base64.b64encode(fake_pdf).decode('ascii')
-
-    # Si tenés un archivo real:
-    #   pdf_bytes = Path('acta_aprobacion.pdf').read_bytes()
-    #   pdf_b64 = base64.b64encode(pdf_bytes).decode('ascii')
+    import base64
+    # Para el ejemplo, generamos un PDF ficticio
+    # En producción: pdf_bytes = open('acta.pdf', 'rb').read()
+    pdf_bytes = b'%PDF-1.4\n%\xe2\xe3\xcf\xd3\n(Acta de aprobacion ficticia)'
+    pdf_b64 = base64.b64encode(pdf_bytes).decode('ascii')
 
     payload = {
-        "subject": "Compra de equipos: 15 laptops Dell Latitude",
-        "description": (
-            "Solicitud de compra aprobada por Dirección para renovar el parque "
-            "de laptops del área Comercial. Ver acta adjunta."
-        ),
-        "category": "Compras",
-        "priority": "medium",
+        "subject": "Solicitud de cambio de clave SAP autorizada por gerencia",
+        "description": "Cambio autorizado según acta adjunta.",
+        "applicantEmail": "basis-sap@patprimo.com.co",
+        "userArea": "Basis SAP",
+        "externalRef": "REQ-2026-0143",
 
-        "applicantEmail": "comercial.lider@eliotcompany.com",
-        "userArea": "Comercial",
-        "userPhone": "+57 300 555 5678",
-        "externalRef": "PO-2026-0089",
+        "guion_code": "cambio-clave-sap-rise",
 
-        # Múltiples subtareas
-        "subtasks": [
-            {
-                "title": "Solicitar cotización a 3 proveedores",
-                "description": "Contactar Dell, HP y Lenovo. Comparar precios y garantía.",
-                "priority": "high",
-                "assigneeEmail": "compras@eliotcompany.com"
-            },
-            {
-                "title": "Preparar orden de compra en SAP",
-                "description": "Crear PO en SAP-MM con el proveedor seleccionado.",
-                "priority": "medium",
-                "assigneeEmail": "compras@eliotcompany.com"
-            },
-            {
-                "title": "Coordinar instalación y entrega",
-                "description": "Al recibir equipos, coordinar con TI para setup inicial.",
-                "priority": "medium",
-                "assigneeEmail": "soporte.ti@eliotcompany.com"
-            }
-        ],
-
-        # Adjuntos
         "attachments": [
             {
-                "filename": "acta_aprobacion_direccion.pdf",
+                "filename": "acta_autorizacion_gerencia.pdf",
                 "content_base64": pdf_b64,
                 "mime": "application/pdf",
-                "attach_to": "ticket"   # solo al ticket padre
-            },
-            # Podrías agregar más archivos:
-            # {
-            #     "filename": "cotizacion_dell.pdf",
-            #     "content_base64": base64.b64encode(open('cotizacion.pdf','rb').read()).decode(),
-            #     "mime": "application/pdf",
-            #     "attach_to": "subtasks"  # se copia a todas las subtareas
-            # },
+                "attach_to": "ticket"  # solo al ticket padre
+            }
         ]
     }
 
-    print("\n═══ EJEMPLO 3: Subtareas + adjuntos ═══")
+    print("\n═══ Ticket con guión + adjunto ═══")
     r = requests.post(API_URL, headers=HEADERS, data=json.dumps(payload))
     _print_response(r)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EJEMPLO 4: Ticket con muchas subtareas (procedimiento largo)
+# EJEMPLO 4: Loop para crear varios tickets seguidos (batch)
 # ═══════════════════════════════════════════════════════════════════════════
-def ejemplo_4_procedimiento_largo():
-    """Ticket con procedimiento de varias subtareas para dejar traza detallada.
+def ejemplo_batch():
+    """Crea N tickets en secuencia, cada uno disparando el mismo guión.
 
-    Útil para procesos regulados (Sarbanes-Oxley, ISO 27001, procesos de
-    cambio con múltiples checkpoints).
+    Útil para procesos que se ejecutan por lotes (ej: cambios de clave
+    trimestrales para 20 usuarios).
     """
-
-    # Generar dinámicamente 8 subtareas de un procedimiento de cambio
-    controles_procedimiento = [
-        ("Revisar RFC (Request For Change)", "Confirmar aprobaciones y ventana de mantenimiento."),
-        ("Notificar a usuarios afectados", "Enviar comunicado 48h antes del inicio."),
-        ("Snapshot de la BD productiva", "Crear punto de restauración en Postgres."),
-        ("Ejecutar migración schema", "Aplicar migrations/2026-07/upgrade_v3.sql"),
-        ("Validar tablas críticas", "Chequear que users, tickets y config no perdieron filas."),
-        ("Test smoke: login + creación ticket", "Loguearse como admin y crear un ticket de prueba."),
-        ("Deployment del nuevo backend", "docker-compose up con la nueva imagen."),
-        ("Monitorear 2 horas post-deploy", "Revisar logs de error y métricas de latencia.")
+    usuarios_pendientes = [
+        {"email": "usuario1@patprimo.com.co", "nombre": "Ana Pérez", "sap_id": "USR001"},
+        {"email": "usuario2@patprimo.com.co", "nombre": "Juan López", "sap_id": "USR002"},
+        {"email": "usuario3@patprimo.com.co", "nombre": "María Torres", "sap_id": "USR003"},
     ]
 
-    subtareas = []
-    for i, (titulo, desc) in enumerate(controles_procedimiento, start=1):
-        subtareas.append({
-            "title": f"Paso {i:02d}: {titulo}",
-            "description": desc,
-            "priority": "high" if i in (1, 3, 4) else "medium",  # críticos del proceso
-            "category": "Cambio",
-            "assigneeEmail": "devops.senior@eliotcompany.com"
-        })
+    creados = []
+    for u in usuarios_pendientes:
+        payload = {
+            "subject": f"Cambio clave SAP RISE — {u['nombre']}",
+            "description": (
+                f"Cambio de clave trimestral programado para el usuario "
+                f"{u['nombre']} (ID SAP: {u['sap_id']})."
+            ),
+            "applicantEmail": u['email'],
+            "externalRef": f"REQ-Q1-2026-{u['sap_id']}",
+            "guion_code": "cambio-clave-sap-rise"
+        }
+        r = requests.post(API_URL, headers=HEADERS, data=json.dumps(payload))
+        if r.status_code == 201 and r.json().get('success'):
+            creados.append(r.json().get('ticket_number'))
+            print(f"  ✅ {u['nombre']}: {r.json().get('ticket_number')}")
+        else:
+            print(f"  ✗ {u['nombre']}: {r.status_code} - {r.text[:200]}")
 
-    payload = {
-        "subject": "Cambio programado: upgrade DeskEli v3.0",
-        "description": (
-            "Cambio planificado para el sábado 2026-08-15 a las 22:00.\n\n"
-            "Todos los pasos deben completarse en orden y quedar documentados."
-        ),
-        "category": "Cambio",
-        "priority": "high",
-        "applicantEmail": "cambios@eliotcompany.com",
-        "userArea": "Infraestructura",
-        "externalRef": "CHG-2026-0031",
-        "subtasks": subtareas   # 8 subtareas generadas dinámicamente
-    }
-
-    print("\n═══ EJEMPLO 4: 8 subtareas de procedimiento ═══")
-    r = requests.post(API_URL, headers=HEADERS, data=json.dumps(payload))
-    _print_response(r)
+    print(f"\n═══ Total tickets creados: {len(creados)}/{len(usuarios_pendientes)} ═══")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -299,12 +233,16 @@ def _print_response(r):
             print(f"   URL: {data.get('url')}")
             subtasks = data.get('subtasks') or []
             if subtasks:
-                print(f"   Subtareas ({len(subtasks)}):")
+                print(f"\n   📋 Subtareas del guión ({len(subtasks)}):")
                 for st in subtasks:
-                    print(f"     - {st.get('subtask_number')}: {st.get('title')}")
+                    print(f"     • {st.get('subtask_number')} — {st.get('title')}")
             atts = data.get('attachments') or {}
-            if atts:
-                print(f"   Adjuntos: {atts.get('ticket', 0)} en ticket, {atts.get('subtasks', 0)} en subtareas")
+            if atts.get('ticket', 0) > 0 or atts.get('subtasks', 0) > 0:
+                print(f"\n   📎 Adjuntos: {atts.get('ticket', 0)} en ticket, {atts.get('subtasks', 0)} en subtareas")
+        else:
+            print(f"\n✗ Error: {data.get('error')}")
+            if data.get('hint'):
+                print(f"   💡 {data.get('hint')}")
     except ValueError:
         print("(respuesta no es JSON)")
         print(r.text[:500])
@@ -318,8 +256,9 @@ if __name__ == '__main__':
         print("⚠  Editá API_TOKEN en el archivo antes de ejecutar")
         exit(1)
 
-    # Descomentá el ejemplo que querés probar:
-    ejemplo_1_subtareas_adhoc()
-    # ejemplo_2_desde_guion()
-    # ejemplo_3_con_adjuntos()
-    # ejemplo_4_procedimiento_largo()
+    # ═══ Descomentá el ejemplo que querés probar ═══
+
+    ejemplo_desde_guion()             # ← el flujo principal recomendado
+    # ejemplo_con_overrides()         # con prioridad crítica
+    # ejemplo_guion_con_adjuntos()    # con archivos adjuntos
+    # ejemplo_batch()                 # varios tickets en loop
