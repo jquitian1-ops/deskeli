@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Time Tracking · DeskEli</title>
+<link rel="icon" href="/static/eli.png" type="image/png">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f9fafb; color: #1f2937; }
+    .header { background: linear-gradient(135deg,#4f46e5,#7c3aed); color: white; padding: 22px 40px; display: flex; justify-content: space-between; align-items: center; }
+    .header h1 { font-size: 22px; }
+    .header a { color: white; text-decoration: none; font-size: 14px; opacity: 0.9; margin-left: 14px; }
+
+    .container { max-width: 1400px; margin: 24px auto; padding: 0 24px; }
+    .filters { background: white; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .filters label { font-size: 13px; font-weight: 600; }
+    .filters select { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px; }
+    .kpi { background: white; border-radius: 12px; padding: 20px 24px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); border-left: 4px solid #7c3aed; }
+    .kpi-label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .kpi-value { font-size: 30px; font-weight: 800; color: #1f2937; }
+    .kpi-sub { font-size: 11px; color: #6b7280; margin-top: 4px; }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+    @media (max-width: 900px) { .row { grid-template-columns: 1fr; } }
+    .card { background: white; border-radius: 12px; padding: 20px 24px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+    .card h2 { font-size: 15px; color: #374151; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #e5e7eb; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 10px 8px; background: #f9fafb; font-size: 11px; text-transform: uppercase; color: #6b7280; border-bottom: 1px solid #e5e7eb; }
+    td { padding: 10px 8px; border-bottom: 1px solid #f3f4f6; }
+    tr:hover td { background: #fafafa; }
+    td.right { text-align: right; }
+    .bar-wrap { background: #f3f4f6; height: 12px; border-radius: 6px; overflow: hidden; margin-top: 4px; }
+    .bar-fill { background: linear-gradient(90deg,#7c3aed,#4f46e5); height: 100%; transition: width 0.5s; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+    .badge.eliot { background: #dbeafe; color: #1e40af; }
+    .badge.pash { background: #ede9fe; color: #6d28d9; }
+    .badge.primatela { background: #d1fae5; color: #047857; }
+
+    .trend { position: relative; height: 200px; padding: 20px 0 30px; }
+    .trend-bars { display: flex; align-items: flex-end; gap: 4px; height: 160px; border-bottom: 1px solid #e5e7eb; padding: 0 4px; }
+    .trend-bar { flex: 1; background: linear-gradient(180deg,#7c3aed,#4f46e5); border-radius: 3px 3px 0 0; min-height: 3px; position: relative; }
+    .trend-bar:hover::after { content: attr(data-h); position: absolute; top: -22px; left: 50%; transform: translateX(-50%); background: #1f2937; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; }
+
+    .loading, .empty { text-align: center; padding: 40px; color: #9ca3af; }
+    a.ticket-link { color: #4f46e5; text-decoration: none; font-weight: 600; }
+    a.ticket-link:hover { text-decoration: underline; }
+</style>
+<script src="/static/js/session_guard.js"></script>
+<script>
+    if (window.self !== window.top) document.documentElement.classList.add('embed-mode');
+</script>
+<style>
+    html.embed-mode .header { display: none; }
+    html.embed-mode .container { margin-top: 12px; }
+    html.embed-mode body { background: transparent; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div style="display:flex;align-items:center;gap:14px;">
+        <img src="/static/eli.png" alt="Eli" onerror="this.style.display='none'" style="width:44px;height:44px;border-radius:50%;border:2px solid white;object-fit:cover;">
+        <div>
+            <h1>⏱ Time Tracking · Esfuerzo del equipo</h1>
+            <div style="font-size:12px;opacity:0.85;">Horas invertidas por técnico, categoría y ticket</div>
+        </div>
+    </div>
+    <div>
+        <a href="/admin/dashboard">← Volver</a>
+        <a href="/logout">Salir</a>
+    </div>
+</div>
+
+<div class="container">
+    <div class="filters">
+        {% if is_master and available_companies %}
+        <label>Empresa:</label>
+        <select id="companyFilter" onchange="load()">
+            <option value="all">Todas</option>
+            {% for c in available_companies %}
+            <option value="{{ c.code }}" {% if c.code == current_company %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        <label>Período:</label>
+        <select id="daysFilter" onchange="load()">
+            <option value="7">Últimos 7 días</option>
+            <option value="30" selected>Últimos 30 días</option>
+            <option value="90">Últimos 90 días</option>
+            <option value="180">Últimos 6 meses</option>
+            <option value="365">Último año</option>
+        </select>
+        <button onclick="load()" style="margin-left:auto;padding:6px 14px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">🔄 Actualizar</button>
+    </div>
+    <div id="content"><div class="loading">Cargando métricas…</div></div>
+</div>
+
+<script>
+async function load() {
+    const el = document.getElementById('content');
+    el.innerHTML = '<div class="loading">Cargando…</div>';
+    const days = document.getElementById('daysFilter').value;
+    const companyEl = document.getElementById('companyFilter');
+    const company = companyEl ? companyEl.value : 'all';
+    try {
+        const r = await fetch(`/api/admin/time-tracking/summary?days=${days}&company=${company}`);
+        const d = await r.json();
+        if (!d.success) { el.innerHTML = `<div class="empty">Error: ${d.error || 'no se pudo'}</div>`; return; }
+        render(d);
+    } catch (e) { el.innerHTML = `<div class="empty">Error de red: ${e.message}</div>`; }
+}
+
+function esc(s) { if (s == null) return ''; const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+
+function render(d) {
+    if (d.total_entries === 0) {
+        document.getElementById('content').innerHTML = `<div class="card"><div class="empty">
+            No hay registros de tiempo en este período.<br>
+            <small>Los técnicos deben usar el cronómetro o ingresar tiempo manualmente en cada ticket.</small>
+        </div></div>`;
+        return;
+    }
+
+    let html = `<div class="kpis">
+        <div class="kpi"><div class="kpi-label">Horas totales</div><div class="kpi-value">${d.total_hours}h</div><div class="kpi-sub">${d.total_entries} sesiones</div></div>
+        <div class="kpi"><div class="kpi-label">Tickets con esfuerzo</div><div class="kpi-value">${d.distinct_tickets}</div><div class="kpi-sub">tickets tocados</div></div>
+        <div class="kpi"><div class="kpi-label">Promedio por ticket</div><div class="kpi-value">${d.avg_per_ticket_min}<span style="font-size:16px;">min</span></div></div>
+        <div class="kpi"><div class="kpi-label">Técnicos activos</div><div class="kpi-value">${d.by_technician.length}</div></div>
+    </div>`;
+
+    // Tendencia
+    if (d.trend.length) {
+        const maxH = Math.max(...d.trend.map(t => t.hours), 1);
+        html += `<div class="card" style="margin-bottom:20px;"><h2>📈 Tendencia diaria</h2><div class="trend"><div class="trend-bars">`;
+        d.trend.forEach(t => {
+            const pct = (t.hours / maxH) * 100;
+            html += `<div class="trend-bar" style="height:${pct}%;" data-h="${t.date}: ${t.hours}h"></div>`;
+        });
+        html += `</div></div></div>`;
+    }
+
+    // Fila: Técnicos + Categorías
+    html += `<div class="row">`;
+    html += `<div class="card"><h2>👥 Ranking por técnico</h2>`;
+    if (d.by_technician.length === 0) html += `<div class="empty">Sin datos</div>`;
+    else {
+        const maxH = Math.max(...d.by_technician.map(t => t.hours), 1);
+        html += `<table><thead><tr><th>Técnico</th><th class="right">Horas</th><th class="right">Tickets</th></tr></thead><tbody>`;
+        d.by_technician.forEach(t => {
+            const pct = (t.hours / maxH) * 100;
+            html += `<tr>
+                <td><strong>${esc(t.name)}</strong> <span class="badge ${esc(t.company)}">${esc(t.company)}</span><div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div></td>
+                <td class="right">${t.hours}h</td>
+                <td class="right">${t.tickets}</td>
+            </tr>`;
+        });
+        html += `</tbody></table>`;
+    }
+    html += `</div>`;
+
+    html += `<div class="card"><h2>📁 Por categoría</h2>`;
+    if (d.by_category.length === 0) html += `<div class="empty">Sin datos</div>`;
+    else {
+        const maxH = Math.max(...d.by_category.map(c => c.hours), 1);
+        html += `<table><thead><tr><th>Categoría</th><th class="right">Horas</th><th class="right">Tickets</th></tr></thead><tbody>`;
+        d.by_category.forEach(c => {
+            const pct = (c.hours / maxH) * 100;
+            html += `<tr>
+                <td><strong>${esc(c.category)}</strong><div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div></td>
+                <td class="right">${c.hours}h</td>
+                <td class="right">${c.tickets}</td>
+            </tr>`;
+        });
+        html += `</tbody></table>`;
+    }
+    html += `</div></div>`;
+
+    // Top tickets
+    html += `<div class="card" style="margin-bottom:20px;"><h2>🔥 Tickets con más horas invertidas</h2>`;
+    if (d.top_tickets.length === 0) html += `<div class="empty">Sin datos</div>`;
+    else {
+        html += `<table><thead><tr><th>Ticket</th><th>Título</th><th>Estado</th><th class="right">Horas</th></tr></thead><tbody>`;
+        d.top_tickets.forEach(t => {
+            html += `<tr>
+                <td><a href="/admin/tickets?search=${esc(t.number)}" class="ticket-link">${esc(t.number)}</a> <span class="badge ${esc(t.company)}">${esc(t.company)}</span></td>
+                <td>${esc(t.title)}</td>
+                <td>${esc(t.status)}</td>
+                <td class="right"><strong>${t.hours}h</strong></td>
+            </tr>`;
+        });
+        html += `</tbody></table>`;
+    }
+    html += `</div>`;
+
+    document.getElementById('content').innerHTML = html;
+}
+document.addEventListener('DOMContentLoaded', load);
+</script>
+
+</body>
+</html>

@@ -688,17 +688,54 @@
         </div>
 
         <div class="ticket-sidebar">
-            <!-- CRONÓMETRO RF-02-05 -->
-            <div class="timer-box">
-                <div class="timer-label">⏱️ Tiempo Trabajado</div>
+            <!-- CRONÓMETRO / TIME TRACKING -->
+            <div class="timer-box" id="timeTrackingBox">
+                <div class="timer-label">⏱️ Tiempo trabajado</div>
                 <div class="timer-display" id="timerDisplay">00:00:00</div>
                 <div class="timer-buttons">
-                    <button class="timer-btn timer-btn-start" id="timerStart" onclick="startTimer()">▶ Iniciar</button>
-                    <button class="timer-btn timer-btn-pause" id="timerPause" onclick="pauseTimer()" disabled>⏸ Pausa</button>
-                    <button class="timer-btn timer-btn-stop" id="timerStop" onclick="stopTimer()" disabled>⏹ Guardar</button>
+                    <button class="timer-btn timer-btn-start" id="timerStart" onclick="ttStart()">▶ Iniciar</button>
+                    <button class="timer-btn timer-btn-stop" id="timerStop" onclick="ttStop()" disabled>⏹ Detener</button>
                 </div>
                 <div class="timer-info">
-                    Total: <span id="totalTime">0h 0m</span>
+                    Total del ticket: <strong id="totalTime">0h 0m</strong>
+                </div>
+                <div style="margin-top:8px;text-align:center;">
+                    <button onclick="ttOpenManualModal()"
+                            style="background:none;border:1px dashed #d1d5db;color:#4b5563;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;">
+                        ＋ Ingresar entrada manual
+                    </button>
+                    <button onclick="ttToggleHistory()"
+                            style="background:none;border:1px dashed #d1d5db;color:#4b5563;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:4px;">
+                        📋 Historial
+                    </button>
+                </div>
+
+                <!-- Historial (colapsable) -->
+                <div id="ttHistoryPanel" style="display:none;margin-top:12px;padding-top:10px;border-top:1px solid #e5e7eb;">
+                    <div id="ttHistoryList" style="max-height:280px;overflow-y:auto;font-size:11.5px;"></div>
+                </div>
+            </div>
+
+            <!-- Modal entrada manual -->
+            <div id="ttManualModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;padding:20px;overflow-y:auto;" onclick="if(event.target===this)ttCloseManualModal()">
+                <div style="max-width:440px;margin:40px auto;background:white;border-radius:10px;padding:22px 24px;">
+                    <h3 style="margin:0 0 14px;color:#1f2937;">＋ Entrada manual de tiempo</h3>
+                    <p style="font-size:12px;color:#6b7280;margin-bottom:14px;">Registrá tiempo trabajado en este ticket que no cronometreaste (llamada telefónica, atención presencial, etc).</p>
+
+                    <label style="display:block;font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Fecha y hora de inicio</label>
+                    <input type="datetime-local" id="ttMStart" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;margin-bottom:12px;">
+
+                    <label style="display:block;font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Duración (minutos)</label>
+                    <input type="number" id="ttMDuration" min="1" max="1440" placeholder="Ej: 45" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;margin-bottom:12px;">
+
+                    <label style="display:block;font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Notas (opcional)</label>
+                    <textarea id="ttMNotes" rows="2" placeholder="Qué hiciste durante ese tiempo…" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;font-size:13px;margin-bottom:14px;"></textarea>
+
+                    <div style="display:flex;gap:10px;">
+                        <button onclick="ttCloseManualModal()" style="flex:1;padding:8px;background:#e5e7eb;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Cancelar</button>
+                        <button onclick="ttSubmitManual()" style="flex:1;padding:8px;background:#7c3aed;color:white;border:none;border-radius:6px;font-weight:700;cursor:pointer;">Guardar</button>
+                    </div>
+                    <div id="ttManualStatus" style="margin-top:10px;font-size:12px;text-align:center;"></div>
                 </div>
             </div>
 
@@ -1092,91 +1129,176 @@
     // Rol actual del usuario (para generar links dinámicos según admin/technician)
     window.__ROLE__ = "{{ session.role or 'technician' }}";
 
-    // CRONÓMETRO RF-02-05
-    let timerInterval = null;
-    let totalSeconds = 0;
-    let isRunning = false;
+    // ═════════ TIME TRACKING (TimeEntry) ═════════
     const ticketId = {{ ticket.id }};
+    let ttRunning = false;
+    let ttRunningStartTs = null;
+    let ttTickInterval = null;
+    let ttTotalSecondsClosed = 0;  // suma de entries cerradas
+    let ttEntries = [];
 
-    // Cargar tiempo guardado si existe
-    function loadSavedTime() {
-        fetch(`/api/ticket/${ticketId}/time`)
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    totalSeconds = data.seconds || 0;
-                    updateDisplay();
-                }
-            });
+    function ttFormat(sec) {
+        sec = Math.max(0, Math.floor(sec));
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        const s = sec % 60;
+        return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+    }
+    function ttFormatHm(sec) {
+        sec = Math.max(0, Math.floor(sec));
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        return h + 'h ' + m + 'm';
     }
 
-    function startTimer() {
-        if (isRunning) return;
-        isRunning = true;
-        document.getElementById('timerStart').disabled = true;
-        document.getElementById('timerPause').disabled = false;
-        document.getElementById('timerStop').disabled = false;
+    function ttRedraw() {
+        const currentRunningSec = ttRunning && ttRunningStartTs
+            ? Math.floor((Date.now() - ttRunningStartTs) / 1000)
+            : 0;
+        const totalSec = ttTotalSecondsClosed + currentRunningSec;
+        document.getElementById('timerDisplay').textContent = ttFormat(currentRunningSec);
+        document.getElementById('totalTime').textContent = ttFormatHm(totalSec);
 
-        timerInterval = setInterval(() => {
-            totalSeconds++;
-            updateDisplay();
-        }, 1000);
+        const start = document.getElementById('timerStart');
+        const stop = document.getElementById('timerStop');
+        if (ttRunning) {
+            start.disabled = true;
+            stop.disabled = false;
+            start.textContent = '● En curso';
+        } else {
+            start.disabled = false;
+            stop.disabled = true;
+            start.textContent = '▶ Iniciar';
+        }
     }
 
-    function pauseTimer() {
-        if (!isRunning) return;
-        isRunning = false;
-        clearInterval(timerInterval);
-        document.getElementById('timerStart').disabled = false;
-        document.getElementById('timerStart').textContent = '▶ Reanudar';
-    }
-
-    function stopTimer() {
-        if (timerInterval) clearInterval(timerInterval);
-        isRunning = false;
-
-        // Guardar en servidor
-        fetch(`/api/ticket/${ticketId}/time`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ seconds: totalSeconds })
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                alert('⏱️ Tiempo guardado: ' + formatTime(totalSeconds));
-                totalSeconds = 0;
-                updateDisplay();
-                document.getElementById('timerStart').disabled = false;
-                document.getElementById('timerPause').disabled = true;
-                document.getElementById('timerStop').disabled = true;
-                document.getElementById('timerStart').textContent = '▶ Iniciar';
+    async function ttReload() {
+        try {
+            const r = await fetch(`/api/tickets/${ticketId}/time-entries`);
+            const data = await r.json();
+            if (!data.success) return;
+            ttEntries = data.entries || [];
+            const running = ttEntries.find(e => e.is_running);
+            ttTotalSecondsClosed = ttEntries
+                .filter(e => !e.is_running)
+                .reduce((sum, e) => sum + (e.duration_seconds || 0), 0);
+            if (running) {
+                ttRunning = true;
+                ttRunningStartTs = new Date(running.started_at).getTime();
+                if (!ttTickInterval) ttTickInterval = setInterval(ttRedraw, 1000);
+            } else {
+                ttRunning = false;
+                ttRunningStartTs = null;
+                if (ttTickInterval) { clearInterval(ttTickInterval); ttTickInterval = null; }
             }
-        });
+            ttRedraw();
+            ttRenderHistoryIfOpen();
+        } catch (e) {}
     }
 
-    function updateDisplay() {
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const secs = totalSeconds % 60;
-
-        document.getElementById('timerDisplay').textContent =
-            String(hours).padStart(2, '0') + ':' +
-            String(minutes).padStart(2, '0') + ':' +
-            String(secs).padStart(2, '0');
-
-        document.getElementById('totalTime').textContent =
-            `${hours}h ${minutes}m`;
+    async function ttStart() {
+        try {
+            const r = await fetch(`/api/tickets/${ticketId}/time-entries/start`, {method:'POST'});
+            const data = await r.json();
+            if (!data.success) { alert(data.error || 'No se pudo iniciar'); return; }
+            if (data.closed_others && data.closed_others.length) {
+                console.log('Se cerraron cronómetros previos:', data.closed_others.join(', '));
+            }
+            await ttReload();
+        } catch (e) { alert('Error: ' + e.message); }
     }
 
-    function formatTime(seconds) {
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        return `${h}h ${m}m`;
+    async function ttStop() {
+        const notes = prompt('¿Notas de esta sesión? (opcional, dejar en blanco para omitir)', '');
+        try {
+            const r = await fetch(`/api/tickets/${ticketId}/time-entries/stop`, {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({notes: notes || ''})
+            });
+            const data = await r.json();
+            if (!data.success) { alert(data.error || 'No se pudo detener'); return; }
+            await ttReload();
+        } catch (e) { alert('Error: ' + e.message); }
     }
 
-    // Cargar al iniciar
-    loadSavedTime();
+    function ttOpenManualModal() {
+        // Prellenar con "hace 1 hora"
+        const now = new Date();
+        now.setHours(now.getHours() - 1);
+        const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        document.getElementById('ttMStart').value = local;
+        document.getElementById('ttMDuration').value = '';
+        document.getElementById('ttMNotes').value = '';
+        document.getElementById('ttManualStatus').textContent = '';
+        document.getElementById('ttManualModal').style.display = 'block';
+    }
+    function ttCloseManualModal() {
+        document.getElementById('ttManualModal').style.display = 'none';
+    }
+    async function ttSubmitManual() {
+        const started = document.getElementById('ttMStart').value;
+        const dur = document.getElementById('ttMDuration').value;
+        const notes = document.getElementById('ttMNotes').value;
+        const status = document.getElementById('ttManualStatus');
+        if (!started || !dur) { status.innerHTML = '<span style="color:#dc2626;">Completá inicio y duración</span>'; return; }
+        try {
+            const r = await fetch(`/api/tickets/${ticketId}/time-entries/manual`, {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({
+                    started_at: new Date(started).toISOString(),
+                    duration_minutes: parseInt(dur),
+                    notes: notes
+                })
+            });
+            const data = await r.json();
+            if (!data.success) { status.innerHTML = '<span style="color:#dc2626;">' + (data.error || 'Error') + '</span>'; return; }
+            status.innerHTML = '<span style="color:#16a34a;">✅ Guardado</span>';
+            setTimeout(() => { ttCloseManualModal(); ttReload(); }, 800);
+        } catch (e) { status.innerHTML = '<span style="color:#dc2626;">' + e.message + '</span>'; }
+    }
+
+    let ttHistoryOpen = false;
+    function ttToggleHistory() {
+        ttHistoryOpen = !ttHistoryOpen;
+        document.getElementById('ttHistoryPanel').style.display = ttHistoryOpen ? 'block' : 'none';
+        if (ttHistoryOpen) ttRenderHistoryIfOpen();
+    }
+    function ttRenderHistoryIfOpen() {
+        if (!ttHistoryOpen) return;
+        const el = document.getElementById('ttHistoryList');
+        if (!ttEntries.length) {
+            el.innerHTML = '<div style="text-align:center;padding:16px;color:#9ca3af;">Sin sesiones registradas todavía</div>';
+            return;
+        }
+        el.innerHTML = ttEntries.map(e => {
+            const start = new Date(e.started_at).toLocaleString('es-CO', {dateStyle:'short', timeStyle:'short'});
+            const dur = e.is_running ? '(en curso)' : ttFormatHm(e.duration_seconds);
+            const badge = e.is_manual ? '<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:700;text-transform:uppercase;">manual</span>' : '';
+            return `<div style="padding:8px 6px;border-bottom:1px solid #f3f4f6;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div><strong>${e.user_name}</strong> · ${dur} ${badge}</div>
+                    <button onclick="ttDeleteEntry(${e.id})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:12px;" title="Eliminar">🗑</button>
+                </div>
+                <div style="color:#6b7280;font-size:10px;">${start}</div>
+                ${e.notes ? `<div style="color:#374151;font-style:italic;margin-top:3px;">"${e.notes}"</div>` : ''}
+            </div>`;
+        }).join('');
+    }
+    async function ttDeleteEntry(id) {
+        if (!confirm('¿Eliminar esta entrada de tiempo?')) return;
+        try {
+            const r = await fetch(`/api/time-entries/${id}`, {method:'DELETE'});
+            const data = await r.json();
+            if (!data.success) { alert(data.error || 'Sin permiso'); return; }
+            ttReload();
+        } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    // Auto-refresh cada 30s por si otro técnico está trabajando el mismo ticket
+    ttReload();
+    setInterval(ttReload, 30000);
 
     // RATING RF-01-09
     let currentRating = 0;

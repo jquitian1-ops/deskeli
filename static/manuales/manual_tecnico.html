@@ -474,7 +474,7 @@
 
         <h3>Trabajar el ticket</h3>
         <a href="#sla" onclick="showSection('sla')">⏱ SLA y escalación</a>
-        <a href="#cronometro" onclick="showSection('cronometro')">⏲ Cronómetro</a>
+        <a href="#cronometro" onclick="showSection('cronometro')">⏲ Cronómetro y tiempo</a>
         <a href="#chat" onclick="showSection('chat')">💬 Chat con el usuario</a>
         <a href="#subtareas" onclick="showSection('subtareas')">✅ Subtareas</a>
         <a href="#adjuntos" onclick="showSection('adjuntos')">📎 Adjuntos</a>
@@ -793,39 +793,49 @@
 
         <!-- ─── CRONOMETRO ─── -->
         <section class="section" id="sec-cronometro">
-            <h2 class="section-title"><span class="emoji">⏲</span>Cronómetro de tiempo trabajado</h2>
-            <p class="section-subtitle">Registrar cuánto tiempo real invertiste</p>
+            <h2 class="section-title"><span class="emoji">⏲</span>Cronómetro y registro de tiempo</h2>
+            <p class="section-subtitle">Cada sesión de trabajo se registra por separado — quién, cuándo, cuánto</p>
 
-            <p>Cada ticket tiene un cronómetro para medir el tiempo efectivo de trabajo (no el reloj total del SLA).</p>
+            <p>El sistema NO solo acumula segundos: cada vez que iniciás/detenés el cronómetro se crea una <strong>entrada de tiempo</strong> individual con tu nombre, fecha, duración y notas. Esto habilita reportes precisos de productividad y de costo por ticket.</p>
 
             <div class="chrono-demo">
                 <span class="chrono-time">00:23:47</span>
                 <button class="chrono-btn start">▶ Iniciar</button>
-                <button class="chrono-btn pause">⏸ Pausar</button>
                 <button class="chrono-btn stop">⏹ Detener</button>
             </div>
 
-            <h3>Cómo usarlo</h3>
-            <div class="timeline">
-                <div class="timeline-item">
-                    <h4>▶ Iniciar</h4>
-                    <p>Cuando abrís el ticket y empezás a trabajar. Podés tener solo un cronómetro activo a la vez.</p>
+            <h3>Modos de registrar tiempo</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">▶</div>
+                    <h4>Cronómetro (recomendado)</h4>
+                    <p>Un click en <strong>▶ Iniciar</strong> arranca la sesión. Al terminar, click en <strong>⏹ Detener</strong> y opcionalmente escribís notas de lo que hiciste.</p>
                 </div>
-                <div class="timeline-item">
-                    <h4>⏸ Pausar</h4>
-                    <p>Si te interrumpen (reunión, otro ticket urgente). El tiempo NO cuenta mientras esté pausado.</p>
+                <div class="card">
+                    <div class="card-icon">＋</div>
+                    <h4>Entrada manual</h4>
+                    <p>Botón <strong>＋ Ingresar entrada manual</strong>. Útil si te olvidaste de iniciar el cronómetro o si trabajaste offline. Poné fecha, minutos y notas.</p>
                 </div>
-                <div class="timeline-item">
-                    <h4>⏹ Detener y guardar</h4>
-                    <p>Al terminar la sesión. El tiempo se suma al total del ticket.</p>
+                <div class="card">
+                    <div class="card-icon">📋</div>
+                    <h4>Historial</h4>
+                    <p>Botón <strong>📋 Historial</strong>: ves todas las sesiones del ticket con quién trabajó y cuánto. Podés eliminar tus propias entradas (los admin pueden eliminar cualquiera).</p>
                 </div>
             </div>
+
+            <h3>Reglas importantes</h3>
+            <ul>
+                <li><strong>Solo un cronómetro activo a la vez:</strong> si iniciás uno en otro ticket sin detener este, el sistema cierra automáticamente el anterior y lo guarda como sesión.</li>
+                <li><strong>Persistencia:</strong> si cerrás la pestaña o se cae la conexión con el cronómetro corriendo, la próxima vez que abras el ticket seguirá corriendo. No hay pérdida de tiempo.</li>
+                <li><strong>Múltiples técnicos:</strong> si dos técnicos trabajan el mismo ticket (uno hace escalación, el otro consulta), cada uno tiene su cronómetro. El total del ticket suma ambos.</li>
+                <li><strong>Modificar histórico:</strong> podés eliminar tus propias entradas si te equivocaste. Un admin puede eliminar de cualquiera.</li>
+            </ul>
 
             <div class="callout callout-tip">
                 <div class="callout-icon">📈</div>
                 <div class="callout-content">
-                    <div class="callout-title">Sirve para métricas</div>
-                    <p>El tiempo trabajado se usa para calcular tu productividad y para reportes gerenciales. Mientras más honesto seas, mejor te van a ubicar.</p>
+                    <div class="callout-title">Sirve para métricas y costeo</div>
+                    <p>El tiempo registrado alimenta el dashboard <strong>Time Tracking</strong> del admin, que muestra horas por técnico, por categoría, y ranking de tickets más "caros". Mientras más honesto seas al registrar, más útil es la herramienta para argumentar cargas de trabajo o pedir refuerzos.</p>
                 </div>
             </div>
         </section>

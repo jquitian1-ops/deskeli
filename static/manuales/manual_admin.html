@@ -434,6 +434,7 @@
         <h3>Experiencia del usuario</h3>
         <a href="#kb-admin" onclick="showSection('kb-admin')">📚 Base de Conocimiento</a>
         <a href="#csat" onclick="showSection('csat')">😊 Satisfacción (CSAT/NPS)</a>
+        <a href="#time-tracking" onclick="showSection('time-tracking')">⏱ Time Tracking</a>
         <a href="#session-guard" onclick="showSection('session-guard')">⏰ Sesión y expiración</a>
 
         <h3>Integraciones</h3>
@@ -1310,6 +1311,102 @@
                         <li>Leé los comentarios de los detractores NPS. Suelen tener oro para mejoras.</li>
                         <li>Si algún técnico tiene CSAT&lt;3.5 → una sesión 1:1 con él.</li>
                     </ol>
+                </div>
+            </div>
+        </section>
+
+        <!-- TIME TRACKING -->
+        <section class="section" id="sec-time-tracking">
+            <h2 class="section-title"><span class="emoji">⏱</span>Time Tracking · esfuerzo por ticket</h2>
+            <p class="section-subtitle">Dashboard con horas invertidas por técnico, categoría y ticket. Habilita costeo interno.</p>
+
+            <p>Cada vez que un técnico usa el cronómetro (o ingresa una entrada manual) se crea una <strong>TimeEntry</strong> con quién, cuándo, duración y notas. El dashboard consolida esa información en 4 vistas.</p>
+
+            <h3>Acceso</h3>
+            <p>Sidebar → <strong>Sistema → ⏱ Time Tracking</strong>. Se abre embebido en el panel derecho. Filtros: empresa (solo master admin) + período (7 días a 1 año).</p>
+
+            <h3>Métricas del dashboard</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">⏱</div>
+                    <h4>Horas totales</h4>
+                    <p>Suma de todas las sesiones cerradas en el período.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📁</div>
+                    <h4>Tickets con esfuerzo</h4>
+                    <p>Cantidad de tickets únicos que tuvieron algún registro de tiempo.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📊</div>
+                    <h4>Promedio por ticket</h4>
+                    <p>Minutos promedio invertidos por ticket. Indicador de eficiencia global.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📈</div>
+                    <h4>Tendencia diaria</h4>
+                    <p>Gráfico de barras con las horas registradas cada día. Ayuda a detectar picos de carga.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">👥</div>
+                    <h4>Ranking por técnico</h4>
+                    <p>Tabla con horas + cantidad de tickets tocados por cada técnico. Barra de progreso visual.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📂</div>
+                    <h4>Por categoría</h4>
+                    <p>Dónde se invierte más tiempo (Correo, SAP, Redes, etc). Ayuda a priorizar formación.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔥</div>
+                    <h4>Top tickets</h4>
+                    <p>Los 15 tickets con más horas invertidas. Investigá si están mal escalados o mal categorizados.</p>
+                </div>
+            </div>
+
+            <h3>Casos de uso</h3>
+            <div class="callout callout-info">
+                <div class="callout-icon">💰</div>
+                <div class="callout-content">
+                    <div class="callout-title">Costeo interno</div>
+                    <p>Multiplicá las <strong>horas totales</strong> por el costo hora del técnico → <strong>costo real del área TI</strong>. Podés cargar este número a los centros de costo de las empresas atendidas.</p>
+                </div>
+            </div>
+            <div class="callout callout-info">
+                <div class="callout-icon">📊</div>
+                <div class="callout-content">
+                    <div class="callout-title">Argumentar contratación</div>
+                    <p>Si el <em>ranking por técnico</em> muestra que 2 personas concentran el 70% de las horas → tenés que contratar o balancear cargas.</p>
+                </div>
+            </div>
+            <div class="callout callout-info">
+                <div class="callout-icon">🎯</div>
+                <div class="callout-content">
+                    <div class="callout-title">Detectar tickets patológicos</div>
+                    <p>En "Top tickets", si un caso lleva 20+ horas y sigue abierto → algo está mal (mal escalado, sin RCA, falta especialista). Investigá.</p>
+                </div>
+            </div>
+
+            <h3>Cómo se registra el tiempo (perspectiva técnico)</h3>
+            <p>El técnico tiene 2 modos en cada ticket:</p>
+            <ol>
+                <li><strong>Cronómetro:</strong> click en ▶ Iniciar → trabaja → click en ⏹ Detener → opcionalmente notas.</li>
+                <li><strong>Entrada manual:</strong> botón <em>＋ Ingresar entrada manual</em> — poné fecha, duración en minutos y notas. Útil si trabajó offline o se olvidó del cronómetro.</li>
+            </ol>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">🔒</div>
+                <div class="callout-content">
+                    <div class="callout-title">Auto-cierre de cronómetros olvidados</div>
+                    <p>Si un técnico inicia un cronómetro y se olvida, el sistema lo cierra automáticamente cuando inicia uno en otro ticket. <strong>Solo puede haber un cronómetro activo por usuario.</strong></p>
+                </div>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">🗑</div>
+                <div class="callout-content">
+                    <div class="callout-title">Modificar entradas</div>
+                    <p>Los técnicos pueden eliminar solo <em>sus propias</em> entradas. Los admin pueden eliminar cualquiera (para corregir errores). Todo queda auditado en <code>audit_log</code>.</p>
                 </div>
             </div>
         </section>

@@ -885,6 +885,32 @@ class ApprovalWorkflow(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
 
+class TimeEntry(db.Model):
+    """Entrada de tiempo trabajado por un usuario en un ticket.
+
+    Cada entry representa una sesión de trabajo:
+      - Cronómetro: started_at con click; ended_at cuando el user hace stop
+      - Manual: started_at + ended_at ingresados a mano (con duration derivado)
+
+    Un mismo user puede tener múltiples entries en el mismo ticket (varias sesiones).
+    Solo puede haber UNA entry activa (ended_at NULL) por (user, ticket).
+    """
+    __tablename__ = 'time_entries'
+    id = db.Column(db.Integer, primary_key=True)
+    ticket_id = db.Column(db.Integer, db.ForeignKey('tickets.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    company = db.Column(db.String(20), index=True)  # denormalizado para queries de reportes
+    started_at = db.Column(db.DateTime, nullable=False)
+    ended_at = db.Column(db.DateTime)  # NULL si está corriendo el cronómetro
+    duration_seconds = db.Column(db.Integer, default=0)  # calculado al detener o ingresado manual
+    notes = db.Column(db.Text)
+    is_manual = db.Column(db.Boolean, default=False)  # True = ingreso manual, False = cronómetro
+    created_at = db.Column(db.DateTime, default=datetime.now, index=True)
+
+    ticket = db.relationship('Ticket', backref=db.backref('time_entries', cascade='all, delete-orphan'))
+    user = db.relationship('User', foreign_keys=[user_id])
+
+
 class Approval(db.Model):
     """Instancia concreta de una aprobación pendiente sobre un ticket.
 
@@ -9357,38 +9383,355 @@ def api_save_ticket_rating(ticket_id):
         'message': f'¡Gracias por tu calificación de {rating}/5!'
     })
 
-@app.route('/api/ticket/<int:ticket_id>/time', methods=['POST'])
-def api_save_ticket_time(ticket_id):
-    """Guardar tiempo trabajado en ticket"""
+def _time_entry_serialize(e):
+    return {
+        'id': e.id,
+        'ticket_id': e.ticket_id,
+        'user_id': e.user_id,
+        'user_name': e.user.name if e.user else '(usuario eliminado)',
+        'started_at': e.started_at.isoformat() if e.started_at else None,
+        'ended_at': e.ended_at.isoformat() if e.ended_at else None,
+        'duration_seconds': e.duration_seconds or 0,
+        'is_running': e.ended_at is None,
+        'notes': e.notes or '',
+        'is_manual': e.is_manual,
+        'company': e.company,
+        'created_at': e.created_at.isoformat() if e.created_at else None,
+    }
+
+
+def _sync_ticket_total_time(ticket):
+    """Recalcula time_worked_seconds del ticket sumando las entries cerradas."""
+    total = db.session.query(db.func.coalesce(db.func.sum(TimeEntry.duration_seconds), 0)) \
+        .filter(TimeEntry.ticket_id == ticket.id, TimeEntry.ended_at.isnot(None)).scalar()
+    ticket.time_worked_seconds = int(total or 0)
+
+
+@app.route('/api/tickets/<int:ticket_id>/time-entries', methods=['GET'])
+def api_time_entries_list(ticket_id):
+    """Lista las entradas de tiempo del ticket."""
     if 'user_id' not in session:
         return jsonify({'success': False}), 401
-
     ticket = Ticket.query.get(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket no encontrado'}), 404
-    if ticket.company not in admin_companies_scope():
+    # Empleados solo ven sus propios tickets; técnicos/admin ven los de su empresa (respetando espejos)
+    if not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+    entries = TimeEntry.query.filter_by(ticket_id=ticket_id).order_by(TimeEntry.started_at.asc()).all()
+    total_seconds = sum(e.duration_seconds or 0 for e in entries if e.ended_at)
+    # Si hay una corriendo, sumar el tiempo transcurrido en vivo
+    running = next((e for e in entries if e.ended_at is None), None)
+    if running:
+        total_seconds += int((datetime.now() - running.started_at).total_seconds())
+    return jsonify({
+        'success': True,
+        'entries': [_time_entry_serialize(e) for e in entries],
+        'total_seconds': total_seconds,
+        'running_entry_id': running.id if running else None
+    })
 
-    data = request.json
-    seconds = data.get('seconds', 0)
 
-    # Acumular tiempo (suma a lo que ya existe)
-    ticket.time_worked_seconds = (ticket.time_worked_seconds or 0) + int(seconds)
-    ticket.updated_at = datetime.now()
+@app.route('/api/tickets/<int:ticket_id>/time-entries/start', methods=['POST'])
+def api_time_entry_start(ticket_id):
+    """Inicia el cronómetro para el usuario actual en este ticket.
 
+    Reglas:
+    - Solo técnicos y admin (los empleados no registran esfuerzo)
+    - Un solo cronómetro activo por (usuario, ticket) a la vez
+    - Si el usuario tiene otro cronómetro corriendo en OTRO ticket, se cierra
+      automáticamente antes de abrir este (evita entries olvidadas)
+    """
+    if 'user_id' not in session:
+        return jsonify({'success': False}), 401
+    user = User.query.get(session['user_id'])
+    if not user or user.role not in ('technician', 'admin'):
+        return jsonify({'success': False, 'error': 'Solo técnicos y administradores pueden registrar tiempo'}), 403
+
+    ticket = Ticket.query.get(ticket_id)
+    if not ticket or not can_user_access_ticket(user, ticket):
+        return jsonify({'success': False, 'error': 'Sin acceso al ticket'}), 403
+
+    # ¿Ya hay uno activo en este mismo ticket? Devolver ese.
+    existing = TimeEntry.query.filter_by(ticket_id=ticket_id, user_id=user.id, ended_at=None).first()
+    if existing:
+        return jsonify({'success': True, 'entry': _time_entry_serialize(existing), 'note': 'ya estaba corriendo'})
+
+    # Cerrar automáticamente cualquier cronómetro del user en otros tickets
+    other_running = TimeEntry.query.filter_by(user_id=user.id, ended_at=None).all()
+    closed_others = []
+    for e in other_running:
+        e.ended_at = datetime.now()
+        e.duration_seconds = int((e.ended_at - e.started_at).total_seconds())
+        closed_others.append(e.ticket.ticket_number if e.ticket else str(e.id))
+        # Actualizar totales del ticket cerrado
+        if e.ticket:
+            _sync_ticket_total_time(e.ticket)
+
+    now = datetime.now()
+    entry = TimeEntry(
+        ticket_id=ticket_id,
+        user_id=user.id,
+        company=ticket.company,
+        started_at=now,
+        duration_seconds=0,
+        is_manual=False
+    )
+    db.session.add(entry)
     db.session.commit()
 
-    # Log auditoría
-    hours = ticket.time_worked_seconds // 3600
-    minutes = (ticket.time_worked_seconds % 3600) // 60
-    log_audit('time_logged', session['user_id'], 'ticket', ticket_id,
-              f"Tiempo registrado: {hours}h {minutes}m (total: {ticket.time_worked_seconds}s)")
+    log_audit('time_start', user.id, 'time_entry', entry.id,
+              f"Inició cronómetro en {ticket.ticket_number}"
+              + (f" (auto-cerró: {', '.join(closed_others)})" if closed_others else ''))
+    return jsonify({'success': True, 'entry': _time_entry_serialize(entry),
+                    'closed_others': closed_others})
+
+
+@app.route('/api/tickets/<int:ticket_id>/time-entries/stop', methods=['POST'])
+def api_time_entry_stop(ticket_id):
+    """Detiene el cronómetro activo del usuario en este ticket."""
+    if 'user_id' not in session:
+        return jsonify({'success': False}), 401
+    user = User.query.get(session['user_id'])
+    ticket = Ticket.query.get(ticket_id)
+    if not ticket or not can_user_access_ticket(user, ticket):
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+
+    running = TimeEntry.query.filter_by(ticket_id=ticket_id, user_id=user.id, ended_at=None).first()
+    if not running:
+        return jsonify({'success': False, 'error': 'No hay cronómetro activo en este ticket'}), 400
+
+    data = request.json or {}
+    notes = (data.get('notes') or '').strip()[:1000]
+    running.ended_at = datetime.now()
+    running.duration_seconds = int((running.ended_at - running.started_at).total_seconds())
+    if notes:
+        running.notes = notes
+    _sync_ticket_total_time(ticket)
+    db.session.commit()
+
+    log_audit('time_stop', user.id, 'time_entry', running.id,
+              f"Detuvo cronómetro en {ticket.ticket_number} ({running.duration_seconds}s)")
+    return jsonify({'success': True, 'entry': _time_entry_serialize(running),
+                    'ticket_total_seconds': ticket.time_worked_seconds})
+
+
+@app.route('/api/tickets/<int:ticket_id>/time-entries/manual', methods=['POST'])
+def api_time_entry_manual(ticket_id):
+    """Ingresa una entrada manual con inicio/fin explícitos o duración en minutos."""
+    if 'user_id' not in session:
+        return jsonify({'success': False}), 401
+    user = User.query.get(session['user_id'])
+    if not user or user.role not in ('technician', 'admin'):
+        return jsonify({'success': False, 'error': 'Solo técnicos y administradores'}), 403
+    ticket = Ticket.query.get(ticket_id)
+    if not ticket or not can_user_access_ticket(user, ticket):
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+
+    data = request.json or {}
+    started_raw = data.get('started_at')
+    ended_raw = data.get('ended_at')
+    duration_minutes = data.get('duration_minutes')
+    notes = (data.get('notes') or '').strip()[:1000]
+
+    # Modo 1: started_at + duration_minutes (más simple para "trabajé X min ayer")
+    if started_raw and duration_minutes and not ended_raw:
+        try:
+            started = datetime.fromisoformat(started_raw)
+            dur_min = int(duration_minutes)
+            if dur_min <= 0 or dur_min > 60 * 24:
+                return jsonify({'success': False, 'error': 'Duración debe ser 1-1440 minutos'}), 400
+            ended = started + timedelta(minutes=dur_min)
+            duration_sec = dur_min * 60
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Formato inválido'}), 400
+    # Modo 2: started_at + ended_at explícitos
+    elif started_raw and ended_raw:
+        try:
+            started = datetime.fromisoformat(started_raw)
+            ended = datetime.fromisoformat(ended_raw)
+            if ended <= started:
+                return jsonify({'success': False, 'error': 'La hora de fin debe ser posterior al inicio'}), 400
+            duration_sec = int((ended - started).total_seconds())
+            if duration_sec > 60 * 60 * 24:
+                return jsonify({'success': False, 'error': 'Una entrada no puede durar más de 24 horas'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Formato de fecha inválido'}), 400
+    else:
+        return jsonify({'success': False, 'error': 'Debés indicar inicio + fin o inicio + duración'}), 400
+
+    entry = TimeEntry(
+        ticket_id=ticket_id,
+        user_id=user.id,
+        company=ticket.company,
+        started_at=started,
+        ended_at=ended,
+        duration_seconds=duration_sec,
+        notes=notes,
+        is_manual=True
+    )
+    db.session.add(entry)
+    _sync_ticket_total_time(ticket)
+    db.session.commit()
+
+    log_audit('time_manual', user.id, 'time_entry', entry.id,
+              f"Entrada manual en {ticket.ticket_number}: {duration_sec}s")
+    return jsonify({'success': True, 'entry': _time_entry_serialize(entry),
+                    'ticket_total_seconds': ticket.time_worked_seconds})
+
+
+@app.route('/api/time-entries/<int:entry_id>', methods=['DELETE'])
+def api_time_entry_delete(entry_id):
+    """Elimina una entrada. Solo el dueño o un admin puede."""
+    if 'user_id' not in session:
+        return jsonify({'success': False}), 401
+    user = User.query.get(session['user_id'])
+    entry = TimeEntry.query.get(entry_id)
+    if not entry:
+        return jsonify({'success': False}), 404
+    # Autorización: propietario o admin de la empresa del entry
+    if entry.user_id != user.id and not (user.role == 'admin' and entry.company in admin_companies_scope()):
+        return jsonify({'success': False, 'error': 'Sin permiso'}), 403
+    ticket = entry.ticket
+    db.session.delete(entry)
+    if ticket:
+        _sync_ticket_total_time(ticket)
+    db.session.commit()
+    log_audit('time_delete', user.id, 'time_entry', entry_id,
+              f"Entrada de tiempo eliminada (ticket {ticket.ticket_number if ticket else '?'})")
+    return jsonify({'success': True})
+
+
+# Dashboard admin de esfuerzo
+@app.route('/admin/time-tracking')
+def admin_time_tracking():
+    if 'user_id' not in session or session['role'] != 'admin':
+        return redirect(url_for('login'))
+    user = User.query.get(session['user_id'])
+    is_master = is_master_admin()
+    available_companies = []
+    if is_master:
+        available_companies = [
+            {'code': c.code, 'name': c.name}
+            for c in Company.query.filter_by(is_active=True).order_by(Company.name).all()
+        ]
+    return render_template('admin/time_tracking.html',
+                           company_info=COMPANY_COLORS.get(user.company, {}),
+                           is_master=is_master,
+                           available_companies=available_companies,
+                           current_company=user.company)
+
+
+@app.route('/api/admin/time-tracking/summary')
+def api_admin_time_summary():
+    """Métricas agregadas de esfuerzo para el dashboard admin."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+
+    company_filter = request.args.get('company', session.get('company'))
+    try:
+        days = int(request.args.get('days', 30))
+    except (ValueError, TypeError):
+        days = 30
+    days = max(1, min(days, 365))
+    since = datetime.now() - timedelta(days=days)
+    scope = admin_companies_scope()
+
+    q = TimeEntry.query.filter(
+        TimeEntry.ended_at.isnot(None),
+        TimeEntry.created_at >= since,
+        TimeEntry.company.in_(scope)
+    )
+    if company_filter and company_filter != 'all':
+        if company_filter not in scope:
+            return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+        q = q.filter(TimeEntry.company == company_filter)
+
+    entries = q.all()
+    total_seconds = sum(e.duration_seconds or 0 for e in entries)
+    total_hours = round(total_seconds / 3600, 2)
+    distinct_tickets = len(set(e.ticket_id for e in entries))
+    avg_per_ticket = round(total_seconds / distinct_tickets / 60, 1) if distinct_tickets else 0
+
+    # Por técnico
+    from collections import defaultdict
+    by_user = defaultdict(lambda: {'seconds': 0, 'entries': 0, 'tickets': set()})
+    for e in entries:
+        by_user[e.user_id]['seconds'] += (e.duration_seconds or 0)
+        by_user[e.user_id]['entries'] += 1
+        by_user[e.user_id]['tickets'].add(e.ticket_id)
+
+    by_user_list = []
+    for uid, data in by_user.items():
+        u = User.query.get(uid)
+        if not u:
+            continue
+        by_user_list.append({
+            'id': uid, 'name': u.name, 'company': u.company,
+            'hours': round(data['seconds'] / 3600, 2),
+            'entries': data['entries'],
+            'tickets': len(data['tickets']),
+            'avg_per_ticket_min': round(data['seconds'] / len(data['tickets']) / 60, 1) if data['tickets'] else 0
+        })
+    by_user_list.sort(key=lambda x: -x['hours'])
+
+    # Por categoría
+    by_category = defaultdict(lambda: {'seconds': 0, 'tickets': set()})
+    for e in entries:
+        if e.ticket:
+            cat = e.ticket.category or 'Sin categoría'
+            by_category[cat]['seconds'] += (e.duration_seconds or 0)
+            by_category[cat]['tickets'].add(e.ticket_id)
+    by_category_list = [
+        {'category': c, 'hours': round(d['seconds'] / 3600, 2), 'tickets': len(d['tickets'])}
+        for c, d in by_category.items()
+    ]
+    by_category_list.sort(key=lambda x: -x['hours'])
+
+    # Tickets con más horas (top 15)
+    tickets_seconds = defaultdict(int)
+    for e in entries:
+        tickets_seconds[e.ticket_id] += (e.duration_seconds or 0)
+    top_tickets = []
+    for tid, sec in sorted(tickets_seconds.items(), key=lambda x: -x[1])[:15]:
+        t = Ticket.query.get(tid)
+        if not t:
+            continue
+        top_tickets.append({
+            'id': tid,
+            'number': t.ticket_number,
+            'title': t.title[:80],
+            'status': t.status,
+            'company': t.company,
+            'hours': round(sec / 3600, 2)
+        })
+
+    # Tendencia diaria
+    daily = defaultdict(int)
+    for e in entries:
+        if e.ended_at:
+            day = e.ended_at.strftime('%Y-%m-%d')
+            daily[day] += (e.duration_seconds or 0)
+    trend = [{'date': d, 'hours': round(s / 3600, 2)}
+             for d, s in sorted(daily.items())[-30:]]
 
     return jsonify({
         'success': True,
-        'total_seconds': ticket.time_worked_seconds,
-        'message': f'{hours}h {minutes}m registrados'
+        'days': days,
+        'total_hours': total_hours,
+        'total_entries': len(entries),
+        'distinct_tickets': distinct_tickets,
+        'avg_per_ticket_min': avg_per_ticket,
+        'by_technician': by_user_list[:30],
+        'by_category': by_category_list[:15],
+        'top_tickets': top_tickets,
+        'trend': trend,
     })
+
+
+# NOTA: el antiguo endpoint POST /api/ticket/<id>/time fue reemplazado por el
+# nuevo sistema de TimeEntry (/api/tickets/<id>/time-entries/*). El GET sigue
+# vigente para compatibilidad — devuelve el total acumulado del ticket.
 
 @app.route('/api/ticket/<int:ticket_id>/request-info', methods=['POST'])
 def api_ticket_request_info(ticket_id):
