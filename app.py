@@ -201,6 +201,60 @@ def apply_rate_limit():
         if result:
             return result
 
+
+@app.errorhandler(Exception)
+def _api_json_error_handler(err):
+    """Handler global: si un endpoint /api/ tiene una excepción no manejada,
+    devolver JSON con el error real en vez de la página HTML default de Flask.
+
+    Sin esto, el frontend hace r.json() y obtiene 'Unexpected token <, "<!doctype..."'
+    porque el body es HTML y no JSON.
+    """
+    import traceback as _tb
+    from werkzeug.exceptions import HTTPException
+
+    # Rutas no-API se comportan como siempre (siguen usando la página HTML default)
+    path = request.path or ''
+    if not path.startswith('/api/'):
+        # Dejar que Flask maneje normalmente (HTTPException se re-lanza; otros propagan)
+        if isinstance(err, HTTPException):
+            return err
+        raise err
+
+    # Determinar status code
+    status = 500
+    error_type = err.__class__.__name__
+    error_msg = str(err) or 'Error interno'
+    if isinstance(err, HTTPException):
+        status = err.code or 500
+        error_msg = err.description or error_msg
+
+    # Log detallado (para diagnosticar sin acceso a Coolify logs)
+    tb_str = _tb.format_exc()
+    try:
+        # Truncar el traceback a un tamaño razonable para audit
+        uid = session.get('user_id') if session else None
+        log_audit('api_500', uid, 'api', None,
+                  f'{request.method} {path} → {error_type}: {error_msg[:250]}\nTB: {tb_str[:500]}')
+    except Exception:
+        pass
+
+    # Devolver JSON estructurado
+    payload = {
+        'success': False,
+        'error': f'{error_type}: {error_msg}'[:500],
+        'path': path,
+    }
+
+    # Solo master admin ve el traceback (para diagnosticar)
+    try:
+        if session and session.get('role') == 'admin' and is_master_admin():
+            payload['traceback'] = tb_str[:2000]
+    except Exception:
+        pass
+
+    return jsonify(payload), status
+
 def get_public_base_url():
     """Devuelve la URL pública base del sistema, siempre correcta incluso desde
     threads background (schedulers) donde no hay request context.
@@ -13026,17 +13080,47 @@ def api_admin_mailboxes_sync(mb_id):
     """Sincroniza manualmente el buzón (no espera al scheduler)."""
     if 'user_id' not in session or session['role'] != 'admin':
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
-    mb = MailboxConfig.query.get_or_404(mb_id)
-    if mb.company != session['company']:
-        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
-    count, err = fetch_emails_from_mailbox(mb.id)
-    if err:
-        return jsonify({'success': False, 'error': err, 'tickets_created': count}), 500
-    return jsonify({
-        'success': True,
-        'tickets_created': count,
-        'message': f'✓ Sincronización completada: {count} tickets creados'
-    })
+
+    # Todo el flujo dentro de try/except para que cualquier fallo devuelva JSON
+    try:
+        mb = MailboxConfig.query.get(mb_id)
+        if not mb:
+            return jsonify({'success': False, 'error': f'Buzón {mb_id} no existe'}), 404
+
+        # Permitir acceso a master admin sobre buzones de otras empresas
+        if mb.company != session.get('company') and not is_master_admin():
+            return jsonify({'success': False, 'error': f'Sin acceso al buzón de {mb.company}'}), 403
+
+        if not mb.is_active:
+            return jsonify({'success': False, 'error': 'El buzón está desactivado. Activalo primero.'}), 400
+
+        count, err = fetch_emails_from_mailbox(mb.id)
+        if err:
+            return jsonify({
+                'success': False,
+                'error': err,
+                'tickets_created': count,
+                'hint': 'Revisá el estado del buzón en la vista principal. Si es OAuth, puede ser un token expirado.'
+            }), 200  # 200 en vez de 500 para que la UI muestre el mensaje sin problemas
+
+        return jsonify({
+            'success': True,
+            'tickets_created': count,
+            'message': f'✓ Sincronización completada: {count} tickets creados'
+        })
+    except Exception as e:
+        import traceback as _tb
+        tb = _tb.format_exc()
+        try:
+            log_audit('mailbox_sync_error', session.get('user_id'), 'mailbox', mb_id,
+                      f'Error sincronizando buzón {mb_id}: {e.__class__.__name__}: {str(e)[:200]}')
+        except Exception:
+            pass
+        return jsonify({
+            'success': False,
+            'error': f'{e.__class__.__name__}: {str(e)}'[:400],
+            'traceback': tb[:2000] if is_master_admin() else None
+        }), 200
 
 
 # ===== SUBROLES (catálogo de especializaciones técnicas) =====

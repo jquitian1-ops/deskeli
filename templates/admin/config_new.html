@@ -3907,14 +3907,41 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
         if (!confirm('¿Sincronizar ahora? El sistema leerá los correos no leídos y creará tickets.')) return;
         try {
             const r = await fetch('/api/admin/mailboxes/' + id + '/sync', {method:'POST'});
-            const data = await r.json();
+            let data;
+            try {
+                data = await r.json();
+            } catch (parseErr) {
+                // Servidor devolvió HTML (posible timeout de proxy o 500). Leer como texto.
+                let bodyText = '';
+                try { bodyText = await r.clone().text(); } catch (_) {}
+                const isHtml = bodyText.trim().startsWith('<');
+                let hint = '';
+                if (isHtml && r.status >= 500) {
+                    hint = '\n\nProbablemente hubo un timeout o un error interno. Volvé a intentar en unos segundos.';
+                } else if (isHtml && r.status === 404) {
+                    hint = '\n\nEl endpoint no existe. Contactá al desarrollador.';
+                } else {
+                    hint = '\n\nRespuesta inválida del servidor (status ' + r.status + ').';
+                }
+                alert('✗ No se pudo procesar la respuesta.' + hint);
+                console.error('Sync error - Response body:', bodyText.substring(0, 500));
+                return;
+            }
             if (data.success) {
                 alert('✓ ' + data.message);
                 mbLoad();
             } else {
-                alert('✗ ' + data.error);
+                let msg = '✗ ' + (data.error || 'Error desconocido');
+                if (data.hint) msg += '\n\n💡 ' + data.hint;
+                if (data.traceback) {
+                    console.group('Traceback del servidor');
+                    console.error(data.traceback);
+                    console.groupEnd();
+                    msg += '\n\n(Detalle técnico en consola del navegador — F12)';
+                }
+                alert(msg);
             }
-        } catch (e) { alert('✗ ' + e.message); }
+        } catch (e) { alert('✗ Error de red: ' + e.message); }
     };
 
     window.mbToggle = async function(id, newActive) {
