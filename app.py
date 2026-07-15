@@ -2941,6 +2941,196 @@ def admin_csat():
                            current_company=user.company)
 
 
+@app.route('/api/admin/guiones/<int:guion_id>/pool-info')
+def api_admin_guion_pool_info(guion_id):
+    """Diagnóstico completo del pool de asignación de un guion.
+
+    Muestra:
+    - Datos del guion (activo, empresa)
+    - Sus subtareas y a quién están asignadas fijas (o vacías)
+    - Todos los usuarios en UserGuion para este guion
+    - Cuáles pasan filtros (activos + rol técnico/admin + misma empresa)
+    - Carga actual de cada técnico del pool
+    - Simulación: si se disparara el guion ahora, a quién le tocaría cada subtarea
+
+    Uso: llamar desde el navegador o herramienta de admin para diagnosticar
+    por qué las subtareas no se asignan como esperado.
+    """
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+
+    guion = Guion.query.get(guion_id)
+    if not guion:
+        return jsonify({'success': False, 'error': f'Guion {guion_id} no existe'}), 404
+
+    scope = admin_companies_scope()
+    if guion.company not in scope:
+        return jsonify({'success': False, 'error': 'Sin acceso a este guion'}), 403
+
+    # Subtareas del guion con su assignee fijo (si tienen)
+    gs_list = GuionSubtask.query.filter_by(guion_id=guion.id).order_by(GuionSubtask.order_idx).all()
+    subtasks_info = []
+    for gs in gs_list:
+        fixed_assignee = None
+        assignee_status = 'sin-asignar-fijo'
+        if gs.assignee_id:
+            u = User.query.get(gs.assignee_id)
+            if not u:
+                assignee_status = f'⚠ user_id {gs.assignee_id} NO EXISTE'
+            elif not u.is_active:
+                assignee_status = f'⚠ {u.name} está INACTIVO'
+            elif u.company != guion.company:
+                assignee_status = f'⚠ {u.name} es de empresa {u.company} (guion es {guion.company})'
+            elif u.role not in ('technician', 'admin'):
+                assignee_status = f'⚠ {u.name} tiene rol {u.role} (debe ser technician o admin)'
+            else:
+                fixed_assignee = {'id': u.id, 'name': u.name, 'email': u.email}
+                assignee_status = 'OK'
+        subtasks_info.append({
+            'order_idx': gs.order_idx,
+            'title': gs.title,
+            'priority': gs.priority,
+            'assignee_id_fijo': gs.assignee_id,
+            'assignee_fijo': fixed_assignee,
+            'status_asignee_fijo': assignee_status,
+        })
+
+    # Pool: todos los UserGuion para este guion
+    ug_rows = UserGuion.query.filter_by(guion_id=guion.id).all()
+    raw_pool_ids = [ug.user_id for ug in ug_rows]
+
+    # Detalle por cada uno: ¿pasa los filtros?
+    pool_detail = []
+    valid_pool = []
+    for uid in raw_pool_ids:
+        u = User.query.get(uid)
+        if not u:
+            pool_detail.append({
+                'user_id': uid,
+                'passes': False,
+                'reason': f'user_id {uid} NO EXISTE (registro huérfano en user_guiones)'
+            })
+            continue
+        reasons = []
+        if u.company != guion.company:
+            reasons.append(f'empresa={u.company} ≠ guion={guion.company}')
+        if not u.is_active:
+            reasons.append('is_active=False')
+        if u.role not in ('technician', 'admin'):
+            reasons.append(f'role={u.role} (debe ser technician o admin)')
+
+        if not reasons:
+            # Calcular carga
+            load = Subtask.query.filter(
+                Subtask.assignee_id == u.id,
+                Subtask.status.in_(['open', 'in_progress'])
+            ).count()
+            pool_detail.append({
+                'user_id': u.id,
+                'name': u.name,
+                'email': u.email,
+                'role': u.role,
+                'company': u.company,
+                'is_active': u.is_active,
+                'load_actual': load,
+                'passes': True,
+                'reason': 'OK'
+            })
+            valid_pool.append((u, load))
+        else:
+            pool_detail.append({
+                'user_id': u.id,
+                'name': u.name,
+                'email': u.email,
+                'role': u.role,
+                'company': u.company,
+                'is_active': u.is_active,
+                'passes': False,
+                'reason': '; '.join(reasons)
+            })
+
+    # Simulación: si se disparara el guion AHORA, ¿a quién le tocaría cada subtarea?
+    simulation = []
+    sim_load = {u.id: load for u, load in valid_pool}
+
+    def sim_pick():
+        if not sim_load:
+            return None
+        least = min(sim_load, key=sim_load.get)
+        sim_load[least] += 1
+        return least
+
+    for gs in gs_list:
+        if gs.assignee_id and any(u.id == gs.assignee_id for u, _ in valid_pool + [(User.query.get(gs.assignee_id), 0)] if u):
+            u_fixed = User.query.get(gs.assignee_id)
+            simulation.append({
+                'subtask': gs.title[:80],
+                'assigned_to_id': gs.assignee_id,
+                'assigned_to_name': u_fixed.name if u_fixed else '?',
+                'method': 'fijo en el guion'
+            })
+        else:
+            picked = sim_pick()
+            if picked:
+                u_p = User.query.get(picked)
+                simulation.append({
+                    'subtask': gs.title[:80],
+                    'assigned_to_id': picked,
+                    'assigned_to_name': u_p.name if u_p else '?',
+                    'method': 'pool round-robin'
+                })
+            else:
+                simulation.append({
+                    'subtask': gs.title[:80],
+                    'assigned_to_id': None,
+                    'assigned_to_name': None,
+                    'method': '⚠ NADIE — el pool está vacío o todos filtrados'
+                })
+
+    return jsonify({
+        'success': True,
+        'guion': {
+            'id': guion.id,
+            'code': guion.code,
+            'name': guion.name,
+            'company': guion.company,
+            'is_active': guion.is_active,
+            'default_priority': guion.default_priority,
+            'default_category': guion.default_category,
+        },
+        'subtareas_del_guion': subtasks_info,
+        'pool_raw_ids': raw_pool_ids,
+        'pool_detail': pool_detail,
+        'pool_valid_count': len(valid_pool),
+        'simulation_if_triggered_now': simulation,
+        'diagnostico': _diagnose_guion(guion, gs_list, valid_pool)
+    })
+
+
+def _diagnose_guion(guion, gs_list, valid_pool):
+    """Devuelve mensaje humano-legible con el problema principal si hay uno."""
+    issues = []
+    if not guion.is_active:
+        issues.append('⚠ El guion está INACTIVO — la API rechaza los llamados que lo referencien.')
+    if not gs_list:
+        issues.append('⚠ El guion NO tiene subtareas definidas.')
+    fixed_count = sum(1 for gs in gs_list if gs.assignee_id)
+    if fixed_count == 0 and not valid_pool:
+        issues.append(
+            '⚠ Ninguna subtarea tiene técnico fijo Y el pool (UserGuion) está vacío. '
+            'Solución: 1) En el guion, editá cada subtarea y asignale un técnico. '
+            'O 2) En Gestión de Usuarios, editá los técnicos y agregales este guion en su columna "Guiones".'
+        )
+    elif fixed_count < len(gs_list) and not valid_pool:
+        issues.append(
+            f'⚠ {len(gs_list) - fixed_count} de {len(gs_list)} subtareas quedarán SIN ASIGNAR '
+            'porque no tienen técnico fijo Y el pool está vacío.'
+        )
+    if not issues:
+        return '✅ Todo se ve bien. Si algún ticket sigue sin asignar, revisá el audit log del ticket específico.'
+    return ' | '.join(issues)
+
+
 @app.route('/api/admin/sidebar-counts')
 def api_admin_sidebar_counts():
     """Contadores dinámicos para los badges del sidebar admin.
@@ -17807,13 +17997,45 @@ def api_v1_external_create_ticket():
                 pool_load[least_id] += 1  # simular la carga que agrega esta subtarea
                 return least_id
 
+            def _is_valid_assignee(uid):
+                """Verifica que un user_id sea un técnico válido, activo y de la
+                misma empresa que el guion. Sin esto, un guion podría asignar
+                subtareas a usuarios eliminados o de otras empresas."""
+                if not uid:
+                    return False
+                u = User.query.get(uid)
+                if not u:
+                    return False
+                if u.company != source_guion.company:
+                    return False
+                if not u.is_active:
+                    return False
+                if u.role not in ('technician', 'admin'):
+                    return False
+                return True
+
+            assign_stats = {'from_fixed': 0, 'from_pool': 0, 'unassigned': 0}
             for idx, gs in enumerate(gs_list):
                 st_priority = (gs.priority or priority).lower()
                 if st_priority not in ('low', 'medium', 'high', 'critical'):
                     st_priority = 'medium'
                 sla_min = sla_map.get(st_priority, 480)
-                # 1º prioridad: técnico fijo de la subtarea del guion. 2º: pool de especialistas del guion.
-                resolved_assignee = gs.assignee_id or pick_from_pool()
+
+                # 1º: técnico fijo válido de la subtarea del guion
+                # 2º: pool de especialistas del guion
+                # 3º: sin asignar (queda en la cola general)
+                resolved_assignee = None
+                if _is_valid_assignee(gs.assignee_id):
+                    resolved_assignee = gs.assignee_id
+                    assign_stats['from_fixed'] += 1
+                else:
+                    picked = pick_from_pool()
+                    if picked:
+                        resolved_assignee = picked
+                        assign_stats['from_pool'] += 1
+                    else:
+                        assign_stats['unassigned'] += 1
+
                 st = Subtask(
                     ticket_id=ticket.id,
                     subtask_number=f'{ticket.ticket_number}-S{(idx+1):02d}',
@@ -17833,8 +18055,13 @@ def api_v1_external_create_ticket():
             if subtasks_created:
                 db.session.commit()
                 log_audit('api_subtasks_from_guion', author.id if author else None, 'ticket', ticket.id,
-                          f'{len(subtasks_created)} subtareas creadas desde guion "{source_guion.code}" ({source_guion.name}) '
-                          f'para ticket {ticket.ticket_number}')
+                          f'{len(subtasks_created)} subtareas creadas desde guion "{source_guion.code}". '
+                          f'Fijas: {assign_stats["from_fixed"]}, Pool: {assign_stats["from_pool"]}, '
+                          f'Sin asignar: {assign_stats["unassigned"]}. '
+                          f'Pool disponible: {len(pool_users)} tecnico(s)')
+                # Guardar stats para incluir en la respuesta
+                ticket._assign_stats = assign_stats
+                ticket._pool_size = len(pool_users)
         else:
             # Opción 2 (fallback / uso ad-hoc): subtareas del payload
             subtasks_raw = data.get('subtasks') or data.get('controls') or []
@@ -17986,8 +18213,19 @@ def api_v1_external_create_ticket():
         except Exception:
             pass
 
+        # Enriquecer con nombre del assignee (útil para verificar visualmente
+        # a quién se asignó cada subtarea sin tener que hacer otro query)
+        assignee_cache = {}
+        def _assignee_info(uid):
+            if uid is None:
+                return {'id': None, 'name': None, 'email': None}
+            if uid not in assignee_cache:
+                u = User.query.get(uid)
+                assignee_cache[uid] = {'id': uid, 'name': u.name if u else None, 'email': u.email if u else None}
+            return assignee_cache[uid]
+
         base_url = get_public_base_url()
-        return jsonify({
+        response = {
             'success': True,
             'id': ticket.id,
             'ticket_number': ticket.ticket_number,
@@ -18001,12 +18239,23 @@ def api_v1_external_create_ticket():
                 'title': st.title,
                 'priority': st.priority,
                 'assignee_id': st.assignee_id,
+                'assignee': _assignee_info(st.assignee_id),
             } for st in subtasks_created],
             'attachments': {
                 'ticket': att_ticket_count,
                 'subtasks': att_subtask_count,
             },
-        }), 201
+        }
+        # Stats de asignación si se disparó un guion
+        if hasattr(ticket, '_assign_stats'):
+            response['assignment_stats'] = {
+                'from_fixed_assignee': ticket._assign_stats['from_fixed'],
+                'from_pool_round_robin': ticket._assign_stats['from_pool'],
+                'unassigned': ticket._assign_stats['unassigned'],
+                'pool_size': getattr(ticket, '_pool_size', 0),
+                'guion_code': source_guion.code if source_guion else None,
+            }
+        return jsonify(response), 201
     except Exception as e:
         db.session.rollback()
         log_audit('api_ticket_failed', None, 'ticket', None,
