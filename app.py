@@ -6238,6 +6238,90 @@ def _get_oauth_token_for_imap(tenant_id, client_id, client_secret):
         return None, f'Excepción obteniendo token: {e}'
 
 
+def _html_to_plain_text(html_content: str) -> str:
+    """Convierte HTML a texto plano legible, sin dependencias externas.
+
+    Se usa cuando el correo no trae versión text/plain (típico de Outlook web).
+    No es perfecto pero elimina el markup, decodifica entidades y preserva
+    saltos de línea de <br>, <p>, <div>, listas y encabezados.
+    """
+    if not html_content:
+        return ''
+    import html as _html_mod
+
+    text = html_content
+    # Remover bloques inútiles (estilos, scripts, meta, head completo, comentarios)
+    text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<head[^>]*>.*?</head>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)
+    # Elementos que introducen salto de línea o doble salto
+    text = re.sub(r'</(p|div|tr|li|h[1-6]|blockquote)>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'<hr\s*/?>', '\n---\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</(h[1-6])>', '\n\n', text, flags=re.IGNORECASE)
+    # Marcadores de lista
+    text = re.sub(r'<li[^>]*>', '• ', text, flags=re.IGNORECASE)
+    # Eliminar cualquier otra tag
+    text = re.sub(r'<[^>]+>', '', text)
+    # Decodificar entidades HTML: &amp; &nbsp; &lt; &gt; etc
+    text = _html_mod.unescape(text)
+    # Normalizar espacios: colapsar tabs/espacios múltiples pero preservar saltos
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r' *\n *', '\n', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
+def _extract_email_body(em) -> str:
+    """Extrae el cuerpo legible de un email.
+
+    Estrategia:
+    1. Si es multipart, recorrer partes buscando text/plain primero.
+    2. Si no hay text/plain, buscar text/html y convertirlo a texto.
+    3. Si no es multipart, mirar el content-type y aplicar la lógica correspondiente.
+    """
+    plain_text = ''
+    html_content = ''
+
+    def _decode(part):
+        try:
+            payload = part.get_payload(decode=True)
+            if not payload:
+                return ''
+            charset = part.get_content_charset() or 'utf-8'
+            return payload.decode(charset, errors='replace')
+        except Exception:
+            try:
+                return str(part.get_payload() or '')
+            except Exception:
+                return ''
+
+    if em.is_multipart():
+        for part in em.walk():
+            ctype = part.get_content_type()
+            disp = str(part.get('Content-Disposition') or '')
+            if 'attachment' in disp.lower():
+                continue
+            if ctype == 'text/plain' and not plain_text:
+                plain_text = _decode(part)
+            elif ctype == 'text/html' and not html_content:
+                html_content = _decode(part)
+    else:
+        payload = _decode(em)
+        if em.get_content_type() == 'text/html':
+            html_content = payload
+        else:
+            plain_text = payload
+
+    # Preferencia: plain > html convertido
+    if plain_text.strip():
+        return plain_text.strip()
+    if html_content.strip():
+        return _html_to_plain_text(html_content)
+    return ''
+
+
 def _imap_xoauth2_authenticate(conn, user, token):
     """Autentica una conexión IMAP usando SASL XOAUTH2 con token de Microsoft.
     Lanza imaplib.IMAP4.error si falla.
@@ -6352,22 +6436,9 @@ def fetch_emails_from_mailbox(mailbox_id):
                 if existing:
                     continue
 
-                # Extraer body (texto plano si está disponible)
-                body_text = ''
-                if em.is_multipart():
-                    for part in em.walk():
-                        ctype = part.get_content_type()
-                        if ctype == 'text/plain' and 'attachment' not in str(part.get('Content-Disposition', '')):
-                            try:
-                                body_text = part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='replace')
-                                break
-                            except Exception:
-                                pass
-                else:
-                    try:
-                        body_text = em.get_payload(decode=True).decode(em.get_content_charset() or 'utf-8', errors='replace')
-                    except Exception:
-                        body_text = str(em.get_payload())
+                # Extraer body legible: prefiere text/plain, cae a text/html
+                # convertido a texto si no hay plain (típico de correos de Outlook web)
+                body_text = _extract_email_body(em)
 
                 # Buscar al sender en User (por email)
                 sender_email = sender
