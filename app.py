@@ -6377,6 +6377,17 @@ def fetch_emails_from_mailbox(mailbox_id):
                 if not creator:
                     creator = User.query.filter_by(company=mb.company, role='admin').first()
 
+                # Resolver creator: sender o fallback al primer admin de la empresa
+                # (no usar id=1 a ciegas — ese usuario puede no existir en Postgres)
+                if not creator:
+                    creator = User.query.filter_by(company=mb.company, role='admin', is_active=True).first()
+                if not creator:
+                    creator = User.query.filter_by(company=mb.company, is_active=True).first()
+                if not creator:
+                    # Ninguna opción — saltar este correo con log claro
+                    print(f"[mailbox] No hay usuario válido en empresa {mb.company} para asignar como creator. Skipping email.")
+                    continue
+
                 # Crear ticket
                 sla_min = get_sla_minutes_for_priority(mb.default_priority)
                 ticket = Ticket(
@@ -6392,17 +6403,24 @@ def fetch_emails_from_mailbox(mailbox_id):
                     category=mb.default_category or 'Email',
                     priority=mb.default_priority,
                     status='open',
-                    creator_id=creator.id if creator else 1,
+                    creator_id=creator.id,
                     company=mb.company,
                     sla_minutes=sla_min,
                     sla_deadline=compute_sla_deadline(datetime.now(), sla_min, mb.company)
                 )
+                # ORDEN CRÍTICO: primero persistir el ticket para tener ticket.id,
+                # después llamar a assign_ticket_auto (que crea un AgentAction con
+                # ticket_id NOT NULL). Si se invierte, el AgentAction queda con
+                # ticket_id=None y PostgreSQL rechaza con NotNullViolation.
+                db.session.add(ticket)
+                db.session.flush()  # ticket.id ya está poblado
+
                 try:
                     assign_ticket_auto(ticket)
-                except Exception:
-                    pass
-                db.session.add(ticket)
-                db.session.flush()
+                except Exception as _e:
+                    # No crítico: si la asignación automática falla, el ticket
+                    # queda sin asignar y aparece en la cola general.
+                    print(f'[mailbox] assign_ticket_auto falló (no crítico): {_e}')
 
                 # Registrar correo procesado
                 db.session.add(MailboxEmail(
@@ -6432,16 +6450,32 @@ def fetch_emails_from_mailbox(mailbox_id):
             return created_count, None
 
         except imaplib.IMAP4.error as e:
+            try: db.session.rollback()
+            except Exception: pass
             mb.last_check_at = datetime.now()
             mb.last_status = 'error'
             mb.last_error = f'IMAP error: {str(e)[:300]}'
-            db.session.commit()
+            try: db.session.commit()
+            except Exception:
+                try: db.session.rollback()
+                except Exception: pass
             return 0, str(e)
         except Exception as e:
-            mb.last_check_at = datetime.now()
-            mb.last_status = 'error'
-            mb.last_error = str(e)[:300]
-            db.session.commit()
+            # CRÍTICO: si algo falla durante el flush (ej: NotNullViolation),
+            # la sesión queda "poisoned" y hay que rollback antes de re-usarla.
+            try: db.session.rollback()
+            except Exception: pass
+            try:
+                # Re-consultar mb después del rollback (el objeto viejo puede estar detached)
+                mb_fresh = MailboxConfig.query.get(mailbox_id)
+                if mb_fresh:
+                    mb_fresh.last_check_at = datetime.now()
+                    mb_fresh.last_status = 'error'
+                    mb_fresh.last_error = str(e)[:300]
+                    db.session.commit()
+            except Exception:
+                try: db.session.rollback()
+                except Exception: pass
             return 0, str(e)
 
 
