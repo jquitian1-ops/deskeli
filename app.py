@@ -6273,6 +6273,78 @@ def _html_to_plain_text(html_content: str) -> str:
     return text.strip()
 
 
+def _decode_email_header(s: str) -> str:
+    """Decodifica una cabecera con encoding RFC 2047 (asuntos y nombres de archivo)."""
+    from email.header import decode_header
+    if not s:
+        return ''
+    try:
+        parts = decode_header(s)
+        out = ''
+        for txt, enc in parts:
+            if isinstance(txt, bytes):
+                try:
+                    out += txt.decode(enc or 'utf-8', errors='replace')
+                except Exception:
+                    out += txt.decode('utf-8', errors='replace')
+            else:
+                out += txt
+        return out.strip()
+    except Exception:
+        return str(s)
+
+
+def _extract_email_attachments(em) -> list:
+    """Extrae adjuntos e imágenes inline del correo.
+
+    Devuelve lista de (filename, mime_type, bytes, is_inline).
+    - is_inline=True para imágenes referenciadas por CID en el HTML (aparecen igual
+      en la lista de adjuntos del ticket para que se puedan ver)
+    """
+    attachments = []
+    if not em.is_multipart():
+        return attachments
+
+    for part in em.walk():
+        ctype = part.get_content_type()
+        # Saltear wrappers multipart (no llevan datos por sí solos)
+        if ctype.startswith('multipart/'):
+            continue
+
+        disp = str(part.get('Content-Disposition') or '').lower()
+        filename = part.get_filename()
+        is_inline = 'inline' in disp
+        is_attachment_disp = 'attachment' in disp
+
+        # Reglas para considerar como adjunto:
+        # - Content-Disposition dice attachment/inline
+        # - Tiene filename (nombre de archivo)
+        # - No es una parte de texto principal (esas son el body)
+        if ctype in ('text/plain', 'text/html') and not filename and not is_attachment_disp:
+            # Es parte del cuerpo, no adjunto
+            continue
+        if not (is_attachment_disp or is_inline or filename):
+            continue
+
+        try:
+            payload = part.get_payload(decode=True)
+            if not payload:
+                continue
+        except Exception:
+            continue
+
+        # Filename limpio (decodificar si es RFC 2047)
+        clean_name = _decode_email_header(filename) if filename else ''
+        if not clean_name:
+            # Generar nombre según content-type
+            subtype = part.get_content_subtype() or 'bin'
+            clean_name = f'imagen-inline.{subtype}' if is_inline else f'adjunto.{subtype}'
+
+        attachments.append((clean_name, ctype, payload, is_inline))
+
+    return attachments
+
+
 def _extract_email_body(em) -> str:
     """Extrae el cuerpo legible de un email.
 
@@ -6492,6 +6564,65 @@ def fetch_emails_from_mailbox(mailbox_id):
                     # No crítico: si la asignación automática falla, el ticket
                     # queda sin asignar y aparece en la cola general.
                     print(f'[mailbox] assign_ticket_auto falló (no crítico): {_e}')
+
+                # Extraer y guardar adjuntos + imágenes inline del correo
+                try:
+                    from werkzeug.utils import secure_filename
+                    email_attachments = _extract_email_attachments(em)
+                    attach_saved = 0
+                    attach_skipped_type = 0
+                    attach_skipped_size = 0
+                    total_attach_bytes = 0
+                    MAX_ATTACH_BYTES = 15 * 1024 * 1024  # 15 MB por adjunto
+                    MAX_TOTAL_BYTES = 40 * 1024 * 1024   # 40 MB total por ticket
+
+                    for a_name, a_mime, a_data, a_inline in email_attachments:
+                        if not _allowed_attachment(a_name):
+                            attach_skipped_type += 1
+                            print(f'[mailbox] Tipo no permitido, saltando: {a_name}')
+                            continue
+                        if len(a_data) > MAX_ATTACH_BYTES:
+                            attach_skipped_size += 1
+                            print(f'[mailbox] Adjunto muy grande ({len(a_data)/1024/1024:.1f} MB), saltando: {a_name}')
+                            continue
+                        if total_attach_bytes + len(a_data) > MAX_TOTAL_BYTES:
+                            attach_skipped_size += 1
+                            print(f'[mailbox] Límite total ({MAX_TOTAL_BYTES/1024/1024} MB) excedido, saltando restantes')
+                            break
+
+                        safe = secure_filename(a_name) or 'archivo'
+                        ext = safe.rsplit('.', 1)[1].lower() if '.' in safe else ''
+                        stored = f"{uuid.uuid4().hex}.{ext}" if ext else uuid.uuid4().hex
+                        path = os.path.join(app.config['TICKET_UPLOAD_FOLDER'], stored)
+                        try:
+                            with open(path, 'wb') as fh:
+                                fh.write(a_data)
+                            db.session.add(TicketAttachment(
+                                ticket_id=ticket.id,
+                                original_name=safe[:255],
+                                stored_name=stored,
+                                mime_type=(a_mime or '')[:120],
+                                size_bytes=len(a_data),
+                                uploaded_by_id=creator.id
+                            ))
+                            attach_saved += 1
+                            total_attach_bytes += len(a_data)
+                        except Exception as _ae:
+                            print(f'[mailbox] Error guardando adjunto {a_name}: {_ae}')
+
+                    if attach_saved > 0:
+                        # Complementar la descripción con nota de adjuntos
+                        ticket.description = (ticket.description or '') + (
+                            f"\n\n---\n📎 **{attach_saved} adjunto(s) recibido(s) del correo**"
+                            + (f" ({attach_skipped_type} bloqueado(s) por tipo)" if attach_skipped_type else '')
+                            + (f" ({attach_skipped_size} bloqueado(s) por tamaño)" if attach_skipped_size else '')
+                        )
+                        log_audit('mailbox_attachments', None, 'ticket', ticket.id,
+                                  f'{ticket.ticket_number}: {attach_saved} adjunto(s) del correo, {total_attach_bytes} bytes')
+                        print(f'[mailbox] {attach_saved} adjunto(s) guardado(s) para {ticket.ticket_number}')
+                except Exception as _e:
+                    # Los adjuntos son "nice to have" — si falla, el ticket ya está creado
+                    print(f'[mailbox] Error procesando adjuntos: {_e}')
 
                 # Registrar correo procesado
                 db.session.add(MailboxEmail(
