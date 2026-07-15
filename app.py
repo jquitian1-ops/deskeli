@@ -2941,6 +2941,75 @@ def admin_csat():
                            current_company=user.company)
 
 
+@app.route('/api/admin/sidebar-counts')
+def api_admin_sidebar_counts():
+    """Contadores dinámicos para los badges del sidebar admin.
+
+    Se polla cada 30s desde el frontend para mantener los números actualizados
+    sin necesidad de refrescar la página cuando se crean o resuelven tickets.
+    """
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+
+    scope = admin_companies_scope()
+
+    # Tickets activos por prioridad (open + in_progress + pending_approval)
+    active_statuses = ['open', 'in_progress', 'pending_approval']
+    critical = Ticket.query.filter(
+        Ticket.company.in_(scope),
+        Ticket.status.in_(active_statuses),
+        Ticket.priority == 'critical'
+    ).count()
+    high = Ticket.query.filter(
+        Ticket.company.in_(scope),
+        Ticket.status.in_(active_statuses),
+        Ticket.priority == 'high'
+    ).count()
+    medium = Ticket.query.filter(
+        Ticket.company.in_(scope),
+        Ticket.status.in_(active_statuses),
+        Ticket.priority == 'medium'
+    ).count()
+    low = Ticket.query.filter(
+        Ticket.company.in_(scope),
+        Ticket.status.in_(active_statuses),
+        Ticket.priority == 'low'
+    ).count()
+
+    total_active = critical + high + medium + low
+
+    # Subtareas abiertas (todos los estados que no sean resolved/cancelled)
+    subtasks_active = Subtask.query.join(Ticket, Subtask.ticket_id == Ticket.id).filter(
+        Ticket.company.in_(scope),
+        Subtask.status.in_(['open', 'in_progress'])
+    ).count()
+
+    # Aprobaciones pendientes (para admin master, todas las de su scope)
+    approvals_pending = 0
+    try:
+        approvals_pending = Approval.query.join(Ticket, Approval.ticket_id == Ticket.id).filter(
+            Ticket.company.in_(scope),
+            Approval.status == 'pending'
+        ).count()
+    except Exception:
+        pass
+
+    return jsonify({
+        'success': True,
+        'tickets': {
+            'critical': critical,
+            'high': high,
+            'medium': medium,
+            'low': low,
+            'total_active': total_active,
+            'critical_high': critical + high,  # el que muestra el badge de "Tickets"
+        },
+        'subtasks_active': subtasks_active,
+        'approvals_pending': approvals_pending,
+        'server_time': datetime.now().isoformat(timespec='seconds')
+    })
+
+
 @app.route('/api/admin/csat/summary')
 def api_admin_csat_summary():
     """Métricas de CSAT/NPS para dashboard admin.

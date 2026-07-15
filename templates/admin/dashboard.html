@@ -600,7 +600,7 @@
                 </a>
                 <a class="sidebar-link" data-tab="8" onclick="switchTab(8)">
                     <span><span class="sl-icon">🎫</span>Tickets</span>
-                    <span class="sidebar-badge">{{ priority_counts.critical + priority_counts.high }}</span>
+                    <span class="sidebar-badge" id="sidebarTicketsBadge">{{ priority_counts.critical + priority_counts.high }}</span>
                 </a>
                 <a class="sidebar-link" data-tab="11" onclick="switchTab(11)">
                     <span><span class="sl-icon">✅</span>Subtareas</span>
@@ -618,7 +618,7 @@
                 </a>
                 <a class="sidebar-link" data-tab="6" onclick="switchTab(6)">
                     <span><span class="sl-icon">⚠️</span>Escalaciones</span>
-                    <span class="sidebar-badge">{{ priority_counts.critical | default(0) }}</span>
+                    <span class="sidebar-badge" id="sidebarEscalationsBadge">{{ priority_counts.critical | default(0) }}</span>
                 </a>
                 <a class="sidebar-link" data-tab="7" onclick="switchTab(7)">
                     <span><span class="sl-icon">💬</span>Centro de Chat</span>
@@ -2147,14 +2147,28 @@
                 if (!isNaN(idx)) switchTab(idx);
             }
 
-            // Precargar contador de subtareas en el sidebar
-            fetch('/api/technician/my-subtasks?scope=team')
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success && document.getElementById('sidebarSubtaskBadge')) {
-                        document.getElementById('sidebarSubtaskBadge').textContent = data.total;
-                    }
-                }).catch(() => {});
+            // ─── Contadores dinámicos del sidebar (polling cada 30s) ───
+            // Sin esto, los badges quedan pegados al valor del render inicial y
+            // el usuario ve "9" aunque haya creado/resuelto tickets sin refrescar.
+            async function refreshSidebarBadges() {
+                try {
+                    const r = await fetch('/api/admin/sidebar-counts');
+                    const data = await r.json();
+                    if (!data.success) return;
+                    const tb = document.getElementById('sidebarTicketsBadge');
+                    if (tb) tb.textContent = data.tickets.critical_high;
+                    const eb = document.getElementById('sidebarEscalationsBadge');
+                    if (eb) eb.textContent = data.tickets.critical;
+                    const sb = document.getElementById('sidebarSubtaskBadge');
+                    if (sb) sb.textContent = data.subtasks_active;
+                } catch (e) { /* silencioso */ }
+            }
+            // Al cargar la página
+            refreshSidebarBadges();
+            // Cada 30 segundos
+            setInterval(refreshSidebarBadges, 30000);
+            // Refresh manual expuesto a otras partes del código
+            window.refreshSidebarBadges = refreshSidebarBadges;
         });
 
         // ========== SUBTAREAS ADMIN PANEL ==========
@@ -2483,6 +2497,7 @@
                 setTimeout(() => {
                     closeAdminCreateTicket();
                     if (typeof loadTicketsTab === 'function') loadTicketsTab();
+                    if (typeof window.refreshSidebarBadges === 'function') window.refreshSidebarBadges();
                 }, 1500);
             } catch (e) {
                 status.innerHTML = '<span style="color:#dc2626;">✗ ' + e.message + '</span>';
