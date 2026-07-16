@@ -18301,6 +18301,36 @@ def _safe_str(v, default: str = '') -> str:
     return str(v)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Interpolacion de variables en plantillas de guion
+# ═══════════════════════════════════════════════════════════════════════════
+import re as _re_tpl
+_TEMPLATE_VAR_RE = _re_tpl.compile(r'\{(\w+)\}')
+
+def _interpolate_template(template, variables):
+    """Reemplaza {var_name} en el string con el valor de variables[var_name].
+
+    - Solo acepta identificadores [A-Za-z0-9_] entre llaves — sin expresiones,
+      atributos ni indexación (previene inyección).
+    - Si la variable no existe en el dict, deja el placeholder tal cual
+      (para que sea visible el error en la subtarea creada).
+    - Retorna string vacio si el template es None.
+    """
+    if not template:
+        return ''
+    if not isinstance(template, str):
+        template = str(template)
+    if not variables:
+        return template
+    def _sub(match):
+        key = match.group(1)
+        if key in variables:
+            val = variables[key]
+            return '' if val is None else str(val)
+        return match.group(0)
+    return _TEMPLATE_VAR_RE.sub(_sub, template)
+
+
 @app.route('/api/v1/external/tickets', methods=['POST'])
 def api_v1_external_create_ticket():
     """Crear un ticket desde una integración externa, con subtareas (controls) y adjuntos.
@@ -18372,10 +18402,31 @@ def api_v1_external_create_ticket():
         return jsonify({'success': False, 'error': 'Token sin scope tickets:create'}), 403
 
     data = request.get_json(silent=True) or {}
+
+    # Variables para interpolación de plantillas del guion.
+    # Ej: si el guion tiene "Activar cuenta de {nombre_usuario}", y aca mandan
+    # {"variables": {"nombre_usuario": "Juan Pérez"}}, la subtarea queda con
+    # "Activar cuenta de Juan Pérez".
+    tpl_vars = data.get('variables') or data.get('vars') or {}
+    if not isinstance(tpl_vars, dict):
+        tpl_vars = {}
+    # Normalizar valores a string y limitar tamaño
+    _clean_vars = {}
+    for k, v in tpl_vars.items():
+        if not isinstance(k, str) or not _re_tpl.match(r'^\w+$', k):
+            continue  # ignoramos claves con caracteres raros
+        _clean_vars[k] = _safe_str(v)[:500]
+    tpl_vars = _clean_vars
+
     subject = _safe_str(data.get('subject') or data.get('title')).strip()[:200]
     description = _safe_str(data.get('description')).strip()
     if not subject or not description:
         return jsonify({'success': False, 'error': 'Faltan campos requeridos: subject y description'}), 400
+
+    # Interpolar variables en subject/description del ticket padre tambien
+    if tpl_vars:
+        subject = _interpolate_template(subject, tpl_vars)[:200]
+        description = _interpolate_template(description, tpl_vars)
 
     # Sanitizar (los caller externos son menos confiables)
     description = sanitize_html(description) if 'sanitize_html' in globals() else description
@@ -18570,11 +18621,16 @@ def api_v1_external_create_ticket():
                     else:
                         assign_stats['unassigned'] += 1
 
+                # Interpolar variables del payload en title/description
+                # del guion (ej: "Activar cuenta {nombre_usuario}" → "Activar cuenta Juan")
+                st_title = _interpolate_template(gs.title or '', tpl_vars)[:255]
+                st_desc = _interpolate_template(gs.description or '', tpl_vars)
+
                 st = Subtask(
                     ticket_id=ticket.id,
                     subtask_number=f'{ticket.ticket_number}-S{(idx+1):02d}',
-                    title=gs.title[:255],
-                    description=gs.description,
+                    title=st_title,
+                    description=st_desc,
                     category=gs.category or category,
                     status='open',
                     priority=st_priority,
