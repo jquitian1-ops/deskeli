@@ -49,18 +49,70 @@ import secrets
 # ═════════════════════════════════════════════════════════════════════════════
 
 request_counts = defaultdict(list)
-RATE_LIMIT = 120  # requests
+# Rate limit configurable via .env. Default 600 req/min por IP real
+# (detras de proxy reverso todos los usuarios comparten la IP del proxy,
+# por eso el limite tiene que ser generoso).
+RATE_LIMIT = int(os.getenv('RATE_LIMIT_PER_MIN', '600'))
 RATE_WINDOW = 60  # seconds
 MAX_IPS_TRACKED = 10000  # Prevenir memory leak
+
+# Prefijos de URL que NO cuentan para el rate limit (assets, polling interno).
+# Reducen ruido y evitan que el dashboard se auto-bloquee.
+RATE_LIMIT_EXCLUDED_PREFIXES = (
+    '/static/',
+    '/socket.io/',
+    '/favicon.ico',
+    '/api/admin/sidebar-counts',   # polling cada 30s
+    '/api/health',
+)
 
 # Bloqueo de cuenta por intentos fallidos (configurable vía .env)
 MAX_FAILED_LOGIN_ATTEMPTS = int(os.getenv('MAX_FAILED_LOGIN_ATTEMPTS', '5'))
 LOCKOUT_DURATION_MINUTES = int(os.getenv('LOCKOUT_DURATION_MINUTES', '15'))
 
+def _real_client_ip():
+    """Obtener la IP real del cliente respetando X-Forwarded-For del proxy.
+
+    Detras de Coolify/nginx todos los request llegan con remote_addr = IP del
+    proxy, lo que hace que el rate limit se aplique a TODOS los usuarios como
+    si fueran uno solo. X-Forwarded-For contiene la cadena real "client, proxy1,
+    proxy2" — tomamos el primer valor (el cliente original).
+    """
+    fwd = request.headers.get('X-Forwarded-For', '')
+    if fwd:
+        first = fwd.split(',')[0].strip()
+        if first:
+            return first
+    real = request.headers.get('X-Real-IP', '').strip()
+    if real:
+        return real
+    return request.remote_addr or 'unknown'
+
+
 def rate_limit_check():
-    """Middleware de rate limiting (120 req/min por IP) - SECURITY FIX 8: mejorar cleanup"""
+    """Middleware de rate limiting configurable via RATE_LIMIT_PER_MIN.
+
+    - Usa la IP real del cliente (X-Forwarded-For) para no matar a todos
+      cuando estan detras del mismo proxy.
+    - Excluye assets estaticos y endpoints de polling interno.
+    - Se puede desactivar con RATE_LIMIT_PER_MIN=0 en el .env.
+    """
     global request_counts
-    ip = request.remote_addr
+
+    # Rate limit desactivado
+    if RATE_LIMIT <= 0:
+        return None
+
+    # Excluir paths que no deberian contar (assets, polls internos)
+    try:
+        path = request.path or ''
+        for pref in RATE_LIMIT_EXCLUDED_PREFIXES:
+            if path.startswith(pref):
+                return None
+    except Exception:
+        pass
+
+    ip = _real_client_ip()
     now = time.time()
 
     # SECURITY FIX 8: Limpiar requests antiguos más eficientemente
@@ -68,7 +120,10 @@ def rate_limit_check():
 
     # Verificar límite
     if len(request_counts[ip]) >= RATE_LIMIT:
-        return jsonify({'success': False, 'error': 'Rate limit exceeded: 120 req/min'}), 429
+        return jsonify({
+            'success': False,
+            'error': f'Rate limit exceeded: {RATE_LIMIT} req/min'
+        }), 429
 
     # Registrar request
     request_counts[ip].append(now)
@@ -2821,6 +2876,78 @@ def admin_tickets():
                            is_master=is_master_admin(),
                            scope_companies=scope,
                            now=datetime.now())
+
+
+@app.route('/api/admin/tickets/auto-assign-unassigned', methods=['POST'])
+def api_admin_auto_assign_unassigned():
+    """Asigna automáticamente todos los tickets sin asignar del scope del admin.
+
+    Usa assign_ticket_auto() para cada uno: técnico con menor carga en la
+    misma empresa + bonus si categoría coincide con especialidad.
+    Devuelve stats: procesados, asignados, ya-asignados-skipped, sin-tecnicos.
+    """
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+
+    user = User.query.get(session['user_id'])
+    scope = admin_companies_scope(user.company, user.role)
+
+    # Filtro: sólo tickets abiertos/en progreso, sin assignee, dentro del scope
+    unassigned = Ticket.query.filter(
+        Ticket.company.in_(scope),
+        Ticket.assignee_id.is_(None),
+        Ticket.status.in_(['open', 'in_progress'])
+    ).all()
+
+    total = len(unassigned)
+    assigned_count = 0
+    skipped_no_tech = 0
+    assigned_details = []  # [{ticket_number, technician_name}, ...]
+
+    for t in unassigned:
+        prev_id = t.assignee_id
+        try:
+            assign_ticket_auto(t)
+        except Exception as e:
+            print(f'[bulk-auto-assign] Error en {t.ticket_number}: {e}')
+            continue
+        if t.assignee_id and t.assignee_id != prev_id:
+            assigned_count += 1
+            tech = User.query.get(t.assignee_id)
+            assigned_details.append({
+                'ticket_number': t.ticket_number,
+                'ticket_id': t.id,
+                'technician_name': tech.name if tech else '—',
+                'technician_id': t.assignee_id,
+                'category': t.category or 'General',
+            })
+        else:
+            skipped_no_tech += 1
+
+    if assigned_count > 0:
+        db.session.commit()
+
+    log_audit('bulk_auto_assign', user.id, 'ticket', None,
+              f'Asignación masiva desde Gestión de Tickets: {assigned_count}/{total} tickets asignados. '
+              f'Sin técnico disponible: {skipped_no_tech}. Scope: {list(scope)}')
+
+    # Emitir WebSocket para refrescar dashboards conectados
+    try:
+        for c in scope:
+            socketio.emit('tickets_bulk_assigned',
+                          {'count': assigned_count, 'company': c},
+                          room=f'company_{c}')
+    except Exception:
+        pass
+
+    return jsonify({
+        'success': True,
+        'total_unassigned': total,
+        'assigned': assigned_count,
+        'no_technician_available': skipped_no_tech,
+        'details': assigned_details[:100],  # cap para no explotar payload
+    })
+
 
 @app.route('/admin/config')
 def admin_config():
@@ -11263,6 +11390,77 @@ def api_subtasks_create(ticket_id):
     return jsonify({'success': True, 'subtask': _serialize_subtask(subtask)})
 
 
+@app.route('/api/admin/subtasks/diagnostico', methods=['GET'])
+def api_admin_subtasks_diagnostico():
+    """Diagnostico para entender por que no aparecen subtareas en el dashboard admin.
+
+    Retorna:
+      - session_user + role + company
+      - admin_scope (empresas visibles)
+      - total_subtasks_in_db (sin filtro)
+      - por_empresa: conteo por company del ticket padre
+      - sample: primeras 10 subtareas con su ticket.company y assignee
+    """
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+    user = User.query.get(session['user_id'])
+    scope = admin_companies_scope(user.company, user.role)
+    total_all = Subtask.query.count()
+
+    # Conteo por empresa del ticket padre
+    from sqlalchemy import func as _f
+    by_company_rows = db.session.query(
+        Ticket.company, _f.count(Subtask.id)
+    ).join(Subtask, Subtask.ticket_id == Ticket.id).group_by(Ticket.company).all()
+    by_company = {c or '(null)': n for c, n in by_company_rows}
+
+    # Subtareas visibles en el scope actual del admin
+    visible_q = Subtask.query.join(Ticket, Subtask.ticket_id == Ticket.id).filter(
+        Ticket.company.in_(scope)
+    )
+    total_visible = visible_q.count()
+    unassigned_visible = visible_q.filter(Subtask.assignee_id.is_(None)).count()
+
+    sample = []
+    for s in visible_q.order_by(Subtask.created_at.desc()).limit(10).all():
+        sample.append({
+            'id': s.id,
+            'subtask_number': s.subtask_number,
+            'title': s.title[:80],
+            'parent_company': s.ticket.company if s.ticket else None,
+            'parent_number': s.ticket.ticket_number if s.ticket else None,
+            'assignee_id': s.assignee_id,
+            'assignee_name': s.assignee.name if s.assignee else None,
+            'status': s.status,
+            'created_at': s.created_at.strftime('%Y-%m-%d %H:%M') if s.created_at else None
+        })
+
+    return jsonify({
+        'success': True,
+        'session': {
+            'user_id': user.id,
+            'user_name': user.name,
+            'user_email': user.email,
+            'user_company': user.company,
+            'user_role': user.role,
+            'session_company': session.get('company'),
+        },
+        'admin_scope': list(scope),
+        'subtasks': {
+            'total_en_bd': total_all,
+            'total_visibles_en_scope': total_visible,
+            'sin_asignar_en_scope': unassigned_visible,
+            'por_empresa_en_bd': by_company,
+            'sample_10_mas_recientes': sample,
+        },
+        'hint': (
+            'Si total_en_bd > 0 pero total_visibles_en_scope = 0 → tus subtareas '
+            'pertenecen a una empresa que NO está en tu admin_scope. '
+            'Revisá "por_empresa_en_bd" vs "admin_scope".'
+        )
+    })
+
+
 @app.route('/api/technician/my-subtasks', methods=['GET'])
 def api_my_subtasks():
     """Subtareas. scope=mine (default) → asignadas al técnico; scope=team → del grupo de subroles."""
@@ -11287,9 +11485,18 @@ def api_my_subtasks():
                 Subtask.assignee_id.in_(group_ids)
             )
         else:
-            query = Subtask.query.join(Ticket, Subtask.ticket_id == Ticket.id).filter(
-                Ticket.company == session['company']
-            )
+            # scope=all → todas las subtareas del scope del admin (incluye
+            # subtareas sin asignar y las asignadas a cualquier técnico de la
+            # empresa). Para master admin, respeta admin_companies_scope().
+            if user.role == 'admin':
+                allowed_companies = admin_companies_scope(user.company, user.role)
+                query = Subtask.query.join(Ticket, Subtask.ticket_id == Ticket.id).filter(
+                    Ticket.company.in_(allowed_companies)
+                )
+            else:
+                query = Subtask.query.join(Ticket, Subtask.ticket_id == Ticket.id).filter(
+                    Ticket.company == session['company']
+                )
         subtasks = query.all()
 
         # Orden: resueltas al final, dentro de cada grupo por SLA ascendente (None al final)
@@ -18393,6 +18600,50 @@ def api_v1_external_create_ticket():
             # Opción 2 (fallback / uso ad-hoc): subtareas del payload
             subtasks_raw = data.get('subtasks') or data.get('controls') or []
             if isinstance(subtasks_raw, list):
+                # Cache de pools por guion_code — permite que múltiples subtareas del
+                # mismo guion en la misma request se repartan round-robin correctamente.
+                _guion_pool_cache = {}
+
+                def _resolve_guion_pool(code):
+                    """Devuelve dict {'load': {uid: n}, 'guion': Guion} o None."""
+                    if not code:
+                        return None
+                    if code in _guion_pool_cache:
+                        return _guion_pool_cache[code]
+                    g = Guion.query.filter_by(
+                        code=code, company=api_key.company, is_active=True
+                    ).first()
+                    if not g:
+                        _guion_pool_cache[code] = None
+                        return None
+                    pool_ids = [ug.user_id for ug in UserGuion.query.filter_by(guion_id=g.id).all()]
+                    users = User.query.filter(
+                        User.id.in_(pool_ids),
+                        User.company == g.company,
+                        User.is_active == True,
+                        User.role.in_(['technician', 'admin'])
+                    ).all() if pool_ids else []
+                    load = {}
+                    for u in users:
+                        load[u.id] = Subtask.query.filter(
+                            Subtask.assignee_id == u.id,
+                            Subtask.status.in_(['open', 'in_progress'])
+                        ).count()
+                    _guion_pool_cache[code] = {'load': load, 'guion': g}
+                    return _guion_pool_cache[code]
+
+                def _pick_from_guion(code):
+                    entry = _resolve_guion_pool(code)
+                    if not entry or not entry['load']:
+                        return None
+                    least_id = min(entry['load'], key=entry['load'].get)
+                    entry['load'][least_id] += 1  # simular carga
+                    return least_id
+
+                _per_subtask_stats = {'from_guion_pool': 0, 'from_email': 0,
+                                      'from_default': 0, 'unassigned': 0,
+                                      'guion_missing': []}
+
                 for idx, st_data in enumerate(subtasks_raw[:50]):
                     if not isinstance(st_data, dict):
                         continue
@@ -18407,16 +18658,47 @@ def api_v1_external_create_ticket():
                     if st_priority not in ('low', 'medium', 'high', 'critical'):
                         st_priority = priority
                     st_category = (_safe_str(st_data.get('category')).strip() or category)[:100]
+
+                    # ─── Resolución de técnico asignado (cascada) ─────────
+                    # 1º guion_code: pool round-robin del guion
+                    # 2º assigneeEmail: técnico específico
+                    # 3º assignee general del ticket / default
                     st_assignee = None
-                    st_ass_email = _safe_str(st_data.get('assigneeEmail') or st_data.get('assignee_email')).strip().lower()
-                    if st_ass_email:
-                        st_assignee = User.query.filter(
-                            db.func.lower(User.email) == st_ass_email,
-                            User.company == api_key.company,
-                            User.role.in_(['technician', 'admin'])
-                        ).first()
+                    st_guion_code = _safe_str(
+                        st_data.get('guion_code') or st_data.get('guionCode')
+                    ).strip().lower()
+                    if st_guion_code:
+                        picked_uid = _pick_from_guion(st_guion_code)
+                        if picked_uid:
+                            st_assignee = User.query.get(picked_uid)
+                            _per_subtask_stats['from_guion_pool'] += 1
+                        else:
+                            # el guion no existe o su pool está vacío → dejar constancia
+                            entry = _resolve_guion_pool(st_guion_code)
+                            if entry is None:
+                                _per_subtask_stats['guion_missing'].append(st_guion_code)
+                            # Fallthrough: sigue con el resto de la cascada
+
+                    if not st_assignee:
+                        st_ass_email = _safe_str(
+                            st_data.get('assigneeEmail') or st_data.get('assignee_email')
+                        ).strip().lower()
+                        if st_ass_email:
+                            st_assignee = User.query.filter(
+                                db.func.lower(User.email) == st_ass_email,
+                                User.company == api_key.company,
+                                User.role.in_(['technician', 'admin'])
+                            ).first()
+                            if st_assignee:
+                                _per_subtask_stats['from_email'] += 1
+
                     if not st_assignee:
                         st_assignee = assignee
+                        if st_assignee:
+                            _per_subtask_stats['from_default'] += 1
+                        else:
+                            _per_subtask_stats['unassigned'] += 1
+
                     st_num = f'{ticket.ticket_number}-S{(idx+1):02d}'
                     sla_min = sla_map.get(st_priority, 480)
                     st = Subtask(
@@ -18438,7 +18720,14 @@ def api_v1_external_create_ticket():
                 if subtasks_created:
                     db.session.commit()
                     log_audit('api_subtasks_created', author.id if author else None, 'ticket', ticket.id,
-                              f'{len(subtasks_created)} subtareas ad-hoc creadas via API para ticket {ticket.ticket_number}')
+                              f'{len(subtasks_created)} subtareas ad-hoc creadas via API para ticket {ticket.ticket_number}. '
+                              f'Por guion: {_per_subtask_stats["from_guion_pool"]}, '
+                              f'Por email: {_per_subtask_stats["from_email"]}, '
+                              f'Por default: {_per_subtask_stats["from_default"]}, '
+                              f'Sin asignar: {_per_subtask_stats["unassigned"]}'
+                              + (f'. Guiones no encontrados: {list(set(_per_subtask_stats["guion_missing"]))}'
+                                 if _per_subtask_stats["guion_missing"] else ''))
+                    ticket._per_subtask_stats = _per_subtask_stats
 
         # ─── ADJUNTOS (base64) ────────────────────────────────────────
         import base64 as _b64
@@ -18581,6 +18870,16 @@ def api_v1_external_create_ticket():
                 'unassigned': ticket._assign_stats['unassigned'],
                 'pool_size': getattr(ticket, '_pool_size', 0),
                 'guion_code': source_guion.code if source_guion else None,
+            }
+        # Stats del modo per-subtask (subtasks[].guion_code)
+        if hasattr(ticket, '_per_subtask_stats'):
+            pss = ticket._per_subtask_stats
+            response['assignment_stats_per_subtask'] = {
+                'from_guion_pool': pss['from_guion_pool'],
+                'from_email': pss['from_email'],
+                'from_default': pss['from_default'],
+                'unassigned': pss['unassigned'],
+                'guiones_no_encontrados': list(set(pss['guion_missing'])),
             }
         return jsonify(response), 201
     except Exception as e:

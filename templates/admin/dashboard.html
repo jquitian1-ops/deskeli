@@ -1845,6 +1845,12 @@
                             <option value="medium">🟡 Media</option>
                             <option value="low">🟢 Baja</option>
                         </select>
+                        <select id="subAdminAssigneeFilter" onchange="filterAdminSubtasks()"
+                                style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="">Todas asignaciones</option>
+                            <option value="unassigned">⚠️ Sin asignar</option>
+                            <option value="assigned">✅ Asignadas</option>
+                        </select>
                         <button onclick="loadAdminSubtasks()" style="padding:8px 14px;background:var(--primary);color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;">🔄 Actualizar</button>
                     </div>
                 </div>
@@ -2215,7 +2221,7 @@
             if (!tbody) return;
             tbody.innerHTML = '<tr><td colspan="9" style="padding:30px;text-align:center;color:#999;">⏳ Cargando subtareas...</td></tr>';
             try {
-                const r = await fetch('/api/technician/my-subtasks?scope=team');
+                const r = await fetch('/api/technician/my-subtasks?scope=all');
                 const data = await r.json();
                 if (!data.success) {
                     tbody.innerHTML = '<tr><td colspan="9" style="padding:30px;text-align:center;color:#dc2626;">Error al cargar subtareas</td></tr>';
@@ -2290,9 +2296,12 @@
             const q = (document.getElementById('subAdminSearch').value || '').trim().toLowerCase();
             const statusF = document.getElementById('subAdminStatusFilter').value;
             const priorityF = document.getElementById('subAdminPriorityFilter').value;
+            const assigneeF = (document.getElementById('subAdminAssigneeFilter') || {}).value || '';
             const filtered = _adminSubtasks.filter(s => {
                 if (statusF && s.status !== statusF) return false;
                 if (priorityF && s.priority !== priorityF) return false;
+                if (assigneeF === 'unassigned' && s.assignee_id) return false;
+                if (assigneeF === 'assigned' && !s.assignee_id) return false;
                 if (q) {
                     const text = [s.subtask_number, s.parent_number, s.title, s.description,
                                   s.priority, s.status, s.category, s.assignee_name]
@@ -4176,13 +4185,15 @@
             if (fStatus) tickets = tickets.filter(t => (t.status || '').includes(fStatus));
             if (fPrio) tickets = tickets.filter(t => (t.priority || '').includes(fPrio));
 
-            // Stats
+            // Stats — compara status con === para evitar que 'closed' cuente
+            // como 'open' (bug del include: 'open' está en muchos strings)
             const stats = {
                 total: tickets.length,
-                open: tickets.filter(t => (t.status || '').includes('open')).length,
-                progress: tickets.filter(t => (t.status || '').includes('progress')).length,
-                resolved: tickets.filter(t => (t.status || '').includes('resolved')).length,
-                critical: tickets.filter(t => (t.priority || '').includes('critical')).length
+                open: tickets.filter(t => t.status === 'open').length,
+                progress: tickets.filter(t => t.status === 'in_progress').length,
+                resolved: tickets.filter(t => t.status === 'resolved').length,
+                closed: tickets.filter(t => t.status === 'closed').length,
+                critical: tickets.filter(t => t.priority === 'critical').length
             };
 
             document.getElementById('tickets-stats').innerHTML = `
@@ -4201,6 +4212,10 @@
                 <div style="padding:12px;background:#d1fae5;border-radius:8px;text-align:center;border:1px solid #6ee7b7;">
                     <div style="font-size:11px;color:#065f46;font-weight:600;">RESUELTOS</div>
                     <div style="font-size:24px;font-weight:bold;color:#065f46;">${stats.resolved}</div>
+                </div>
+                <div style="padding:12px;background:#e5e7eb;border-radius:8px;text-align:center;border:1px solid #9ca3af;">
+                    <div style="font-size:11px;color:#374151;font-weight:600;">CERRADOS</div>
+                    <div style="font-size:24px;font-weight:bold;color:#374151;">${stats.closed}</div>
                 </div>
                 <div style="padding:12px;background:#fee2e2;border-radius:8px;text-align:center;border:1px solid #fca5a5;">
                     <div style="font-size:11px;color:#991b1b;font-weight:600;">CRÍTICOS</div>

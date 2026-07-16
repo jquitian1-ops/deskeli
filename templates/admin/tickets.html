@@ -181,7 +181,19 @@
             </div>
 
             <div class="content">
-                <h1 class="page-title">📋 Gestión de Tickets</h1>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+                    <h1 class="page-title" style="margin:0;">📋 Gestión de Tickets</h1>
+                    <button id="btn-auto-assign-all"
+                            type="button"
+                            onclick="autoAssignUnassigned()"
+                            title="Busca todos los tickets sin asignar y los asigna al técnico especializado con menor carga"
+                            style="padding:10px 18px;background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:14px;box-shadow:0 2px 6px rgba(139,92,246,0.3);display:flex;align-items:center;gap:8px;">
+                        🤖 Asignar tickets sin asignar
+                    </button>
+                </div>
+
+                <!-- Resultado de asignación masiva -->
+                <div id="auto-assign-result" style="display:none;margin-bottom:16px;padding:14px 18px;border-radius:8px;font-size:14px;"></div>
 
                 <!-- FILTROS -->
                 <div class="filters">
@@ -210,6 +222,74 @@
                         <button type="submit" style="padding: 8px 20px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Filtrar</button>
                     </form>
                 </div>
+
+                <script>
+                async function autoAssignUnassigned() {
+                    const btn = document.getElementById('btn-auto-assign-all');
+                    const box = document.getElementById('auto-assign-result');
+                    if (!confirm('¿Ejecutar asignación automática de todos los tickets sin asignar?\n\nCada uno se asignará al técnico con menor carga (con bonus si su especialidad coincide con la categoría).')) return;
+
+                    btn.disabled = true;
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '⏳ Asignando...';
+                    box.style.display = 'block';
+                    box.style.background = '#dbeafe';
+                    box.style.color = '#1e40af';
+                    box.style.border = '1px solid #93c5fd';
+                    box.innerHTML = '⏳ Procesando tickets sin asignar...';
+
+                    try {
+                        const r = await fetch('/api/admin/tickets/auto-assign-unassigned', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            credentials: 'same-origin'
+                        });
+                        const data = await r.json();
+                        if (!data.success) {
+                            box.style.background = '#fee2e2';
+                            box.style.color = '#991b1b';
+                            box.style.border = '1px solid #fca5a5';
+                            box.innerHTML = '❌ Error: ' + (data.error || 'No se pudo completar');
+                            return;
+                        }
+
+                        if (data.total_unassigned === 0) {
+                            box.style.background = '#d1fae5';
+                            box.style.color = '#065f46';
+                            box.style.border = '1px solid #6ee7b7';
+                            box.innerHTML = '✅ No hay tickets sin asignar. Todo está en orden.';
+                        } else {
+                            let html = `<strong>✅ Asignación completada:</strong> ${data.assigned} de ${data.total_unassigned} tickets asignados.`;
+                            if (data.no_technician_available > 0) {
+                                html += ` <span style="color:#92400e;">${data.no_technician_available} sin técnico disponible.</span>`;
+                            }
+                            if (data.details && data.details.length) {
+                                html += '<details style="margin-top:10px;"><summary style="cursor:pointer;font-weight:600;">Ver detalle (' + data.details.length + ')</summary>';
+                                html += '<ul style="margin:8px 0 0 20px;padding:0;list-style:disc;">';
+                                data.details.forEach(d => {
+                                    html += `<li style="margin:3px 0;"><code>${d.ticket_number}</code> → <strong>${d.technician_name}</strong> <span style="color:#666;">(${d.category})</span></li>`;
+                                });
+                                html += '</ul></details>';
+                            }
+                            box.style.background = '#d1fae5';
+                            box.style.color = '#065f46';
+                            box.style.border = '1px solid #6ee7b7';
+                            box.innerHTML = html;
+
+                            // Recargar la tabla en 2 segundos para reflejar cambios
+                            setTimeout(() => window.location.reload(), 2500);
+                        }
+                    } catch (e) {
+                        box.style.background = '#fee2e2';
+                        box.style.color = '#991b1b';
+                        box.style.border = '1px solid #fca5a5';
+                        box.innerHTML = '❌ Error de red: ' + e.message;
+                    } finally {
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                    }
+                }
+                </script>
 
                 {% if is_master %}
                 <div style="background:linear-gradient(135deg,#fef3c7,#fde68a);border:1px solid #f59e0b;padding:12px 16px;border-radius:8px;margin-bottom:14px;font-size:13px;color:#92400e;">
