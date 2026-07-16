@@ -18703,37 +18703,84 @@ def api_v1_external_create_ticket():
                 for idx, st_data in enumerate(subtasks_raw[:50]):
                     if not isinstance(st_data, dict):
                         continue
-                    # _safe_str tolera que el caller mande listas u otros tipos
-                    # en cualquier campo (bug clásico de "'list' object has no attribute 'strip'")
-                    st_title = _safe_str(st_data.get('title') or st_data.get('name')).strip()
+
+                    # ─── Guion referenciado (opcional) ─────────────────────
+                    # Cuando llega, es un "control" preconfigurado: title,
+                    # description, priority, category y pool de tecnicos ya
+                    # estan definidos en el panel admin. El cliente solo
+                    # nombra cual control activar.
+                    st_guion_code = _safe_str(
+                        st_data.get('guion_code') or st_data.get('guionCode')
+                    ).strip().lower()
+
+                    guion_obj = None
+                    if st_guion_code:
+                        entry = _resolve_guion_pool(st_guion_code)
+                        if entry is None:
+                            # code no existe / esta inactivo / otra empresa
+                            _per_subtask_stats['guion_missing'].append(st_guion_code)
+                        else:
+                            guion_obj = entry.get('guion')
+
+                    # ─── Title / Description ──────────────────────────────
+                    # Prioridad: cliente > guion.name/description
+                    # _safe_str tolera listas / dicts / None del caller.
+                    client_title = _safe_str(st_data.get('title') or st_data.get('name')).strip()
+                    client_desc = _safe_str(st_data.get('description')).strip()
+
+                    if client_title:
+                        st_title = client_title
+                    elif guion_obj:
+                        st_title = (guion_obj.name or guion_obj.code or '').strip()
+                    else:
+                        st_title = ''
+
+                    if client_desc:
+                        st_desc_raw = client_desc
+                    elif guion_obj and guion_obj.description:
+                        st_desc_raw = guion_obj.description.strip()
+                    else:
+                        st_desc_raw = ''
+
+                    # Interpolar variables ({nombre_usuario}, etc.) en title y desc
+                    if tpl_vars:
+                        st_title = _interpolate_template(st_title, tpl_vars)
+                        st_desc_raw = _interpolate_template(st_desc_raw, tpl_vars)
+
                     if not st_title:
+                        # Sin titulo del cliente NI del guion → no podemos crear
                         continue
-                    st_desc_raw = _safe_str(st_data.get('description')).strip()
+
                     st_desc = sanitize_html(st_desc_raw) if ('sanitize_html' in globals() and st_desc_raw) else st_desc_raw
-                    st_priority = (_safe_str(st_data.get('priority')).strip().lower() or priority)
-                    if st_priority not in ('low', 'medium', 'high', 'critical'):
+
+                    # ─── Priority / Category ──────────────────────────────
+                    # Cliente > guion.default_priority > default del ticket
+                    client_priority = _safe_str(st_data.get('priority')).strip().lower()
+                    if client_priority in ('low', 'medium', 'high', 'critical'):
+                        st_priority = client_priority
+                    elif guion_obj and (guion_obj.default_priority or '').lower() in ('low', 'medium', 'high', 'critical'):
+                        st_priority = guion_obj.default_priority.lower()
+                    else:
                         st_priority = priority
-                    st_category = (_safe_str(st_data.get('category')).strip() or category)[:100]
+
+                    client_category = _safe_str(st_data.get('category')).strip()
+                    if client_category:
+                        st_category = client_category[:100]
+                    elif guion_obj and guion_obj.default_category:
+                        st_category = guion_obj.default_category[:100]
+                    else:
+                        st_category = category
 
                     # ─── Resolución de técnico asignado (cascada) ─────────
                     # 1º guion_code: pool round-robin del guion
                     # 2º assigneeEmail: técnico específico
                     # 3º assignee general del ticket / default
                     st_assignee = None
-                    st_guion_code = _safe_str(
-                        st_data.get('guion_code') or st_data.get('guionCode')
-                    ).strip().lower()
-                    if st_guion_code:
+                    if st_guion_code and guion_obj:
                         picked_uid = _pick_from_guion(st_guion_code)
                         if picked_uid:
                             st_assignee = User.query.get(picked_uid)
                             _per_subtask_stats['from_guion_pool'] += 1
-                        else:
-                            # el guion no existe o su pool está vacío → dejar constancia
-                            entry = _resolve_guion_pool(st_guion_code)
-                            if entry is None:
-                                _per_subtask_stats['guion_missing'].append(st_guion_code)
-                            # Fallthrough: sigue con el resto de la cascada
 
                     if not st_assignee:
                         st_ass_email = _safe_str(
