@@ -1036,8 +1036,9 @@
                                 <span style="color: #999; font-size: 12px;">Selecciona habilidades de la lista o escribe una nueva...</span>
                             </div>
                             <div style="display: flex; gap: 6px; margin-bottom: 6px;">
-                                <select id="ia-skill-preset" style="flex: 1; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
-                                    <option value="">Habilidades predefinidas...</option>
+                                <select id="ia-skill-preset" multiple size="6"
+                                        title="Ctrl+click (o Cmd+click) para seleccionar varias"
+                                        style="flex: 1; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; min-height: 140px;">
                                     <option value="Hardware">🖥️ Hardware</option>
                                     <option value="Software">💻 Software</option>
                                     <option value="Red">🌐 Red</option>
@@ -1051,7 +1052,23 @@
                                     <option value="Impresoras">🖨️ Impresoras</option>
                                     <option value="Telefonía">📞 Telefonía</option>
                                 </select>
-                                <button onclick="addSkillFromPreset()" style="padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">+ Agregar</button>
+                                <div style="display:flex;flex-direction:column;gap:6px;">
+                                    <button onclick="addSkillFromPreset()"
+                                            style="padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; white-space:nowrap;">
+                                        + Agregar seleccionadas
+                                    </button>
+                                    <button onclick="selectAllPresetSkills()"
+                                            style="padding: 6px 10px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; font-size:12px; white-space:nowrap;">
+                                        ☑ Seleccionar todas
+                                    </button>
+                                    <button onclick="clearPresetSelection()"
+                                            style="padding: 6px 10px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; font-size:12px; white-space:nowrap;">
+                                        ✕ Limpiar
+                                    </button>
+                                </div>
+                            </div>
+                            <div style="font-size:11px;color:#6b7280;margin:-2px 0 6px 2px;">
+                                💡 Ctrl+click (Cmd+click en Mac) para seleccionar varias a la vez.
                             </div>
                             <div style="display: flex; gap: 6px;">
                                 <input type="text" id="ia-skill-custom" placeholder="O escribe una habilidad personalizada..." style="flex: 1; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;" onkeypress="if(event.key==='Enter'){event.preventDefault();addSkillCustom();}">
@@ -2491,13 +2508,35 @@
 
         function addSkillFromPreset() {
             const sel = document.getElementById('ia-skill-preset');
-            const val = sel.value.trim();
-            if (!val) return;
-            if (currentSkills.indexOf(val) === -1) {
-                currentSkills.push(val);
-                renderSkillChips();
+            const selected = Array.from(sel.selectedOptions).map(o => o.value.trim()).filter(Boolean);
+            if (selected.length === 0) {
+                alert('Seleccioná al menos una habilidad de la lista (usá Ctrl+click para varias).');
+                return;
             }
-            sel.value = '';
+            let added = 0;
+            selected.forEach(val => {
+                if (currentSkills.indexOf(val) === -1) {
+                    currentSkills.push(val);
+                    added++;
+                }
+            });
+            renderSkillChips();
+            // Deseleccionar tras agregar
+            Array.from(sel.options).forEach(o => o.selected = false);
+            if (added === 0) {
+                // Todas las seleccionadas ya estaban → mensaje discreto
+                console.log('Todas las habilidades seleccionadas ya estaban en la lista');
+            }
+        }
+
+        function selectAllPresetSkills() {
+            const sel = document.getElementById('ia-skill-preset');
+            Array.from(sel.options).forEach(o => o.selected = true);
+        }
+
+        function clearPresetSelection() {
+            const sel = document.getElementById('ia-skill-preset');
+            Array.from(sel.options).forEach(o => o.selected = false);
         }
 
         function addSkillCustom() {
