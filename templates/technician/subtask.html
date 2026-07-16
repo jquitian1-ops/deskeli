@@ -269,6 +269,14 @@
                     <span class="value">{{ subtask.resolved_at.strftime('%Y-%m-%d %H:%M') }}</span>
                 </div>
                 {% endif %}
+                {% if subtask.resolution_note %}
+                <div style="background:#f0fdf4;border-left:3px solid #16a34a;padding:10px 14px;margin:12px 0;border-radius:4px;">
+                    <div style="font-size:11px;color:#166534;font-weight:700;margin-bottom:4px;">
+                        ✅ Justificación de resolución{% if subtask.resolved_by %} · {{ subtask.resolved_by.name }}{% endif %}
+                    </div>
+                    <div style="font-size:13px;color:#166534;white-space:pre-wrap;">{{ subtask.resolution_note }}</div>
+                </div>
+                {% endif %}
                 <div class="info-row">
                     <span class="label">Adjuntos</span>
                     <span class="value">📎 {{ attachments_count }}</span>
@@ -323,12 +331,31 @@
 
 <script>
     async function changeStatus(newStatus) {
-        if (!confirm(`¿Cambiar estado a "${newStatus}"?`)) return;
+        const payload = {status: newStatus};
+
+        // Al resolver: pedir justificacion obligatoria (min 5 chars)
+        if (newStatus === 'resolved') {
+            const note = window.prompt(
+                '📋 Justificación de resolución (obligatoria):\n\n' +
+                'Describí brevemente cómo se resolvió esta subtarea (mínimo 5 caracteres).',
+                ''
+            );
+            if (note === null) return;  // canceló
+            const trimmed = (note || '').trim();
+            if (trimmed.length < 5) {
+                alert('❌ La justificación debe tener al menos 5 caracteres.');
+                return;
+            }
+            payload.resolution_note = trimmed;
+        } else {
+            if (!confirm(`¿Cambiar estado a "${newStatus}"?`)) return;
+        }
+
         try {
             const res = await fetch(`/api/subtask/{{ subtask.id }}`, {
                 method: 'PATCH',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({status: newStatus}),
+                body: JSON.stringify(payload),
             });
             const data = await res.json();
             if (data.success) {

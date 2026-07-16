@@ -1536,11 +1536,22 @@
                         ${slaPill(s)}
                     </div>
 
+                    <!-- Justificación de resolución (si existe) -->
+                    ${s.resolution_note ? `
+                    <div style="background:#f0fdf4;border-left:3px solid #16a34a;padding:8px 12px;margin-bottom:10px;border-radius:4px;">
+                        <div style="font-size:11px;color:#166534;font-weight:700;margin-bottom:3px;">
+                            ✅ Justificación de resolución${s.resolved_by_name ? ` · ${escapeHtml(s.resolved_by_name)}` : ''}${s.resolved_at ? ` · ${escapeHtml(s.resolved_at)}` : ''}
+                        </div>
+                        <div style="font-size:13px;color:#166534;white-space:pre-wrap;">${escapeHtml(s.resolution_note)}</div>
+                    </div>
+                    ` : ''}
+
                     <!-- Controles -->
                     <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:8px;padding-top:10px;border-top:1px dashed #e5e7eb;">
                         <div>
                             <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Estado</label>
-                            <select onchange="patchSubtask(${s.id}, {status: this.value})"
+                            <select data-current-status="${s.status}"
+                                    onchange="changeSubtaskStatus(${s.id}, this)"
                                     style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">
                                 <option value="open" ${s.status==='open'?'selected':''}>Abierto</option>
                                 <option value="in_progress" ${s.status==='in_progress'?'selected':''}>En progreso</option>
@@ -1746,6 +1757,55 @@
                   showSubtaskMsg('✗ ' + (data.error || 'Error'), true);
               }
           });
+    }
+
+    // Cambio de estado con prompt de justificación cuando se marca como Resuelto.
+    // Si el usuario cancela, revierte el select al estado anterior.
+    function changeSubtaskStatus(id, selectEl) {
+        const newStatus = selectEl.value;
+        const previousStatus = selectEl.getAttribute('data-current-status') || '';
+
+        // Solo pedir justificacion al pasar a Resuelto desde otro estado
+        if (newStatus === 'resolved' && previousStatus !== 'resolved') {
+            const note = window.prompt(
+                '📋 Justificación de resolución (obligatoria):\n\n' +
+                'Describí brevemente cómo se resolvió esta subtarea (mínimo 5 caracteres).',
+                ''
+            );
+            if (note === null) {
+                // Cancelo → revertir sin llamar al server
+                selectEl.value = previousStatus;
+                return;
+            }
+            const trimmed = (note || '').trim();
+            if (trimmed.length < 5) {
+                alert('❌ La justificación debe tener al menos 5 caracteres. No se cambió el estado.');
+                selectEl.value = previousStatus;
+                return;
+            }
+            // Enviar status + resolution_note
+            fetch(`/api/subtask/${id}`, {
+                method: 'PATCH',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({status: newStatus, resolution_note: trimmed})
+            }).then(r => r.json())
+              .then(data => {
+                  if (data.success) {
+                      showSubtaskMsg('✓ Subtarea resuelta con justificación');
+                      loadSubtasks();
+                  } else {
+                      showSubtaskMsg('✗ ' + (data.error || 'Error'), true);
+                      selectEl.value = previousStatus;
+                  }
+              }).catch(() => {
+                  selectEl.value = previousStatus;
+                  showSubtaskMsg('✗ Error de red', true);
+              });
+            return;
+        }
+
+        // Cambios que no van a resolved: comportamiento normal
+        patchSubtask(id, {status: newStatus});
     }
 
     function deleteSubtask(id) {

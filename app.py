@@ -832,9 +832,13 @@ class Subtask(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
     resolved_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
+    # Justificacion obligatoria al pasar a resolved (RF audit)
+    resolution_note = db.Column(db.Text)
+    resolved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
 
     assignee = db.relationship('User', foreign_keys=[assignee_id])
     created_by = db.relationship('User', foreign_keys=[created_by_id])
+    resolved_by = db.relationship('User', foreign_keys=[resolved_by_id])
     ticket = db.relationship('Ticket', backref=db.backref('subtasks', cascade='all, delete-orphan', order_by='Subtask.order_idx'))
 
     @property
@@ -9137,12 +9141,36 @@ def seed_default_subroles():
         print(f"[init_db] {created} subroles del sistema creados")
 
 
+def migrate_subtasks_resolution_note():
+    """Agrega columnas resolution_note y resolved_by_id a subtasks si no existen."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'subtasks' not in inspector.get_table_names():
+        return
+    existing = {c['name'] for c in inspector.get_columns('subtasks')}
+    if 'resolution_note' not in existing:
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE subtasks ADD COLUMN resolution_note TEXT"))
+            print("[migrate_subtasks] Columna resolution_note agregada")
+        except Exception as e:
+            print(f"[migrate_subtasks] error resolution_note: {e}")
+    if 'resolved_by_id' not in existing:
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE subtasks ADD COLUMN resolved_by_id INTEGER"))
+            print("[migrate_subtasks] Columna resolved_by_id agregada")
+        except Exception as e:
+            print(f"[migrate_subtasks] error resolved_by_id: {e}")
+
+
 def init_db():
     """Inicializa la base de datos"""
     with app.app_context():
         db.create_all()
         migrate_users_schema()
         migrate_users_role_label()
+        migrate_subtasks_resolution_note()
         migrate_companies_smtp()
         migrate_mailbox_oauth()
         migrate_tickets_schema()
@@ -11297,6 +11325,8 @@ def _serialize_subtask(s):
         'assignee_id': s.assignee_id,
         'assignee_name': s.assignee.name if s.assignee else None,
         'created_by_name': s.created_by.name if s.created_by else None,
+        'resolved_by_name': s.resolved_by.name if getattr(s, 'resolved_by', None) else None,
+        'resolution_note': getattr(s, 'resolution_note', None),
         'order_idx': s.order_idx,
         'created_at': s.created_at.strftime('%Y-%m-%d %H:%M') if s.created_at else None,
         'updated_at': s.updated_at.strftime('%Y-%m-%d %H:%M') if s.updated_at else None,
@@ -11565,23 +11595,43 @@ def api_subtask_update(subtask_id):
             subtask.time_worked_seconds = max(0, int(data['time_worked_seconds']))
         except (ValueError, TypeError):
             pass
+    resolution_note_new = None
     if 'status' in data:
         new_status = data['status']
         if new_status not in ['open', 'in_progress', 'resolved']:
             return jsonify({'success': False, 'error': 'Estado inválido'}), 400
         old_status = subtask.status
+
+        # Al pasar a resolved: exigir justificación (min 5 chars, max 2000)
+        if new_status == 'resolved' and old_status != 'resolved':
+            resolution_note_new = _safe_str(
+                data.get('resolution_note') or data.get('resolutionNote')
+            ).strip()
+            if len(resolution_note_new) < 5:
+                return jsonify({
+                    'success': False,
+                    'error': 'Debes proporcionar una justificación (mínimo 5 caracteres) para resolver esta subtarea.',
+                    'error_code': 'resolution_note_required'
+                }), 400
+            resolution_note_new = resolution_note_new[:2000]
+
         subtask.status = new_status
         if new_status == 'resolved' and old_status != 'resolved':
             subtask.resolved_at = datetime.now()
             subtask.completed_at = datetime.now()
+            subtask.resolution_note = resolution_note_new
+            subtask.resolved_by_id = session['user_id']
         elif new_status != 'resolved':
             subtask.resolved_at = None
             subtask.completed_at = None
+            # No borramos resolution_note historico — queda como registro
 
     db.session.commit()
 
-    log_audit('subtask_update', session['user_id'], 'ticket', subtask.ticket_id,
-              f'Subtarea {subtask.subtask_number or subtask_id} actualizada')
+    audit_msg = f'Subtarea {subtask.subtask_number or subtask_id} actualizada'
+    if resolution_note_new:
+        audit_msg += f'. Justificación de resolución: "{resolution_note_new[:200]}"'
+    log_audit('subtask_update', session['user_id'], 'ticket', subtask.ticket_id, audit_msg)
 
     try:
         emit_ticket_event(ticket.company, 'subtask_changed', {
