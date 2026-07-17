@@ -82,15 +82,62 @@
     // ─── Wrapper del fetch ────────────────────────────────────────────
     const originalFetch = window.fetch.bind(window);
 
+    // Cooldown para no spamear el toast "Sin conexion" en un burst
+    let _lastNetworkToastAt = 0;
+    const NETWORK_TOAST_COOLDOWN_MS = 15000;
+
+    // Endpoints "silenciosos" que NUNCA muestran toast de red (ping keep-alive,
+    // polling interno, etc.). Si el server esta reiniciando por 3 segundos y
+    // justo cae el ping cada 5 min, el usuario no debe ver alerta.
+    const SILENT_NETWORK_ENDPOINTS = [
+        '/api/session/ping',
+        '/api/admin/sidebar-counts',
+        '/api/health',
+    ];
+
+    function isSilentUrl(url) {
+        return SILENT_NETWORK_ENDPOINTS.some(p => url.indexOf(p) !== -1);
+    }
+
+    async function fetchWithRetry(input, init, url) {
+        // Solo reintenta GET (metodos con side-effects no se reintentan)
+        const method = (init && init.method) || (input && input.method) || 'GET';
+        try {
+            return await originalFetch(input, init);
+        } catch (e1) {
+            if (method.toUpperCase() !== 'GET') throw e1;
+            // Esperar 500ms y reintentar 1 vez (transient blip por deploy)
+            await new Promise(r => setTimeout(r, 500));
+            try {
+                return await originalFetch(input, init);
+            } catch (e2) {
+                throw e2;
+            }
+        }
+    }
+
     window.fetch = async function (input, init) {
+        const url = typeof input === 'string' ? input : (input && input.url) || '';
         let response;
         try {
-            response = await originalFetch(input, init);
+            response = await fetchWithRetry(input, init, url);
         } catch (netErr) {
-            // Error de red (offline, DNS, etc.)
-            const url = typeof input === 'string' ? input : (input && input.url) || '';
-            if (url.startsWith('/api/') || url.startsWith('/admin/') || url.startsWith('/technician/') || url.startsWith('/employee/')) {
-                showToast('🔌 Sin conexión con el servidor. Revisá tu red.', 'error');
+            // Log detallado en consola siempre (util para diagnostico)
+            try {
+                console.warn('[session_guard] Fetch fallo:',
+                    url, '·', netErr.name, '·', netErr.message);
+            } catch (e) {}
+
+            const isApp = url.startsWith('/api/') || url.startsWith('/admin/') ||
+                          url.startsWith('/technician/') || url.startsWith('/employee/');
+
+            // No molestar con toast en endpoints silenciosos (ping, polls)
+            if (isApp && !isSilentUrl(url)) {
+                const now = Date.now();
+                if (now - _lastNetworkToastAt > NETWORK_TOAST_COOLDOWN_MS) {
+                    _lastNetworkToastAt = now;
+                    showToast('🔌 Sin conexión con el servidor. Revisá tu red.', 'error');
+                }
             }
             throw netErr;
         }
