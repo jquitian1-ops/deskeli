@@ -125,6 +125,30 @@
         } else if (status === 429) {
             showToast('⚠ Demasiadas solicitudes. Esperá un momento e intentá de nuevo.', 'warn');
         } else if (status >= 500) {
+            // Loggear el detalle en consola para diagnostico
+            try {
+                const cloned = response.clone();
+                cloned.text().then(txt => {
+                    console.groupCollapsed(
+                        '%c[session_guard] Error ' + status + ' en ' + url,
+                        'color:#dc2626;font-weight:bold;'
+                    );
+                    console.error('URL:', url);
+                    console.error('Status:', status);
+                    // Intentar parsear como JSON (el error handler devuelve JSON con traceback)
+                    try {
+                        const data = JSON.parse(txt);
+                        console.error('Error:', data.error);
+                        console.error('Path:', data.path);
+                        if (data.traceback) console.error('Traceback:\n' + data.traceback);
+                        else console.error('Response body:', data);
+                    } catch (e) {
+                        console.error('Body (no-JSON):', txt.slice(0, 2000));
+                    }
+                    console.groupEnd();
+                }).catch(() => { /* silencioso */ });
+            } catch (e) { /* clone puede fallar en algunos browsers */ }
+
             showToast('⚠ Error del servidor (' + status + '). Si persiste, avisá al equipo de TI.', 'error');
         }
 

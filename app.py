@@ -257,6 +257,59 @@ def apply_rate_limit():
             return result
 
 
+@app.route('/api/admin/errors/recent', methods=['GET'])
+def api_admin_errors_recent():
+    """Lista los ultimos errores 500 registrados en audit_log (action='api_500').
+
+    Ayuda a diagnosticar por que aparece el toast "Error del servidor (500)".
+    Solo admin puede consultarlo. Query params:
+      - limit: cuantos errores devolver (default 50, max 200)
+      - since_hours: solo errores de las ultimas N horas (default 24)
+    """
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+
+    try:
+        limit = min(int(request.args.get('limit', 50)), 200)
+    except (ValueError, TypeError):
+        limit = 50
+    try:
+        since_hours = min(int(request.args.get('since_hours', 24)), 24 * 7)
+    except (ValueError, TypeError):
+        since_hours = 24
+
+    cutoff = datetime.now() - timedelta(hours=since_hours)
+    rows = AuditLog.query.filter(
+        AuditLog.action == 'api_500',
+        AuditLog.created_at >= cutoff
+    ).order_by(AuditLog.created_at.desc()).limit(limit).all()
+
+    # Agrupar por endpoint + tipo de error para ver patrones
+    from collections import defaultdict as _dd
+    groups = _dd(int)
+    for r in rows:
+        # description viene como: "GET /api/foo → SomeError: msg\nTB: ..."
+        desc = r.description or ''
+        first_line = desc.split('\n', 1)[0][:200]
+        groups[first_line] += 1
+
+    top = sorted(groups.items(), key=lambda x: -x[1])[:20]
+
+    return jsonify({
+        'success': True,
+        'total': len(rows),
+        'window_hours': since_hours,
+        'top_errors': [{'signature': k, 'count': v} for k, v in top],
+        'recent': [{
+            'id': r.id,
+            'user_id': r.user_id,
+            'ip': r.ip_addr,
+            'created_at': r.created_at.strftime('%Y-%m-%d %H:%M:%S') if r.created_at else None,
+            'description': (r.description or '')[:1500],
+        } for r in rows]
+    })
+
+
 @app.errorhandler(Exception)
 def _api_json_error_handler(err):
     """Handler global: si un endpoint /api/ tiene una excepción no manejada,
