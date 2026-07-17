@@ -551,6 +551,24 @@
                     <div style="background:#f9fafb;padding:20px;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;">
                         <h3 style="margin-bottom:15px;color:#374151;font-size:16px;">➕ Agregar / Editar Especialista</h3>
 
+                        <!-- Copiar configuración de un especialista existente -->
+                        <div style="background:#eff6ff;border:1px dashed #93c5fd;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
+                            <label style="display:block;font-size:13px;color:#1e40af;margin-bottom:6px;font-weight:600;">
+                                📋 Copiar configuración desde un especialista existente
+                                <span style="font-weight:400;color:#3b82f6;">(opcional)</span>
+                            </label>
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                <select id="ia-copy-from" style="flex:1;min-width:260px;padding:8px 10px;border:1px solid #bfdbfe;border-radius:6px;background:white;">
+                                    <option value="">— Elegí un especialista para copiar sus habilidades —</option>
+                                </select>
+                                <button type="button" onclick="iaCopyFromExisting()"
+                                        style="padding:8px 16px;background:#3b82f6;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;white-space:nowrap;">
+                                    📥 Copiar habilidades
+                                </button>
+                            </div>
+                            <div id="ia-copy-status" style="font-size:12px;color:#1e40af;margin-top:6px;"></div>
+                        </div>
+
                         <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px;">
                             <div>
                                 <label style="display:block;font-size:13px;color:#666;margin-bottom:4px;">Usuario / Técnico</label>
@@ -2107,6 +2125,52 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
         iaSkills = [];
         iaRenderChips();
         $id('ia-status').innerHTML = '';
+        const copySel = $id('ia-copy-from');
+        if (copySel) copySel.value = '';
+        const copyStatus = $id('ia-copy-status');
+        if (copyStatus) copyStatus.innerHTML = '';
+    };
+
+    // Cache global para el atajo "Copiar de especialista existente"
+    let _iaSpecialistsCache = [];
+
+    function iaPopulateCopyFromDropdown(list) {
+        const sel = $id('ia-copy-from');
+        if (!sel) return;
+        const prev = sel.value;
+        let html = '<option value="">— Elegí un especialista para copiar sus habilidades —</option>';
+        (list || []).forEach(s => {
+            const n = (s.skills || []).length;
+            const preview = (s.skills || []).slice(0, 3).join(', ');
+            const more = n > 3 ? ` (+${n - 3} más)` : '';
+            const label = `${s.user_name} · ${n} habilidad${n === 1 ? '' : 'es'}` +
+                          (preview ? ` — ${preview}${more}` : '');
+            html += `<option value="${s.id}">${label}</option>`;
+        });
+        sel.innerHTML = html;
+        if (prev && list.some(s => String(s.id) === prev)) sel.value = prev;
+    }
+
+    window.iaCopyFromExisting = function() {
+        const sel = $id('ia-copy-from');
+        const statusEl = $id('ia-copy-status');
+        const id = sel.value;
+        if (!id) {
+            statusEl.innerHTML = '<span style="color:#dc2626;">⚠ Elegí un especialista primero.</span>';
+            return;
+        }
+        const src = _iaSpecialistsCache.find(s => String(s.id) === String(id));
+        if (!src) {
+            statusEl.innerHTML = '<span style="color:#dc2626;">⚠ Ese especialista ya no existe. Refrescá la lista.</span>';
+            return;
+        }
+        // Copiar skills + max_tickets. NO copiamos user_id (es para OTRO usuario).
+        iaSkills = [...(src.skills || [])];
+        iaRenderChips();
+        const maxEl = $id('ia-max-tickets');
+        if (maxEl && src.max_tickets) maxEl.value = src.max_tickets;
+        statusEl.innerHTML = `<span style="color:#16a34a;">✓ Copiadas ${iaSkills.length} habilidad${iaSkills.length === 1 ? '' : 'es'} de <strong>${src.user_name}</strong>. Ahora seleccioná el técnico destino arriba.</span>`;
+        setTimeout(() => { statusEl.innerHTML = ''; }, 8000);
     };
 
     async function iaLoadTechnicians() {
@@ -2133,8 +2197,12 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
             const data = await r.json();
             if (!data.success) {
                 tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#dc2626;">Error al cargar</td></tr>';
+                _iaSpecialistsCache = [];
+                iaPopulateCopyFromDropdown([]);
                 return;
             }
+            _iaSpecialistsCache = data.specialists || [];
+            iaPopulateCopyFromDropdown(_iaSpecialistsCache);
             if (!data.specialists || data.specialists.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#999;">No hay especialistas configurados. Agrega uno arriba ⬆</td></tr>';
                 return;
