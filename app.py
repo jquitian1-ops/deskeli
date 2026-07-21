@@ -7670,19 +7670,80 @@ def auto_close_resolved_tickets():
             print(f'[auto-close] Error general: {e}')
 
 
+def auto_close_resolved_subtasks():
+    """Cierra automaticamente las subtareas que esten en 'resolved' por
+    mas de AUTO_CLOSE_HOURS horas (default 24h, misma config que tickets).
+
+    Racional: identico al de tickets — una subtarea resuelta no requiere
+    accion. Pasarla a 'closed' la saca del feed activo.
+    """
+    with app.app_context():
+        try:
+            cfg = Config.query.filter_by(key='auto_close_hours').first()
+            hours = int(cfg.value) if (cfg and cfg.value and cfg.value.strip().isdigit()) else 24
+            if hours <= 0:
+                return
+
+            cutoff = datetime.now() - timedelta(hours=hours)
+            candidates = Subtask.query.filter(
+                Subtask.status == 'resolved',
+                Subtask.resolved_at.isnot(None),
+                Subtask.resolved_at <= cutoff
+            ).all()
+
+            if not candidates:
+                return
+
+            closed_count = 0
+            company_ticket_ids = {}
+            for s in candidates:
+                try:
+                    s.status = 'closed'
+                    s.updated_at = datetime.now()
+                    log_audit(
+                        'subtask_auto_closed', None, 'subtask', s.id,
+                        f'Subtarea {s.subtask_number or s.id} cerrada automáticamente ({hours}h desde resolución)'
+                    )
+                    closed_count += 1
+                    if s.ticket:
+                        company_ticket_ids.setdefault(s.ticket.company, []).append(s.id)
+                except Exception as e:
+                    print(f'[auto-close-subtask] Error cerrando subtarea {s.id}: {e}')
+
+            db.session.commit()
+            if closed_count > 0:
+                print(f'[auto-close-subtask] {closed_count} subtarea(s) resuelta(s) hace >{hours}h → cerradas automaticamente')
+                try:
+                    for company, ids in company_ticket_ids.items():
+                        socketio.emit('subtasks_auto_closed', {
+                            'count': len(ids), 'subtask_ids': ids, 'hours': hours
+                        }, room=f'company_{company}')
+                except Exception:
+                    pass
+
+        except Exception as e:
+            try: db.session.rollback()
+            except Exception: pass
+            print(f'[auto-close-subtask] Error general: {e}')
+
+
 def start_auto_close_scheduler():
-    """Scheduler que cierra tickets resueltos hace >24h. Corre cada 30 minutos."""
+    """Scheduler que cierra tickets Y subtareas resueltas hace >24h. Corre cada 30 min."""
     def loop():
         time.sleep(90)  # esperar 90s al arranque para no bloquear
         while True:
             try:
                 auto_close_resolved_tickets()
             except Exception as e:
-                print(f'[auto-close-scheduler] Error: {e}')
+                print(f'[auto-close-scheduler] Error tickets: {e}')
+            try:
+                auto_close_resolved_subtasks()
+            except Exception as e:
+                print(f'[auto-close-scheduler] Error subtareas: {e}')
             time.sleep(1800)  # cada 30 min
     thread = Thread(target=loop, daemon=True)
     thread.start()
-    print('[auto-close] Scheduler iniciado (revisión cada 30 min, cierre a 24h)')
+    print('[auto-close] Scheduler iniciado (tickets + subtareas, revisión cada 30 min, cierre a 24h)')
 
 
 def start_sla_alert_scheduler():
@@ -10516,6 +10577,46 @@ def api_time_entries_list(ticket_id):
     })
 
 
+def _auto_start_timer_for_ticket(user, ticket, source_hint=''):
+    """Inicia cronometro del user en un ticket si no habia uno ya corriendo.
+
+    Se usa al pasar el ticket a 'in_progress' (RF nuevo). No es un endpoint —
+    es un helper interno que replica la logica de /time-entries/start pero sin
+    respuesta HTTP. Silencioso si el user no tiene rol o ya tenia uno activo
+    en este ticket.
+
+    NO cierra cronometros del user en otros tickets — para no interrumpir
+    trabajo en curso; el user cierra manualmente lo suyo cuando quiere.
+    """
+    if not user or user.role not in ('technician', 'admin'):
+        return None
+    try:
+        existing = TimeEntry.query.filter_by(
+            ticket_id=ticket.id, user_id=user.id, ended_at=None
+        ).first()
+        if existing:
+            return existing  # ya habia uno corriendo
+        entry = TimeEntry(
+            ticket_id=ticket.id,
+            user_id=user.id,
+            company=ticket.company,
+            started_at=datetime.now(),
+            duration_seconds=0,
+            is_manual=False,
+        )
+        db.session.add(entry)
+        db.session.flush()
+        log_audit(
+            'time_start_auto', user.id, 'time_entry', entry.id,
+            f"Cronometro iniciado automaticamente al pasar {ticket.ticket_number} a in_progress"
+            + (f" ({source_hint})" if source_hint else '')
+        )
+        return entry
+    except Exception as e:
+        print(f'[auto-timer] fallo al iniciar cronometro: {e}')
+        return None
+
+
 @app.route('/api/tickets/<int:ticket_id>/time-entries/start', methods=['POST'])
 def api_time_entry_start(ticket_id):
     """Inicia el cronómetro para el usuario actual en este ticket.
@@ -11329,6 +11430,11 @@ def api_update_ticket_status(ticket_id):
 
         if new_status == 'resolved':
             ticket.resolved_at = datetime.now()
+
+        # Auto-iniciar cronometro cuando el ticket entra a in_progress
+        if new_status == 'in_progress' and old_status != 'in_progress':
+            _u = User.query.get(session['user_id'])
+            _auto_start_timer_for_ticket(_u, ticket, source_hint='cambio status manual')
 
         db.session.commit()
 
