@@ -3183,22 +3183,103 @@ def api_admin_auto_close_set():
 
 @app.route('/api/admin/auto-close/run-now', methods=['POST'])
 def api_admin_auto_close_run_now():
-    """Dispara el auto-cierre inmediatamente (sin esperar al scheduler)."""
+    """Dispara el auto-cierre inmediatamente (sin esperar al scheduler).
+
+    Procesa tickets Y subtareas. Devuelve conteo de cada uno.
+    """
     if 'user_id' not in session or session.get('role') != 'admin':
         return jsonify({'success': False}), 401
 
-    before = Ticket.query.filter(Ticket.status == 'closed').count()
+    t_before = Ticket.query.filter(Ticket.status == 'closed').count()
+    s_before = Subtask.query.filter(Subtask.status == 'closed').count()
     try:
         auto_close_resolved_tickets()
+        auto_close_resolved_subtasks()
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-    after = Ticket.query.filter(Ticket.status == 'closed').count()
-    closed = after - before
+    t_after = Ticket.query.filter(Ticket.status == 'closed').count()
+    s_after = Subtask.query.filter(Subtask.status == 'closed').count()
+    t_closed = t_after - t_before
+    s_closed = s_after - s_before
 
     return jsonify({
         'success': True,
-        'closed_now': closed,
-        'message': f'{closed} ticket(s) cerrado(s) manualmente'
+        'tickets_closed_now': t_closed,
+        'subtasks_closed_now': s_closed,
+        'message': f'{t_closed} ticket(s) y {s_closed} subtarea(s) cerrado(s) manualmente'
+    })
+
+
+@app.route('/api/admin/auto-close/diagnostico', methods=['GET'])
+def api_admin_auto_close_diagnostico():
+    """Diagnostico del auto-cierre: por que subtareas/tickets no se cierran.
+
+    Muestra:
+      - Config actual (auto_close_hours)
+      - Cuantas subtareas cumplen la condicion pero siguen 'resolved'
+      - Cuantas subtareas 'resolved' NO tienen resolved_at (bug de data)
+      - Muestra las 20 mas viejas para inspeccion
+    """
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+
+    cfg = Config.query.filter_by(key='auto_close_hours').first()
+    hours = int(cfg.value) if (cfg and cfg.value and cfg.value.strip().isdigit()) else 24
+    cutoff = datetime.now() - timedelta(hours=hours)
+
+    # Subtareas
+    total_resolved = Subtask.query.filter(Subtask.status == 'resolved').count()
+    with_resolved_at = Subtask.query.filter(
+        Subtask.status == 'resolved',
+        Subtask.resolved_at.isnot(None)
+    ).count()
+    without_resolved_at = total_resolved - with_resolved_at
+    candidates = Subtask.query.filter(
+        Subtask.status == 'resolved',
+        Subtask.resolved_at.isnot(None),
+        Subtask.resolved_at <= cutoff
+    ).all()
+    total_closed = Subtask.query.filter(Subtask.status == 'closed').count()
+
+    sample = []
+    for s in candidates[:20]:
+        age_hours = None
+        if s.resolved_at:
+            age_hours = round((datetime.now() - s.resolved_at).total_seconds() / 3600, 1)
+        sample.append({
+            'id': s.id,
+            'subtask_number': s.subtask_number,
+            'status': s.status,
+            'resolved_at': s.resolved_at.strftime('%Y-%m-%d %H:%M') if s.resolved_at else None,
+            'age_hours': age_hours,
+            'parent_number': s.ticket.ticket_number if s.ticket else None,
+            'company': s.ticket.company if s.ticket else None,
+        })
+
+    return jsonify({
+        'success': True,
+        'config': {
+            'auto_close_hours': hours,
+            'enabled': hours > 0,
+            'cutoff_datetime': cutoff.strftime('%Y-%m-%d %H:%M:%S'),
+            'now': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        },
+        'subtasks': {
+            'total_resolved': total_resolved,
+            'total_closed': total_closed,
+            'with_resolved_at': with_resolved_at,
+            'without_resolved_at_bug': without_resolved_at,
+            'candidates_to_close_now': len(candidates),
+        },
+        'sample_candidates': sample,
+        'hint': (
+            f'Si candidates_to_close_now > 0 pero el scheduler no las cerro, '
+            f'puede ser: (1) Coolify no deployo el commit 2d8e8f8, (2) el thread '
+            f'del scheduler no arranco, o (3) hay un error en la funcion. '
+            f'Podes forzar el barrido con POST /api/admin/auto-close/run-now. '
+            f'Si without_resolved_at_bug > 0, esas subtareas nunca se van a '
+            f'cerrar hasta que se les setee resolved_at (bug en marcado como resuelto).'
+        )
     })
 
 
