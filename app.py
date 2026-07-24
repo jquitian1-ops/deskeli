@@ -3210,6 +3210,108 @@ def api_admin_auto_close_run_now():
     })
 
 
+@app.route('/api/admin/db/diagnostico', methods=['GET'])
+def api_admin_db_diagnostico():
+    """Diagnostico de la BD: URL enmascarada, engine, tipo, archivo SQLite si
+    aplica, conteos de tickets/subtareas por status, ultimas actividades de
+    audit. Sirve para detectar rollbacks/perdidas de datos post-restart.
+    """
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+
+    import re as _re
+    uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    # Enmascarar password si hay
+    masked_uri = _re.sub(r'(://[^:/]+:)[^@]+(@)', r'\1***\2', uri)
+
+    engine_name = db.engine.name if db.engine else 'unknown'
+    is_sqlite = engine_name.lower() == 'sqlite'
+
+    file_info = None
+    if is_sqlite:
+        # Extraer ruta del archivo
+        m = _re.search(r'sqlite:///(.+)$', uri)
+        if m:
+            fp = m.group(1)
+            if os.path.exists(fp):
+                st = os.stat(fp)
+                file_info = {
+                    'path': fp,
+                    'size_bytes': st.st_size,
+                    'size_mb': round(st.st_size / 1024 / 1024, 2),
+                    'mtime': datetime.fromtimestamp(st.st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
+                    'ctime': datetime.fromtimestamp(st.st_ctime).strftime('%Y-%m-%d %H:%M:%S'),
+                }
+            else:
+                file_info = {'path': fp, 'error': 'archivo no existe'}
+
+    # Conteos por status
+    from sqlalchemy import func as _f
+    ticket_counts = dict(db.session.query(Ticket.status, _f.count(Ticket.id)).group_by(Ticket.status).all())
+    subtask_counts = dict(db.session.query(Subtask.status, _f.count(Subtask.id)).group_by(Subtask.status).all())
+
+    # Ultimas 20 acciones sobre subtareas en audit_log
+    subtask_audit = AuditLog.query.filter(
+        AuditLog.action.in_(['subtask_update', 'subtask_auto_closed', 'subtask_created',
+                              'update_status', 'ticket_auto_closed'])
+    ).order_by(AuditLog.created_at.desc()).limit(30).all()
+
+    # Ultimo evento de cualquier tipo
+    latest = AuditLog.query.order_by(AuditLog.created_at.desc()).first()
+
+    # Subtareas resueltas con y sin resolved_at (para detectar data corrupta)
+    resolved_with_ts = Subtask.query.filter(
+        Subtask.status == 'resolved', Subtask.resolved_at.isnot(None)
+    ).count()
+    resolved_without_ts = Subtask.query.filter(
+        Subtask.status == 'resolved', Subtask.resolved_at.is_(None)
+    ).count()
+
+    # Subtareas 'open' que tienen resolved_at (indicaria que fueron cerradas y revertidas)
+    open_but_had_resolved = Subtask.query.filter(
+        Subtask.status == 'open', Subtask.resolved_at.isnot(None)
+    ).count()
+
+    return jsonify({
+        'success': True,
+        'database': {
+            'uri_masked': masked_uri,
+            'engine': engine_name,
+            'is_sqlite': is_sqlite,
+            'sqlite_file': file_info,
+            'DATABASE_URL_env': (os.getenv('DATABASE_URL', '')[:20] + '...') if os.getenv('DATABASE_URL') else '(no seteada)',
+        },
+        'tickets_by_status': ticket_counts,
+        'subtasks_by_status': subtask_counts,
+        'subtasks_data_integrity': {
+            'resolved_with_resolved_at': resolved_with_ts,
+            'resolved_without_resolved_at_BUG': resolved_without_ts,
+            'open_but_had_resolved_at_ANOMALY': open_but_had_resolved,
+            'hint': (
+                'Si open_but_had_resolved_at_ANOMALY > 0, hay subtareas '
+                'que fueron cerradas antes y ahora estan open — indica '
+                'ROLLBACK o reset manual. resolved_at seria evidencia '
+                'de que estuvieron cerradas.'
+            ),
+        },
+        'latest_audit_event': {
+            'id': latest.id if latest else None,
+            'action': latest.action if latest else None,
+            'created_at': latest.created_at.strftime('%Y-%m-%d %H:%M:%S') if latest and latest.created_at else None,
+            'description': (latest.description or '')[:200] if latest else None,
+        } if latest else None,
+        'recent_subtask_events': [{
+            'id': a.id,
+            'action': a.action,
+            'entity_id': a.entity_id,
+            'user_id': a.user_id,
+            'created_at': a.created_at.strftime('%Y-%m-%d %H:%M:%S') if a.created_at else None,
+            'description': (a.description or '')[:200],
+        } for a in subtask_audit],
+        'server_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    })
+
+
 @app.route('/api/admin/auto-close/diagnostico', methods=['GET'])
 def api_admin_auto_close_diagnostico():
     """Diagnostico del auto-cierre: por que subtareas/tickets no se cierran.
