@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Sesiones Activas - DeskEli Admin</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f5f7fa; color: #1f2937; }
+        .container { max-width: 1300px; margin: 0 auto; padding: 32px 24px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+        h1 { font-size: 24px; color: #111827; }
+        .back { color: #6b7280; text-decoration: none; font-size: 13px; }
+        .back:hover { color: #1f2937; }
+        .card { background: white; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 20px; }
+        .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .kpi { padding: 14px; border-radius: 8px; text-align: center; }
+        .kpi-active { background: #d1fae5; color: #065f46; }
+        .kpi-inactive { background: #f3f4f6; color: #374151; }
+        .kpi-kicked { background: #fee2e2; color: #991b1b; }
+        .kpi-total { background: #dbeafe; color: #1e40af; }
+        .kpi-num { font-size: 28px; font-weight: bold; }
+        .kpi-lbl { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-top: 2px; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 10px; background: #f9fafb; border-bottom: 2px solid #e5e7eb; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
+        td { padding: 12px 10px; border-bottom: 1px solid #f3f4f6; font-size: 14px; vertical-align: middle; }
+        tr:hover td { background: #fafafa; }
+        .badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; display: inline-block; }
+        .badge-active { background: #d1fae5; color: #065f46; }
+        .badge-inactive { background: #f3f4f6; color: #6b7280; }
+        .badge-kicked { background: #fee2e2; color: #991b1b; }
+        .role-admin { background: #ede9fe; color: #5b21b6; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+        .role-technician { background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+        .role-employee { background: #f3f4f6; color: #374151; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+        .btn { padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; }
+        .btn-danger { background: #dc2626; color: white; }
+        .btn-danger:hover { background: #b91c1c; }
+        .btn-danger:disabled { background: #d1d5db; cursor: not-allowed; }
+        .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+        .filters { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .filters input, .filters select { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+        .empty { padding: 40px; text-align: center; color: #9ca3af; }
+        .auto-refresh { font-size: 11px; color: #9ca3af; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div>
+            <a href="/admin/dashboard" class="back">← Volver al dashboard</a>
+            <h1>👥 Sesiones Activas</h1>
+            <p style="color:#6b7280;font-size:13px;margin-top:4px;">
+                Ver quién está conectado ahora y expulsar sesiones si es necesario.
+                Una sesión se considera <strong>activa</strong> si el último login fue en los últimos 15 minutos.
+            </p>
+        </div>
+        <button class="btn btn-secondary" onclick="loadSessions()" style="padding:8px 16px;">🔄 Actualizar</button>
+    </div>
+
+    <div class="kpis">
+        <div class="kpi kpi-total">
+            <div class="kpi-num" id="kpi-total">–</div>
+            <div class="kpi-lbl">Total registrados</div>
+        </div>
+        <div class="kpi kpi-active">
+            <div class="kpi-num" id="kpi-active">–</div>
+            <div class="kpi-lbl">Activos ahora</div>
+        </div>
+        <div class="kpi kpi-inactive">
+            <div class="kpi-num" id="kpi-inactive">–</div>
+            <div class="kpi-lbl">Inactivos (>15 min)</div>
+        </div>
+        <div class="kpi kpi-kicked">
+            <div class="kpi-num" id="kpi-kicked">–</div>
+            <div class="kpi-lbl">Expulsados</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="filters">
+            <input type="text" id="search" placeholder="🔍 Buscar por nombre, email, usuario..." style="flex:1;min-width:240px;" onkeyup="renderTable()">
+            <select id="filter-status" onchange="renderTable()">
+                <option value="all">Todos los estados</option>
+                <option value="active">Solo activos</option>
+                <option value="inactive">Solo inactivos</option>
+                <option value="kicked">Solo expulsados</option>
+            </select>
+            <select id="filter-role" onchange="renderTable()">
+                <option value="">Todos los roles</option>
+                <option value="admin">Admin</option>
+                <option value="technician">Técnico</option>
+                <option value="employee">Empleado</option>
+            </select>
+            <span class="auto-refresh">Auto-refresh cada 30s</span>
+        </div>
+        <div id="tbl-container">
+            <p class="empty">⏳ Cargando sesiones...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+let _sessions = [];
+
+async function loadSessions() {
+    try {
+        const r = await fetch('/api/admin/sessions');
+        const data = await r.json();
+        if (!data.success) {
+            document.getElementById('tbl-container').innerHTML = '<p class="empty" style="color:#dc2626;">Error: no autorizado</p>';
+            return;
+        }
+        _sessions = data.sessions || [];
+        updateKPIs();
+        renderTable();
+    } catch (e) {
+        document.getElementById('tbl-container').innerHTML = '<p class="empty" style="color:#dc2626;">Error de red: ' + e.message + '</p>';
+    }
+}
+
+function updateKPIs() {
+    const total = _sessions.length;
+    const active = _sessions.filter(s => s.is_active_session && !s.was_kicked).length;
+    const inactive = _sessions.filter(s => !s.is_active_session && !s.was_kicked).length;
+    const kicked = _sessions.filter(s => s.was_kicked).length;
+    document.getElementById('kpi-total').textContent = total;
+    document.getElementById('kpi-active').textContent = active;
+    document.getElementById('kpi-inactive').textContent = inactive;
+    document.getElementById('kpi-kicked').textContent = kicked;
+}
+
+function renderTable() {
+    const cont = document.getElementById('tbl-container');
+    const q = (document.getElementById('search').value || '').trim().toLowerCase();
+    const fStatus = document.getElementById('filter-status').value;
+    const fRole = document.getElementById('filter-role').value;
+
+    const filtered = _sessions.filter(s => {
+        if (q) {
+            const txt = [s.name, s.username, s.email, s.role, s.company].filter(Boolean).join(' ').toLowerCase();
+            if (txt.indexOf(q) === -1) return false;
+        }
+        if (fStatus === 'active' && !(s.is_active_session && !s.was_kicked)) return false;
+        if (fStatus === 'inactive' && (s.is_active_session || s.was_kicked)) return false;
+        if (fStatus === 'kicked' && !s.was_kicked) return false;
+        if (fRole && s.role !== fRole) return false;
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        cont.innerHTML = '<p class="empty">No hay sesiones con esos filtros.</p>';
+        return;
+    }
+
+    const rows = filtered.map(s => {
+        const statusBadge = s.was_kicked
+            ? '<span class="badge badge-kicked">✕ EXPULSADO</span>'
+            : (s.is_active_session
+                ? '<span class="badge badge-active">🟢 ACTIVO</span>'
+                : '<span class="badge badge-inactive">⚪ Inactivo</span>');
+        const roleBadge = `<span class="role-${escHtml(s.role || 'employee')}">${escHtml(s.role || '—')}</span>`;
+        const kickBtn = (s.is_active_session && !s.was_kicked)
+            ? `<button class="btn btn-danger" onclick="kickUser(${s.user_id}, '${escHtml(s.name).replace(/'/g,"\\'")}')" title="Cerrar sesión de este usuario ahora">✕ Expulsar</button>`
+            : '<span style="color:#9ca3af;font-size:12px;">—</span>';
+        const ago = s.minutes_ago !== null && s.minutes_ago !== undefined
+            ? (s.minutes_ago < 60 ? `${s.minutes_ago}m atrás` : `${Math.floor(s.minutes_ago/60)}h ${s.minutes_ago%60}m atrás`)
+            : 'Nunca';
+        return `
+            <tr>
+                <td>
+                    <strong>${escHtml(s.name || '—')}</strong>
+                    <br><span style="color:#6b7280;font-size:11px;">@${escHtml(s.username || '')} · ${escHtml(s.email || '')}</span>
+                </td>
+                <td>${roleBadge}${s.role_label ? '<br><span style="font-size:10px;color:#9ca3af;margin-top:2px;">' + escHtml(s.role_label) + '</span>' : ''}</td>
+                <td><span style="font-size:12px;color:#374151;">${escHtml(s.company || '—')}</span></td>
+                <td>${statusBadge}</td>
+                <td>
+                    <div style="font-size:13px;color:#374151;">${escHtml(s.last_login_display)}</div>
+                    <div style="font-size:11px;color:#9ca3af;">${ago}</div>
+                </td>
+                <td>${kickBtn}</td>
+            </tr>
+        `;
+    }).join('');
+
+    cont.innerHTML = `
+        <table>
+            <thead>
+                <tr>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    <th>Empresa</th>
+                    <th>Estado</th>
+                    <th>Último login</th>
+                    <th style="width:130px;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>
+        <div style="font-size:11px;color:#9ca3af;margin-top:10px;text-align:right;">Mostrando ${filtered.length} de ${_sessions.length}</div>
+    `;
+}
+
+async function kickUser(userId, userName) {
+    if (!confirm(`¿Expulsar sesión de "${userName}"?\n\nSe cerrará su sesión en el próximo request (máximo ~5 seg).\nEl usuario recibirá el modal "Tu sesión expiró" y tendrá que volver a loguearse.`)) return;
+    try {
+        const r = await fetch(`/api/admin/sessions/${userId}/kick`, {method: 'POST'});
+        const data = await r.json();
+        if (data.success) {
+            alert('✓ ' + (data.message || 'Sesión expulsada.'));
+            loadSessions();
+        } else {
+            alert('✗ Error: ' + (data.error || 'no se pudo expulsar'));
+        }
+    } catch (e) {
+        alert('Error de red: ' + e.message);
+    }
+}
+
+function escHtml(t) {
+    return (t || '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+document.addEventListener('DOMContentLoaded', loadSessions);
+setInterval(loadSessions, 30000);
+</script>
+</body>
+</html>

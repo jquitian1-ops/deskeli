@@ -63,6 +63,29 @@
     </div>
 </div>
 
+<!-- Modal Metricas de Uptime -->
+<div id="metrics-bg" class="modal-bg hidden">
+    <div class="modal" style="max-width:760px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h2 id="metrics-title">📊 Métricas de servidor</h2>
+            <select id="metrics-window" onchange="reloadMetrics()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                <option value="24h">Últimas 24 horas</option>
+                <option value="7d">Últimos 7 días</option>
+                <option value="30d">Últimos 30 días</option>
+                <option value="90d">Últimos 90 días</option>
+            </select>
+        </div>
+
+        <div id="metrics-content">
+            <p class="empty">⏳ Cargando métricas...</p>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-secondary" onclick="closeMetrics()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Agregar/Editar -->
 <div id="modal-bg" class="modal-bg hidden">
     <div class="modal">
@@ -146,6 +169,7 @@ function renderTable() {
                 <td>${statusBadge}</td>
                 <td style="color:#6b7280;font-size:12px;">${escHtml(s.last_check || 'Nunca')}</td>
                 <td>
+                    <button class="btn btn-secondary btn-sm" onclick="showMetrics(${s.id})" title="Métricas de uptime">📊</button>
                     <button class="btn btn-secondary btn-sm" onclick="editServer(${s.id})">✏️</button>
                     <button class="btn btn-secondary btn-sm" onclick="simulate(${s.id}, 'down')" title="Simular caída">⬇</button>
                     <button class="btn btn-secondary btn-sm" onclick="simulate(${s.id}, 'up')" title="Marcar en línea">⬆</button>
@@ -263,6 +287,107 @@ function showModalStatus(msg, isErr) {
 
 function escHtml(t) {
     return (t || '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ==== METRICAS DE UPTIME ====
+let _metricsServerId = null;
+
+function showMetrics(serverId) {
+    _metricsServerId = serverId;
+    document.getElementById('metrics-window').value = '24h';
+    document.getElementById('metrics-content').innerHTML = '<p class="empty">⏳ Cargando métricas...</p>';
+    document.getElementById('metrics-bg').classList.remove('hidden');
+    reloadMetrics();
+}
+
+function closeMetrics() {
+    document.getElementById('metrics-bg').classList.add('hidden');
+    _metricsServerId = null;
+}
+
+async function reloadMetrics() {
+    if (!_metricsServerId) return;
+    const window = document.getElementById('metrics-window').value;
+    const content = document.getElementById('metrics-content');
+    content.innerHTML = '<p class="empty">⏳ Cargando métricas...</p>';
+    try {
+        const r = await fetch(`/api/admin/servers/${_metricsServerId}/uptime?window=${window}`);
+        const data = await r.json();
+        if (!data.success) {
+            content.innerHTML = '<p class="empty" style="color:#dc2626;">Error: ' + (data.error || 'sin datos') + '</p>';
+            return;
+        }
+        document.getElementById('metrics-title').textContent = `📊 ${data.server.name} — ${data.server.host}:${data.server.port}`;
+
+        if (data.total_pings === 0) {
+            content.innerHTML = '<p class="empty">Sin datos de ping en esta ventana. Esperá que el scheduler genere pings (cada 5 min).</p>';
+            return;
+        }
+
+        const uptimeColor = data.uptime_pct >= 99 ? '#065f46' : (data.uptime_pct >= 95 ? '#ea580c' : '#991b1b');
+        const uptimeBg = data.uptime_pct >= 99 ? '#d1fae5' : (data.uptime_pct >= 95 ? '#fed7aa' : '#fee2e2');
+
+        const kpisHtml = `
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:16px;">
+                <div style="padding:14px;background:${uptimeBg};color:${uptimeColor};border-radius:8px;text-align:center;">
+                    <div style="font-size:26px;font-weight:bold;">${data.uptime_pct}%</div>
+                    <div style="font-size:11px;text-transform:uppercase;font-weight:600;">Uptime</div>
+                </div>
+                <div style="padding:14px;background:#dbeafe;color:#1e40af;border-radius:8px;text-align:center;">
+                    <div style="font-size:26px;font-weight:bold;">${data.total_pings}</div>
+                    <div style="font-size:11px;text-transform:uppercase;font-weight:600;">Pings totales</div>
+                </div>
+                <div style="padding:14px;background:#fee2e2;color:#991b1b;border-radius:8px;text-align:center;">
+                    <div style="font-size:26px;font-weight:bold;">${data.incidents}</div>
+                    <div style="font-size:11px;text-transform:uppercase;font-weight:600;">Incidentes</div>
+                </div>
+                <div style="padding:14px;background:#fef3c7;color:#92400e;border-radius:8px;text-align:center;">
+                    <div style="font-size:26px;font-weight:bold;">${data.total_downtime_minutes}</div>
+                    <div style="font-size:11px;text-transform:uppercase;font-weight:600;">Min sin servicio</div>
+                </div>
+                <div style="padding:14px;background:#f3f4f6;color:#374151;border-radius:8px;text-align:center;">
+                    <div style="font-size:26px;font-weight:bold;">${data.latency_avg_ms || '—'}</div>
+                    <div style="font-size:11px;text-transform:uppercase;font-weight:600;">Latencia avg (ms)</div>
+                </div>
+                <div style="padding:14px;background:#f3f4f6;color:#374151;border-radius:8px;text-align:center;">
+                    <div style="font-size:26px;font-weight:bold;">${data.latency_max_ms || '—'}</div>
+                    <div style="font-size:11px;text-transform:uppercase;font-weight:600;">Latencia máx (ms)</div>
+                </div>
+            </div>
+        `;
+
+        // Sparkline visual: cada ping = una barra vertical (verde up, roja down)
+        const pings = data.recent_pings || [];
+        let barsHtml = '';
+        if (pings.length > 0) {
+            const maxLat = Math.max(1, ...pings.filter(p => p.is_up).map(p => p.latency_ms));
+            barsHtml = pings.map(p => {
+                if (!p.is_up) {
+                    return '<div style="width:6px;height:60px;background:#dc2626;border-radius:2px;" title="' + p.checked_at + ' — CAÍDO"></div>';
+                }
+                const h = Math.max(6, (p.latency_ms / maxLat) * 60);
+                return `<div style="width:6px;height:${h}px;background:#16a34a;border-radius:2px;align-self:flex-end;" title="${p.checked_at} — ${p.latency_ms}ms"></div>`;
+            }).join('');
+        }
+        const sparkHtml = pings.length > 0 ? `
+            <div style="background:#f9fafb;padding:14px;border-radius:8px;margin-bottom:8px;">
+                <div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;margin-bottom:8px;">
+                    Últimos ${pings.length} pings (hover para detalle)
+                </div>
+                <div style="display:flex;align-items:flex-end;gap:2px;height:60px;">${barsHtml}</div>
+                <div style="display:flex;justify-content:space-between;font-size:10px;color:#9ca3af;margin-top:4px;">
+                    <span>Más antiguo</span>
+                    <span>🟢 En línea (altura = latencia)</span>
+                    <span>🔴 Caído</span>
+                    <span>Más reciente</span>
+                </div>
+            </div>
+        ` : '';
+
+        content.innerHTML = kpisHtml + sparkHtml;
+    } catch (e) {
+        content.innerHTML = '<p class="empty" style="color:#dc2626;">Error de red: ' + e.message + '</p>';
+    }
 }
 
 document.addEventListener('DOMContentLoaded', loadServers);

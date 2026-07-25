@@ -648,6 +648,9 @@
                 <a class="sidebar-link" href="/admin/servers" target="_self">
                     <span><span class="sl-icon">🖥</span>Monitoreo Servidores</span>
                 </a>
+                <a class="sidebar-link" href="/admin/sessions" target="_self">
+                    <span><span class="sl-icon">👥</span>Sesiones Activas</span>
+                </a>
             </div>
 
             <div class="sidebar-group">
@@ -2598,15 +2601,36 @@
 
                     const ticketId = draggedCard.getAttribute('data-ticket-id');
                     const newStatus = this.getAttribute('data-status');
+                    const oldStatus = draggedCard.getAttribute('data-status') || '';
                     const ticketNumber = draggedCard.querySelector('.card-id')?.textContent || 'Ticket';
 
                     console.log(`[Kanban] Moviendo ${ticketNumber} a ${newStatus}`);
 
+                    // Si va a resolved/closed y venia de otro estado → exigir justificacion
+                    let resolutionNote = null;
+                    if ((newStatus === 'resolved' || newStatus === 'closed') &&
+                        oldStatus !== 'resolved' && oldStatus !== 'closed') {
+                        const note = window.prompt(
+                            `📋 Justificación obligatoria para pasar ${ticketNumber} a "${newStatus === 'resolved' ? 'Resuelto' : 'Cerrado'}":\n\n` +
+                            `Describí brevemente cómo se resolvió el ticket (mínimo 5 caracteres).`,
+                            ''
+                        );
+                        if (note === null) return; // usuario canceló
+                        const trimmed = (note || '').trim();
+                        if (trimmed.length < 5) {
+                            alert('❌ La justificación debe tener al menos 5 caracteres. No se cambió el estado.');
+                            return;
+                        }
+                        resolutionNote = trimmed;
+                    }
+
                     try {
+                        const payload = { status: newStatus };
+                        if (resolutionNote) payload.resolution_note = resolutionNote;
                         const response = await fetch(`/api/ticket/${ticketId}/status`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ status: newStatus })
+                            body: JSON.stringify(payload)
                         });
 
                         const data = await response.json();

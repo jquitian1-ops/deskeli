@@ -563,8 +563,12 @@ class Ticket(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
     resolved_at = db.Column(db.DateTime)
+    # Justificacion obligatoria al pasar a resolved/closed (RF audit)
+    resolution_note = db.Column(db.Text)
+    resolved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     creator = db.relationship('User', foreign_keys=[creator_id], backref='created_tickets')
     assignee = db.relationship('User', foreign_keys=[assignee_id], backref='assigned_tickets')
+    resolved_by = db.relationship('User', foreign_keys=[resolved_by_id])
     messages = db.relationship('Message', backref='ticket', cascade='all, delete-orphan')
 
     @property
@@ -661,6 +665,20 @@ class Server(db.Model):
     alarm_active = db.Column(db.Boolean, default=False)
     is_online = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
+
+class ServerPingLog(db.Model):
+    """Registro persistente de cada ping a un servidor monitoreado.
+    Sirve para calcular uptime %, MTBF y latencia promedio (RF-03-11).
+    Se conserva 90 dias; entradas mas viejas se purgan periodicamente.
+    """
+    __tablename__ = 'server_ping_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    server_id = db.Column(db.Integer, db.ForeignKey('servers.id'), nullable=False, index=True)
+    checked_at = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
+    is_up = db.Column(db.Boolean, default=True, nullable=False)
+    latency_ms = db.Column(db.Float, default=0)
+    error_msg = db.Column(db.String(200))
+
 
 class UserSession(db.Model):
     __tablename__ = 'user_sessions'
@@ -6693,15 +6711,31 @@ def ping_server(server_id):
             return
 
         try:
-            # Intentar conectar al puerto 80
+            # Intentar conectar al puerto configurado (o 80 default)
+            target_port = server.port or 80
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(2)
-            result = sock.connect_ex((server.ip_address, 80))
+            t0 = time.time()
+            result = sock.connect_ex((server.ip_address, target_port))
+            latency_ms = (time.time() - t0) * 1000.0
             sock.close()
 
             was_online = server.is_online
             server.is_online = result == 0
             server.last_ping = datetime.now()
+            server.last_status = 'up' if server.is_online else 'down'
+            server.last_latency_ms = latency_ms if server.is_online else 0
+            # Persistir log del ping
+            try:
+                db.session.add(ServerPingLog(
+                    server_id=server.id,
+                    checked_at=datetime.now(),
+                    is_up=server.is_online,
+                    latency_ms=latency_ms if server.is_online else 0,
+                    error_msg=None if server.is_online else f'connect_ex={result}'
+                ))
+            except Exception:
+                pass  # nunca romper el ping por un fallo de log
             db.session.commit()
 
             # Si cambió de ONLINE a OFFLINE, crear ticket de alerta automático
@@ -9540,6 +9574,29 @@ def seed_default_subroles():
         print(f"[init_db] {created} subroles del sistema creados")
 
 
+def migrate_tickets_resolution_note():
+    """Agrega columnas resolution_note y resolved_by_id a tickets si no existen."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'tickets' not in inspector.get_table_names():
+        return
+    existing = {c['name'] for c in inspector.get_columns('tickets')}
+    if 'resolution_note' not in existing:
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE tickets ADD COLUMN resolution_note TEXT"))
+            print("[migrate_tickets] Columna resolution_note agregada")
+        except Exception as e:
+            print(f"[migrate_tickets] error resolution_note: {e}")
+    if 'resolved_by_id' not in existing:
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE tickets ADD COLUMN resolved_by_id INTEGER"))
+            print("[migrate_tickets] Columna resolved_by_id agregada")
+        except Exception as e:
+            print(f"[migrate_tickets] error resolved_by_id: {e}")
+
+
 def migrate_subtasks_resolution_note():
     """Agrega columnas resolution_note y resolved_by_id a subtasks si no existen."""
     from sqlalchemy import inspect, text
@@ -9570,6 +9627,7 @@ def init_db():
         migrate_users_schema()
         migrate_users_role_label()
         migrate_subtasks_resolution_note()
+        migrate_tickets_resolution_note()
         migrate_companies_smtp()
         migrate_mailbox_oauth()
         migrate_tickets_schema()
@@ -10016,6 +10074,18 @@ def api_escalate_sla():
 # SESIONES ACTIVAS
 # ═════════════════════════════════════════════════════════════════════════════
 
+@app.route('/admin/sessions')
+def admin_sessions_page():
+    """Pagina admin para ver sesiones activas y expulsar usuarios (RF-03-13)."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return redirect(url_for('login'))
+    user = User.query.get(session['user_id'])
+    return render_template('admin/sessions.html',
+                           company_info=COMPANY_COLORS.get(user.company, {}),
+                           is_master=is_master_admin(),
+                           user=user)
+
+
 @app.route('/api/admin/sessions', methods=['GET'])
 def api_list_sessions():
     """Lista usuarios con actividad reciente (sesiones potencialmente activas).
@@ -10320,6 +10390,102 @@ def api_delete_server(server_id):
     log_audit('delete_server', session['user_id'], 'server', server_id, f"Servidor {name} eliminado")
 
     return jsonify({'success': True, 'message': 'Servidor eliminado'})
+
+
+@app.route('/api/admin/servers/<int:server_id>/uptime', methods=['GET'])
+def api_server_uptime_metrics(server_id):
+    """Metricas historicas de un servidor: uptime%, latencia, downs.
+
+    Query params:
+      - window: 24h (default) | 7d | 30d | 90d
+    """
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+
+    server = Server.query.get(server_id)
+    if not server or server.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Servidor no encontrado'}), 404
+
+    window = (request.args.get('window') or '24h').lower()
+    hours_map = {'24h': 24, '7d': 24 * 7, '30d': 24 * 30, '90d': 24 * 90}
+    hours = hours_map.get(window, 24)
+    cutoff = datetime.now() - timedelta(hours=hours)
+
+    logs = ServerPingLog.query.filter(
+        ServerPingLog.server_id == server_id,
+        ServerPingLog.checked_at >= cutoff
+    ).order_by(ServerPingLog.checked_at.asc()).all()
+
+    total = len(logs)
+    ups = sum(1 for l in logs if l.is_up)
+    downs = total - ups
+    uptime_pct = round((ups / total) * 100, 2) if total > 0 else None
+    latencies = [l.latency_ms for l in logs if l.is_up and l.latency_ms > 0]
+    latency_avg = round(sum(latencies) / len(latencies), 1) if latencies else None
+    latency_max = round(max(latencies), 1) if latencies else None
+
+    # Contar transiciones (incidentes = up -> down)
+    incidents = 0
+    total_downtime_min = 0.0
+    incident_start = None
+    prev_up = True
+    for l in logs:
+        if prev_up and not l.is_up:
+            incidents += 1
+            incident_start = l.checked_at
+        elif not prev_up and l.is_up and incident_start:
+            total_downtime_min += (l.checked_at - incident_start).total_seconds() / 60.0
+            incident_start = None
+        prev_up = l.is_up
+    # Si sigue caido al final de la ventana
+    if incident_start:
+        total_downtime_min += (datetime.now() - incident_start).total_seconds() / 60.0
+
+    # Sample de las ultimas 50 entradas para grafico
+    sample = [{
+        'checked_at': l.checked_at.isoformat(),
+        'is_up': l.is_up,
+        'latency_ms': round(l.latency_ms, 1) if l.latency_ms else 0,
+    } for l in logs[-50:]]
+
+    return jsonify({
+        'success': True,
+        'server': {
+            'id': server.id,
+            'name': server.name,
+            'host': server.ip_address,
+            'port': server.port,
+            'is_critical': server.is_critical,
+        },
+        'window': window,
+        'window_hours': hours,
+        'total_pings': total,
+        'ups': ups,
+        'downs': downs,
+        'uptime_pct': uptime_pct,
+        'incidents': incidents,
+        'total_downtime_minutes': round(total_downtime_min, 1),
+        'latency_avg_ms': latency_avg,
+        'latency_max_ms': latency_max,
+        'recent_pings': sample,
+    })
+
+
+def _purge_old_ping_logs():
+    """Purga entradas de ServerPingLog >90 dias. Se llama con el scheduler."""
+    with app.app_context():
+        try:
+            cutoff = datetime.now() - timedelta(days=90)
+            deleted = ServerPingLog.query.filter(
+                ServerPingLog.checked_at < cutoff
+            ).delete(synchronize_session=False)
+            db.session.commit()
+            if deleted > 0:
+                print(f'[purge-pings] {deleted} logs de ping >90d eliminados')
+        except Exception as e:
+            try: db.session.rollback()
+            except Exception: pass
+            print(f'[purge-pings] Error: {e}')
 
 
 @app.route('/api/admin/servers/<int:server_id>/simulate', methods=['POST'])
@@ -10707,6 +10873,8 @@ def api_resolve_ticket(ticket_id):
     ticket.status = 'resolved'
     ticket.resolved_at = datetime.now()
     ticket.updated_at = datetime.now()
+    ticket.resolution_note = resolution[:2000]
+    ticket.resolved_by_id = session['user_id']
     db.session.commit()
 
     log_audit('ticket_resolved', session['user_id'], 'ticket', ticket_id,
@@ -11721,12 +11889,29 @@ def api_update_ticket_status(ticket_id):
                     'pending_subtasks_count': len(pending)
                 }), 400
 
+        # VALIDACION: justificacion obligatoria al pasar a resolved/closed
+        resolution_note_new = None
+        if new_status in ('resolved', 'closed') and ticket.status not in ('resolved', 'closed'):
+            resolution_note_new = (data.get('resolution_note') or data.get('resolutionNote') or '').strip()
+            if len(resolution_note_new) < 5:
+                return jsonify({
+                    'success': False,
+                    'error': 'Debes proporcionar una justificación (mínimo 5 caracteres) para resolver o cerrar este ticket.',
+                    'error_code': 'resolution_note_required'
+                }), 400
+            resolution_note_new = resolution_note_new[:2000]
+
         old_status = ticket.status
         ticket.status = new_status
         ticket.updated_at = datetime.now()
 
         if new_status == 'resolved':
             ticket.resolved_at = datetime.now()
+
+        # Guardar justificacion si aplica
+        if resolution_note_new:
+            ticket.resolution_note = resolution_note_new
+            ticket.resolved_by_id = session['user_id']
 
         # Auto-iniciar cronometro cuando el ticket entra a in_progress
         if new_status == 'in_progress' and old_status != 'in_progress':
@@ -11735,8 +11920,10 @@ def api_update_ticket_status(ticket_id):
 
         db.session.commit()
 
-        log_audit('update_status', session['user_id'], 'ticket', ticket_id,
-                  f'Estado cambiado de {old_status} a {new_status}')
+        audit_msg = f'Estado cambiado de {old_status} a {new_status}'
+        if resolution_note_new:
+            audit_msg += f'. Justificación: "{resolution_note_new[:200]}"'
+        log_audit('update_status', session['user_id'], 'ticket', ticket_id, audit_msg)
 
         # Emitir evento en tiempo real
         emit_ticket_event(ticket.company, 'ticket_status_changed', {
