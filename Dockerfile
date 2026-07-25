@@ -37,11 +37,13 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Librerías de runtime + wget para healthcheck (más liviano que curl)
+# postgresql-client: da pg_dump para backups de Postgres
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     libffi8 \
     wget \
     tzdata \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Usuario no-root

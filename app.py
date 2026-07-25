@@ -6836,15 +6836,115 @@ def _get_db_file_path():
     return None
 
 
+def _backup_postgres(user_id=None):
+    """Backup de Postgres via pg_dump. Genera un .sql.gz(.enc)."""
+    import subprocess as _sp
+    from urllib.parse import urlparse as _urlparse
+    uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    parsed = _urlparse(uri)
+    if not parsed.scheme.startswith('postgres'):
+        return None
+
+    db_user = parsed.username or ''
+    db_pass = parsed.password or ''
+    db_host = parsed.hostname or 'localhost'
+    db_port = str(parsed.port or 5432)
+    db_name = (parsed.path or '').lstrip('/') or 'postgres'
+
+    backup_dir = Path('backups')
+    backup_dir.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    use_encryption = crypto_has_key()
+    suffix = '.sql.gz.enc' if use_encryption else '.sql.gz'
+    backup_file = backup_dir / f'ticketdesk_backup_pg_{timestamp}{suffix}'
+
+    env = os.environ.copy()
+    env['PGPASSWORD'] = db_pass
+    cmd = [
+        'pg_dump',
+        '-h', db_host,
+        '-p', db_port,
+        '-U', db_user,
+        '-d', db_name,
+        '--no-owner',
+        '--no-privileges',
+        '--format=plain',
+        '--encoding=UTF8',
+    ]
+    try:
+        proc = _sp.run(cmd, env=env, capture_output=True, timeout=600)
+        if proc.returncode != 0:
+            err = (proc.stderr or b'').decode('utf-8', errors='replace')[:500]
+            log_audit('backup_failed', user_id, 'backup', None,
+                      f'pg_dump exit={proc.returncode}: {err}')
+            return None
+        sql_bytes = proc.stdout
+        if not sql_bytes:
+            log_audit('backup_failed', user_id, 'backup', None, 'pg_dump devolvio vacio')
+            return None
+
+        # Gzip
+        gz_buf = BytesIO()
+        with gzip.GzipFile(fileobj=gz_buf, mode='wb') as gz:
+            gz.write(sql_bytes)
+        gz_bytes = gz_buf.getvalue()
+
+        # Cifrar opcional
+        payload = encrypt_bytes(gz_bytes) if use_encryption else gz_bytes
+        with open(backup_file, 'wb') as f_out:
+            f_out.write(payload)
+
+        # Purga: retener 30
+        all_backups = sorted(
+            list(backup_dir.glob('ticketdesk_backup_*.db.gz')) +
+            list(backup_dir.glob('ticketdesk_backup_*.db.gz.enc')) +
+            list(backup_dir.glob('ticketdesk_backup_pg_*.sql.gz')) +
+            list(backup_dir.glob('ticketdesk_backup_pg_*.sql.gz.enc'))
+        )
+        removed = 0
+        for old in all_backups[:-30]:
+            try:
+                old.unlink(); removed += 1
+            except Exception:
+                pass
+
+        log_audit('backup_created', user_id, 'backup', None,
+                  f'Backup PG {backup_file.name} ({backup_file.stat().st_size} bytes) '
+                  f'{"cifrado" if use_encryption else "PLANO"}, {removed} antiguos eliminados')
+        return backup_file
+    except FileNotFoundError:
+        log_audit('backup_failed', user_id, 'backup', None,
+                  'pg_dump no encontrado en el PATH. Instalar postgresql-client en el container.')
+        return None
+    except _sp.TimeoutExpired:
+        log_audit('backup_failed', user_id, 'backup', None, 'pg_dump timeout (>10min)')
+        return None
+    except Exception as e:
+        log_audit('backup_failed', user_id, 'backup', None, f'Error backup PG: {str(e)}')
+        return None
+
+
 def create_backup(user_id=None):
     """Crear backup comprimido y cifrado de la BD (RNF-02-05).
 
-    Si DB_ENCRYPTION_KEY está disponible: genera .db.gz.enc (gzip + Fernet).
-    Si no: cae a .db.gz plano (legacy, solo dev sin clave). Devuelve Path o None.
+    Detecta engine automaticamente:
+      - Postgres: usa pg_dump → .sql.gz(.enc)
+      - SQLite:   copia del archivo → .db.gz(.enc)
+
+    Si DB_ENCRYPTION_KEY esta disponible: cifra con Fernet.
+    Retorna Path del backup o None si fallo.
     """
+    # Postgres path
+    uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if uri.startswith('postgres'):
+        return _backup_postgres(user_id=user_id)
+
+    # SQLite path (legacy)
     db_path = _get_db_file_path()
     if not db_path or not db_path.exists():
-        log_audit('backup_failed', user_id, 'backup', None, f'BD no encontrada en {db_path}')
+        log_audit('backup_failed', user_id, 'backup', None,
+                  f'BD no encontrada. URI={uri[:40]}... path={db_path}. '
+                  f'Si estas en Postgres, verificar que pg_dump este instalado.')
         return None
 
     backup_dir = Path('backups')
@@ -6875,7 +6975,9 @@ def create_backup(user_id=None):
         # 3) Purgar backups antiguos (mantener 30 más recientes, ambos formatos)
         all_backups = sorted(
             list(backup_dir.glob('ticketdesk_backup_*.db.gz')) +
-            list(backup_dir.glob('ticketdesk_backup_*.db.gz.enc'))
+            list(backup_dir.glob('ticketdesk_backup_*.db.gz.enc')) +
+            list(backup_dir.glob('ticketdesk_backup_pg_*.sql.gz')) +
+            list(backup_dir.glob('ticketdesk_backup_pg_*.sql.gz.enc'))
         )
         removed = 0
         for old_backup in all_backups[:-30]:
@@ -10066,6 +10168,18 @@ def send_teams_webhook(company, event, ticket):
 # ═════════════════════════════════════════════════════════════════════════════
 # MONITOR DE SERVIDORES
 # ═════════════════════════════════════════════════════════════════════════════
+
+@app.route('/admin/servers')
+def admin_servers_page():
+    """Pagina admin para CRUD de servidores monitoreados (RF-03-11)."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return redirect(url_for('login'))
+    user = User.query.get(session['user_id'])
+    return render_template('admin/servers.html',
+                           company_info=COMPANY_COLORS.get(user.company, {}),
+                           is_master=is_master_admin(),
+                           user=user)
+
 
 @app.route('/api/admin/servers', methods=['GET'])
 def api_list_servers():
@@ -14864,6 +14978,9 @@ def api_admin_specialists_create():
         user_id = data.get('user_id')
         skills_list = data.get('skills', [])
         max_tickets = int(data.get('max_tickets', 10))
+        # is_available: opcional; si no viene, no lo tocamos en updates y default true en creates
+        is_available_provided = ('is_available' in data)
+        is_available = bool(data.get('is_available', True))
 
         if not user_id:
             return jsonify({'success': False, 'error': 'user_id requerido'}), 400
@@ -14883,6 +15000,8 @@ def api_admin_specialists_create():
             profile.skills = skills_csv
             profile.max_tickets = max_tickets
             profile.company = session['company']
+            if is_available_provided:
+                profile.is_available = is_available
             profile.updated_at = datetime.now()
             action = 'update_specialist'
             msg = f'Especialista {user.name} actualizado'
@@ -14892,7 +15011,7 @@ def api_admin_specialists_create():
                 company=session['company'],
                 skills=skills_csv,
                 max_tickets=max_tickets,
-                is_available=True
+                is_available=is_available if is_available_provided else True
             )
             db.session.add(profile)
             action = 'create_specialist'

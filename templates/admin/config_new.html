@@ -582,6 +582,45 @@
                             </div>
                         </div>
 
+                        <!-- Disponibilidad del especialista -->
+                        <div style="margin-bottom:12px;padding:10px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                            <div>
+                                <label for="ia-is-available" style="display:block;font-size:13px;color:#166534;font-weight:600;margin-bottom:2px;cursor:pointer;">
+                                    🟢 Disponible para asignaciones automáticas
+                                </label>
+                                <div style="font-size:11px;color:#166534;">
+                                    Si está desactivado, el orquestador NO asigna tickets nuevos a este técnico (util para vacaciones/licencia).
+                                </div>
+                            </div>
+                            <label class="switch" style="position:relative;display:inline-block;width:52px;height:26px;">
+                                <input type="checkbox" id="ia-is-available" checked style="opacity:0;width:0;height:0;">
+                                <span onclick="this.previousElementSibling.click()" id="ia-is-available-slider"
+                                      style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#16a34a;transition:.3s;border-radius:26px;">
+                                    <span style="position:absolute;height:20px;width:20px;left:29px;bottom:3px;background:white;transition:.3s;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></span>
+                                </span>
+                            </label>
+                        </div>
+                        <script>
+                        // Sincronizar el estilo del slider con el checkbox
+                        (function(){
+                            const cb = document.getElementById('ia-is-available');
+                            const sl = document.getElementById('ia-is-available-slider');
+                            if (!cb || !sl) return;
+                            function paint(){
+                                if (cb.checked) {
+                                    sl.style.background = '#16a34a';
+                                    sl.firstElementChild.style.left = '29px';
+                                } else {
+                                    sl.style.background = '#9ca3af';
+                                    sl.firstElementChild.style.left = '3px';
+                                }
+                            }
+                            cb.addEventListener('change', paint);
+                            document.addEventListener('DOMContentLoaded', paint);
+                            paint();
+                        })();
+                        </script>
+
                         <div style="margin-bottom:12px;">
                             <label style="display:block;font-size:13px;color:#666;margin-bottom:4px;">Habilidades (selecciona o agrega)</label>
                             <div id="skill-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;padding:8px;min-height:40px;background:white;border:1px solid #d1d5db;border-radius:6px;">
@@ -2125,6 +2164,8 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
         iaSkills = [];
         iaRenderChips();
         $id('ia-status').innerHTML = '';
+        const avail = $id('ia-is-available');
+        if (avail) { avail.checked = true; avail.dispatchEvent(new Event('change')); }
         const copySel = $id('ia-copy-from');
         if (copySel) copySel.value = '';
         const copyStatus = $id('ia-copy-status');
@@ -2214,9 +2255,16 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                 const pct = s.max_tickets > 0 ? Math.round(s.active_tickets / s.max_tickets * 100) : 0;
                 const color = pct >= 80 ? '#dc2626' : pct >= 50 ? '#ea580c' : '#16a34a';
                 const skillsAttr = (s.skills || []).join('|').replace(/'/g, "&#39;");
+                const availBadge = s.is_available
+                    ? '<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;">🟢 DISPONIBLE</span>'
+                    : '<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;">⏸ INACTIVO</span>';
                 return `
                     <tr style="border-bottom:1px solid #eee;">
-                        <td style="padding:12px;"><strong>${s.user_name}</strong><br><span style="font-size:11px;color:#666;">${s.username}</span></td>
+                        <td style="padding:12px;">
+                            <strong>${s.user_name}</strong><br>
+                            <span style="font-size:11px;color:#666;">${s.username}</span>
+                            <div style="margin-top:4px;">${availBadge}</div>
+                        </td>
                         <td style="padding:12px;">${chips || '<span style="color:#999;font-size:12px;">Sin habilidades</span>'}</td>
                         <td style="padding:12px;text-align:center;">${s.max_tickets}</td>
                         <td style="padding:12px;text-align:center;">
@@ -2226,7 +2274,7 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                             </div>
                         </td>
                         <td style="padding:12px;text-align:center;">
-                            <button onclick="iaEdit(${s.id}, ${s.user_id}, '${skillsAttr}', ${s.max_tickets})" style="padding:5px 10px;background:#2563eb;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:4px;">✏️ Editar</button>
+                            <button onclick="iaEdit(${s.id}, ${s.user_id}, '${skillsAttr}', ${s.max_tickets}, ${s.is_available ? 'true' : 'false'})" style="padding:5px 10px;background:#2563eb;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:4px;">✏️ Editar</button>
                             <button onclick="iaDelete(${s.id}, '${(s.user_name || '').replace(/'/g, '&#39;')}')" style="padding:5px 10px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;">🗑️ Eliminar</button>
                         </td>
                     </tr>
@@ -2237,12 +2285,18 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
         }
     }
 
-    window.iaEdit = function(id, userId, skillsCsv, maxTickets) {
+    window.iaEdit = function(id, userId, skillsCsv, maxTickets, isAvailable) {
         iaEditingId = id;
         $id('ia-user-id').value = userId;
         $id('ia-max-tickets').value = maxTickets;
         iaSkills = skillsCsv ? skillsCsv.split('|').filter(Boolean) : [];
         iaRenderChips();
+        const avail = $id('ia-is-available');
+        if (avail) {
+            // isAvailable puede venir como bool o como int (0/1) desde el data-attr
+            avail.checked = (isAvailable === true || isAvailable === 1 || isAvailable === '1' || isAvailable === undefined);
+            avail.dispatchEvent(new Event('change'));
+        }
         $id('ia-status').innerHTML = '<span style="color:#2563eb;">📝 Editando especialista. Guarda para aplicar cambios.</span>';
         document.getElementById('panel-ia').scrollIntoView({behavior:'smooth', block:'start'});
     };
@@ -2266,6 +2320,8 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
     window.iaSaveSpecialist = async function() {
         const userId = $id('ia-user-id').value;
         const maxTickets = parseInt($id('ia-max-tickets').value) || 10;
+        const availEl = $id('ia-is-available');
+        const isAvailable = availEl ? availEl.checked : true;
         const status = $id('ia-status');
 
         if (!userId) {
@@ -2285,7 +2341,8 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                 body: JSON.stringify({
                     user_id: parseInt(userId),
                     skills: iaSkills,
-                    max_tickets: maxTickets
+                    max_tickets: maxTickets,
+                    is_available: isAvailable
                 })
             });
             const data = await r.json();
