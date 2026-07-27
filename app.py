@@ -20163,21 +20163,29 @@ def api_admin_api_keys_delete(key_id):
 # ═════════════════════════════════════════════════════════════════════════════
 
 def _seed_kb_articles_if_empty():
-    """Carga scripts/kb_articles_seed.json si la tabla knowledge_articles esta vacia.
-    Idempotente: si ya hay al menos 1 articulo, no hace nada. Nunca borra ni actualiza."""
+    """Carga scripts/kb_articles_seed.json en knowledge_articles.
+
+    Incremental: solo inserta articulos cuyo slug (derivado del titulo) NO existe.
+    Si ya existe (por titulo previamente cargado), lo salta. Nunca borra ni actualiza.
+    Se ejecuta en cada bootstrap; agregar articulos al JSON los sube en el proximo redeploy."""
     try:
         import json as _json
         import re as _re
         import unicodedata as _ud
         with app.app_context():
-            if KnowledgeArticle.query.count() > 0:
+            import glob as _glob
+            scripts_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scripts')
+            # Carga scripts/kb_articles_seed.json + scripts/kb_articles_seed_*.json (batches)
+            seed_files = sorted(_glob.glob(os.path.join(scripts_dir, 'kb_articles_seed*.json')))
+            if not seed_files:
                 return
-            seed_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                     'scripts', 'kb_articles_seed.json')
-            if not os.path.exists(seed_path):
-                return
-            with open(seed_path, 'r', encoding='utf-8') as f:
-                seeds = _json.load(f)
+            seeds = []
+            for sp in seed_files:
+                try:
+                    with open(sp, 'r', encoding='utf-8') as f:
+                        seeds.extend(_json.load(f))
+                except Exception as e:
+                    print(f"  [WARN] KB seed: no pude leer {sp}: {e}")
 
             def _slug(text, max_len=200):
                 if not text:
@@ -20190,12 +20198,21 @@ def _seed_kb_articles_if_empty():
             author_id = author.id if author else None
 
             created = 0
+            skipped = 0
             for art in seeds:
                 title = (art.get('title') or '').strip()
                 body = (art.get('body') or '').strip()
                 if not title or not body:
                     continue
                 base_slug = _slug(title)
+                # Si el slug base ya existe, o si el titulo ya existe, saltar
+                if KnowledgeArticle.query.filter(
+                    (KnowledgeArticle.slug == base_slug) |
+                    (KnowledgeArticle.title == title)
+                ).first():
+                    skipped += 1
+                    continue
+                # Determinar slug unico (por si otro articulo con nombre similar da mismo slug)
                 slug = base_slug
                 n = 2
                 while KnowledgeArticle.query.filter_by(slug=slug).first():
@@ -20218,8 +20235,9 @@ def _seed_kb_articles_if_empty():
                 )
                 db.session.add(article)
                 created += 1
-            db.session.commit()
-            print(f"  [OK] KB seed inicial: {created} articulos cargados")
+            if created:
+                db.session.commit()
+            print(f"  [OK] KB seed: {created} nuevos + {skipped} ya existentes")
     except Exception as e:
         print(f"  [WARN] No se pudo cargar KB seed: {e}")
 

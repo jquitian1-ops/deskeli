@@ -9,6 +9,7 @@ Uso:
     python scripts/import_kb_articles.py --dry-run        # Muestra qué haría sin insertar
 """
 import argparse
+import glob
 import json
 import os
 import re
@@ -53,15 +54,21 @@ def main():
                         help='No inserta, solo reporta')
     args = parser.parse_args()
 
-    json_path = ROOT / args.file
-    if not json_path.exists():
-        print(f"[ERROR] Archivo no encontrado: {json_path}")
+    # Cargar el archivo especificado + todos los kb_articles_seed_*.json (batches)
+    scripts_dir = ROOT / 'scripts'
+    batch_files = sorted(glob.glob(str(scripts_dir / 'kb_articles_seed*.json')))
+    if not batch_files:
+        print(f"[ERROR] No hay archivos kb_articles_seed*.json en {scripts_dir}")
         sys.exit(1)
 
-    with open(json_path, 'r', encoding='utf-8') as f:
-        articles = json.load(f)
+    articles = []
+    for bf in batch_files:
+        with open(bf, 'r', encoding='utf-8') as f:
+            batch = json.load(f)
+        articles.extend(batch)
+        print(f"[INFO]   {len(batch):3} desde {os.path.basename(bf)}")
 
-    print(f"[INFO] {len(articles)} articulos a procesar desde {json_path}")
+    print(f"[INFO] {len(articles)} articulos totales a procesar")
 
     with app.app_context():
         # Resolver autor
