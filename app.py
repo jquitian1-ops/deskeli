@@ -20162,6 +20162,68 @@ def api_admin_api_keys_delete(key_id):
 
 # ═════════════════════════════════════════════════════════════════════════════
 
+def _seed_kb_articles_if_empty():
+    """Carga scripts/kb_articles_seed.json si la tabla knowledge_articles esta vacia.
+    Idempotente: si ya hay al menos 1 articulo, no hace nada. Nunca borra ni actualiza."""
+    try:
+        import json as _json
+        import re as _re
+        import unicodedata as _ud
+        with app.app_context():
+            if KnowledgeArticle.query.count() > 0:
+                return
+            seed_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     'scripts', 'kb_articles_seed.json')
+            if not os.path.exists(seed_path):
+                return
+            with open(seed_path, 'r', encoding='utf-8') as f:
+                seeds = _json.load(f)
+
+            def _slug(text, max_len=200):
+                if not text:
+                    return 'articulo'
+                t = _ud.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii').lower()
+                t = _re.sub(r'[^a-z0-9]+', '-', t).strip('-')
+                return (t or 'articulo')[:max_len]
+
+            author = User.query.filter_by(role='admin').first()
+            author_id = author.id if author else None
+
+            created = 0
+            for art in seeds:
+                title = (art.get('title') or '').strip()
+                body = (art.get('body') or '').strip()
+                if not title or not body:
+                    continue
+                base_slug = _slug(title)
+                slug = base_slug
+                n = 2
+                while KnowledgeArticle.query.filter_by(slug=slug).first():
+                    slug = f"{base_slug}-{n}"
+                    n += 1
+                tags_raw = art.get('tags') or ''
+                tags = ','.join([t.strip() for t in tags_raw if t.strip()]) if isinstance(tags_raw, list) else tags_raw.strip()
+                article = KnowledgeArticle(
+                    title=title[:200],
+                    slug=slug,
+                    body=body,
+                    excerpt=(art.get('excerpt') or body[:280]).strip()[:300],
+                    category=(art.get('category') or '').strip()[:80] or None,
+                    tags=tags[:500],
+                    company=None,  # global: visible a las 3 empresas
+                    author_id=author_id,
+                    is_published=True,
+                    is_public=False,
+                    version=1,
+                )
+                db.session.add(article)
+                created += 1
+            db.session.commit()
+            print(f"  [OK] KB seed inicial: {created} articulos cargados")
+    except Exception as e:
+        print(f"  [WARN] No se pudo cargar KB seed: {e}")
+
+
 def bootstrap_app():
     """Inicializa BD + arranca todos los schedulers en background.
     Llamado desde __main__ (dev server) o desde wsgi.py (Gunicorn)."""
@@ -20170,6 +20232,7 @@ def bootstrap_app():
     app.config['_bootstrapped'] = True
 
     init_db()
+    _seed_kb_articles_if_empty()
     start_server_monitoring()
     start_backup_scheduler()
     start_watchdog()
