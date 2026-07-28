@@ -3812,6 +3812,20 @@ def api_admin_sidebar_counts():
     except Exception:
         pass
 
+    # Base de conocimiento: total accessible al admin (globales + su scope)
+    kb_total = 0
+    kb_published = 0
+    try:
+        kb_total = KnowledgeArticle.query.filter(
+            db.or_(KnowledgeArticle.company.in_(scope), KnowledgeArticle.company.is_(None))
+        ).count()
+        kb_published = KnowledgeArticle.query.filter(
+            KnowledgeArticle.is_published == True,
+            db.or_(KnowledgeArticle.company.in_(scope), KnowledgeArticle.company.is_(None))
+        ).count()
+    except Exception:
+        pass
+
     return jsonify({
         'success': True,
         'tickets': {
@@ -3824,6 +3838,8 @@ def api_admin_sidebar_counts():
         },
         'subtasks_active': subtasks_active,
         'approvals_pending': approvals_pending,
+        'kb_total': kb_total,
+        'kb_published': kb_published,
         'server_time': datetime.now().isoformat(timespec='seconds')
     })
 

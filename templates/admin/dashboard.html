@@ -639,6 +639,7 @@
                 </a>
                 <a class="sidebar-link" data-tab="13" onclick="switchTab(13)">
                     <span><span class="sl-icon">📚</span>Base de Conocimiento</span>
+                    <span id="sidebarKbBadge" style="background:#7c3aed;color:white;font-size:11px;padding:2px 8px;border-radius:999px;font-weight:700;min-width:24px;text-align:center;">—</span>
                 </a>
                 <a class="sidebar-link" data-tab="14" onclick="switchTab(14)">
                     <span><span class="sl-icon">🔐</span>Flujos de Aprobación</span>
@@ -2174,6 +2175,11 @@
                     if (eb) eb.textContent = data.tickets.critical;
                     const sb = document.getElementById('sidebarSubtaskBadge');
                     if (sb) sb.textContent = data.subtasks_active;
+                    const kb = document.getElementById('sidebarKbBadge');
+                    if (kb && data.kb_total != null) {
+                        kb.textContent = data.kb_total;
+                        kb.title = `${data.kb_published || 0} publicados de ${data.kb_total} totales`;
+                    }
                 } catch (e) { /* silencioso */ }
             }
             // Al cargar la página
