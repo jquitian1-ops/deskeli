@@ -4119,10 +4119,24 @@ def api_admin_kb_list():
             KnowledgeArticle.category.ilike(like)
         ))
 
+    filtered_total = q.count()
     articles = q.order_by(KnowledgeArticle.updated_at.desc()).limit(500).all()
+
+    # Total absoluto scope-visible (para el header del panel admin)
+    total_all = KnowledgeArticle.query.filter(
+        db.or_(KnowledgeArticle.company.in_(scope), KnowledgeArticle.company.is_(None))
+    ).count()
+    total_published = KnowledgeArticle.query.filter(
+        KnowledgeArticle.is_published == True,
+        db.or_(KnowledgeArticle.company.in_(scope), KnowledgeArticle.company.is_(None))
+    ).count()
+
     return jsonify({
         'success': True,
         'count': len(articles),
+        'filtered_total': filtered_total,
+        'total_all': total_all,
+        'total_published': total_published,
         'articles': [_kb_serialize(a) for a in articles]
     })
 
@@ -4302,7 +4316,17 @@ def api_kb_search():
     if category:
         q = q.filter(KnowledgeArticle.category == category)
 
+    filtered_total = q.count()
     articles = q.order_by(KnowledgeArticle.views.desc(), KnowledgeArticle.updated_at.desc()).limit(50).all()
+
+    # Total sin filtros (base de conocimiento completa visible al user)
+    total_available = KnowledgeArticle.query.filter(
+        KnowledgeArticle.is_published == True,
+        db.or_(
+            KnowledgeArticle.company == user.company,
+            KnowledgeArticle.company.is_(None)
+        )
+    ).count()
 
     # Categorías disponibles (para chips en UI)
     cats_q = db.session.query(KnowledgeArticle.category).filter(
@@ -4318,6 +4342,8 @@ def api_kb_search():
     return jsonify({
         'success': True,
         'count': len(articles),
+        'filtered_total': filtered_total,
+        'total_available': total_available,
         'articles': [_kb_serialize(a) for a in articles],
         'categories': categories
     })

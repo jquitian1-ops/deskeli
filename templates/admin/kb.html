@@ -90,10 +90,16 @@
         <h1>📚 Base de Conocimiento</h1>
         <div style="font-size:12px;opacity:0.85;">Artículos publicados para empleados y técnicos</div>
     </div>
-    <div>
-        <a href="/kb" target="_blank">👁 Ver portal público</a>
-        <a href="/admin/dashboard">← Volver</a>
-        <a href="/logout">Salir</a>
+    <div style="display:flex;align-items:center;gap:14px;">
+        <div id="kbAdminCounter" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:6px 14px;font-size:13px;line-height:1.3;">
+            <div style="font-size:11px;opacity:0.85;">Total artículos</div>
+            <div id="kbAdminCounterText" style="font-weight:700;">—</div>
+        </div>
+        <div>
+            <a href="/kb" target="_blank">👁 Ver portal público</a>
+            <a href="/admin/dashboard">← Volver</a>
+            <a href="/logout">Salir</a>
+        </div>
     </div>
 </div>
 
@@ -151,9 +157,22 @@ async function loadList() {
         const r = await fetch(`/api/admin/kb/articles?${params}`);
         const data = await r.json();
         renderList(data.articles || []);
+        updateAdminCounter(data);
     } catch (e) {
         document.getElementById('articleList').innerHTML = `<div class="empty-state">Error: ${e.message}</div>`;
     }
+}
+
+function updateAdminCounter(data) {
+    const el = document.getElementById('kbAdminCounterText');
+    if (!el || !data) return;
+    const total = data.total_all || 0;
+    const pub = data.total_published || 0;
+    const draft = total - pub;
+    let html = `${total} <span style="font-size:11px;opacity:0.85;">(${pub} publicados`;
+    if (draft > 0) html += `, ${draft} borradores`;
+    html += ')</span>';
+    el.innerHTML = html;
 }
 
 function renderList(articles) {

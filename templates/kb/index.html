@@ -63,6 +63,10 @@
     <div class="search-mega">
         <input type="text" id="searchInput" placeholder="Ej: ¿cómo cambio mi contraseña?" oninput="debouncedLoad()" autocomplete="off" autofocus>
     </div>
+    <div id="kbCounter" style="margin-top:18px;display:inline-flex;gap:10px;align-items:center;padding:8px 16px;background:linear-gradient(135deg,#f3e8ff,#e0e7ff);border:1px solid #c4b5fd;border-radius:999px;font-size:13px;color:#5b21b6;font-weight:600;box-shadow:0 2px 6px rgba(124,58,237,0.08);">
+        <span style="font-size:16px;">📚</span>
+        <span id="kbCounterText">Cargando base de conocimiento…</span>
+    </div>
 </section>
 
 <div class="container">
@@ -92,8 +96,22 @@ async function loadArticles() {
         const data = await r.json();
         renderCategories(data.categories || []);
         renderArticles(data.articles || []);
+        renderCounter(data.total_available, data.filtered_total, data.categories, q, currentCategory);
     } catch (e) {
         document.getElementById('articleList').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+    }
+}
+
+function renderCounter(totalAvailable, filteredTotal, categories, searchQuery, category) {
+    const el = document.getElementById('kbCounterText');
+    if (!el) return;
+    const total = totalAvailable || 0;
+    const nCats = (categories || []).length;
+    const hasFilter = (searchQuery && searchQuery.length > 0) || (category && category.length > 0);
+    if (hasFilter && filteredTotal != null) {
+        el.innerHTML = `Mostrando <strong>${filteredTotal}</strong> de <strong>${total}</strong> artículos disponibles · <strong>${nCats}</strong> categorías`;
+    } else {
+        el.innerHTML = `<strong>${total}</strong> artículos disponibles en <strong>${nCats}</strong> categorías`;
     }
 }
 
