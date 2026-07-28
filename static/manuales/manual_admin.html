@@ -589,6 +589,15 @@
                     <p>El dashboard se actualiza vía WebSocket. Los cambios aparecen en <strong>menos de 3 segundos</strong> sin refrescar la página. Si algo no se actualiza, revisá la conexión WebSocket (F12 → Network).</p>
                 </div>
             </div>
+
+            <h3>Header del portal — accesos rápidos</h3>
+            <p>El header incluye botones directos a servicios corporativos:</p>
+            <ul>
+                <li><strong>🎓 Cursos</strong> — abre en pestaña nueva la plataforma de formación <code>https://elia.eliotproyectos.tech/</code>. Disponible también en los portales de empleado y técnico.</li>
+                <li><strong>📖 Manual</strong> — este mismo documento.</li>
+                <li><strong>🎯 Asignación Auto</strong> — guía específica de asignación automática de tickets.</li>
+                <li><strong>Cerrar Sesión</strong> — invalidación inmediata del token JWT.</li>
+            </ul>
         </section>
 
         <!-- KANBAN -->
@@ -610,8 +619,17 @@
             <div class="callout callout-warn">
                 <div class="callout-icon">🛑</div>
                 <div class="callout-content">
-                    <div class="callout-title">Cuidado al arrastrar</div>
-                    <p>Al mover una tarjeta a "Resuelto", el sistema pide una nota de resolución. Al moverla a "Esperando Usuario", pausa el SLA. Nunca uses el Kanban para "limpiar visualmente" — cada movimiento se audita.</p>
+                    <div class="callout-title">Justificación obligatoria al resolver/cerrar</div>
+                    <p>Al mover una tarjeta a <strong>Resuelto</strong> o <strong>Cerrado</strong> desde el Kanban, el sistema exige una nota de resolución de <strong>mínimo 5 caracteres</strong>. Si cancelás el prompt o dejás menos texto, el sistema <em>revierte</em> el drop y la tarjeta vuelve a su columna original. Esto también aplica en el detalle del ticket (<code>PUT /api/ticket/&lt;id&gt;/status</code>) y en el endpoint <code>POST /api/ticket/&lt;id&gt;/resolve</code>.</p>
+                    <p style="margin-top:8px;">La nota se guarda en <code>Ticket.resolution_note</code> junto con <code>resolved_by_id</code>, y aparece luego como recuadro verde en la vista del ticket. Es evidencia de cierre — auditable.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-info">
+                <div class="callout-icon">🛑</div>
+                <div class="callout-content">
+                    <div class="callout-title">Nunca uses el Kanban para "limpiar visualmente"</div>
+                    <p>Cada movimiento se audita en <code>system_log</code>. Movimientos incorrectos rompen las métricas de SLA y confunden al usuario final que ve estados equivocados en su portal.</p>
                 </div>
             </div>
         </section>
@@ -760,11 +778,14 @@
             <h2 class="section-title"><span class="emoji">🚪</span>Sesiones activas y expulsión</h2>
             <p class="section-subtitle">Ver quién está conectado y forzar logout</p>
 
-            <p>Andá a <strong>Config → Seguridad → Sesiones activas</strong> (o desde el botón 🚫 en el listado de usuarios).</p>
+            <p>Andá directo a <code>/admin/sessions</code> (o desde el sidebar → <strong>👥 Sesiones Activas</strong>).</p>
 
             <ul>
-                <li><strong>Ver quién está conectado</strong> ahora mismo (por empresa y tipo de portal).</li>
-                <li><strong>Expulsar</strong> a un usuario específico → su token JWT se agrega al blacklist inmediatamente (revocación &lt;1 seg).</li>
+                <li><strong>4 KPIs superiores:</strong> total registrados, activos ahora, inactivos (&gt;15 min), expulsados.</li>
+                <li><strong>Filtros:</strong> por estado (activo/inactivo/expulsado) y por rol (admin/técnico/empleado).</li>
+                <li><strong>Búsqueda:</strong> por nombre, email, username.</li>
+                <li><strong>Expulsar</strong> (botón <strong>✕</strong> en la fila) → su token JWT se agrega al blacklist inmediatamente (revocación &lt;1 seg). El usuario recibe el modal "Tu sesión expiró" en el próximo request (máx ~5 seg).</li>
+                <li><strong>Auto-refresh</strong> cada 30 segundos.</li>
                 <li><strong>Timeout:</strong> las sesiones se cierran solas después de 15 min de inactividad, con aviso 60 seg antes.</li>
             </ul>
 
@@ -1197,6 +1218,26 @@
             <p>Sidebar → <strong>Sistema → 📚 Base de Conocimiento</strong>. Se abre embebido en el panel derecho.</p>
             <p>El portal público donde los usuarios finales consumen los artículos es <code>/kb</code>. Los empleados llegan desde el botón <strong>📚 Ayuda</strong> del header de su portal, y los técnicos desde el botón <strong>📚 KB</strong>.</p>
 
+            <div class="callout callout-info">
+                <div class="callout-icon">📚</div>
+                <div class="callout-content">
+                    <div class="callout-title">450+ artículos precargados</div>
+                    <p>El sistema arranca con más de <strong>450 artículos técnicos</strong> (SAP, Cloud Connector, BTP, Fiori, Windows, Linux, Docker/K8s, redes, PowerShell, bases de datos, seguridad…). Se cargan automáticamente en el primer arranque tras un despliegue limpio; los que agregues manualmente NO se sobrescriben.</p>
+                    <p style="margin-top:8px;">Verificalo en el <strong>badge morado</strong> al lado del link "📚 Base de Conocimiento" del sidebar — muestra el total en tiempo real (actualiza cada 30 seg).</p>
+                </div>
+            </div>
+
+            <h3>🔍 Búsqueda inteligente (nuevo)</h3>
+            <p>La búsqueda del portal <code>/kb</code> no es solo <em>LIKE</em>. Procesa la pregunta natural del usuario:</p>
+            <ul>
+                <li><strong>Tokeniza:</strong> descarta stopwords (<code>de, la, cómo, hace, mi…</code>) y signos de puntuación.</li>
+                <li><strong>Sinónimos IT:</strong> <code>contraseña ↔ password ↔ clave</code>, <code>cambiar ↔ reset ↔ restablecer</code>, <code>correo ↔ email</code>, <code>wifi ↔ inalámbrico</code>, y ~60 mapeos más.</li>
+                <li><strong>Tolerancia a acentos:</strong> <code>contrasena</code> matchea <code>contraseña</code>.</li>
+                <li><strong>Ranking por relevancia:</strong> match en título vale 5×, en categoría/tags 3×, en cuerpo 1×. Frase completa en título suma bonus.</li>
+                <li><strong>Sugerencias cuando 0 resultados:</strong> muestra chips clickeables con búsquedas comunes.</li>
+            </ul>
+            <p style="margin-top:8px;color:#6b7280;font-size:14px;">Antes: <code>"¿cómo cambio la contraseña?"</code> devolvía 0 resultados (buscaba la frase literal). Ahora encuentra los 3 artículos relevantes ordenados por relevancia.</p>
+
             <h3>Estructura de un artículo</h3>
             <div class="cards">
                 <div class="card">
@@ -1562,13 +1603,22 @@
                 <li>Registra el evento en el system_log.</li>
             </ul>
 
-            <p>Config en <strong>Config → Servidores monitoreados</strong>. Cada servidor tiene: nombre, IP/host, puerto, SLA de outage aceptable, técnicos on-call.</p>
+            <p>Ingresá desde el sidebar → <strong>🖥 Monitoreo Servidores</strong> o directo a <code>/admin/servers</code>. Cada servidor tiene: nombre, host/IP, puerto, descripción, checkbox <em>crítico</em>. Estado (up/down), último check, latencia.</p>
 
-            <h3>Métricas por servidor</h3>
+            <h3>Acciones por servidor</h3>
             <ul>
-                <li><strong>Uptime %</strong> (últimas 24h, 7 días, 30 días).</li>
-                <li><strong>Tiempo de respuesta</strong> promedio del ping.</li>
-                <li><strong>Historial de caídas</strong> con duración.</li>
+                <li><strong>📊 Métricas:</strong> abre modal con uptime %, incidentes (transiciones up→down), downtime acumulado, latencia promedio + máxima, sparkline visual de últimos 50 pings. Selector de ventana: <strong>24h / 7d / 30d / 90d</strong>.</li>
+                <li><strong>✏️ Editar:</strong> modificar host/puerto/descripción.</li>
+                <li><strong>⬇/⬆ Simular down/up:</strong> útil para probar alertas sin caer el server real.</li>
+                <li><strong>🗑 Eliminar.</strong></li>
+            </ul>
+
+            <h3>Comportamiento automático</h3>
+            <ul>
+                <li>Cada ping registra un <code>ServerPingLog</code> con latencia real y estado.</li>
+                <li>Retención de logs: 90 días (purga automática).</li>
+                <li>Uptime calculado sobre pings reales, no aproximaciones.</li>
+                <li>Colores del uptime: verde ≥99%, naranja ≥95%, rojo &lt;95%.</li>
             </ul>
         </section>
 

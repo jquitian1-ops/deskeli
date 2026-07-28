@@ -1038,8 +1038,9 @@
                     <p>Bloqueado hasta que estén todas ✓.</p>
                 </div>
                 <div class="timeline-item">
-                    <h4>2. Notas de resolución</h4>
-                    <p>Describí en 2-3 líneas <strong>qué era el problema y cómo lo resolviste</strong>. Ayuda al próximo técnico si el problema vuelve.</p>
+                    <h4>2. Nota de resolución (obligatoria, mín 5 caracteres)</h4>
+                    <p>Describí en 2-3 líneas <strong>qué era el problema y cómo lo resolviste</strong>. Ayuda al próximo técnico si el problema vuelve. El sistema <strong>no te deja resolver</strong> si dejás menos de 5 caracteres — reverso automático si cancelás el prompt.</p>
+                    <p style="margin-top:6px;font-size:13px;color:#6b7280;">Se guarda en <code>Ticket.resolution_note</code> + <code>resolved_by_id</code> (quién resolvió) y aparece como recuadro verde en la vista del ticket. Es evidencia auditable.</p>
                 </div>
                 <div class="timeline-item">
                     <h4>3. Categoría de resolución</h4>
@@ -1163,7 +1164,17 @@
             </div>
 
             <h3>Cómo acceder</h3>
-            <p>En el header del panel técnico, arriba a la derecha, tenés el botón <strong>📚 KB</strong>. Un clic abre el portal de la base de conocimiento en la misma pestaña. Volvés al panel con el botón "← Volver".</p>
+            <p>En el header del panel técnico, arriba a la derecha, tenés varios botones de acceso rápido:</p>
+            <ul>
+                <li><strong>📚 KB</strong> — abre el portal de la base de conocimiento en la misma pestaña.</li>
+                <li><strong>🎓 Cursos</strong> — plataforma de formación ELIA (<code>elia.eliotproyectos.tech</code>) — se abre en pestaña nueva.</li>
+                <li><strong>📖 Manual</strong> — este mismo documento (pestaña nueva).</li>
+                <li><strong>🔐 Aprobaciones</strong> — visible solo si tenés aprobaciones pendientes (badge rojo con contador).</li>
+                <li><strong>+ Crear Ticket</strong> — botón verde para escalar/crear tickets internos.</li>
+            </ul>
+
+            <h3>Búsqueda inteligente (nuevo)</h3>
+            <p>La búsqueda del portal <code>/kb</code> entiende preguntas en lenguaje natural. Descarta stopwords (<em>cómo, la, de</em>), aplica <strong>sinónimos IT</strong> (<em>contraseña ↔ password ↔ clave</em>, <em>cambiar ↔ reset ↔ restablecer</em>, <em>correo ↔ email</em>) y tolera acentos (<em>contrasena</em> matchea <em>contraseña</em>). Ordena resultados por relevancia (título &gt; categoría &gt; tags &gt; cuerpo). La base viene con <strong>+450 artículos técnicos</strong> precargados: SAP, Cloud Connector, BTP, Fiori, Windows Server, Linux, Docker/K8s, redes avanzadas, PowerShell, bases de datos, seguridad.</p>
 
             <h3>Buenas prácticas</h3>
             <ul>
