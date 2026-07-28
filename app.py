@@ -4306,34 +4306,206 @@ def kb_public_article(slug):
                            user=user)
 
 
+# ─── Búsqueda inteligente: tokens + sinónimos + tolerancia a acentos ────
+_KB_STOPWORDS = {
+    # español
+    'de','la','el','los','las','un','una','unos','unas','y','o','a','en','con',
+    'por','para','que','como','cómo','cuando','cuándo','donde','dónde','quien',
+    'quién','porqué','porque','del','al','es','son','se','me','te','lo','le',
+    'les','nos','os','su','sus','mi','mis','tu','tus','yo','tú','este','esta',
+    'esto','ese','esa','muy','mas','más','menos','ya','todo','toda','todos',
+    'todas','hay','ha','he','ser','estar','está','están','puedo','puede',
+    'puedes','pueden','quiero','quieres','quiere','necesito','necesita',
+    'hacer','hace','hacen','algún','algun','alguna','tan','tal','sin','sobre',
+    # inglés
+    'the','an','is','are','was','were','be','been','my','your','his','her',
+    'and','or','but','if','of','at','by','for','with','about','into','from',
+    'to','on','off','in','out','not','no','so','than','too','very','can',
+    'will','just','how','why','what','when','where','who','which',
+}
+
+# Sinónimos IT (español ↔ inglés + variantes)
+_KB_SYNONYMS = {
+    'contrasena': ['password','clave','pass','contraseña'],
+    'contraseña': ['password','clave','pass','contrasena'],
+    'password':   ['contraseña','contrasena','clave','pass'],
+    'clave':      ['password','contraseña','contrasena'],
+    'usuario':    ['user','cuenta','account','login'],
+    'user':       ['usuario','cuenta'],
+    'cuenta':     ['user','usuario','account'],
+    'correo':     ['email','mail','outlook'],
+    'email':      ['correo','mail'],
+    'error':      ['fallo','problema','issue','falla'],
+    'fallo':      ['error','problema'],
+    'problema':   ['error','fallo','issue'],
+    'servidor':   ['server'],
+    'server':     ['servidor'],
+    'red':        ['network','internet'],
+    'network':    ['red'],
+    'impresora':  ['printer','print'],
+    'printer':    ['impresora'],
+    'wifi':       ['wi-fi','wireless','inalambrico','inalámbrico'],
+    'reset':      ['restablecer','reiniciar','resetear','restaurar'],
+    'reiniciar':  ['reset','restart','reboot'],
+    'restart':    ['reiniciar','reboot','reset'],
+    'cambiar':    ['modificar','cambio','reset','restablecer','actualizar'],
+    'cambio':     ['cambiar','modificar'],
+    'modificar':  ['cambiar','cambio','actualizar','editar'],
+    'olvido':     ['olvidada','olvidado','forgot','forgotten','perdido','perdida'],
+    'olvide':     ['olvidada','olvidado','olvido','forgot'],
+    'olvidar':    ['olvidada','olvidado','olvido','forgot'],
+    'perdido':    ['olvido','olvidada','lost'],
+    'crear':      ['create','nuevo','new','abrir'],
+    'nuevo':      ['crear','create','new'],
+    'eliminar':   ['delete','borrar','remove','quitar'],
+    'borrar':     ['eliminar','delete','remove'],
+    'lento':      ['slow','lenta','lentitud'],
+    'rapido':     ['fast','rápido','veloz'],
+    'ticket':     ['incidencia','caso','solicitud'],
+    'bloqueado':  ['blocked','lock','locked'],
+    'desbloquear':['unblock','unlock','desbloqueo'],
+    'permiso':    ['permission','autorizacion','autorización','access'],
+    'acceso':     ['access','permiso','entrar','login'],
+    'login':      ['acceso','entrar','iniciar','sesion','sesión'],
+    'sesion':     ['session','sesión','login'],
+    'instalar':   ['install','instalación','setup'],
+    'actualizar': ['update','upgrade','actualizacion','actualización'],
+    'update':     ['actualizar','upgrade','actualizacion'],
+    'iniciar':    ['start','arrancar','encender'],
+    'apagar':     ['shutdown','stop','turnoff'],
+    'guardar':    ['save','store','archivar'],
+    'copia':      ['backup','respaldo','copy'],
+    'backup':     ['copia','respaldo'],
+    'restaurar':  ['restore','recuperar','revertir'],
+    'monitor':    ['pantalla','display','screen'],
+    'pantalla':   ['monitor','display','screen'],
+    'sap':        ['s4hana','ecc','s4','erp'],
+    'vpn':        ['tunnel','tunel','túnel'],
+    'ldap':       ['ad','active directory','directorio'],
+    'ad':         ['ldap','active directory','directorio'],
+}
+
+def _kb_accent_variants(token):
+    """Genera variantes de acentuación comunes en español para un token."""
+    if not token:
+        return {token}
+    variants = {token}
+    subs = {
+        'a': 'á','e': 'é','i': 'í','o': 'ó','u': 'ú','n': 'ñ',
+        'á': 'a','é': 'e','í': 'i','ó': 'o','ú': 'u','ñ': 'n',
+    }
+    for i, ch in enumerate(token):
+        if ch in subs:
+            variants.add(token[:i] + subs[ch] + token[i+1:])
+    return variants
+
+def _kb_normalize_lower(text):
+    """Lowercase + strip signos de puntuación (mantiene tildes)."""
+    if not text:
+        return ''
+    text = text.lower()
+    text = re.sub(r"[¿?¡!.,;:()\[\]{}\"'/\\<>|`~@#$%^&*+=]", ' ', text)
+    return re.sub(r'\s+', ' ', text).strip()
+
+def _kb_tokenize_query(query):
+    """Devuelve lista de tokens significativos con sinónimos + variantes de acento."""
+    normalized = _kb_normalize_lower(query)
+    tokens = [t for t in normalized.split() if len(t) >= 3 and t not in _KB_STOPWORDS]
+    expanded = set()
+    for t in tokens:
+        expanded.add(t)
+        expanded.update(_kb_accent_variants(t))
+        for syn in _KB_SYNONYMS.get(t, []):
+            expanded.add(syn)
+            expanded.update(_kb_accent_variants(syn))
+    return list(expanded), tokens  # (expanded set, original tokens)
+
+
 @app.route('/api/kb/search')
 def api_kb_search():
-    """Búsqueda pública de artículos (usuario autenticado)."""
+    """Búsqueda pública de artículos (usuario autenticado).
+
+    Motor mejorado: tokeniza la query, remueve stopwords, expande con sinónimos
+    IT (contraseña↔password, cambiar↔reset, etc.) y tolera acentos. Puntúa cada
+    artículo por # de tokens que matchean y en qué campo (title > tags > body).
+    """
     if 'user_id' not in session:
         return jsonify({'success': False}), 401
     user = User.query.get(session['user_id'])
     search = (request.args.get('q') or '').strip()
     category = (request.args.get('category') or '').strip()
 
-    q = KnowledgeArticle.query.filter(
+    base_q = KnowledgeArticle.query.filter(
         KnowledgeArticle.is_published == True,
         db.or_(
             KnowledgeArticle.company == user.company,
             KnowledgeArticle.company.is_(None)
         )
     )
-    if search:
-        like = f'%{search}%'
-        q = q.filter(db.or_(
-            KnowledgeArticle.title.ilike(like),
-            KnowledgeArticle.body.ilike(like),
-            KnowledgeArticle.tags.ilike(like)
-        ))
-    if category:
-        q = q.filter(KnowledgeArticle.category == category)
 
-    filtered_total = q.count()
-    articles = q.order_by(KnowledgeArticle.views.desc(), KnowledgeArticle.updated_at.desc()).limit(50).all()
+    articles = []
+    if search:
+        expanded_tokens, original_tokens = _kb_tokenize_query(search)
+        if expanded_tokens:
+            # OR clause: al menos un token debe estar en algún campo
+            or_clauses = []
+            for t in expanded_tokens:
+                like = f'%{t}%'
+                or_clauses.append(KnowledgeArticle.title.ilike(like))
+                or_clauses.append(KnowledgeArticle.body.ilike(like))
+                or_clauses.append(KnowledgeArticle.tags.ilike(like))
+                or_clauses.append(KnowledgeArticle.category.ilike(like))
+            q = base_q.filter(db.or_(*or_clauses))
+            if category:
+                q = q.filter(KnowledgeArticle.category == category)
+            candidates = q.all()
+
+            # Puntuar en Python: title=5, category=3, tags=3, body=1 por token
+            def score(a):
+                title = (a.title or '').lower()
+                body = (a.body or '').lower()
+                tags = (a.tags or '').lower()
+                cat = (a.category or '').lower()
+                s = 0
+                for t in expanded_tokens:
+                    tl = t.lower()
+                    if tl in title: s += 5
+                    if tl in cat:   s += 3
+                    if tl in tags:  s += 3
+                    if tl in body:  s += 1
+                # Bonus si aparece la frase completa (original) en título
+                phrase = _kb_normalize_lower(search)
+                if phrase and phrase in title: s += 10
+                # Views como desempate
+                s = s * 100 + min(a.views or 0, 99)
+                return s
+
+            candidates.sort(key=score, reverse=True)
+            articles = candidates[:50]
+        else:
+            # Query solo tenía stopwords → fallback a búsqueda de frase completa
+            like = f'%{search}%'
+            q = base_q.filter(db.or_(
+                KnowledgeArticle.title.ilike(like),
+                KnowledgeArticle.body.ilike(like),
+                KnowledgeArticle.tags.ilike(like)
+            ))
+            if category:
+                q = q.filter(KnowledgeArticle.category == category)
+            articles = q.order_by(KnowledgeArticle.views.desc()).limit(50).all()
+    else:
+        q = base_q
+        if category:
+            q = q.filter(KnowledgeArticle.category == category)
+        articles = q.order_by(KnowledgeArticle.views.desc(), KnowledgeArticle.updated_at.desc()).limit(50).all()
+
+    if search:
+        filtered_total = len(articles)
+    else:
+        cat_q = base_q
+        if category:
+            cat_q = cat_q.filter(KnowledgeArticle.category == category)
+        filtered_total = cat_q.count()
 
     # Total sin filtros (base de conocimiento completa visible al user)
     total_available = KnowledgeArticle.query.filter(
