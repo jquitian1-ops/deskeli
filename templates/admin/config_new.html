@@ -1752,9 +1752,17 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                         del guión con los técnicos ya definidos, sin que el proveedor tenga que conocer emails ni estructuras.
                     </p>
 
-                    <button onclick="gnOpenCreateModal()" style="padding:10px 18px; background:#7c3aed; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600; margin-bottom:16px;">
-                        ➕ Crear guión nuevo
-                    </button>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
+                        <button onclick="gnOpenCreateModal()" style="padding:10px 18px; background:#7c3aed; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+                            ➕ Crear guión nuevo
+                        </button>
+                        <button onclick="gnExportAll()" style="padding:10px 18px; background:#0ea5e9; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;" title="Descargar todos los guiones como JSON">
+                            📤 Exportar todos
+                        </button>
+                        <button onclick="gnOpenImportModal()" style="padding:10px 18px; background:#10b981; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;" title="Cargar guiones desde archivo JSON">
+                            📥 Importar
+                        </button>
+                    </div>
 
                     <div id="gn-list" style="display:flex; flex-direction:column; gap:12px;">
                         <p style="color:#6b7280; font-style:italic;">Cargando…</p>
@@ -1847,6 +1855,42 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
 
                         <div style="display:flex; justify-content:flex-end; margin-top:18px;">
                             <button onclick="document.getElementById('gnSubtasksModal').style.display='none'; loadGuiones();" style="padding:8px 14px; background:#e5e7eb; border:none; border-radius:6px; cursor:pointer;">Cerrar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal: importar guiones desde JSON -->
+                <div id="gnImportModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center;">
+                    <div style="background:white; max-width:560px; width:92%; padding:26px; border-radius:12px; max-height:90vh; overflow-y:auto;">
+                        <h3 style="margin:0 0 12px; color:#1f2937;">📥 Importar guiones desde JSON</h3>
+                        <p style="color:#6b7280; font-size:12px; margin-bottom:14px;">
+                            Cargá un archivo <code>guiones_*.json</code> exportado desde este u otro DeskEli. Los técnicos se emparejarán por email dentro de la empresa destino; si no se encuentran, la subtarea queda sin asignar.
+                        </p>
+                        <div style="display:grid; gap:12px;">
+                            <label>
+                                <span style="font-size:13px; font-weight:600; color:#374151;">Archivo JSON</span>
+                                <input id="gnImpFile" type="file" accept=".json,application/json" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px;">
+                            </label>
+                            <label>
+                                <span style="font-size:13px; font-weight:600; color:#374151;">Si el código ya existe...</span>
+                                <select id="gnImpMode" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px;">
+                                    <option value="skip" selected>Saltar (no tocar el existente)</option>
+                                    <option value="update">Actualizar (reemplaza metadatos + subtareas)</option>
+                                    <option value="rename">Renombrar (agrega sufijo -imp1, -imp2, ...)</option>
+                                </select>
+                            </label>
+                            <label>
+                                <span style="font-size:13px; font-weight:600; color:#374151;">Forzar empresa destino (opcional)</span>
+                                <select id="gnImpCompany" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px;">
+                                    <option value="">— Usar la empresa del archivo —</option>
+                                </select>
+                                <small style="color:#6b7280; font-size:11px;">Útil para copiar guiones de una empresa a otra.</small>
+                            </label>
+                        </div>
+                        <div id="gnImpResult" style="margin-top:14px;"></div>
+                        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:18px;">
+                            <button onclick="document.getElementById('gnImportModal').style.display='none'" style="padding:8px 14px; background:#e5e7eb; border:none; border-radius:6px; cursor:pointer;">Cerrar</button>
+                            <button onclick="gnDoImport()" id="gnImpBtn" style="padding:8px 14px; background:#10b981; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">📥 Importar</button>
                         </div>
                     </div>
                 </div>
@@ -4648,6 +4692,7 @@ async function loadGuiones() {
                     <div style="display:flex; gap:6px; flex-wrap:wrap;">
                         <button onclick="gnOpenSubtasks(${g.id}, '${escGN(g.name).replace(/'/g, "\\'")}')" style="padding:6px 10px; background:#3b82f6; color:white; border:none; border-radius:5px; cursor:pointer; font-size:12px; font-weight:600;">📋 Subtareas</button>
                         <button onclick="gnOpenEdit(${g.id})" style="padding:6px 10px; background:#f59e0b; color:white; border:none; border-radius:5px; cursor:pointer; font-size:12px; font-weight:600;">✏️ Editar</button>
+                        <button onclick="gnExportOne(${g.id})" title="Exportar este guion como JSON" style="padding:6px 10px; background:#0ea5e9; color:white; border:none; border-radius:5px; cursor:pointer; font-size:12px; font-weight:600;">📤</button>
                         <button onclick="gnDelete(${g.id}, '${escGN(g.name).replace(/'/g, "\\'")}')" style="padding:6px 10px; background:#dc2626; color:white; border:none; border-radius:5px; cursor:pointer; font-size:12px; font-weight:600;">🗑</button>
                     </div>
                 </div>
@@ -4853,6 +4898,80 @@ async function gnstDelete(subId, title) {
         if (data.success) gnstReload();
         else alert('Error: ' + (data.error || 'desconocido'));
     } catch (e) { alert('Error: ' + e.message); }
+}
+
+// ─── Export / Import de guiones ──────────────────────────────
+function gnExportAll() {
+    // Descarga directa vía navegador (respeta cookies de sesión)
+    window.location.href = '/api/admin/guiones/export';
+}
+
+function gnExportOne(guionId) {
+    window.location.href = '/api/admin/guiones/export?guion_id=' + encodeURIComponent(guionId);
+}
+
+async function gnOpenImportModal() {
+    document.getElementById('gnImpFile').value = '';
+    document.getElementById('gnImpMode').value = 'skip';
+    document.getElementById('gnImpResult').innerHTML = '';
+    document.getElementById('gnImpBtn').disabled = false;
+    document.getElementById('gnImpBtn').textContent = '📥 Importar';
+    // Poblar dropdown de empresa destino con las empresas del scope
+    try {
+        const companies = await gnLoadCompanies();
+        const sel = document.getElementById('gnImpCompany');
+        sel.innerHTML = '<option value="">— Usar la empresa del archivo —</option>' +
+            companies.map(c => `<option value="${escGN(c.code)}">${c.icon || '🏢'} ${escGN(c.name)}</option>`).join('');
+    } catch (e) { /* silent */ }
+    document.getElementById('gnImportModal').style.display = 'flex';
+}
+
+async function gnDoImport() {
+    const fileInput = document.getElementById('gnImpFile');
+    const resultBox = document.getElementById('gnImpResult');
+    const btn = document.getElementById('gnImpBtn');
+    if (!fileInput.files || !fileInput.files[0]) {
+        resultBox.innerHTML = '<p style="color:#dc2626; font-size:13px;">Seleccioná un archivo JSON.</p>';
+        return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Importando...';
+    resultBox.innerHTML = '<p style="color:#6b7280; font-size:13px;">Procesando archivo...</p>';
+    try {
+        const fd = new FormData();
+        fd.append('file', fileInput.files[0]);
+        fd.append('mode', document.getElementById('gnImpMode').value);
+        const targetCompany = document.getElementById('gnImpCompany').value;
+        if (targetCompany) fd.append('target_company', targetCompany);
+        const res = await fetch('/api/admin/guiones/import', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!data.success) {
+            resultBox.innerHTML = `<p style="color:#dc2626; font-size:13px;">Error: ${escGN(data.error || 'desconocido')}</p>`;
+            btn.disabled = false;
+            btn.textContent = '📥 Importar';
+            return;
+        }
+        const s = data.stats || {};
+        const errs = (s.errors || []);
+        resultBox.innerHTML = `
+            <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:12px; font-size:13px;">
+                <strong style="color:#065f46;">✓ Import completado</strong>
+                <ul style="margin:6px 0 0 18px; color:#065f46;">
+                    <li>Nuevos: <strong>${s.imported || 0}</strong></li>
+                    <li>Actualizados: <strong>${s.updated || 0}</strong></li>
+                    <li>Renombrados: <strong>${s.renamed || 0}</strong></li>
+                    <li>Saltados (ya existían): <strong>${s.skipped || 0}</strong></li>
+                    ${errs.length ? `<li style="color:#b45309;">Errores: <strong>${errs.length}</strong></li>` : ''}
+                </ul>
+                ${errs.length ? `<details style="margin-top:8px;"><summary style="cursor:pointer; color:#b45309;">Ver errores</summary><ul style="margin:6px 0 0 18px; color:#b45309; font-size:12px;">${errs.map(e => `<li>${escGN(e)}</li>`).join('')}</ul></details>` : ''}
+            </div>`;
+        btn.textContent = '✓ Listo';
+        loadGuiones();
+    } catch (e) {
+        resultBox.innerHTML = `<p style="color:#dc2626; font-size:13px;">Error de red: ${escGN(e.message)}</p>`;
+        btn.disabled = false;
+        btn.textContent = '📥 Importar';
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {

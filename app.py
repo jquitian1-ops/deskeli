@@ -4,7 +4,7 @@ DeskEli - Sistema Completo de Gestión de Incidencias
 Con: LDAP, JWT, SLA, Exportación, Temas, Audit Trail, Búsqueda Global
 """
 
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file, has_request_context
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file, has_request_context, make_response
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -20167,6 +20167,200 @@ def api_admin_guion_subtask_delete(subtask_id):
     db.session.commit()
     log_audit('guion_subtask_delete', session['user_id'], 'guion', g.id, f'Subtarea "{title}" del guion {g.code} eliminada')
     return jsonify({'success': True})
+
+
+# ─── Export / Import de guiones (plantillas de subtareas) ───────────────────
+
+@app.route('/api/admin/guiones/export', methods=['GET'])
+def api_admin_guiones_export():
+    """Exporta guiones a JSON descargable.
+    Query params:
+      - guion_id (opcional): exporta solo ese guion; sin él, exporta todos los del scope.
+    El JSON usa emails para los assignees (portable entre instalaciones)."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    scope = admin_companies_scope()
+    guion_id = request.args.get('guion_id', type=int)
+    q = Guion.query.filter(Guion.company.in_(scope))
+    if guion_id:
+        q = q.filter(Guion.id == guion_id)
+    guiones = q.order_by(Guion.company, Guion.name).all()
+
+    export = {
+        'format': 'deskeli-guiones',
+        'version': 1,
+        'exported_at': datetime.now().isoformat(timespec='seconds'),
+        'exported_by': session.get('user_email') or session.get('username'),
+        'guiones': []
+    }
+    for g in guiones:
+        subs = GuionSubtask.query.filter_by(guion_id=g.id).order_by(GuionSubtask.order_idx).all()
+        export['guiones'].append({
+            'code': g.code,
+            'name': g.name,
+            'description': g.description or '',
+            'company': g.company,
+            'default_priority': g.default_priority,
+            'default_category': g.default_category,
+            'is_active': bool(g.is_active),
+            'subtasks': [{
+                'order_idx': s.order_idx,
+                'title': s.title,
+                'description': s.description or '',
+                'category': s.category or '',
+                'priority': s.priority or 'medium',
+                'assignee_email': (s.assignee.email if s.assignee else None),
+            } for s in subs]
+        })
+    log_audit('guion_export', session['user_id'], 'guion', guion_id or 0,
+              f'Exportados {len(export["guiones"])} guion(es)')
+    fname_suffix = f'_{guiones[0].code}' if guion_id and len(guiones) == 1 else '_all'
+    resp = make_response(json.dumps(export, ensure_ascii=False, indent=2))
+    resp.headers['Content-Type'] = 'application/json; charset=utf-8'
+    resp.headers['Content-Disposition'] = f'attachment; filename=guiones{fname_suffix}_{datetime.now().strftime("%Y-%m-%d")}.json'
+    return resp
+
+
+@app.route('/api/admin/guiones/import', methods=['POST'])
+def api_admin_guiones_import():
+    """Importa guiones desde JSON.
+    Body: {"guiones": [...], "mode": "skip"|"update"|"rename", "target_company": "..."}
+      - mode=skip (default): si el code ya existe, se salta ese guion.
+      - mode=update: actualiza el guion existente + reemplaza sus subtareas.
+      - mode=rename: si el code choca, agrega sufijo -imp1, -imp2, ...
+      - target_company: si se pasa, sobrescribe la company del JSON (útil para copiar entre empresas).
+    Los assignees se resuelven por email dentro de la empresa destino; si no se encuentra, queda sin asignar."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    scope = admin_companies_scope()
+
+    # Aceptar body JSON o multipart con archivo 'file'
+    payload = None
+    if request.files.get('file'):
+        try:
+            payload = json.loads(request.files['file'].read().decode('utf-8'))
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'Archivo JSON inválido: {e}'}), 400
+    else:
+        payload = request.get_json(silent=True) or {}
+
+    mode = (payload.get('mode') or request.form.get('mode') or 'skip').lower()
+    if mode not in ('skip', 'update', 'rename'):
+        mode = 'skip'
+    target_company = (payload.get('target_company') or request.form.get('target_company') or '').strip() or None
+
+    raw_guiones = payload.get('guiones') or []
+    if not isinstance(raw_guiones, list) or not raw_guiones:
+        return jsonify({'success': False, 'error': 'JSON sin lista "guiones"'}), 400
+
+    stats = {'imported': 0, 'skipped': 0, 'updated': 0, 'renamed': 0, 'errors': []}
+
+    for item in raw_guiones:
+        try:
+            code = (item.get('code') or '').strip().lower()
+            name = (item.get('name') or '').strip()
+            if not code or not name:
+                stats['errors'].append(f'Guion sin code/name: {item}')
+                continue
+            company = target_company or (item.get('company') or '').strip()
+            if company not in scope:
+                stats['errors'].append(f'Guion "{code}": sin permiso sobre empresa {company}')
+                continue
+            if not re.match(r'^[a-z][a-z0-9_-]{1,49}$', code):
+                stats['errors'].append(f'Guion "{code}": código inválido')
+                continue
+
+            existing = Guion.query.filter_by(code=code).first()
+            final_code = code
+
+            if existing:
+                if mode == 'skip':
+                    stats['skipped'] += 1
+                    continue
+                elif mode == 'rename':
+                    # buscar sufijo libre
+                    i = 1
+                    while Guion.query.filter_by(code=f'{code}-imp{i}').first():
+                        i += 1
+                    final_code = f'{code}-imp{i}'
+                    existing = None
+                    stats['renamed'] += 1
+                # mode=update → existing se actualiza abajo
+
+            if existing:
+                g = existing
+                g.name = name[:200]
+                g.description = (item.get('description') or '').strip() or None
+                g.default_priority = (item.get('default_priority') or 'medium').lower()
+                if g.default_priority not in ('low', 'medium', 'high', 'critical'):
+                    g.default_priority = 'medium'
+                g.default_category = (item.get('default_category') or 'General').strip()[:100]
+                g.is_active = bool(item.get('is_active', True))
+                # borrar subtareas existentes — se reemplazan
+                GuionSubtask.query.filter_by(guion_id=g.id).delete()
+                db.session.flush()
+                stats['updated'] += 1
+            else:
+                pr = (item.get('default_priority') or 'medium').lower()
+                if pr not in ('low', 'medium', 'high', 'critical'):
+                    pr = 'medium'
+                g = Guion(
+                    code=final_code,
+                    name=name[:200],
+                    description=(item.get('description') or '').strip() or None,
+                    company=company,
+                    default_priority=pr,
+                    default_category=(item.get('default_category') or 'General').strip()[:100],
+                    is_active=bool(item.get('is_active', True)),
+                    created_by_id=session['user_id'],
+                )
+                db.session.add(g)
+                db.session.flush()
+                if mode != 'rename':
+                    stats['imported'] += 1
+
+            # subtareas
+            subs = item.get('subtasks') or []
+            for idx, s in enumerate(subs):
+                title = (s.get('title') or '').strip()
+                if not title:
+                    continue
+                pr = (s.get('priority') or g.default_priority or 'medium').lower()
+                if pr not in ('low', 'medium', 'high', 'critical'):
+                    pr = 'medium'
+                assignee_id = None
+                ass_email = (s.get('assignee_email') or '').strip().lower()
+                if ass_email:
+                    u = User.query.filter(
+                        db.func.lower(User.email) == ass_email,
+                        User.company == g.company,
+                        User.role.in_(['technician', 'admin'])
+                    ).first()
+                    assignee_id = u.id if u else None
+                order_idx = s.get('order_idx')
+                try:
+                    order_idx = int(order_idx) if order_idx is not None else idx
+                except Exception:
+                    order_idx = idx
+                gs = GuionSubtask(
+                    guion_id=g.id,
+                    order_idx=order_idx,
+                    title=title[:255],
+                    description=(s.get('description') or '').strip() or None,
+                    category=(s.get('category') or g.default_category or '').strip()[:100] or None,
+                    priority=pr,
+                    assignee_id=assignee_id,
+                )
+                db.session.add(gs)
+        except Exception as e:
+            stats['errors'].append(f'Guion "{item.get("code","?")}": {e}')
+
+    db.session.commit()
+    log_audit('guion_import', session['user_id'], 'guion', 0,
+              f'Import: {stats["imported"]} nuevos, {stats["updated"]} actualizados, '
+              f'{stats["renamed"]} renombrados, {stats["skipped"]} saltados, '
+              f'{len(stats["errors"])} errores')
+    return jsonify({'success': True, 'stats': stats})
 
 
 # ─── Reporte de apertura de DevTools desde el portal empleado (audit log) ───
