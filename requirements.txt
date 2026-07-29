@@ -92,3 +92,6 @@ pyasn1==0.6.3
 
 # --- Microsoft Entra ID / Azure AD (OAuth 2.0 con MSAL) ---
 msal==1.31.1
+
+# --- Monitoreo / health stats ---
+psutil==6.1.0

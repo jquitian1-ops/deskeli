@@ -170,6 +170,29 @@ if db_url.startswith('postgres://'):
     db_url = db_url.replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 
+# ─── Pool de conexiones a BD tuneado para 4000+ usuarios concurrentes ───
+# SQLite y PostgreSQL usan estrategias distintas:
+#   - SQLite: motor single-writer con locking; WAL + busy_timeout para lecturas concurrentes.
+#     No soporta pool_size real. Con eventlet además necesitamos check_same_thread=False.
+#   - PostgreSQL/MySQL: pool grande con reciclaje y pre-ping.
+_is_sqlite = db_url.startswith('sqlite')
+if _is_sqlite:
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'connect_args': {
+            'check_same_thread': False,   # requerido con eventlet
+            'timeout': 30,                # espera 30s si BD está locked
+        },
+        'pool_pre_ping': True,
+    }
+else:
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_size': int(os.getenv('DB_POOL_SIZE', '50')),
+        'max_overflow': int(os.getenv('DB_MAX_OVERFLOW', '150')),   # techo total = 200 conexiones
+        'pool_pre_ping': True,                                       # verifica conexión antes de usar (previene "server closed")
+        'pool_recycle': int(os.getenv('DB_POOL_RECYCLE', '3600')),  # recicla cada 1h
+        'pool_timeout': int(os.getenv('DB_POOL_TIMEOUT', '30')),    # espera 30s por una libre
+    }
+
 # SECRET_KEY: en producción es obligatoria; en dev se usa un valor temporal con warning
 _FLASK_ENV = os.getenv('FLASK_ENV', 'development').lower()
 _IS_PRODUCTION = _FLASK_ENV == 'production'
@@ -5053,6 +5076,104 @@ def api_health():
         'version': '2.1.0',
         'timestamp': datetime.now().isoformat()
     })
+
+
+@app.route('/api/health/stats')
+def api_health_stats():
+    """Métricas en vivo del proceso: memoria, pool de BD, sockets, sesiones activas.
+    Útil para load-testing y monitoreo. Admin-only para no exponer info sensible."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    stats = {
+        'timestamp': datetime.now().isoformat(timespec='seconds'),
+        'app': 'DeskEli',
+        'process': {},
+        'db': {},
+        'sockets': {},
+        'sessions': {},
+    }
+
+    # ── Proceso: memoria + FDs (via psutil si está disponible, sino fallback) ──
+    try:
+        import psutil
+        p = psutil.Process()
+        mem = p.memory_info()
+        stats['process'] = {
+            'pid': p.pid,
+            'rss_mb': round(mem.rss / 1024 / 1024, 1),
+            'vms_mb': round(mem.vms / 1024 / 1024, 1),
+            'cpu_percent': p.cpu_percent(interval=0.1),
+            'num_threads': p.num_threads(),
+            'open_fds': p.num_fds() if hasattr(p, 'num_fds') else None,
+            'system_mem_percent': psutil.virtual_memory().percent,
+            'system_cpu_percent': psutil.cpu_percent(interval=None),
+        }
+    except ImportError:
+        import resource
+        r = resource.getrusage(resource.RUSAGE_SELF)
+        stats['process'] = {
+            'rss_kb': r.ru_maxrss,
+            'psutil': 'not_installed',
+        }
+    except Exception as e:
+        stats['process'] = {'error': str(e)}
+
+    # ── Pool de conexiones a BD ──
+    try:
+        engine = db.engine
+        pool = engine.pool
+        pool_info = {
+            'type': type(pool).__name__,
+            'db_type': 'sqlite' if _is_sqlite else 'postgresql/other',
+        }
+        # SQLAlchemy QueuePool tiene estos métodos; StaticPool (SQLite) no todos.
+        for method in ('size', 'checkedin', 'checkedout', 'overflow'):
+            if hasattr(pool, method):
+                try:
+                    pool_info[method] = getattr(pool, method)()
+                except Exception:
+                    pass
+        stats['db'] = pool_info
+    except Exception as e:
+        stats['db'] = {'error': str(e)}
+
+    # ── Socket.IO ──
+    try:
+        srv = socketio.server
+        # eventlet_server o similar — no siempre expone counts, así que intentamos varios paths
+        num_sockets = 0
+        try:
+            # engineio v4: srv.manager.get_participants(...) — mejor contar rooms
+            eio = srv.eio
+            num_sockets = len(eio.sockets) if hasattr(eio, 'sockets') else 0
+        except Exception:
+            pass
+        stats['sockets'] = {
+            'connected': num_sockets,
+            'rooms_active': len(getattr(srv.manager, 'rooms', {}).get('/', {})),
+        }
+    except Exception as e:
+        stats['sockets'] = {'error': str(e)}
+
+    # ── Sesiones activas registradas en BD (si el modelo existe) ──
+    try:
+        # ActiveSession o similar — intentamos ambos nombres comunes
+        active = 0
+        for model_name in ('ActiveSession', 'UserSession', 'Session'):
+            m = globals().get(model_name)
+            if m and hasattr(m, 'query'):
+                try:
+                    active = m.query.filter(getattr(m, 'is_active', True) == True).count() \
+                        if hasattr(m, 'is_active') else m.query.count()
+                    break
+                except Exception:
+                    continue
+        stats['sessions'] = {'active_db_sessions': active}
+    except Exception as e:
+        stats['sessions'] = {'error': str(e)}
+
+    return jsonify({'success': True, 'stats': stats})
 
 
 @app.route('/api/session/ping')
