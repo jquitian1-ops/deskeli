@@ -20536,6 +20536,77 @@ def _replicate_guiones_to_peers(source_user, guion_ids):
     return {'peers': len(peers), 'assigned': total_assigned, 'cloned_guiones': total_cloned}
 
 
+# ─── Sync masivo Eliot → Pash + Primatela ─────────────────────────────────
+
+@app.route('/api/admin/replication/sync-eliot', methods=['POST'])
+def api_admin_replication_sync_eliot():
+    """Aplica la replicación de subroles y guiones para TODOS los técnicos/admins
+    activos de Eliot, propagando a sus peers (mismo email) en Pash y Primatela.
+    Útil para sincronizar asignaciones que ya existían antes de habilitar la
+    propagación automática."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    if 'eliot' not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso a Eliot'}), 403
+
+    eliot_users = User.query.filter(
+        User.company == 'eliot',
+        User.role.in_(('technician', 'admin')),
+        User.is_active == True,
+    ).all()
+
+    totals = {
+        'eliot_users_scanned': len(eliot_users),
+        'users_with_peers': 0,
+        'subrole_peers_updated': 0,
+        'subrole_assignments': 0,
+        'guion_peers_updated': 0,
+        'guion_assignments': 0,
+        'guiones_cloned': 0,
+        'users_without_peers': [],
+    }
+
+    for u in eliot_users:
+        peers = _find_peer_users(u)
+        if not peers:
+            if u.email:
+                totals['users_without_peers'].append(u.email)
+            continue
+        totals['users_with_peers'] += 1
+
+        # Subroles actuales del user de Eliot
+        current_subrole_ids = [
+            a.subrole_id for a in UserSubrole.query.filter_by(user_id=u.id).all()
+        ]
+        if current_subrole_ids:
+            r = _replicate_subroles_to_peers(u, current_subrole_ids)
+            totals['subrole_peers_updated'] += r.get('peers', 0)
+            totals['subrole_assignments'] += r.get('assigned', 0)
+
+        # Guiones actuales del user de Eliot
+        current_guion_ids = [
+            a.guion_id for a in UserGuion.query.filter_by(user_id=u.id).all()
+        ]
+        if current_guion_ids:
+            r = _replicate_guiones_to_peers(u, current_guion_ids)
+            totals['guion_peers_updated'] += r.get('peers', 0)
+            totals['guion_assignments'] += r.get('assigned', 0)
+            totals['guiones_cloned'] += r.get('cloned_guiones', 0)
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': f'Error commit: {e}'}), 500
+
+    log_audit('sync_eliot_replication', session['user_id'], 'user', 0,
+              f'Sync masivo Eliot→Pash+Primatela: {totals["users_with_peers"]}/{len(eliot_users)} users con peers, '
+              f'{totals["subrole_assignments"]} subroles + {totals["guion_assignments"]} guiones asignados, '
+              f'{totals["guiones_cloned"]} guiones clonados')
+
+    return jsonify({'success': True, 'stats': totals})
+
+
 # ─── Reporte de apertura de DevTools desde el portal empleado (audit log) ───
 
 @app.route('/api/security/devtools-detected', methods=['POST'])
