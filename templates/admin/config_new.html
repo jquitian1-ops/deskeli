@@ -1756,6 +1756,9 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                         <button onclick="gnOpenCreateModal()" style="padding:10px 18px; background:#7c3aed; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
                             ➕ Crear guión nuevo
                         </button>
+                        <button onclick="loadGuiones()" style="padding:10px 18px; background:#6366f1; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;" title="Recargar la lista de guiones">
+                            🔄 Actualizar
+                        </button>
                         <button onclick="gnExportAll()" style="padding:10px 18px; background:#0ea5e9; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;" title="Descargar todos los guiones como JSON">
                             📤 Exportar todos
                         </button>
@@ -4660,7 +4663,7 @@ async function loadGuiones() {
     const container = document.getElementById('gn-list');
     if (!container) return;
     try {
-        const res = await fetch('/api/admin/guiones');
+        const res = await fetch('/api/admin/guiones?_=' + Date.now(), { cache: 'no-store' });
         const data = await res.json();
         if (!data.success || !data.guiones) {
             container.innerHTML = '<p style="color:#dc2626;">Error cargando guiones</p>';
