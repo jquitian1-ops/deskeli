@@ -1,0 +1,139 @@
+{
+  "format": "deskeli-guiones",
+  "version": 1,
+  "exported_at": "2026-07-30T00:00:00",
+  "exported_by": "system",
+  "guiones": [
+    {
+      "code": "solicitud-usuario-primatela",
+      "name": "Solicitud Ingreso / Modificación de Usuario — Primatela",
+      "description": "Guión basado en el formato A-NS-R-03 (Formato Solicitud Ingreso y Modificación de Usuarios). Al invocarse genera todas las subtareas para procesar la creación o modificación de un usuario en Primatela. El técnico responsable de cada paso lo ejecuta o lo cierra como N/A si no aplica según lo marcado en la solicitud del empleado.\n\nADJUNTAR SIEMPRE: formulario A-NS-R-03 diligenciado con firmas del solicitante y VoBo Gerente de Área.",
+      "company": "primatela",
+      "default_priority": "medium",
+      "default_category": "Solicitud de Usuario",
+      "is_active": true,
+      "subtasks": [
+        {
+          "order_idx": 0,
+          "title": "1. Validar formato A-NS-R-03 y datos generales del usuario",
+          "description": "Verificar que el formato de solicitud está completo:\n- Fecha de solicitud + nombre del solicitante\n- Marcado INGRESO o MODIFICACIÓN\n- Datos del usuario: cédula, nombre y apellidos, cargo, empresa, teléfono/extensión\n- Gerencia, área/departamento, división / centro de costo\n- Jefe inmediato y Gerente del Área\n- Fecha de ingreso y tipo de contrato\n- Justificación de los accesos solicitados\n- Si es MODIFICACIÓN, verificar el campo 'Es reemplazo de:'\n- Firmas: usuario + VoBo Gerente de Área\n\nSi falta información, devolver el ticket al solicitante antes de continuar con las demás subtareas.",
+          "category": "Solicitud de Usuario",
+          "priority": "high",
+          "assignee_email": null
+        },
+        {
+          "order_idx": 1,
+          "title": "2. Crear cuenta de red / Active Directory",
+          "description": "Crear el usuario en Active Directory de Primatela.\n- Login sugerido: primera letra del nombre + apellido (ej: jperez)\n- Grupo del departamento / área correspondiente\n- Contraseña temporal (con obligación de cambio en primer login)\n- Verificar que el usuario NO exista previamente (posible reactivación en vez de creación)\n\nDejar como comentario del ticket el LOGIN asignado.",
+          "category": "Cuentas",
+          "priority": "high",
+          "assignee_email": null
+        },
+        {
+          "order_idx": 2,
+          "title": "3. Crear correo corporativo (si marcado)",
+          "description": "Solo si el formato marca 'Creación de correo electrónico corporativo'.\n- Casilla en el dominio corporativo de Primatela\n- Alias/lista de distribución del área si aplica\n- Configurar firma corporativa según plantilla\n- Enviar al usuario el correo de bienvenida con credenciales temporales\n\nSi NO marcó, cerrar como N/A.",
+          "category": "Correo",
+          "priority": "medium",
+          "assignee_email": null
+        },
+        {
+          "order_idx": 3,
+          "title": "4. Instalar herramientas ofimáticas (Office / Adobe / CorelDraw / AutoCAD / Visio)",
+          "description": "Según lo marcado en la sección INSTALACIÓN DE HERRAMIENTAS OFIMÁTICAS del formato:\n\n- [ ] Open Office\n- [ ] Microsoft Office Home & Business (Word, Excel, PowerPoint, Outlook) — USD 195\n- [ ] Microsoft Office Pro (Word, Excel, PowerPoint, Access) — USD 425\n- [ ] Acrobat Professional — USD 95\n- [ ] Corel Draw — USD 589\n- [ ] Adobe Suite — USD 2 800\n- [ ] Illustrator — USD 407\n- [ ] Photoshop — USD 407\n- [ ] AutoCAD — USD 348\n- [ ] Visio — USD 380\n\nCosto se distribuye por centro de costo. Verificar disponibilidad de licencias en el inventario antes de instalar. Si es software pago, escalar aprobación al Gerente del Área.",
+          "category": "Software",
+          "priority": "medium",
+          "assignee_email": null
+        },
+        {
+          "order_idx": 4,
+          "title": "5. Configurar acceso a impresora",
+          "description": "Según sección 'Software de uso general':\n- Nombre de impresora / sección donde imprimirá: (según formato)\n- Tipos de permisos: [ ] Impresión  [ ] Fotocopiado  [ ] Escáner\n\nAgregar el usuario al grupo de permisos correspondiente en el servidor de impresión y probar impresión de test.",
+          "category": "Periféricos",
+          "priority": "medium",
+          "assignee_email": null
+        },
+        {
+          "order_idx": 5,
+          "title": "6. Habilitar acceso a internet",
+          "description": "Habilitar acceso a internet en el proxy / firewall según política de Primatela.\n\nSi el formato indica alguna restricción o justificación específica (categorías bloqueadas, whitelist), aplicarla.",
+          "category": "Redes",
+          "priority": "medium",
+          "assignee_email": null
+        },
+        {
+          "order_idx": 6,
+          "title": "7. Habilitar acceso a correo electrónico externo (si marcado)",
+          "description": "Solo si marcó 'Acceso a correo electrónico externo (Gmail, Hotmail, etc.)'.\n\n- Verificar justificación específica en el formato\n- Habilitar en el filtro de contenido / proxy\n- Documentar en el audit log el motivo y aprobación\n\nSi NO marcó, cerrar como N/A.",
+          "category": "Redes",
+          "priority": "medium",
+          "assignee_email": null
+        },
+        {
+          "order_idx": 7,
+          "title": "8. Configurar VPN (si marcado)",
+          "description": "Solo si marcó 'Acceso a VPN (Virtual Private Network)'.\n\n- Crear cuenta / perfil VPN\n- Enviar al usuario las credenciales + instructivo de instalación del cliente VPN\n- Verificar justificación por escrito en el formato\n\nSi NO marcó, cerrar como N/A.",
+          "category": "Redes",
+          "priority": "medium",
+          "assignee_email": null
+        },
+        {
+          "order_idx": 8,
+          "title": "9. Habilitar puertos USB (si marcado — requiere HOJA 4 firmada)",
+          "description": "Solo si el formato marca 'Acceso a Dispositivos Externos (USB, disco duro, etc.)'.\n\nREQUISITO OBLIGATORIO: la hoja 4 del formato con la declaración de responsabilidad USB DEBE estar firmada por el usuario.\n\nSi NO está firmada, devolver al solicitante antes de habilitar.\nSi ESTÁ firmada:\n- Habilitar puertos USB para ese equipo/usuario\n- Documentar en el audit log el motivo y la aprobación\n- Archivar la hoja 4 firmada como adjunto del ticket\n\nSi NO marcó, cerrar como N/A.",
+          "category": "Seguridad",
+          "priority": "high",
+          "assignee_email": null
+        },
+        {
+          "order_idx": 9,
+          "title": "10. Crear usuario en SAP — módulos MM / SD / FI / CO / WM / EWM / BW / BO / FIORI",
+          "description": "Según sección 2 (FORMATO POR APLICACIÓN → SAP) del formato, crear el usuario en los módulos SAP marcados:\n\n- [ ] FI (Finanzas)\n- [ ] MM (Materiales)\n- [ ] SD (Ventas)\n- [ ] WM / EWM (Warehouse)\n- [ ] CO (Controlling)\n- [ ] BW (Business Warehouse)\n- [ ] BO (Business Objects)\n- [ ] FIORI\n- [ ] PI, PO, CAR, TI, BPC, ASSORTMENT (si aplica)\n\nAmbiente a habilitar (marcado en el formato):\n- [ ] PRODUCTIVO (PRD)\n- [ ] PRE-PRODUCTIVO / QAS\n- [ ] CALIDAD\n- [ ] DESARROLLO (DEV)\n- [ ] RISE\n\nUsar 'USUARIO ESPEJO' si el formato lo indica (copiar roles de un usuario existente).\n\nRegistrar en el ticket: LOGIN creado, FECHA DE CREACIÓN, FECHA DE VENCIMIENTO, y el nombre del administrador que lo creó (según el bloque 'Encargado de crear el usuario en el sistema' del formato).",
+          "category": "SAP",
+          "priority": "high",
+          "assignee_email": null
+        },
+        {
+          "order_idx": 10,
+          "title": "11. Crear usuario en aplicativos AFS / FMS Pash / FMS Países (si aplica)",
+          "description": "Si el formato marca en la sección de ambientes de SAP:\n\n- [ ] AFS  → PRD / QAS / CAL / DEV\n- [ ] FMS PASH → PRD / QAS / CAL / DEV\n- [ ] FMS PAÍSES → PRD / QAS / CAL / DEV\n\nCrear el usuario en los ambientes marcados con los mismos roles/perfiles del USUARIO ESPEJO si se indica.\n\nSi NO marcó, cerrar como N/A.",
+          "category": "SAP",
+          "priority": "high",
+          "assignee_email": null
+        },
+        {
+          "order_idx": 11,
+          "title": "12. Crear usuario en KACTUS (Talento Humano)",
+          "description": "Solo si el formato marca KACTUS.\n\nNOTA: KACTUS es administrado por el área de Talento Humano. Enviar la solicitud al responsable de TH con los datos del usuario y confirmación de creación.\n\nSi NO marcó, cerrar como N/A.",
+          "category": "Aplicativos",
+          "priority": "medium",
+          "assignee_email": null
+        },
+        {
+          "order_idx": 12,
+          "title": "13. Crear usuario en aplicativos textiles / operativos (Vertex, Acumark, Costo Tex, etc.)",
+          "description": "Aplicar según lo marcado en la sección 2 del formato. Aplicativos posibles (marcar sólo los que solicite):\n\n- [ ] ACATEX\n- [ ] GREAT PLAIN\n- [ ] MPATEL\n- [ ] ULTRASYSTEM\n- [ ] VERTEX\n- [ ] ETC & QTC\n- [ ] VENTAS MÓVIL\n- [ ] TEJEDURÍA PLANO\n- [ ] ACUMARK\n- [ ] COSTO TEX\n- [ ] Otros (especificar)\n\nPor cada aplicativo marcado:\n- Crear el usuario con los módulos indicados\n- Registrar login, fecha de creación, fecha de vencimiento (si es temporal)\n- Adjuntar en el ticket la confirmación de creación (screenshot o correo del proveedor / administrador)\n\nSi el formato indica TEMPORAL, agendar recordatorio para deshabilitar en la fecha 'Fin' indicada.",
+          "category": "Aplicativos",
+          "priority": "medium",
+          "assignee_email": null
+        },
+        {
+          "order_idx": 13,
+          "title": "14. Notificar al usuario y entregar credenciales + política de seguridad A-TI-P-01",
+          "description": "Una vez completadas todas las subtareas anteriores:\n\n1. Contactar al usuario (correo o presencial) con:\n   - Login de red + correo corporativo\n   - Contraseña temporal + instrucciones para cambiarla\n   - Instalaciones/aplicativos habilitados\n   - Ambientes SAP y usuarios creados por sistema\n\n2. Entregar / recordar la política A-TI-P-01 Política de Seguridad Informática que el usuario aceptó al firmar el formato.\n\n3. Adjuntar al ticket el correo/acta de entrega firmada.",
+          "category": "Solicitud de Usuario",
+          "priority": "medium",
+          "assignee_email": null
+        },
+        {
+          "order_idx": 14,
+          "title": "15. Cerrar solicitud — VoBo Gerencia Informática + archivo",
+          "description": "Cierre administrativo del ticket:\n\n- Confirmar que TODAS las subtareas están completadas o cerradas como N/A\n- Obtener firma de VoBo Gerencia Informática en el formato A-NS-R-03\n- Adjuntar al ticket el formato COMPLETO firmado (usuario + VoBo Gerente Área + VoBo Gerencia Informática)\n- Archivar según la política de retención (12 meses mínimo según CLAUDE.md)\n- Cerrar el ticket con nota de resolución detallando qué se creó/habilitó\n\nSi es MODIFICACIÓN o REEMPLAZO, verificar que el usuario reemplazado fue deshabilitado correctamente.",
+          "category": "Solicitud de Usuario",
+          "priority": "medium",
+          "assignee_email": null
+        }
+      ]
+    }
+  ]
+}
