@@ -88,7 +88,7 @@
         {
           "order_idx": 9,
           "title": "10. Crear usuario en SAP — módulos MM / SD / FI / CO / WM / EWM / BW / BO / FIORI",
-          "description": "Según sección 2 (FORMATO POR APLICACIÓN → SAP) del formato, crear el usuario en los módulos SAP marcados:\n\n- [ ] FI (Finanzas)\n- [ ] MM (Materiales)\n- [ ] SD (Ventas)\n- [ ] WM / EWM (Warehouse)\n- [ ] CO (Controlling)\n- [ ] BW (Business Warehouse)\n- [ ] BO (Business Objects)\n- [ ] FIORI\n- [ ] PI, PO, CAR, TI, BPC, ASSORTMENT (si aplica)\n\nAmbiente a habilitar (marcado en el formato):\n- [ ] PRODUCTIVO (PRD)\n- [ ] PRE-PRODUCTIVO / QAS\n- [ ] CALIDAD\n- [ ] DESARROLLO (DEV)\n\nUsar 'USUARIO ESPEJO' si el formato lo indica (copiar roles de un usuario existente).\n\nRegistrar en el ticket: LOGIN creado, FECHA DE CREACIÓN, FECHA DE VENCIMIENTO, y el nombre del administrador que lo creó (según el bloque 'Encargado de crear el usuario en el sistema' del formato).",
+          "description": "Según sección 2 (FORMATO POR APLICACIÓN → SAP) del formato, crear el usuario en los módulos SAP marcados:\n\n- [ ] FI (Finanzas)\n- [ ] MM (Materiales)\n- [ ] SD (Ventas)\n- [ ] WM / EWM (Warehouse)\n- [ ] CO (Controlling)\n- [ ] BW (Business Warehouse)\n- [ ] BO (Business Objects)\n- [ ] FIORI\n- [ ] PI, PO, CAR, TI, BPC, ASSORTMENT (si aplica)\n\nAmbiente a habilitar (marcado en el formato):\n- [ ] PRODUCTIVO (PRD)\n- [ ] PRE-PRODUCTIVO / QAS\n- [ ] DESARROLLO (DEV)\n\nUsar 'USUARIO ESPEJO' si el formato lo indica (copiar roles de un usuario existente).\n\nRegistrar en el ticket: LOGIN creado, FECHA DE CREACIÓN, FECHA DE VENCIMIENTO, y el nombre del administrador que lo creó (según el bloque 'Encargado de crear el usuario en el sistema' del formato).",
           "category": "SAP",
           "priority": "high",
           "assignee_email": null
@@ -96,7 +96,7 @@
         {
           "order_idx": 10,
           "title": "11. Crear usuario en aplicativos AFS / FMS Pash / FMS Países / RISE (si aplica)",
-          "description": "Si el formato marca en la sección de aplicativos SAP:\n\n- [ ] AFS  → PRD / QAS / CAL / DEV\n- [ ] FMS PASH → PRD / QAS / CAL / DEV\n- [ ] FMS PAÍSES → PRD / QAS / CAL / DEV\n- [ ] RISE (SAP en la nube — plataforma cloud de SAP)\n\nCrear el usuario en los aplicativos y ambientes marcados con los mismos roles/perfiles del USUARIO ESPEJO si se indica.\n\nPara RISE: al ser un servicio en la nube, coordinar con el administrador de SAP RISE de la compañía. Registrar tenant / cliente y ambiente asignado (PRD/QAS/DEV según corresponda).\n\nSi NO marcó ninguno, cerrar como N/A.",
+          "description": "Si el formato marca en la sección de aplicativos SAP:\n\n- [ ] AFS  → PRD / QAS / DEV\n- [ ] FMS PASH → PRD / QAS / DEV\n- [ ] FMS PAÍSES → PRD / QAS / DEV\n- [ ] RISE (SAP en la nube — plataforma cloud de SAP)\n\nCrear el usuario en los aplicativos y ambientes marcados con los mismos roles/perfiles del USUARIO ESPEJO si se indica.\n\nPara RISE: al ser un servicio en la nube, coordinar con el administrador de SAP RISE de la compañía. Registrar tenant / cliente y ambiente asignado (PRD/QAS/DEV según corresponda).\n\nSi NO marcó ninguno, cerrar como N/A.",
           "category": "SAP",
           "priority": "high",
           "assignee_email": null
