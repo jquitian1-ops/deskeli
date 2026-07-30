@@ -96,7 +96,7 @@
         {
           "order_idx": 10,
           "title": "11. Crear usuario en aplicativos AFS / FMS Pash / FMS Países (si aplica)",
-          "description": "Si el formato marca en la sección de ambientes de SAP:\n\n- [ ] AFS  → PRD / QAS / CAL / DEV\n- [ ] FMS PASH → PRD / QAS / CAL / DEV\n- [ ] FMS PAÍSES → PRD / QAS / CAL / DEV\n\nCrear el usuario en los ambientes marcados con los mismos roles/perfiles del USUARIO ESPEJO si se indica.\n\nSi NO marcó, cerrar como N/A.",
+          "description": "Si el formato marca en la sección de ambientes de SAP:\n\n- [ ] AFS  → PRD / QAS / CAL / DEV / RISE\n- [ ] FMS PASH → PRD / QAS / CAL / DEV / RISE\n- [ ] FMS PAÍSES → PRD / QAS / CAL / DEV / RISE\n\nCrear el usuario en los ambientes marcados con los mismos roles/perfiles del USUARIO ESPEJO si se indica.\n\nSi NO marcó, cerrar como N/A.",
           "category": "SAP",
           "priority": "high",
           "assignee_email": null
