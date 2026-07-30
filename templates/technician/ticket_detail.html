@@ -1550,13 +1550,19 @@
                     <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:8px;padding-top:10px;border-top:1px dashed #e5e7eb;">
                         <div>
                             <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Estado</label>
-                            <select data-current-status="${s.status}"
-                                    onchange="changeSubtaskStatus(${s.id}, this)"
-                                    style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">
-                                <option value="open" ${s.status==='open'?'selected':''}>Abierto</option>
-                                <option value="in_progress" ${s.status==='in_progress'?'selected':''}>En progreso</option>
-                                <option value="resolved" ${s.status==='resolved'?'selected':''}>Resuelto</option>
-                            </select>
+                            ${s.status === 'closed' ? `
+                                <div style="padding:6px 10px;background:#e5e7eb;border:1px solid #9ca3af;border-radius:4px;font-size:12px;font-weight:700;color:#374151;text-align:center;" title="Subtarea cerrada automáticamente tras resolución. Solo un admin puede reabrirla desde el panel administrativo.">
+                                    🔒 Cerrado
+                                </div>
+                            ` : `
+                                <select data-current-status="${s.status}"
+                                        onchange="changeSubtaskStatus(${s.id}, this)"
+                                        style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">
+                                    <option value="open" ${s.status==='open'?'selected':''}>Abierto</option>
+                                    <option value="in_progress" ${s.status==='in_progress'?'selected':''}>En progreso</option>
+                                    <option value="resolved" ${s.status==='resolved'?'selected':''}>Resuelto</option>
+                                </select>
+                            `}
                         </div>
                         <div>
                             <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:2px;">Prioridad</label>

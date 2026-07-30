@@ -71,6 +71,7 @@
     .badge-status-open { background: #dbeafe; color: #1e40af; }
     .badge-status-in_progress { background: #fef3c7; color: #92400e; }
     .badge-status-resolved { background: #d1fae5; color: #065f46; }
+    .badge-status-closed { background: #e5e7eb; color: #374151; }
     .badge-priority-low { background: #f3f4f6; color: #6b7280; }
     .badge-priority-medium { background: #dbeafe; color: #1e40af; }
     .badge-priority-high { background: #fed7aa; color: #9a3412; }
@@ -292,7 +293,14 @@
             <!-- Acciones rápidas -->
             <div class="card">
                 <h3>⚡ Acciones</h3>
-                {% if subtask.status != 'resolved' %}
+                {% if subtask.status == 'closed' %}
+                    <div style="padding:12px; background:#e5e7eb; border:1px solid #9ca3af; border-radius:6px; color:#374151; font-weight:600; text-align:center;">
+                        🔒 Subtarea cerrada
+                    </div>
+                    <p style="font-size:11px; color:#6b7280; margin-top:8px;">
+                        Esta subtarea fue cerrada automáticamente tras 24h de resuelta. Solo un administrador puede reabrirla desde el panel administrativo.
+                    </p>
+                {% elif subtask.status != 'resolved' %}
                     {% if subtask.status == 'open' %}
                     <button class="action-btn" onclick="changeStatus('in_progress')">
                         ▶ Iniciar trabajo

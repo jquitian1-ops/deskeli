@@ -3353,6 +3353,63 @@ def api_admin_db_diagnostico():
     })
 
 
+@app.route('/api/admin/subtasks/repair-reopened', methods=['POST'])
+def api_admin_subtasks_repair_reopened():
+    """Restaura las subtareas que quedaron en 'open' pero tienen resolved_at.
+    Estas fueron víctimas del bug del <select> sin opción 'closed' que reabría
+    subtareas al primer onchange. Las devuelve a 'resolved' con su resolved_at
+    intacto, para que el auto-close pueda cerrarlas después.
+
+    Body opcional: {"dry_run": true} — solo cuenta, no modifica.
+    """
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    data = request.get_json(silent=True) or {}
+    dry_run = bool(data.get('dry_run', False))
+    scope = admin_companies_scope()
+
+    # Subtareas con status='open' o 'in_progress' que TIENEN resolved_at seteado
+    # → evidencia de que estuvieron resueltas y fueron reabiertas.
+    candidates = Subtask.query.join(Ticket).filter(
+        Ticket.company.in_(scope),
+        Subtask.status.in_(['open', 'in_progress']),
+        Subtask.resolved_at.isnot(None),
+    ).all()
+
+    repaired = 0
+    samples = []
+    for s in candidates:
+        if not dry_run:
+            s.status = 'resolved'
+            # resolved_at ya está — no lo tocamos
+            s.updated_at = datetime.now()
+        repaired += 1
+        if len(samples) < 10:
+            samples.append({
+                'id': s.id,
+                'subtask_number': s.subtask_number,
+                'title': (s.title or '')[:100],
+                'was_status': s.status if dry_run else 'open/in_progress',
+                'now_status': 'resolved' if not dry_run else '(no cambiado — dry_run)',
+                'resolved_at': s.resolved_at.strftime('%Y-%m-%d %H:%M:%S') if s.resolved_at else None,
+                'ticket_id': s.ticket_id,
+            })
+
+    if not dry_run and repaired > 0:
+        db.session.commit()
+        log_audit('subtasks_repair_reopened', session['user_id'], 'subtask', 0,
+                  f'{repaired} subtarea(s) restauradas a resolved (habían quedado como open con resolved_at)')
+
+    return jsonify({
+        'success': True,
+        'dry_run': dry_run,
+        'repaired': repaired,
+        'samples': samples,
+        'hint': 'Las subtareas restauradas volverán a resolved. Después de 24h el scheduler auto_close las pasará a closed automáticamente.'
+    })
+
+
 @app.route('/api/admin/auto-close/diagnostico', methods=['GET'])
 def api_admin_auto_close_diagnostico():
     """Diagnostico del auto-cierre: por que subtareas/tickets no se cierran.
@@ -12579,6 +12636,18 @@ def api_subtask_update(subtask_id):
         if new_status not in ['open', 'in_progress', 'resolved']:
             return jsonify({'success': False, 'error': 'Estado inválido'}), 400
         old_status = subtask.status
+
+        # PROTECCIÓN: subtareas ya cerradas ('closed') solo pueden ser reabiertas por admin.
+        # Antes de esto, el <select> del frontend (sin opción 'closed') mostraba "Abierto"
+        # por default cuando el status era 'closed' y cualquier interacción accidental
+        # disparaba un PATCH con status=open, reabriendo la subtarea en la BD.
+        if old_status == 'closed' and new_status != 'closed':
+            if session.get('role') != 'admin':
+                return jsonify({
+                    'success': False,
+                    'error': 'La subtarea ya fue cerrada. Solo un administrador puede reabrirla.',
+                    'error_code': 'closed_subtask_locked'
+                }), 403
 
         # Al pasar a resolved: exigir justificación (min 5 chars, max 2000)
         if new_status == 'resolved' and old_status != 'resolved':
