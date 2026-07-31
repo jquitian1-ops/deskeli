@@ -3355,10 +3355,17 @@ def api_admin_db_diagnostico():
 
 @app.route('/api/admin/subtasks/repair-reopened', methods=['POST'])
 def api_admin_subtasks_repair_reopened():
-    """Restaura las subtareas que quedaron en 'open' pero tienen resolved_at.
-    Estas fueron víctimas del bug del <select> sin opción 'closed' que reabría
-    subtareas al primer onchange. Las devuelve a 'resolved' con su resolved_at
-    intacto, para que el auto-close pueda cerrarlas después.
+    """Restaura subtareas que fueron reabiertas indebidamente. Detecta víctimas del
+    bug del <select> sin opción 'closed' usando 2 criterios:
+
+    1) status en ('open','in_progress') + resolved_at seteado (evidencia directa).
+    2) status en ('open','in_progress') + audit_log muestra que ANTES fue cerrada:
+       - action='subtask_auto_closed' con entity_id=subtask.id
+       - action='subtask_update' con description que menciona "Justificación de resolución"
+         Y el subtask_number de la subtarea.
+
+    Restaura status='resolved' y setea resolved_at a la fecha del último evento
+    de resolución encontrado en el audit log (si el campo estaba en NULL).
 
     Body opcional: {"dry_run": true} — solo cuenta, no modifica.
     """
@@ -3369,44 +3376,98 @@ def api_admin_subtasks_repair_reopened():
     dry_run = bool(data.get('dry_run', False))
     scope = admin_companies_scope()
 
-    # Subtareas con status='open' o 'in_progress' que TIENEN resolved_at seteado
-    # → evidencia de que estuvieron resueltas y fueron reabiertas.
-    candidates = Subtask.query.join(Ticket).filter(
+    # ── 1. Subtareas actualmente en open/in_progress del scope del admin ──
+    active_subs = Subtask.query.join(Ticket).filter(
         Ticket.company.in_(scope),
         Subtask.status.in_(['open', 'in_progress']),
-        Subtask.resolved_at.isnot(None),
     ).all()
 
+    if not active_subs:
+        return jsonify({'success': True, 'dry_run': dry_run, 'repaired': 0, 'samples': [],
+                        'hint': 'No hay subtareas activas en el scope.'})
+
+    # ── 2. Índice de evidencia desde audit_log ──
+    #  a) subtask_auto_closed → entity_id = subtask.id (directo)
+    auto_closed_ids = {
+        row.entity_id: row.created_at
+        for row in AuditLog.query.filter(
+            AuditLog.action == 'subtask_auto_closed',
+            AuditLog.entity_type == 'subtask'
+        ).order_by(AuditLog.created_at.asc()).all()
+        if row.entity_id
+    }
+
+    #  b) subtask_update con "Justificación de resolución" → parsear subtask_number del description
+    resolution_events = AuditLog.query.filter(
+        AuditLog.action == 'subtask_update',
+        AuditLog.description.like('%Justificación de resolución%')
+    ).order_by(AuditLog.created_at.asc()).all()
+
+    # Mapa subtask_number → fecha del último audit event de resolución
+    resolved_by_number = {}
+    for ev in resolution_events:
+        # description empieza con "Subtarea <NUMBER> actualizada. Justificación..."
+        desc = ev.description or ''
+        # Extraer el subtask_number con regex simple
+        m = re.match(r'Subtarea\s+([A-Za-z0-9\-]+)\s+actualizada', desc)
+        if m:
+            resolved_by_number[m.group(1)] = ev.created_at
+
+    # ── 3. Recorrer subtareas y decidir cuáles reparar ──
     repaired = 0
     samples = []
-    for s in candidates:
+    for s in active_subs:
+        # Criterio A: resolved_at ya está seteado (evidencia directa)
+        recovered_ts = s.resolved_at
+        evidence = None
+        if s.resolved_at:
+            evidence = 'resolved_at_field'
+        # Criterio B: audit log de subtask_auto_closed
+        elif s.id in auto_closed_ids:
+            recovered_ts = auto_closed_ids[s.id]
+            evidence = 'audit_auto_closed'
+        # Criterio C: audit log de resolución manual con justificación
+        elif s.subtask_number and s.subtask_number in resolved_by_number:
+            recovered_ts = resolved_by_number[s.subtask_number]
+            evidence = 'audit_manual_resolved'
+
+        if not evidence:
+            continue
+
         if not dry_run:
             s.status = 'resolved'
-            # resolved_at ya está — no lo tocamos
+            if not s.resolved_at and recovered_ts:
+                s.resolved_at = recovered_ts
+                s.completed_at = recovered_ts
             s.updated_at = datetime.now()
         repaired += 1
-        if len(samples) < 10:
+        if len(samples) < 15:
             samples.append({
                 'id': s.id,
                 'subtask_number': s.subtask_number,
                 'title': (s.title or '')[:100],
-                'was_status': s.status if dry_run else 'open/in_progress',
-                'now_status': 'resolved' if not dry_run else '(no cambiado — dry_run)',
-                'resolved_at': s.resolved_at.strftime('%Y-%m-%d %H:%M:%S') if s.resolved_at else None,
                 'ticket_id': s.ticket_id,
+                'evidence': evidence,
+                'resolved_at_recovered': recovered_ts.strftime('%Y-%m-%d %H:%M:%S') if recovered_ts else None,
+                'now_status': 'resolved' if not dry_run else '(no cambiado — dry_run)',
             })
 
     if not dry_run and repaired > 0:
         db.session.commit()
         log_audit('subtasks_repair_reopened', session['user_id'], 'subtask', 0,
-                  f'{repaired} subtarea(s) restauradas a resolved (habían quedado como open con resolved_at)')
+                  f'{repaired} subtarea(s) restauradas a resolved usando audit log como evidencia')
 
     return jsonify({
         'success': True,
         'dry_run': dry_run,
         'repaired': repaired,
         'samples': samples,
-        'hint': 'Las subtareas restauradas volverán a resolved. Después de 24h el scheduler auto_close las pasará a closed automáticamente.'
+        'active_scanned': len(active_subs),
+        'audit_index': {
+            'auto_closed_events': len(auto_closed_ids),
+            'manual_resolution_events': len(resolved_by_number),
+        },
+        'hint': 'Las subtareas restauradas quedan en resolved. Después de 24h desde su resolved_at original, el scheduler auto_close las pasará a closed automáticamente.'
     })
 
 
