@@ -1860,11 +1860,13 @@
                             <option value="assigned">✅ Asignadas</option>
                         </select>
                         <button onclick="loadAdminSubtasks()" style="padding:8px 14px;background:var(--primary);color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;">🔄 Actualizar</button>
+                        <button onclick="repairReopenedSubtasks()" title="Restaura las subtareas que quedaron en 'abierto' pero ya habían sido resueltas (víctimas del bug del select sin opción 'cerrado')" style="padding:8px 14px;background:#f59e0b;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;">🔧 Reparar reabiertas</button>
                     </div>
                 </div>
 
                 <!-- KPIs -->
                 <div id="subAdminKpis" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px;margin-bottom:20px;"></div>
+                <div id="subAdminRepairResult" style="margin-bottom:16px;"></div>
 
                 <!-- Tabla -->
                 <div style="overflow-x:auto;">
@@ -2227,6 +2229,62 @@
         function escSubAdmin(s) {
             if (s === null || s === undefined) return '';
             return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        async function repairReopenedSubtasks() {
+            const box = document.getElementById('subAdminRepairResult');
+            if (!box) return;
+
+            // Paso 1: dry-run para mostrar cuántas se afectarían
+            box.innerHTML = '<div style="padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;color:#1e40af;">⏳ Analizando subtareas afectadas...</div>';
+            let dryData;
+            try {
+                const r = await fetch('/api/admin/subtasks/repair-reopened', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({dry_run: true})
+                });
+                dryData = await r.json();
+                if (!dryData.success) throw new Error(dryData.error || 'Error');
+            } catch (e) {
+                box.innerHTML = `<div style="padding:12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;color:#991b1b;">✗ Error del análisis: ${escSubAdmin(e.message)}</div>`;
+                return;
+            }
+
+            const count = dryData.repaired || 0;
+            if (count === 0) {
+                box.innerHTML = '<div style="padding:12px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;color:#065f46;">✓ No hay subtareas afectadas por el bug de reapertura. Todo está limpio.</div>';
+                return;
+            }
+
+            // Paso 2: pedir confirmación
+            if (!confirm(`Se detectaron ${count} subtarea(s) que están en "Abierto" pero ya habían sido resueltas.\n\n` +
+                         `Se restaurarán a "Resuelto" preservando su fecha de resolución original.\n` +
+                         `Después de 24h el scheduler las cerrará automáticamente.\n\n` +
+                         `¿Continuar con la reparación?`)) {
+                box.innerHTML = `<div style="padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;color:#92400e;">Reparación cancelada. ${count} subtarea(s) siguen en el estado incorrecto.</div>`;
+                return;
+            }
+
+            // Paso 3: reparación real
+            box.innerHTML = '<div style="padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;color:#1e40af;">🔧 Reparando...</div>';
+            try {
+                const r = await fetch('/api/admin/subtasks/repair-reopened', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({dry_run: false})
+                });
+                const d = await r.json();
+                if (!d.success) throw new Error(d.error || 'Error');
+                box.innerHTML = `<div style="padding:14px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;color:#065f46;">
+                    <strong>✓ Reparación completada</strong><br>
+                    ${d.repaired} subtarea(s) restauradas a estado "Resuelto" con su <code>resolved_at</code> original.<br>
+                    <span style="font-size:12px;">El scheduler auto_close las pasará a "Cerrado" después de 24h desde su fecha de resolución.</span>
+                </div>`;
+                setTimeout(() => loadAdminSubtasks(), 500);
+            } catch (e) {
+                box.innerHTML = `<div style="padding:12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;color:#991b1b;">✗ Error: ${escSubAdmin(e.message)}</div>`;
+            }
         }
 
         async function loadAdminSubtasks() {
