@@ -12625,8 +12625,9 @@ def api_my_subtasks():
                 )
         subtasks = query.all()
 
-        # Orden: resueltas al final, dentro de cada grupo por SLA ascendente (None al final)
-        status_rank = {'in_progress': 0, 'open': 1, 'resolved': 2}
+        # Orden: activas primero (in_progress, open), terminales al final (resolved, closed).
+        # Dentro de cada grupo por SLA ascendente (None al final).
+        status_rank = {'in_progress': 0, 'open': 1, 'resolved': 2, 'closed': 3}
         far_future = datetime(2999, 12, 31)
         subtasks.sort(key=lambda s: (
             status_rank.get(s.status, 1),

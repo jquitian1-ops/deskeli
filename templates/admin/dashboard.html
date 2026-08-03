@@ -1841,9 +1841,10 @@
                         <select id="subAdminStatusFilter" onchange="filterAdminSubtasks()"
                                 style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
                             <option value="">Todos los estados</option>
-                            <option value="open">Abierto</option>
-                            <option value="in_progress">En Progreso</option>
-                            <option value="resolved">Resuelto</option>
+                            <option value="open">📂 Abierto</option>
+                            <option value="in_progress">🔄 En Progreso</option>
+                            <option value="resolved">✅ Resuelto</option>
+                            <option value="closed">🔒 Cerrado</option>
                         </select>
                         <select id="subAdminPriorityFilter" onchange="filterAdminSubtasks()"
                                 style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
@@ -2210,14 +2211,21 @@
             const map = {
                 open:       {bg:'#dbeafe',fg:'#1e40af',label:'📂 Abierto'},
                 in_progress:{bg:'#fef3c7',fg:'#92400e',label:'🔄 En Progreso'},
-                resolved:   {bg:'#d1fae5',fg:'#065f46',label:'✅ Resuelto'}
+                resolved:   {bg:'#d1fae5',fg:'#065f46',label:'✅ Resuelto'},
+                closed:     {bg:'#e5e7eb',fg:'#374151',label:'🔒 Cerrado'}
             };
-            const c = map[s] || map.open;
+            // Sin fallback silencioso — si viene un status desconocido, mostrarlo tal cual
+            // para no ocultar bugs futuros como este.
+            const c = map[s];
+            if (!c) return `<span style="background:#fee2e2;color:#991b1b;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700;" title="Estado desconocido en el frontend">⚠️ ${String(s || '?')}</span>`;
             return `<span style="background:${c.bg};color:${c.fg};padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700;">${c.label}</span>`;
         }
 
         function adminSubSlaCell(s) {
-            if (s.status === 'resolved') return '<span style="color:#6b7280;font-size:11px;">cerrado</span>';
+            // resolved o closed → ya no aplica SLA
+            if (s.status === 'resolved' || s.status === 'closed') {
+                return '<span style="color:#6b7280;font-size:11px;">' + (s.status === 'closed' ? 'cerrado' : 'resuelto') + '</span>';
+            }
             if (s.sla_remaining === null || s.sla_remaining === undefined) return '<span style="color:#999;">—</span>';
             if (s.sla_expired) return '<span style="color:#dc2626;font-weight:700;font-size:11px;">⏰ VENCIDO</span>';
             const m = s.sla_remaining;
@@ -2313,18 +2321,22 @@
         }
 
         function renderAdminKpis() {
+            const isTerminal = s => s.status === 'resolved' || s.status === 'closed';
             const total = _adminSubtasks.length;
             const open = _adminSubtasks.filter(s => s.status === 'open').length;
             const prog = _adminSubtasks.filter(s => s.status === 'in_progress').length;
             const done = _adminSubtasks.filter(s => s.status === 'resolved').length;
-            const expired = _adminSubtasks.filter(s => s.sla_expired && s.status !== 'resolved').length;
-            const critical = _adminSubtasks.filter(s => s.priority === 'critical' && s.status !== 'resolved').length;
+            const closed = _adminSubtasks.filter(s => s.status === 'closed').length;
+            // SLA vencido y críticos activos: excluir subtareas resueltas O cerradas
+            const expired = _adminSubtasks.filter(s => s.sla_expired && !isTerminal(s)).length;
+            const critical = _adminSubtasks.filter(s => s.priority === 'critical' && !isTerminal(s)).length;
 
             const kpiHtml = [
                 {label:'Total', value:total, color:'#2563eb', icon:'📊'},
                 {label:'Abiertos', value:open, color:'#1e40af', icon:'📂'},
                 {label:'En Progreso', value:prog, color:'#d97706', icon:'🔄'},
                 {label:'Resueltos', value:done, color:'#16a34a', icon:'✅'},
+                {label:'Cerrados', value:closed, color:'#374151', icon:'🔒'},
                 {label:'SLA Vencido', value:expired, color:'#dc2626', icon:'⏰'},
                 {label:'Críticos Activos', value:critical, color:'#991b1b', icon:'🔴'}
             ].map(k => `
@@ -2343,9 +2355,12 @@
                 document.getElementById('subAdminCount').textContent = '0 subtareas';
                 return;
             }
-            tbody.innerHTML = list.map(s => `
+            tbody.innerHTML = list.map(s => {
+                const terminal = s.status === 'resolved' || s.status === 'closed';
+                const rowBg = (s.sla_expired && !terminal) ? 'background:#fef2f2;' : (terminal ? 'background:#f9fafb;' : '');
+                return `
                 <tr onclick="window.location='/admin/subtask/${s.id}'"
-                    style="border-bottom:1px solid #f0f0f0;cursor:pointer;${s.sla_expired && s.status !== 'resolved' ? 'background:#fef2f2;' : ''}"
+                    style="border-bottom:1px solid #f0f0f0;cursor:pointer;${rowBg}"
                     title="Ver detalle de la subtarea">
                     <td style="padding:10px;font-size:12px;">
                         <a href="/admin/subtask/${s.id}" onclick="event.stopPropagation();" style="color:#7c3aed;font-weight:700;text-decoration:none;">${escSubAdmin(s.subtask_number || '#'+s.id)}</a>
@@ -2363,8 +2378,8 @@
                     <td style="padding:10px;text-align:center;">${adminSubSlaCell(s)}</td>
                     <td style="padding:10px;text-align:center;font-size:12px;">${s.attachment_count > 0 ? '📎 ' + s.attachment_count : '<span style="color:#999;">—</span>'}</td>
                     <td style="padding:10px;font-size:11px;color:#6b7280;">${escSubAdmin(s.created_at || '')}</td>
-                </tr>
-            `).join('');
+                </tr>`;
+            }).join('');
             document.getElementById('subAdminCount').textContent = list.length + ' de ' + _adminSubtasks.length + ' subtareas';
         }
 
