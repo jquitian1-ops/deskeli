@@ -1464,9 +1464,11 @@
         const map = {
             open:        {bg:'#dbeafe', fg:'#1e40af', label:'📂 Abierto'},
             in_progress: {bg:'#fef3c7', fg:'#92400e', label:'🔄 En Progreso'},
-            resolved:    {bg:'#d1fae5', fg:'#065f46', label:'✅ Resuelto'}
+            resolved:    {bg:'#d1fae5', fg:'#065f46', label:'✅ Resuelto'},
+            closed:      {bg:'#e5e7eb', fg:'#374151', label:'🔒 Cerrado'}
         };
-        const c = map[s] || map.open;
+        const c = map[s];
+        if (!c) return `<span style="background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;" title="Estado desconocido">⚠️ ${String(s || '?')}</span>`;
         return `<span style="background:${c.bg};color:${c.fg};padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">${c.label}</span>`;
     }
 

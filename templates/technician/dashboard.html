@@ -464,6 +464,7 @@ setInterval(_loadMyApprovals, 60000);
                             {% if ticket.status == 'open' %}<span style="background:#dbeafe;color:#1e40af;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">📂 Abierto</span>
                             {% elif ticket.status == 'in_progress' %}<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">🔄 En Progreso</span>
                             {% elif ticket.status == 'resolved' %}<span style="background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">✅ Resuelto</span>
+                            {% elif ticket.status == 'closed' %}<span style="background:#e5e7eb;color:#374151;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">🔒 Cerrado</span>
                             {% else %}<span style="background:#f3f4f6;color:#374151;padding:3px 10px;border-radius:10px;font-size:11px;">{{ ticket.status }}</span>{% endif %}
                         </td>
                         <td style="padding:10px;text-align:center;">
@@ -553,6 +554,7 @@ setInterval(_loadMyApprovals, 60000);
                             {% if ticket.status == 'open' %}<span style="background:#dbeafe;color:#1e40af;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">📂 Abierto</span>
                             {% elif ticket.status == 'in_progress' %}<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">🔄 En Progreso</span>
                             {% elif ticket.status == 'resolved' %}<span style="background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">✅ Resuelto</span>
+                            {% elif ticket.status == 'closed' %}<span style="background:#e5e7eb;color:#374151;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">🔒 Cerrado</span>
                             {% else %}<span style="background:#f3f4f6;color:#374151;padding:3px 10px;border-radius:10px;font-size:11px;">{{ ticket.status }}</span>{% endif %}
                         </td>
                         <td style="padding:10px;text-align:center;">
@@ -690,14 +692,20 @@ setInterval(_loadMyApprovals, 60000);
             const map = {
                 open:        {bg:'#dbeafe', fg:'#1e40af', label:'📂 Abierto'},
                 in_progress: {bg:'#fef3c7', fg:'#92400e', label:'🔄 En Progreso'},
-                resolved:    {bg:'#d1fae5', fg:'#065f46', label:'✅ Resuelto'}
+                resolved:    {bg:'#d1fae5', fg:'#065f46', label:'✅ Resuelto'},
+                closed:      {bg:'#e5e7eb', fg:'#374151', label:'🔒 Cerrado'}
             };
-            const c = map[s] || map.open;
+            // Sin fallback silencioso: si aparece un status desconocido, mostrarlo tal cual
+            // en lugar de camuflarlo como "Abierto".
+            const c = map[s];
+            if (!c) return `<span class="pill" style="background:#fee2e2;color:#991b1b;" title="Estado desconocido">⚠️ ${String(s || '?')}</span>`;
             return `<span class="pill" style="background:${c.bg};color:${c.fg};">${c.label}</span>`;
         }
 
         function slaText(s) {
-            if (s.status === 'resolved') return '<span style="color:#6b7280;font-size:12px;">SLA cerrado</span>';
+            if (s.status === 'resolved' || s.status === 'closed') {
+                return '<span style="color:#6b7280;font-size:12px;">' + (s.status === 'closed' ? 'Cerrada' : 'SLA cerrado') + '</span>';
+            }
             if (s.sla_remaining === null || s.sla_remaining === undefined) return '<span style="color:#999;font-size:12px;">SLA sin definir</span>';
             if (s.sla_expired) return '<span style="color:#dc2626;font-weight:700;font-size:12px;">⏰ SLA VENCIDO</span>';
             const m = s.sla_remaining;
@@ -714,7 +722,8 @@ setInterval(_loadMyApprovals, 60000);
             }
 
             const rows = list.map(s => {
-                const rowBg = s.sla_expired && s.status !== 'resolved' ? 'background:#fef2f2;' : '';
+                const terminal = s.status === 'resolved' || s.status === 'closed';
+                const rowBg = (s.sla_expired && !terminal) ? 'background:#fef2f2;' : (terminal ? 'background:#f9fafb;' : '');
                 const titleTruncated = s.title.length > 60 ? s.title.slice(0,60)+'…' : s.title;
                 return `
                     <tr onclick="window.location='/technician/subtask/${s.id}'"
@@ -781,13 +790,18 @@ setInterval(_loadMyApprovals, 60000);
             renderMySubtasks(filtered);
         }
 
-        // Pre-cargar contadores de subtareas (mine + team) al abrir la página
+        // Pre-cargar contadores de subtareas (mine + team) al abrir la página.
+        // Solo cuentan subtareas ACTIVAS (open + in_progress). Las resueltas y
+        // cerradas no aportan al badge — así el técnico ve de un vistazo lo pendiente.
+        function _countActiveSubtasks(list) {
+            return (list || []).filter(s => s.status !== 'resolved' && s.status !== 'closed').length;
+        }
         document.addEventListener('DOMContentLoaded', () => {
             fetch('/api/technician/my-subtasks?scope=mine')
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) {
-                        document.getElementById('countSubtasksMine').textContent = data.total;
+                        document.getElementById('countSubtasksMine').textContent = _countActiveSubtasks(data.subtasks);
                     }
                 }).catch(() => {
                     document.getElementById('countSubtasksMine').textContent = '0';
@@ -797,7 +811,7 @@ setInterval(_loadMyApprovals, 60000);
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) {
-                        document.getElementById('countSubtasksTeam').textContent = data.total;
+                        document.getElementById('countSubtasksTeam').textContent = _countActiveSubtasks(data.subtasks);
                     }
                 }).catch(() => {
                     document.getElementById('countSubtasksTeam').textContent = '0';
