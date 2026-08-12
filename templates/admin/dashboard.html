@@ -558,6 +558,7 @@
         img[src*="eli.png"] { background: transparent !important; outline: none !important; }
     </style>
     <script src="/static/js/session_guard.js"></script>
+    <script src="/static/js/polling.js"></script>
 </head>
 <body>
     <div class="header">
@@ -2187,8 +2188,8 @@
             }
             // Al cargar la página
             refreshSidebarBadges();
-            // Cada 30 segundos
-            setInterval(refreshSidebarBadges, 30000);
+            // smartInterval: mínimo 60s + pausa cuando la pestaña no está visible
+            (window.smartInterval || setInterval)(refreshSidebarBadges, 60000);
             // Refresh manual expuesto a otras partes del código
             window.refreshSidebarBadges = refreshSidebarBadges;
         });
@@ -3306,7 +3307,8 @@
                 applyAdminUnreadToList();
             } catch(e) {}
         }
-        setInterval(checkAdminUnreadDms, 15000);
+        // smartInterval: mínimo 60s + pausa cuando la pestaña no está visible
+        (window.smartInterval || setInterval)(checkAdminUnreadDms, 60000);
         document.addEventListener('DOMContentLoaded', () => setTimeout(checkAdminUnreadDms, 2000));
 
         function selectSpecialist(id, name, icon) {

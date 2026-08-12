@@ -63,7 +63,8 @@ RATE_LIMIT_EXCLUDED_PREFIXES = (
     '/socket.io/',
     '/favicon.ico',
     '/api/admin/sidebar-counts',   # polling cada 30s
-    '/api/health',
+    '/api/health',                 # incluye /api/health/live y /api/health/ready
+    '/metrics',                    # Prometheus scraper
 )
 
 # Bloqueo de cuenta por intentos fallidos (configurable vía .env)
@@ -160,6 +161,10 @@ from microsoft_auth import (
 )
 
 app = Flask(__name__)
+
+# Timestamp del arranque del proceso — usado por /metrics para reportar uptime.
+_APP_STARTED_AT = datetime.now()
+
 # Usar BD en directorio raíz, no en instance/
 db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ticketdesk_v2.db')
 
@@ -563,14 +568,14 @@ class Ticket(db.Model):
     ticket_number = db.Column(db.String(50), unique=True, nullable=False)  # TKT-ELIOT-00001 | AUTO-YYYYMMDDHHMMSS-xxxx
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=False)
-    category = db.Column(db.String(100), default='General')
-    status = db.Column(db.String(20), default='open')  # open, in_progress, resolved
-    priority = db.Column(db.String(20), default='medium')  # low, medium, high, critical
-    company = db.Column(db.String(20), nullable=False)
-    creator_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    assignee_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    category = db.Column(db.String(100), default='General', index=True)
+    status = db.Column(db.String(20), default='open', index=True)  # open, in_progress, resolved
+    priority = db.Column(db.String(20), default='medium', index=True)  # low, medium, high, critical
+    company = db.Column(db.String(20), nullable=False, index=True)
+    creator_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    assignee_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
     sla_minutes = db.Column(db.Integer)
-    sla_deadline = db.Column(db.DateTime)
+    sla_deadline = db.Column(db.DateTime, index=True)
     sla_alerts_sent = db.Column(db.String(20), default='')  # CSV de thresholds enviados, ej: "30,60,100"
     rating = db.Column(db.Integer)  # 1-5 stars (CSAT)
     rating_comment = db.Column(db.Text)  # Comentario textual del usuario al calificar
@@ -594,6 +599,18 @@ class Ticket(db.Model):
     resolved_by = db.relationship('User', foreign_keys=[resolved_by_id])
     messages = db.relationship('Message', backref='ticket', cascade='all, delete-orphan')
 
+    # Índices compuestos para queries típicas del sistema.
+    # Todas las listas y dashboards filtran primero por company (multi-tenant),
+    # luego por uno de estos ejes. Sin estos índices SQLite/PostgreSQL van a
+    # full-scan cada vez que crece la tabla.
+    __table_args__ = (
+        db.Index('ix_tickets_company_status', 'company', 'status'),
+        db.Index('ix_tickets_company_assignee', 'company', 'assignee_id'),
+        db.Index('ix_tickets_company_created', 'company', 'created_at'),
+        db.Index('ix_tickets_company_priority', 'company', 'priority'),
+        db.Index('ix_tickets_assignee_status', 'assignee_id', 'status'),
+    )
+
     @property
     def sla_remaining(self):
         if not self.sla_deadline:
@@ -604,12 +621,18 @@ class Ticket(db.Model):
 class Message(db.Model):
     __tablename__ = 'messages'
     id = db.Column(db.Integer, primary_key=True)
-    ticket_id = db.Column(db.Integer, db.ForeignKey('tickets.id'), nullable=False)
+    ticket_id = db.Column(db.Integer, db.ForeignKey('tickets.id'), nullable=False, index=True)
     subtask_id = db.Column(db.Integer, db.ForeignKey('subtasks.id'), nullable=True, index=True)  # Si != null, es un comentario de subtarea
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
     text = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.now, index=True)
     user = db.relationship('User', backref='messages')
+
+    __table_args__ = (
+        # Query típica: cargar los mensajes de un ticket en orden cronológico.
+        db.Index('ix_messages_ticket_created', 'ticket_id', 'created_at'),
+        db.Index('ix_messages_subtask_created', 'subtask_id', 'created_at'),
+    )
 
 class TokenBlacklist(db.Model):
     __tablename__ = 'token_blacklist'
@@ -913,14 +936,14 @@ class Subtask(db.Model):
     subtask_number = db.Column(db.String(40), unique=True)  # TKT-ELIOT-00063-S01
     title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text)
-    category = db.Column(db.String(100), default='General')
-    status = db.Column(db.String(20), default='open')  # open, in_progress, resolved
-    priority = db.Column(db.String(20), default='medium')  # low, medium, high, critical
+    category = db.Column(db.String(100), default='General', index=True)
+    status = db.Column(db.String(20), default='open', index=True)  # open, in_progress, resolved
+    priority = db.Column(db.String(20), default='medium', index=True)  # low, medium, high, critical
     sla_minutes = db.Column(db.Integer)
-    sla_deadline = db.Column(db.DateTime)
+    sla_deadline = db.Column(db.DateTime, index=True)
     time_worked_seconds = db.Column(db.Integer, default=0)
-    assignee_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    assignee_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
     order_idx = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
@@ -934,6 +957,12 @@ class Subtask(db.Model):
     created_by = db.relationship('User', foreign_keys=[created_by_id])
     resolved_by = db.relationship('User', foreign_keys=[resolved_by_id])
     ticket = db.relationship('Ticket', backref=db.backref('subtasks', cascade='all, delete-orphan', order_by='Subtask.order_idx'))
+
+    __table_args__ = (
+        # Queries típicas: subtareas de un técnico por status, panel admin, gestion de subtareas.
+        db.Index('ix_subtasks_assignee_status', 'assignee_id', 'status'),
+        db.Index('ix_subtasks_ticket_order', 'ticket_id', 'order_idx'),
+    )
 
     @property
     def sla_remaining(self):
@@ -5188,12 +5217,197 @@ def api_kb_feedback(article_id):
 
 @app.route('/api/health')
 def api_health():
+    """Alias de /api/health/live. Legacy — mantener por retrocompat con
+    healthchecks existentes de Coolify/Docker."""
     return jsonify({
         'status': 'healthy',
         'app': 'DeskEli',
         'version': '2.1.0',
         'timestamp': datetime.now().isoformat()
     })
+
+
+@app.route('/api/health/live')
+def api_health_live():
+    """Liveness probe. Devuelve 200 si el proceso responde HTTP.
+
+    No consulta BD ni servicios externos: es un ping simple. Un failure aquí
+    significa que el worker está muerto o colgado — el orquestador debe
+    reiniciarlo. Diseñado para 'liveness probe' de Docker/Kubernetes/Coolify.
+    Sin autenticación por diseño.
+    """
+    return jsonify({
+        'status': 'alive',
+        'timestamp': datetime.now().isoformat(timespec='seconds'),
+    }), 200
+
+
+@app.route('/api/health/ready')
+def api_health_ready():
+    """Readiness probe. Devuelve 200 si la app puede aceptar tráfico real.
+
+    Verifica lo mínimo necesario para servir requests:
+      - Conexión a BD (SELECT 1 con timeout corto).
+      - Pool de conexiones no completamente saturado.
+
+    Devuelve 503 si algo falla, con detalle del componente afectado. Diseñado
+    para 'readiness probe' de Docker/Kubernetes/Coolify — cuando falla, el
+    orquestador saca este worker del load balancer hasta que vuelva OK.
+    Sin autenticación por diseño.
+    """
+    from sqlalchemy import text as _sql_text
+    checks = {}
+    ok = True
+
+    # 1. BD reachable
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(_sql_text('SELECT 1'))
+        checks['database'] = 'ok'
+    except Exception as e:
+        checks['database'] = f'error: {str(e)[:200]}'
+        ok = False
+
+    # 2. Pool saturation — si más del 95% de las conexiones están checked-out,
+    #    ya no podemos aceptar más tráfico razonablemente.
+    try:
+        pool = db.engine.pool
+        if hasattr(pool, 'checkedout') and hasattr(pool, 'size'):
+            size = pool.size()
+            out = pool.checkedout()
+            checks['db_pool'] = {'size': size, 'checked_out': out}
+            # Solo alertar si el pool tiene tamaño configurado y está >95% lleno.
+            if size > 0 and out / max(size, 1) > 0.95:
+                checks['db_pool_status'] = 'saturated'
+                ok = False
+            else:
+                checks['db_pool_status'] = 'ok'
+        else:
+            checks['db_pool'] = 'no_pool_stats'
+    except Exception as e:
+        checks['db_pool'] = f'error: {str(e)[:120]}'
+        # No marcamos ok=False porque puede ser SQLite sin QueuePool.
+
+    payload = {
+        'status': 'ready' if ok else 'not_ready',
+        'timestamp': datetime.now().isoformat(timespec='seconds'),
+        'checks': checks,
+    }
+    return jsonify(payload), (200 if ok else 503)
+
+
+@app.route('/metrics')
+def api_metrics_prometheus():
+    """Métricas en formato Prometheus text-based. Sin autenticación por diseño
+    — el endpoint expone solo agregados sin datos personales. Idealmente el
+    reverse proxy lo restringe por IP a la red del scraper de Prometheus.
+
+    Métricas expuestas:
+      - deskeli_up (gauge): siempre 1 si la app responde.
+      - deskeli_uptime_seconds (gauge): segundos desde el arranque del proceso.
+      - deskeli_db_pool_size (gauge).
+      - deskeli_db_pool_checked_out (gauge).
+      - deskeli_db_pool_overflow (gauge).
+      - deskeli_process_memory_rss_bytes (gauge, si psutil disponible).
+      - deskeli_process_memory_percent (gauge, si psutil disponible).
+      - deskeli_process_cpu_percent (gauge, si psutil disponible).
+      - deskeli_process_open_fds (gauge, si psutil disponible).
+      - deskeli_tickets_total{status} (gauge): count por status.
+      - deskeli_subtasks_total{status} (gauge): count por status.
+      - deskeli_sockets_connected (gauge, si Socket.IO expone el count).
+      - deskeli_apikey_usage_total (counter): sum de usage_count de todas las
+        API keys activas.
+
+    Formato: text-based v0.0.4. Compatible con Prometheus scraping, Grafana
+    Agent, VictoriaMetrics, Datadog Prometheus check.
+    """
+    lines = []
+
+    def _metric(name, value, help_text=None, mtype='gauge', labels=None):
+        if help_text:
+            lines.append(f'# HELP {name} {help_text}')
+            lines.append(f'# TYPE {name} {mtype}')
+        if labels:
+            label_str = ','.join(f'{k}="{v}"' for k, v in labels.items())
+            lines.append(f'{name}{{{label_str}}} {value}')
+        else:
+            lines.append(f'{name} {value}')
+
+    # ── App status ──
+    _metric('deskeli_up', 1, 'App responde a requests HTTP')
+
+    try:
+        uptime = int((datetime.now() - _APP_STARTED_AT).total_seconds()) if '_APP_STARTED_AT' in globals() else 0
+        _metric('deskeli_uptime_seconds', uptime, 'Segundos desde el arranque')
+    except Exception:
+        pass
+
+    # ── DB pool ──
+    try:
+        pool = db.engine.pool
+        if hasattr(pool, 'size'):
+            _metric('deskeli_db_pool_size', pool.size(), 'Tamaño configurado del pool de BD')
+        if hasattr(pool, 'checkedout'):
+            _metric('deskeli_db_pool_checked_out', pool.checkedout(), 'Conexiones actualmente en uso')
+        if hasattr(pool, 'overflow'):
+            _metric('deskeli_db_pool_overflow', pool.overflow(), 'Conexiones sobre el pool_size')
+    except Exception:
+        pass
+
+    # ── Proceso (via psutil si está) ──
+    try:
+        import psutil as _psutil
+        p = _psutil.Process()
+        mem = p.memory_info()
+        _metric('deskeli_process_memory_rss_bytes', mem.rss, 'Memoria RSS del proceso (bytes)')
+        _metric('deskeli_process_memory_percent', round(p.memory_percent(), 2), 'Memoria del proceso como % del sistema')
+        _metric('deskeli_process_cpu_percent', p.cpu_percent(interval=0), 'CPU % (last interval)')
+        if hasattr(p, 'num_fds'):
+            _metric('deskeli_process_open_fds', p.num_fds(), 'File descriptors abiertos')
+    except Exception:
+        pass
+
+    # ── Tickets y subtareas por status (agregado, sin datos identificables) ──
+    try:
+        from sqlalchemy import func as _f
+        rows = db.session.query(Ticket.status, _f.count(Ticket.id)).group_by(Ticket.status).all()
+        lines.append('# HELP deskeli_tickets_total Cantidad de tickets por status')
+        lines.append('# TYPE deskeli_tickets_total gauge')
+        for st, cnt in rows:
+            lines.append(f'deskeli_tickets_total{{status="{st or "unknown"}"}} {cnt}')
+    except Exception:
+        pass
+
+    try:
+        from sqlalchemy import func as _f
+        rows = db.session.query(Subtask.status, _f.count(Subtask.id)).group_by(Subtask.status).all()
+        lines.append('# HELP deskeli_subtasks_total Cantidad de subtareas por status')
+        lines.append('# TYPE deskeli_subtasks_total gauge')
+        for st, cnt in rows:
+            lines.append(f'deskeli_subtasks_total{{status="{st or "unknown"}"}} {cnt}')
+    except Exception:
+        pass
+
+    # ── Socket.IO ──
+    try:
+        srv = socketio.server
+        eio = srv.eio
+        if hasattr(eio, 'sockets'):
+            _metric('deskeli_sockets_connected', len(eio.sockets), 'Conexiones Socket.IO activas')
+    except Exception:
+        pass
+
+    # ── API keys usage ──
+    try:
+        total_usage = db.session.query(db.func.coalesce(db.func.sum(ApiKey.usage_count), 0)).filter_by(is_active=True).scalar()
+        lines.append('# HELP deskeli_apikey_usage_total Uso acumulado de API keys activas')
+        lines.append('# TYPE deskeli_apikey_usage_total counter')
+        lines.append(f'deskeli_apikey_usage_total {int(total_usage or 0)}')
+    except Exception:
+        pass
+
+    body = '\n'.join(lines) + '\n'
+    return body, 200, {'Content-Type': 'text/plain; version=0.0.4; charset=utf-8'}
 
 
 @app.route('/api/health/stats')
@@ -10073,6 +10287,73 @@ def migrate_subtasks_resolution_note():
             print(f"[migrate_subtasks] error resolved_by_id: {e}")
 
 
+def migrate_performance_indexes():
+    """Crea índices que db.create_all() no agrega a tablas ya existentes.
+
+    Los índices están declarados en los modelos (Ticket, Subtask, Message) via
+    __table_args__ o index=True, pero SQLAlchemy solo los aplica cuando la tabla
+    se crea desde cero. Este helper usa CREATE INDEX IF NOT EXISTS para que
+    funcione tanto en SQLite como en PostgreSQL sin romper si ya existen.
+
+    Impacto: elimina full-table scans en dashboards y listados con filtro por
+    company (multi-tenant), status, assignee_id, prioridad. Crítico a partir de
+    ~10 000 tickets.
+    """
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    tables = set(inspector.get_table_names())
+
+    # (nombre_indice, tabla, columnas SQL)
+    # Todos son "IF NOT EXISTS" — idempotente. SQLite lo soporta desde 3.8.0;
+    # PostgreSQL desde siempre.
+    indexes = [
+        # Ticket (tablas 'tickets')
+        ('ix_tickets_company',            'tickets',  '(company)'),
+        ('ix_tickets_status',             'tickets',  '(status)'),
+        ('ix_tickets_priority',           'tickets',  '(priority)'),
+        ('ix_tickets_category',           'tickets',  '(category)'),
+        ('ix_tickets_creator_id',         'tickets',  '(creator_id)'),
+        ('ix_tickets_assignee_id',        'tickets',  '(assignee_id)'),
+        ('ix_tickets_sla_deadline',       'tickets',  '(sla_deadline)'),
+        ('ix_tickets_company_status',     'tickets',  '(company, status)'),
+        ('ix_tickets_company_assignee',   'tickets',  '(company, assignee_id)'),
+        ('ix_tickets_company_created',    'tickets',  '(company, created_at)'),
+        ('ix_tickets_company_priority',   'tickets',  '(company, priority)'),
+        ('ix_tickets_assignee_status',    'tickets',  '(assignee_id, status)'),
+
+        # Subtask ('subtasks')
+        ('ix_subtasks_status',            'subtasks', '(status)'),
+        ('ix_subtasks_priority',          'subtasks', '(priority)'),
+        ('ix_subtasks_category',          'subtasks', '(category)'),
+        ('ix_subtasks_assignee_id',       'subtasks', '(assignee_id)'),
+        ('ix_subtasks_created_by_id',     'subtasks', '(created_by_id)'),
+        ('ix_subtasks_sla_deadline',      'subtasks', '(sla_deadline)'),
+        ('ix_subtasks_assignee_status',   'subtasks', '(assignee_id, status)'),
+        ('ix_subtasks_ticket_order',      'subtasks', '(ticket_id, order_idx)'),
+
+        # Message ('messages')
+        ('ix_messages_ticket_id',         'messages', '(ticket_id)'),
+        ('ix_messages_user_id',           'messages', '(user_id)'),
+        ('ix_messages_created_at',        'messages', '(created_at)'),
+        ('ix_messages_ticket_created',    'messages', '(ticket_id, created_at)'),
+        ('ix_messages_subtask_created',   'messages', '(subtask_id, created_at)'),
+    ]
+
+    created = 0
+    skipped = 0
+    with db.engine.begin() as conn:
+        for idx_name, table, cols in indexes:
+            if table not in tables:
+                skipped += 1
+                continue
+            try:
+                conn.execute(text(f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table} {cols}'))
+                created += 1
+            except Exception as e:
+                print(f'[migrate_indexes] {idx_name}: {e}')
+    print(f'[migrate_indexes] OK — {created} índices verificados/creados, {skipped} saltados (tabla no existe)')
+
+
 def init_db():
     """Inicializa la base de datos"""
     with app.app_context():
@@ -10103,6 +10384,10 @@ def init_db():
             print(f"[migrate] report_recipients_monday_stuck: {_e}")
         migrate_subtasks_schema()
         backfill_subtask_numbers()
+        try:
+            migrate_performance_indexes()
+        except Exception as _e:
+            print(f'[migrate] performance_indexes: {_e}')
         seed_default_subroles()
         seed_default_templates()
         convert_legacy_templates_to_forms()

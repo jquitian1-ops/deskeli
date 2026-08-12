@@ -542,6 +542,7 @@
         }
     </style>
     <script src="/static/js/session_guard.js"></script>
+    <script src="/static/js/polling.js"></script>
 </head>
 <body>
     <div class="header">
@@ -1296,9 +1297,12 @@
         } catch (e) { alert('Error: ' + e.message); }
     }
 
-    // Auto-refresh cada 30s por si otro técnico está trabajando el mismo ticket
+    // Auto-refresh por si otro técnico está trabajando el mismo ticket.
+    // smartInterval: mínimo 60s + pausa si la pestaña no está visible.
+    // Las novedades críticas ya llegan por WebSocket — el polling es solo
+    // fallback para state consistency.
     ttReload();
-    setInterval(ttReload, 30000);
+    (window.smartInterval || setInterval)(ttReload, 60000);
 
     // RATING RF-01-09
     let currentRating = 0;

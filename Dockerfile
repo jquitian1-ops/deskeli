@@ -73,9 +73,11 @@ ENV PATH=/home/deskeli/.local/bin:$PATH \
     GUNICORN_WORKERS=1 \
     TZ=America/Bogota
 
-# Healthcheck contra el endpoint /api/health
+# Healthcheck usa /api/health/live (liveness: proceso responde HTTP).
+# Para readiness (BD lista, pool no saturado) usar /api/health/ready.
+# Ambos son públicos y no requieren auth.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:5050/api/health || exit 1
+    CMD wget --quiet --tries=1 --spider http://localhost:5050/api/health/live || exit 1
 
 EXPOSE 5050
 

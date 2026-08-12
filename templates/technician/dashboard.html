@@ -267,6 +267,7 @@
         img[src*="eli.png"] { background: transparent !important; outline: none !important; }
     </style>
     <script src="/static/js/session_guard.js"></script>
+    <script src="/static/js/polling.js"></script>
 </head>
 <body>
     <div class="header">
@@ -349,7 +350,8 @@ async function showMyApprovals(ev) {
     `).join('');
 }
 document.addEventListener('DOMContentLoaded', _loadMyApprovals);
-setInterval(_loadMyApprovals, 60000);
+// smartInterval: pausa cuando la pestaña no está visible
+(window.smartInterval || setInterval)(_loadMyApprovals, 60000);
 </script>
         </div>
     </div>
@@ -1381,8 +1383,9 @@ setInterval(_loadMyApprovals, 60000);
             });
         }
 
-        // Polling cada 15 segundos
-        setInterval(checkSpecUnread, 15000);
+        // smartInterval: mínimo 60s + pausa cuando la pestaña no está visible.
+        // Antes era 15s — con muchos usuarios saturaba el backend.
+        (window.smartInterval || setInterval)(checkSpecUnread, 60000);
         document.addEventListener('DOMContentLoaded', () => setTimeout(checkSpecUnread, 2000));
 
         function toggleTechChat() {

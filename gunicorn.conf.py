@@ -49,10 +49,20 @@ graceful_timeout = 30                                    # espera 30s para reque
 # ─────────────────────────────────────────────────────────────
 # Logging
 # ─────────────────────────────────────────────────────────────
+# Por defecto los logs van a stdout/stderr ('-') para que el runtime
+# (Docker/Coolify/systemd) los capture y rote — best practice en containers.
+# Si querés archivos locales rotados (dev fuera de Docker), seteá
+# GUNICORN_LOG_TO_FILES=1 en el .env. La rotación por archivo la maneja el
+# manejador de Python inicializado en app.py, no Gunicorn.
 LOGS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
-os.makedirs(LOGS_DIR, exist_ok=True)
-accesslog = os.path.join(LOGS_DIR, 'access.log')
-errorlog = os.path.join(LOGS_DIR, 'error.log')
+_log_to_files = os.getenv('GUNICORN_LOG_TO_FILES', '0') == '1'
+if _log_to_files:
+    os.makedirs(LOGS_DIR, exist_ok=True)
+    accesslog = os.path.join(LOGS_DIR, 'access.log')
+    errorlog = os.path.join(LOGS_DIR, 'error.log')
+else:
+    accesslog = '-'   # stdout
+    errorlog = '-'    # stderr
 loglevel = os.getenv('GUNICORN_LOG_LEVEL', 'info')
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 

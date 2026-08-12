@@ -42,6 +42,7 @@
         .empty { padding: 40px; text-align: center; color: #9ca3af; }
         .auto-refresh { font-size: 11px; color: #9ca3af; }
     </style>
+    <script src="/static/js/polling.js"></script>
 </head>
 <body>
 <div class="container">
@@ -222,7 +223,8 @@ function escHtml(t) {
 }
 
 document.addEventListener('DOMContentLoaded', loadSessions);
-setInterval(loadSessions, 30000);
+// smartInterval: mínimo 60s + pausa si la pestaña no está visible
+(window.smartInterval || setInterval)(loadSessions, 60000);
 </script>
 </body>
 </html>

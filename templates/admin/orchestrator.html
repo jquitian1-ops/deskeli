@@ -635,8 +635,10 @@
             });
         }
 
-        // Polling cada 30s
+        // Contador visual cada 1s + fetch cada 30s.
+        // Pausa completa cuando la pestaña no está visible (ahorra CPU + red).
         setInterval(() => {
+            if (document.hidden) return;
             refreshCounter--;
             if (refreshCounter <= 0) {
                 updateDashboard();
