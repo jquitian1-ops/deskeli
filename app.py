@@ -17799,6 +17799,49 @@ def _all_role_labels(user):
     return result
 
 
+@app.route('/api/admin/users', methods=['GET'])
+def api_admin_users_list():
+    """Lista usuarios activos, filtrados por empresa (o todos si el admin es
+    master). Usado por el editor de workflows de aprobación para poblar los
+    selects de aprobadores.
+
+    Query params:
+        company  Código de empresa. Si es 'all' o vacío, devuelve de todas las
+                 empresas del scope. Si es una empresa específica, valida que
+                 esté dentro del scope del admin.
+    """
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    requested = (request.args.get('company') or '').strip().lower()
+    scope = admin_companies_scope()
+
+    if not requested or requested == 'all':
+        target_companies = list(scope)
+    else:
+        if requested not in scope:
+            return jsonify({'success': False, 'error': f'Sin acceso a la empresa {requested}'}), 403
+        target_companies = [requested]
+
+    users = User.query.filter(
+        User.company.in_(target_companies),
+        User.is_active == True,
+    ).order_by(User.role.desc(), User.name).all()
+
+    return jsonify({
+        'success': True,
+        'users': [{
+            'id': u.id,
+            'username': u.username,
+            'name': u.name,
+            'email': u.email or '',
+            'role': u.role,
+            'role_label': u.role_label or '',
+            'company': u.company,
+        } for u in users]
+    })
+
+
 @app.route('/api/admin/team', methods=['GET'])
 def api_admin_team():
     """Listar miembros del equipo de la empresa"""

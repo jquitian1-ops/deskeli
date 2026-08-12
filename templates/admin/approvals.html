@@ -254,27 +254,45 @@ function renderList() {
 async function fetchUsersForCompany(company) {
     if (allUsers[company]) return allUsers[company];
     try {
-        const r = await fetch(`/api/admin/users?company=${company}`);
+        const r = await fetch(`/api/admin/users?company=${encodeURIComponent(company)}`);
+        if (!r.ok) {
+            console.error('[approvals] /api/admin/users retornó', r.status);
+            allUsers[company] = [];
+            return [];
+        }
         const data = await r.json();
-        allUsers[company] = data.users || data;
-        return allUsers[company];
-    } catch { return []; }
+        // Aceptamos varios formatos: {users:[...]}, [...], {team:[...]}
+        let list = data.users || data.team || (Array.isArray(data) ? data : []);
+        if (!Array.isArray(list)) list = [];
+        allUsers[company] = list;
+        return list;
+    } catch (e) {
+        console.error('[approvals] fetchUsersForCompany falló:', e);
+        allUsers[company] = [];
+        return [];
+    }
 }
 
 async function openNewWorkflow() {
-    document.getElementById('modalTitle').textContent = 'Nuevo workflow';
-    document.getElementById('wfId').value = '';
-    document.getElementById('wfName').value = '';
-    document.getElementById('wfDesc').value = '';
-    document.getElementById('wfCategory').value = '';
-    document.getElementById('wfPriority').value = '';
-    document.getElementById('wfTemplate').value = '';
-    document.getElementById('wfCompany').value = CURRENT_COMPANY;
-    document.getElementById('wfActive').value = '1';
-    document.getElementById('btnDelete').style.display = 'none';
-    document.getElementById('stepsList').innerHTML = '';
-    await addStep();
-    document.getElementById('modalBack').classList.add('active');
+    try {
+        document.getElementById('modalTitle').textContent = 'Nuevo workflow';
+        document.getElementById('wfId').value = '';
+        document.getElementById('wfName').value = '';
+        document.getElementById('wfDesc').value = '';
+        document.getElementById('wfCategory').value = '';
+        document.getElementById('wfPriority').value = '';
+        document.getElementById('wfTemplate').value = '';
+        document.getElementById('wfCompany').value = CURRENT_COMPANY;
+        document.getElementById('wfActive').value = '1';
+        document.getElementById('btnDelete').style.display = 'none';
+        document.getElementById('stepsList').innerHTML = '';
+        // Abrir el modal PRIMERO para que sea visible aunque la carga de users falle.
+        document.getElementById('modalBack').classList.add('active');
+        await addStep();
+    } catch (e) {
+        console.error('[approvals] openNewWorkflow error:', e);
+        alert('Error abriendo el editor: ' + e.message);
+    }
 }
 
 async function editWorkflow(id) {
