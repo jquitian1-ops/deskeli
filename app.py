@@ -7781,16 +7781,37 @@ def start_backup_scheduler():
 
 @app.route('/api/admin/backups', methods=['GET'])
 def api_backups_list():
-    """Listar backups disponibles en disco."""
+    """Listar backups disponibles en disco.
+
+    Detecta ambos formatos:
+      - SQLite: ticketdesk_backup_<ts>.db.gz(.enc)
+      - Postgres: ticketdesk_backup_pg_<ts>.sql.gz(.enc)
+
+    Reporta el tamaño real de la BD según el engine:
+      - SQLite: tamaño del archivo en disco.
+      - Postgres: pg_database_size(current_database()).
+    """
     if 'user_id' not in session or session.get('role') != 'admin':
         return jsonify({'success': False}), 401
     backup_dir = Path('backups')
     if not backup_dir.exists():
-        return jsonify({'success': True, 'backups': []})
+        # Aún así reportar el tamaño de la BD para que el KPI no quede en 0.
+        db_engine, db_size = _get_current_db_size()
+        return jsonify({
+            'success': True,
+            'backups': [],
+            'db_engine': db_engine,
+            'db_size_bytes': db_size,
+            'db_size_human': _human_size(db_size),
+        })
 
-    # Incluir tanto .db.gz (legacy) como .db.gz.enc (cifrados)
-    all_files = list(backup_dir.glob('ticketdesk_backup_*.db.gz')) + \
-                list(backup_dir.glob('ticketdesk_backup_*.db.gz.enc'))
+    # Incluir TODOS los formatos (SQLite y Postgres).
+    all_files = (
+        list(backup_dir.glob('ticketdesk_backup_*.db.gz'))
+        + list(backup_dir.glob('ticketdesk_backup_*.db.gz.enc'))
+        + list(backup_dir.glob('ticketdesk_backup_pg_*.sql.gz'))
+        + list(backup_dir.glob('ticketdesk_backup_pg_*.sql.gz.enc'))
+    )
     backups = []
     for f in sorted(all_files, key=lambda p: p.stat().st_mtime, reverse=True):
         try:
@@ -7798,23 +7819,58 @@ def api_backups_list():
             backups.append({
                 'name': f.name,
                 'encrypted': f.name.endswith('.enc'),
+                'engine': 'postgres' if '_pg_' in f.name else 'sqlite',
                 'size_bytes': stat.st_size,
-                'size_human': f"{stat.st_size / 1024:.1f} KB" if stat.st_size < 1024*1024 else f"{stat.st_size / 1024 / 1024:.2f} MB",
+                'size_human': _human_size(stat.st_size),
                 'created_at': datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
             })
         except Exception:
             continue
 
+    db_engine, db_size = _get_current_db_size()
     db_path = _get_db_file_path()
-    db_size = db_path.stat().st_size if db_path and db_path.exists() else 0
 
     return jsonify({
         'success': True,
         'backups': backups,
+        'db_engine': db_engine,
         'db_path': str(db_path) if db_path else None,
         'db_size_bytes': db_size,
-        'db_size_human': f"{db_size / 1024:.1f} KB" if db_size < 1024*1024 else f"{db_size / 1024 / 1024:.2f} MB"
+        'db_size_human': _human_size(db_size),
     })
+
+
+def _human_size(size_bytes):
+    """Formato humano de tamaño en bytes."""
+    if size_bytes is None:
+        return '—'
+    if size_bytes < 1024:
+        return f'{size_bytes} B'
+    if size_bytes < 1024 * 1024:
+        return f'{size_bytes / 1024:.1f} KB'
+    if size_bytes < 1024 * 1024 * 1024:
+        return f'{size_bytes / 1024 / 1024:.2f} MB'
+    return f'{size_bytes / 1024 / 1024 / 1024:.2f} GB'
+
+
+def _get_current_db_size():
+    """Devuelve (engine, size_bytes) de la BD actual.
+    Para SQLite: tamaño del archivo. Para Postgres: pg_database_size."""
+    uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if uri.startswith('postgres'):
+        try:
+            from sqlalchemy import text as _sql_text
+            with db.engine.connect() as conn:
+                size = conn.execute(_sql_text('SELECT pg_database_size(current_database())')).scalar()
+            return 'postgres', int(size or 0)
+        except Exception as e:
+            print(f'[backup_list] no pude leer pg_database_size: {e}')
+            return 'postgres', 0
+    # SQLite
+    p = _get_db_file_path()
+    if p and p.exists():
+        return 'sqlite', p.stat().st_size
+    return 'unknown', 0
 
 
 @app.route('/api/admin/backups/create', methods=['POST'])
@@ -7871,7 +7927,14 @@ def api_backups_delete(filename):
 
 @app.route('/api/admin/backups/<path:filename>/restore', methods=['POST'])
 def api_backups_restore(filename):
-    """Restaurar BD desde un backup. PELIGROSO - sobrescribe la BD actual."""
+    """Restaurar BD desde un backup. PELIGROSO - sobrescribe la BD actual.
+
+    Detecta el engine actual y el formato del backup:
+      - .sql.gz(.enc) → restore via psql (Postgres)
+      - .db.gz(.enc)  → copia del archivo (SQLite)
+
+    Antes de restaurar, crea un backup de seguridad de la BD actual.
+    """
     if 'user_id' not in session or session.get('role') != 'admin':
         return jsonify({'success': False}), 401
     if '..' in filename or '/' in filename or '\\' in filename:
@@ -7882,19 +7945,14 @@ def api_backups_restore(filename):
     if not target.exists():
         return jsonify({'success': False, 'error': 'Backup no encontrado'}), 404
 
-    db_path = _get_db_file_path()
-    if not db_path:
-        return jsonify({'success': False, 'error': 'No se pudo determinar la ruta de la BD actual'}), 500
+    # Detectar formato del backup (.sql.gz = pg, .db.gz = sqlite)
+    is_pg_backup = '_pg_' in target.name or target.name.endswith('.sql.gz') or target.name.endswith('.sql.gz.enc')
 
     # Antes de restaurar, hacer un backup de seguridad de la BD actual
     safety_backup = create_backup(user_id=session['user_id'])
 
     try:
-        # Cerrar conexiones SQLAlchemy
-        db.session.close()
-        db.engine.dispose()
-
-        # Restaurar: si el archivo está cifrado (.enc), descifrar primero
+        # Leer y desencriptar el payload
         with open(target, 'rb') as f_enc:
             payload = f_enc.read()
         if target.name.endswith('.enc'):
@@ -7906,17 +7964,69 @@ def api_backups_restore(filename):
             except Exception as ex:
                 return jsonify({'success': False,
                                 'error': f'No se pudo descifrar el backup (clave incorrecta?): {ex}'}), 500
-        # payload ahora son los bytes gzip
-        with gzip.GzipFile(fileobj=BytesIO(payload), mode='rb') as f_in:
-            with open(db_path, 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
+
+        if is_pg_backup:
+            # ── Restore Postgres via psql ──
+            import subprocess as _sp
+            from urllib.parse import urlparse as _urlparse
+            uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+            if not uri.startswith('postgres'):
+                return jsonify({'success': False,
+                                'error': 'Backup Postgres pero la BD actual no es Postgres.'}), 400
+            parsed = _urlparse(uri)
+            env = os.environ.copy()
+            env['PGPASSWORD'] = parsed.password or ''
+            # Descomprimir SQL a un temp
+            import tempfile as _tf
+            with _tf.NamedTemporaryFile(delete=False, suffix='.sql') as tmp:
+                with gzip.GzipFile(fileobj=BytesIO(payload), mode='rb') as gz_in:
+                    shutil.copyfileobj(gz_in, tmp)
+                tmp_path = tmp.name
+            try:
+                # Cerrar conexiones antes del restore
+                db.session.close()
+                db.engine.dispose()
+                cmd = [
+                    'psql',
+                    '-h', parsed.hostname or 'localhost',
+                    '-p', str(parsed.port or 5432),
+                    '-U', parsed.username or 'postgres',
+                    '-d', (parsed.path or '/postgres').lstrip('/'),
+                    '-v', 'ON_ERROR_STOP=1',
+                    '-f', tmp_path,
+                ]
+                result = _sp.run(cmd, env=env, capture_output=True, text=True, timeout=600)
+                if result.returncode != 0:
+                    err = (result.stderr or '')[-500:]
+                    return jsonify({'success': False,
+                                    'error': f'psql retornó {result.returncode}: {err}'}), 500
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+        else:
+            # ── Restore SQLite copiando el archivo ──
+            db_path = _get_db_file_path()
+            if not db_path:
+                return jsonify({'success': False,
+                                'error': 'No se pudo determinar la ruta de la BD SQLite. '
+                                         'Si estás en Postgres, restaurá desde un backup .sql.gz.'}), 500
+            # Cerrar conexiones
+            db.session.close()
+            db.engine.dispose()
+            with gzip.GzipFile(fileobj=BytesIO(payload), mode='rb') as f_in:
+                with open(db_path, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
 
         log_audit('backup_restore', session['user_id'], 'backup', None,
-                  f'Restaurada BD desde {filename}. Safety backup: {safety_backup.name if safety_backup else "ninguno"}')
+                  f'Restaurada BD desde {filename} (engine={"pg" if is_pg_backup else "sqlite"}). '
+                  f'Safety backup: {safety_backup.name if safety_backup else "ninguno"}')
 
         return jsonify({
             'success': True,
-            'message': f'BD restaurada desde {filename}. Se creó un backup de seguridad: {safety_backup.name if safety_backup else "fallido"}. RECARGA LA PÁGINA.',
+            'message': f'BD restaurada desde {filename}. Se creó un backup de seguridad: '
+                       f'{safety_backup.name if safety_backup else "fallido"}. RECARGA LA PÁGINA.',
             'safety_backup': safety_backup.name if safety_backup else None
         })
     except Exception as e:
