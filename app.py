@@ -43,7 +43,6 @@ import bleach
 import re
 import hashlib
 import secrets
-import collections as _collections
 
 # Decoradores de auth (Fase 1 refactor) — reemplazan `if 'user_id' not in session`
 # copiados inline. Ver security/decorators.py para el detalle.
@@ -222,112 +221,10 @@ app.config['SECRET_KEY'] = _secret_key
 init_crypto(_IS_PRODUCTION)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# HASH DE PASSWORDS — Argon2id con retrocompat PBKDF2
-# ═════════════════════════════════════════════════════════════════════════════
-#
-# Historia: originalmente los passwords se hasheaban con PBKDF2-SHA256 usando
-# el username como salt (100 000 iteraciones). Esto es funcional pero tiene 2
-# problemas serios:
-#   1. Salt determinístico → dos usuarios con mismo username+password en
-#      distintas empresas producen hashes idénticos. Vulnerable a ataques de
-#      diccionario pre-computado si la BD se filtra.
-#   2. PBKDF2 es memory-hard limitado — inferior a Argon2id ante GPUs y ASICs.
-#
-# Solución: migración transparente a Argon2id.
-#   - `hash_password()` siempre produce Argon2id (formato $argon2id$v=19$...).
-#   - `verify_password()` acepta AMBOS formatos:
-#       * Argon2id ($argon2id$...) → verifica con argon2-cffi.
-#       * PBKDF2 legacy (hex de 64 chars) → verifica con hashlib + username.
-#     Retorna (is_valid, needs_rehash). Si needs_rehash, el caller debe
-#     re-hashear y persistir. Los usuarios se migran solos al loguearse.
-#
-# Parámetros Argon2id (OWASP 2024 baseline):
-#     time_cost=2, memory_cost=19 MiB, parallelism=1. Verificación ~50-100ms.
-try:
-    from argon2 import PasswordHasher as _Argon2PasswordHasher
-    from argon2.exceptions import (
-        VerifyMismatchError as _Argon2VerifyMismatchError,
-        InvalidHash as _Argon2InvalidHash,
-        VerificationError as _Argon2VerificationError,
-    )
-    _argon2_hasher = _Argon2PasswordHasher(
-        time_cost=2,
-        memory_cost=19456,   # KiB
-        parallelism=1,
-        hash_len=32,
-        salt_len=16,
-    )
-    _ARGON2_AVAILABLE = True
-except ImportError:
-    _argon2_hasher = None
-    _ARGON2_AVAILABLE = False
-    print('[WARN] argon2-cffi no está instalado. Los passwords seguirán usando PBKDF2 legacy. '
-          'Instalá con `pip install argon2-cffi==23.1.0` para migrar a Argon2id.')
-
-
-def _hash_password_pbkdf2_legacy(password: str, username: str) -> str:
-    """Hash PBKDF2-SHA256 con username como salt (100 000 iters).
-
-    LEGACY: solo para verificar hashes ya en BD. Nunca usar para nuevos hashes.
-    """
-    return hashlib.pbkdf2_hmac('sha256', (password or '').encode(), (username or '').encode(), 100000).hex()
-
-
-def hash_password(password: str, username: str = '') -> str:
-    """Genera un hash de password. Preferentemente Argon2id; si la lib no está
-    disponible, cae a PBKDF2 legacy (retrocompat).
-
-    El `username` solo se usa como salt en el modo legacy. En Argon2id el salt
-    es aleatorio (interno al hash).
-    """
-    if _ARGON2_AVAILABLE:
-        return _argon2_hasher.hash(password or '')
-    return _hash_password_pbkdf2_legacy(password, username)
-
-
-def verify_password(password: str, stored_hash: str, username: str = '') -> tuple:
-    """Verifica un password contra el hash almacenado.
-
-    Retorna (is_valid, needs_rehash):
-        - is_valid: True si el password coincide con el hash.
-        - needs_rehash: True cuando el hash usa formato legacy o parámetros
-          Argon2 obsoletos. El caller debe re-hashear + persistir.
-
-    Formatos aceptados:
-        - $argon2id$... (Argon2, moderno)
-        - hex de 64 chars (PBKDF2-SHA256 legacy)
-    """
-    if not stored_hash or password is None:
-        return False, False
-
-    # ── Argon2 (moderno) ──
-    if stored_hash.startswith('$argon2'):
-        if not _ARGON2_AVAILABLE:
-            return False, False
-        try:
-            _argon2_hasher.verify(stored_hash, password)
-            needs = _argon2_hasher.check_needs_rehash(stored_hash)
-            return True, needs
-        except (_Argon2VerifyMismatchError, _Argon2VerificationError, _Argon2InvalidHash):
-            return False, False
-
-    # ── PBKDF2 legacy (hex 64) ──
-    if len(stored_hash) == 64 and all(c in '0123456789abcdefABCDEF' for c in stored_hash):
-        if not username:
-            return False, False
-        calc = _hash_password_pbkdf2_legacy(password, username)
-        # Comparación en tiempo constante para evitar timing attacks.
-        try:
-            import hmac as _hmac
-            if _hmac.compare_digest(calc, stored_hash.lower()):
-                return True, True   # rehash SIEMPRE en el próximo login
-        except Exception:
-            if calc == stored_hash.lower():
-                return True, True
-
-    return False, False
-
+# Hash de passwords — Fase 2 refactor: la implementación vive en
+# security/passwords.py. hash_password() y verify_password() se usan en 6+
+# lugares (login, change password, bootstrap, bulk import, crear/editar user).
+from security.passwords import hash_password, verify_password
 
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 # Cookies solo por HTTPS en producción (HTTP local en desarrollo)
@@ -2316,24 +2213,17 @@ def auth_microsoft_callback():
 #   3. Rate limit por IP: 30 req/min. Suficiente para el flujo de login normal,
 #      insuficiente para scraping automatizado o DoS.
 #
-_PUBLIC_COMPANY_RATE_LIMIT_PER_MIN = 30
-_public_company_rate_buckets = _collections.defaultdict(_collections.deque)
+# Fase 2 refactor: la implementación vive en security/ratelimit.py.
+# Aliases con nombre viejo por retrocompat con los callers de este archivo.
+from security.ratelimit import (
+    check_public_company_rate_limit as _check_public_company_rate_limit_impl,
+    PUBLIC_COMPANY_RATE_LIMIT_PER_MIN as _PUBLIC_COMPANY_RATE_LIMIT_PER_MIN,
+)
 
 
 def _check_public_company_rate_limit():
-    """Rate limit sliding-window por IP para endpoints públicos de company.
-    Retorna (allowed, retry_after_seconds)."""
-    ip = _real_client_ip()
-    now = time.time()
-    cutoff = now - 60
-    bucket = _public_company_rate_buckets[ip]
-    while bucket and bucket[0] < cutoff:
-        bucket.popleft()
-    if len(bucket) >= _PUBLIC_COMPANY_RATE_LIMIT_PER_MIN:
-        retry_after = int(bucket[0] + 60 - now) + 1
-        return False, max(1, retry_after)
-    bucket.append(now)
-    return True, 0
+    """Wrapper que usa _real_client_ip() para obtener la IP. Delega al servicio."""
+    return _check_public_company_rate_limit_impl(_real_client_ip())
 
 
 @app.route('/api/companies', methods=['GET'])
@@ -19966,26 +19856,17 @@ def api_monitor_escalations():
 #     va a tener mejor puerta.
 #
 # Configurable por env: API_KEY_RATE_LIMIT_PER_MIN (default 100).
-_API_KEY_RATE_LIMIT_PER_MIN = int(os.getenv('API_KEY_RATE_LIMIT_PER_MIN', '100'))
-_API_KEY_RATE_LIMIT_WINDOW_SEC = 60
-_api_key_rate_buckets = _collections.defaultdict(_collections.deque)
+# Fase 2 refactor: la implementación vive en security/ratelimit.py.
+from security.ratelimit import (
+    check_api_key_rate_limit as _check_api_key_rate_limit_impl,
+    API_KEY_RATE_LIMIT_PER_MIN as _API_KEY_RATE_LIMIT_PER_MIN,
+    API_KEY_RATE_LIMIT_WINDOW_SEC as _API_KEY_RATE_LIMIT_WINDOW_SEC,
+)
 
 
 def _check_api_key_rate_limit(api_key):
-    """Devuelve (allowed, retry_after_seconds).
-    Aplica un rate limit sliding-window por api_key.id."""
-    now = time.time()
-    cutoff = now - _API_KEY_RATE_LIMIT_WINDOW_SEC
-    bucket = _api_key_rate_buckets[api_key.id]
-    # Purgar timestamps fuera del window (más antiguos que cutoff).
-    while bucket and bucket[0] < cutoff:
-        bucket.popleft()
-    if len(bucket) >= _API_KEY_RATE_LIMIT_PER_MIN:
-        # El más antiguo del bucket determina cuánto falta hasta que "expire".
-        retry_after = int(bucket[0] + _API_KEY_RATE_LIMIT_WINDOW_SEC - now) + 1
-        return False, max(1, retry_after)
-    bucket.append(now)
-    return True, 0
+    """Wrapper que extrae el id de la api_key. Delega al servicio."""
+    return _check_api_key_rate_limit_impl(api_key.id)
 
 
 def _validate_api_key():
@@ -21373,156 +21254,14 @@ def api_admin_guiones_import():
 
 
 # ─── Propagación Eliot → Pash + Primatela ─────────────────────────────────
-#
-# Cuando un admin asigna subroles o guiones a un técnico/admin de la empresa
-# 'eliot', el sistema busca si el mismo email existe como usuario en 'pash' y
-# 'primatela' y le replica automáticamente las asignaciones equivalentes.
-#
-# - Subroles: si el subrol es global (company IS NULL) se asigna directo. Si
-#   es propio de eliot, se busca por nombre en la empresa destino; si no
-#   existe, se clona en la empresa destino y luego se asigna.
-# - Guiones: se busca por nombre (case-insensitive) en la empresa destino; si
-#   no existe, se clona con código sufijado (-pash / -primatela) incluyendo
-#   todas sus subtareas (assignees re-resueltos por email dentro de la
-#   empresa destino).
-#
-# La dirección es siempre eliot → otras. No propaga al revés.
-
-_REPLICATE_TARGETS = ('pash', 'primatela')
-
-
-def _find_peer_users(source_user):
-    """Devuelve la lista de usuarios activos con el mismo email en pash+primatela."""
-    if not source_user or not source_user.email:
-        return []
-    email_l = source_user.email.strip().lower()
-    return User.query.filter(
-        db.func.lower(User.email) == email_l,
-        User.company.in_(_REPLICATE_TARGETS),
-        User.role.in_(('technician', 'admin')),
-        User.is_active == True,
-    ).all()
-
-
-def _replicate_subroles_to_peers(source_user, subrole_ids):
-    """source_user está en 'eliot'. Replica sus subroles a los peers en pash+primatela."""
-    if not source_user or source_user.company != 'eliot':
-        return {'peers': 0, 'assigned': 0}
-    peers = _find_peer_users(source_user)
-    if not peers:
-        return {'peers': 0, 'assigned': 0}
-
-    source_subroles = [Subrole.query.get(sid) for sid in (subrole_ids or [])]
-    source_subroles = [s for s in source_subroles if s and s.is_active]
-    total_assigned = 0
-
-    for peer in peers:
-        # Reemplaza asignaciones existentes del peer (mismo modelo que el set original)
-        UserSubrole.query.filter_by(user_id=peer.id).delete()
-        for src in source_subroles:
-            target_subrole = None
-            if src.company is None:
-                # Global — asignar el mismo directamente
-                target_subrole = src
-            elif src.company == 'eliot':
-                # Buscar equivalente por nombre en la empresa peer
-                target_subrole = Subrole.query.filter(
-                    db.func.lower(Subrole.name) == src.name.strip().lower(),
-                    Subrole.company == peer.company,
-                    Subrole.is_active == True,
-                ).first()
-                if not target_subrole:
-                    # Clonar el subrol en la empresa peer
-                    target_subrole = Subrole(
-                        name=src.name,
-                        description=src.description,
-                        icon=src.icon,
-                        company=peer.company,
-                        is_system=False,
-                        is_active=True,
-                    )
-                    db.session.add(target_subrole)
-                    db.session.flush()
-            else:
-                continue
-            db.session.add(UserSubrole(user_id=peer.id, subrole_id=target_subrole.id))
-            total_assigned += 1
-
-    return {'peers': len(peers), 'assigned': total_assigned}
-
-
-def _replicate_guiones_to_peers(source_user, guion_ids):
-    """source_user está en 'eliot'. Replica sus guiones (y las plantillas si faltan)
-    a los peers en pash+primatela."""
-    if not source_user or source_user.company != 'eliot':
-        return {'peers': 0, 'assigned': 0, 'cloned_guiones': 0}
-    peers = _find_peer_users(source_user)
-    if not peers:
-        return {'peers': 0, 'assigned': 0, 'cloned_guiones': 0}
-
-    source_guiones = [Guion.query.get(gid) for gid in (guion_ids or [])]
-    source_guiones = [g for g in source_guiones if g and g.company == 'eliot']
-    total_assigned = 0
-    total_cloned = 0
-
-    for peer in peers:
-        # Reemplaza asignaciones existentes del peer (mismo modelo que el set original)
-        UserGuion.query.filter_by(user_id=peer.id).delete()
-        for src in source_guiones:
-            # Buscar equivalente por nombre (case-insensitive) en la empresa peer
-            target = Guion.query.filter(
-                db.func.lower(Guion.name) == src.name.strip().lower(),
-                Guion.company == peer.company,
-            ).first()
-            if not target:
-                # Clonar guión + subtareas
-                base_code = src.code
-                new_code = f'{base_code}-{peer.company}'[:50]
-                # Asegurar unicidad global del code (raro, pero por si ya existe)
-                suffix = 1
-                while Guion.query.filter_by(code=new_code).first():
-                    suffix += 1
-                    new_code = f'{base_code}-{peer.company}{suffix}'[:50]
-                target = Guion(
-                    code=new_code,
-                    name=src.name[:200],
-                    description=src.description,
-                    company=peer.company,
-                    default_priority=src.default_priority,
-                    default_category=src.default_category,
-                    is_active=src.is_active,
-                    created_by_id=source_user.id,
-                )
-                db.session.add(target)
-                db.session.flush()
-                # Clonar subtareas resolviendo assignees por email en la empresa peer
-                src_subs = GuionSubtask.query.filter_by(guion_id=src.id).order_by(GuionSubtask.order_idx).all()
-                for s in src_subs:
-                    assignee_id = None
-                    if s.assignee and s.assignee.email:
-                        u = User.query.filter(
-                            db.func.lower(User.email) == s.assignee.email.strip().lower(),
-                            User.company == peer.company,
-                            User.role.in_(('technician', 'admin')),
-                            User.is_active == True,
-                        ).first()
-                        assignee_id = u.id if u else None
-                    db.session.add(GuionSubtask(
-                        guion_id=target.id,
-                        order_idx=s.order_idx,
-                        title=s.title,
-                        description=s.description,
-                        category=s.category,
-                        priority=s.priority,
-                        assignee_id=assignee_id,
-                    ))
-                total_cloned += 1
-
-            if target.is_active:
-                db.session.add(UserGuion(user_id=peer.id, guion_id=target.id))
-                total_assigned += 1
-
-    return {'peers': len(peers), 'assigned': total_assigned, 'cloned_guiones': total_cloned}
+# Fase 2 refactor: la implementación vive en services/replication.py.
+# Aliases con el nombre viejo por retrocompat con los callers en app.py.
+from services.replication import (
+    find_peer_users as _find_peer_users,
+    replicate_subroles_to_peers as _replicate_subroles_to_peers,
+    replicate_guiones_to_peers as _replicate_guiones_to_peers,
+    REPLICATE_TARGETS as _REPLICATE_TARGETS,
+)
 
 
 # ─── Sync masivo Eliot → Pash + Primatela ─────────────────────────────────
