@@ -216,6 +216,114 @@ app.config['SECRET_KEY'] = _secret_key
 # Inicializar cifrado de secretos en BD (Fernet con DB_ENCRYPTION_KEY)
 init_crypto(_IS_PRODUCTION)
 
+
+# ═════════════════════════════════════════════════════════════════════════════
+# HASH DE PASSWORDS — Argon2id con retrocompat PBKDF2
+# ═════════════════════════════════════════════════════════════════════════════
+#
+# Historia: originalmente los passwords se hasheaban con PBKDF2-SHA256 usando
+# el username como salt (100 000 iteraciones). Esto es funcional pero tiene 2
+# problemas serios:
+#   1. Salt determinístico → dos usuarios con mismo username+password en
+#      distintas empresas producen hashes idénticos. Vulnerable a ataques de
+#      diccionario pre-computado si la BD se filtra.
+#   2. PBKDF2 es memory-hard limitado — inferior a Argon2id ante GPUs y ASICs.
+#
+# Solución: migración transparente a Argon2id.
+#   - `hash_password()` siempre produce Argon2id (formato $argon2id$v=19$...).
+#   - `verify_password()` acepta AMBOS formatos:
+#       * Argon2id ($argon2id$...) → verifica con argon2-cffi.
+#       * PBKDF2 legacy (hex de 64 chars) → verifica con hashlib + username.
+#     Retorna (is_valid, needs_rehash). Si needs_rehash, el caller debe
+#     re-hashear y persistir. Los usuarios se migran solos al loguearse.
+#
+# Parámetros Argon2id (OWASP 2024 baseline):
+#     time_cost=2, memory_cost=19 MiB, parallelism=1. Verificación ~50-100ms.
+try:
+    from argon2 import PasswordHasher as _Argon2PasswordHasher
+    from argon2.exceptions import (
+        VerifyMismatchError as _Argon2VerifyMismatchError,
+        InvalidHash as _Argon2InvalidHash,
+        VerificationError as _Argon2VerificationError,
+    )
+    _argon2_hasher = _Argon2PasswordHasher(
+        time_cost=2,
+        memory_cost=19456,   # KiB
+        parallelism=1,
+        hash_len=32,
+        salt_len=16,
+    )
+    _ARGON2_AVAILABLE = True
+except ImportError:
+    _argon2_hasher = None
+    _ARGON2_AVAILABLE = False
+    print('[WARN] argon2-cffi no está instalado. Los passwords seguirán usando PBKDF2 legacy. '
+          'Instalá con `pip install argon2-cffi==23.1.0` para migrar a Argon2id.')
+
+
+def _hash_password_pbkdf2_legacy(password: str, username: str) -> str:
+    """Hash PBKDF2-SHA256 con username como salt (100 000 iters).
+
+    LEGACY: solo para verificar hashes ya en BD. Nunca usar para nuevos hashes.
+    """
+    return hashlib.pbkdf2_hmac('sha256', (password or '').encode(), (username or '').encode(), 100000).hex()
+
+
+def hash_password(password: str, username: str = '') -> str:
+    """Genera un hash de password. Preferentemente Argon2id; si la lib no está
+    disponible, cae a PBKDF2 legacy (retrocompat).
+
+    El `username` solo se usa como salt en el modo legacy. En Argon2id el salt
+    es aleatorio (interno al hash).
+    """
+    if _ARGON2_AVAILABLE:
+        return _argon2_hasher.hash(password or '')
+    return _hash_password_pbkdf2_legacy(password, username)
+
+
+def verify_password(password: str, stored_hash: str, username: str = '') -> tuple:
+    """Verifica un password contra el hash almacenado.
+
+    Retorna (is_valid, needs_rehash):
+        - is_valid: True si el password coincide con el hash.
+        - needs_rehash: True cuando el hash usa formato legacy o parámetros
+          Argon2 obsoletos. El caller debe re-hashear + persistir.
+
+    Formatos aceptados:
+        - $argon2id$... (Argon2, moderno)
+        - hex de 64 chars (PBKDF2-SHA256 legacy)
+    """
+    if not stored_hash or password is None:
+        return False, False
+
+    # ── Argon2 (moderno) ──
+    if stored_hash.startswith('$argon2'):
+        if not _ARGON2_AVAILABLE:
+            return False, False
+        try:
+            _argon2_hasher.verify(stored_hash, password)
+            needs = _argon2_hasher.check_needs_rehash(stored_hash)
+            return True, needs
+        except (_Argon2VerifyMismatchError, _Argon2VerificationError, _Argon2InvalidHash):
+            return False, False
+
+    # ── PBKDF2 legacy (hex 64) ──
+    if len(stored_hash) == 64 and all(c in '0123456789abcdefABCDEF' for c in stored_hash):
+        if not username:
+            return False, False
+        calc = _hash_password_pbkdf2_legacy(password, username)
+        # Comparación en tiempo constante para evitar timing attacks.
+        try:
+            import hmac as _hmac
+            if _hmac.compare_digest(calc, stored_hash.lower()):
+                return True, True   # rehash SIEMPRE en el próximo login
+        except Exception:
+            if calc == stored_hash.lower():
+                return True, True
+
+    return False, False
+
+
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 # Cookies solo por HTTPS en producción (HTTP local en desarrollo)
 app.config['SESSION_COOKIE_SECURE'] = _IS_PRODUCTION
@@ -1600,8 +1708,8 @@ def login():
             # Si no se autenticó por LDAP, intentar hash local
             if not authenticated:
                 if user.password_hash:
-                    password_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), user.username.encode(), 100000)
-                    if password_hash.hex() != user.password_hash:
+                    _pw_ok, _pw_needs_rehash = verify_password(password, user.password_hash, user.username)
+                    if not _pw_ok:
                         # Incrementar contador de intentos fallidos
                         user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
                         error_msg = 'Contraseña incorrecta'
@@ -1627,6 +1735,18 @@ def login():
             # Login exitoso: resetear contador y desbloquear
             user.failed_login_attempts = 0
             user.locked_until = None
+
+            # Rehash on-login: si el hash almacenado está en formato legacy
+            # (PBKDF2) o con params Argon2 obsoletos, actualizarlo transparente.
+            # `_pw_needs_rehash` solo existe si vino por hash local (no LDAP).
+            try:
+                if not authenticated and locals().get('_pw_needs_rehash'):
+                    user.password_hash = hash_password(password, user.username)
+                    log_audit('password_rehashed', user.id, 'user', user.id,
+                              f'Password de {user.username}@{user.company} migrado a Argon2id on-login')
+            except Exception as _rh_err:
+                # Un fallo del rehash NUNCA debe bloquear el login exitoso.
+                print(f'[password_rehash] error para user_id={user.id}: {_rh_err}')
 
             session['user_id'] = user.id
             session['username'] = user.username
@@ -1847,15 +1967,15 @@ def force_change_password():
         return render_template('force_change_password.html', user_name=user.name, error=err)
 
     # Verificar contraseña actual
-    current_hash = hashlib.pbkdf2_hmac('sha256', current.encode(), user.username.encode(), 100000).hex()
-    if current_hash != user.password_hash:
+    _current_ok, _ = verify_password(current, user.password_hash, user.username)
+    if not _current_ok:
         log_audit('force_change_password_failed', user.id, 'user', user.id,
                   f'Contraseña actual incorrecta al intentar cambio forzado')
         return render_template('force_change_password.html', user_name=user.name,
                                error='La contraseña actual es incorrecta.')
 
-    # Guardar nueva contraseña y bajar la bandera
-    user.password_hash = hashlib.pbkdf2_hmac('sha256', new_pw.encode(), user.username.encode(), 100000).hex()
+    # Guardar nueva contraseña (Argon2id) y bajar la bandera
+    user.password_hash = hash_password(new_pw, user.username)
     user.must_change_password = False
     db.session.commit()
 
@@ -2178,9 +2298,49 @@ def auth_microsoft_callback():
 # GESTIÓN DE EMPRESAS (MULTI-TENANT) - RF-04
 # ═════════════════════════════════════════════════════════════════════════════
 
+#
+# NOTA de seguridad: /api/companies y /api/company/<code> son públicos POR DISEÑO
+# porque la pantalla de login los consume ANTES de autenticarse para renderizar
+# los logos y colores de cada empresa. Los datos que devuelven (code, name,
+# icon, colores) también son visibles en el HTML del login, así que no hay
+# leak real de información sensible.
+#
+# Controles compensatorios aplicados:
+#   1. Solo se listan empresas con is_active=True (`/api/companies`).
+#   2. `/api/company/<code>` rechaza códigos que no existen o están inactivos.
+#   3. Rate limit por IP: 30 req/min. Suficiente para el flujo de login normal,
+#      insuficiente para scraping automatizado o DoS.
+#
+_PUBLIC_COMPANY_RATE_LIMIT_PER_MIN = 30
+_public_company_rate_buckets = _collections.defaultdict(_collections.deque)
+
+
+def _check_public_company_rate_limit():
+    """Rate limit sliding-window por IP para endpoints públicos de company.
+    Retorna (allowed, retry_after_seconds)."""
+    ip = _real_client_ip()
+    now = time.time()
+    cutoff = now - 60
+    bucket = _public_company_rate_buckets[ip]
+    while bucket and bucket[0] < cutoff:
+        bucket.popleft()
+    if len(bucket) >= _PUBLIC_COMPANY_RATE_LIMIT_PER_MIN:
+        retry_after = int(bucket[0] + 60 - now) + 1
+        return False, max(1, retry_after)
+    bucket.append(now)
+    return True, 0
+
+
 @app.route('/api/companies', methods=['GET'])
 def api_list_companies():
-    """Listar empresas disponibles"""
+    """Listar empresas activas. Usado por la pantalla de login para renderizar
+    los logos. Público por diseño (rate-limited por IP)."""
+    allowed, retry_after = _check_public_company_rate_limit()
+    if not allowed:
+        resp = jsonify({'success': False, 'error': 'rate_limited', 'retry_after': retry_after})
+        resp.status_code = 429
+        resp.headers['Retry-After'] = str(retry_after)
+        return resp
     companies = Company.query.filter_by(is_active=True).all()
     result = [{
         'code': c.code,
@@ -2191,11 +2351,21 @@ def api_list_companies():
     } for c in companies]
     return jsonify({'success': True, 'companies': result})
 
+
 @app.route('/api/company/<company_code>', methods=['GET'])
 def api_get_company(company_code):
-    """Obtener detalles de empresa"""
-    company = Company.query.filter_by(code=company_code).first()
+    """Obtener metadatos visibles de una empresa activa. Público por diseño
+    (rate-limited por IP)."""
+    allowed, retry_after = _check_public_company_rate_limit()
+    if not allowed:
+        resp = jsonify({'success': False, 'error': 'rate_limited', 'retry_after': retry_after})
+        resp.status_code = 429
+        resp.headers['Retry-After'] = str(retry_after)
+        return resp
+    company = Company.query.filter_by(code=company_code, is_active=True).first()
     if not company:
+        # Respuesta genérica — no diferenciar "no existe" de "inactiva" para
+        # evitar enumeración de códigos.
         return jsonify({'success': False}), 404
 
     return jsonify({
@@ -9100,33 +9270,126 @@ def notify_ticket_assigned(ticket, new_assignee, assigned_by_name='Sistema', rea
 
 
 def start_watchdog():
-    """Monitorear BD y reiniciar si hay 3 fallos consecutivos (RNF-02-03)"""
+    """Monitorea BD cada 30s. Ante N fallos consecutivos:
+      1. Alerta a Teams (webhook opcional en config).
+      2. Registra evento crítico en audit_log.
+      3. Termina el proceso con os._exit(1) para que el orquestador
+         (Docker/Coolify/systemd) lo reinicie según su restart policy.
+
+    Circuit breaker anti-restart-loop: si detectamos más de MAX_RESTARTS_PER_HOUR
+    reinicios en la última hora (via archivo timestamp), NO reiniciamos —
+    seguimos alertando cada N fallos y esperando intervención humana. Esto
+    evita bucle infinito de reinicios ante un problema sistémico (BD apagada,
+    disco lleno).
+    """
     global db_failure_count
+
+    MAX_RESTARTS_PER_HOUR = int(os.getenv('WATCHDOG_MAX_RESTARTS_PER_HOUR', '5'))
+    RESTART_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', 'watchdog_restarts.log')
+
+    def _record_restart_attempt():
+        """Registra un intento de restart en un archivo append-only.
+        Retorna True si podemos reiniciar (dentro del budget), False si estamos loop."""
+        try:
+            os.makedirs(os.path.dirname(RESTART_LOG_PATH), exist_ok=True)
+            now = time.time()
+            recent = []
+            if os.path.exists(RESTART_LOG_PATH):
+                with open(RESTART_LOG_PATH, 'r') as f:
+                    for line in f:
+                        try:
+                            ts = float(line.strip())
+                            if now - ts < 3600:   # última hora
+                                recent.append(ts)
+                        except ValueError:
+                            pass
+            if len(recent) >= MAX_RESTARTS_PER_HOUR:
+                return False  # ya reiniciamos demasiado, no lo hacemos otra vez
+            # Escribir el nuevo intento
+            recent.append(now)
+            with open(RESTART_LOG_PATH, 'w') as f:
+                for ts in recent:
+                    f.write(f'{ts}\n')
+            return True
+        except Exception as e:
+            print(f'[Watchdog] no pude verificar restart budget: {e}')
+            return True   # ante duda, permitir el restart
+
+    def _alert_teams(subject, body):
+        """Envía alerta a Teams webhook si está configurado."""
+        try:
+            webhook = os.getenv('TEAMS_WATCHDOG_WEBHOOK', '').strip()
+            if not webhook:
+                return
+            import requests as _req
+            payload = {
+                '@type': 'MessageCard',
+                '@context': 'https://schema.org/extensions',
+                'themeColor': 'FF0000',
+                'summary': subject,
+                'title': f'🚨 [DeskEli Watchdog] {subject}',
+                'text': body,
+            }
+            _req.post(webhook, json=payload, timeout=10)
+        except Exception as e:
+            print(f'[Watchdog] fallo al alertar Teams: {e}')
 
     def watchdog_loop():
         global db_failure_count
         while True:
             try:
                 with app.app_context():
-                    # Intentar consulta simple
                     db.session.execute(db.text('SELECT 1'))
-                    db_failure_count = 0  # Reset en éxito
-                time.sleep(30)  # Verificar cada 30s
+                    if db_failure_count > 0:
+                        # Recuperado — loguear y resetear
+                        print(f'[Watchdog] BD recuperada tras {db_failure_count} fallos.')
+                        try:
+                            log_audit('watchdog_recovered', None, 'watchdog', None,
+                                      f'BD recuperada tras {db_failure_count} fallos consecutivos')
+                        except Exception:
+                            pass
+                    db_failure_count = 0
+                time.sleep(30)
             except Exception as e:
                 db_failure_count += 1
                 error_type = type(e).__name__
-                print(f'[Watchdog] DB Error #{db_failure_count} ({error_type}): {str(e)[:100]}')
+                print(f'[Watchdog] DB Error #{db_failure_count} ({error_type}): {str(e)[:200]}')
 
                 if db_failure_count >= restart_threshold:
+                    # Alertar antes de reiniciar — el audit puede fallar si BD murió.
                     try:
                         with app.app_context():
                             log_audit('watchdog_restart', None, 'watchdog', None,
-                                      f'Watchdog iniciando restart tras {db_failure_count} fallos: {error_type}')
+                                      f'Watchdog: {db_failure_count} fallos de BD ({error_type}). Iniciando restart.')
                     except Exception as audit_err:
-                        print(f'[Watchdog] Could not log restart: {audit_err}')
-                    print(f'[Watchdog] {restart_threshold} fallos detectados, reiniciando servicio...')
-                    db_failure_count = 0
-                    time.sleep(60)
+                        print(f'[Watchdog] no pude loguear al audit (probablemente BD caída): {audit_err}')
+
+                    can_restart = _record_restart_attempt()
+                    if not can_restart:
+                        # Estamos en loop — solo alertar
+                        msg = (f'⚠️ Watchdog detectó {db_failure_count} fallos de BD ({error_type}) '
+                               f'pero ya superamos {MAX_RESTARTS_PER_HOUR} reinicios en la última hora. '
+                               f'NO se reiniciará. Se requiere intervención humana.')
+                        print(f'[Watchdog] {msg}')
+                        _alert_teams('Restart loop detectado', msg)
+                        db_failure_count = 0
+                        time.sleep(300)   # esperar 5 min antes de reintentar
+                        continue
+
+                    # Alertar y reiniciar
+                    _alert_teams(
+                        f'Reiniciando proceso tras {db_failure_count} fallos de BD',
+                        f'Error type: {error_type}\n'
+                        f'Server: {os.uname().nodename if hasattr(os, "uname") else "unknown"}\n'
+                        f'El proceso se está reiniciando. El orquestador (Docker/Coolify) '
+                        f'debería levantarlo de nuevo automáticamente.'
+                    )
+                    print(f'[Watchdog] Terminando proceso con exit(1) para restart del orquestador...')
+                    # Pequeña pausa para que llegue el log/alert.
+                    time.sleep(2)
+                    os._exit(1)
+
+                time.sleep(10)   # backoff más corto durante fallos
 
     thread = Thread(target=watchdog_loop, daemon=True)
     thread.start()
@@ -10478,9 +10741,7 @@ def init_db():
                     continue
                 # Hash de la contraseña temporal — el usuario debe cambiarla en su primer login
                 _bootstrap_pw = os.getenv('BOOTSTRAP_PASSWORD', 'DeskEli2026!')
-                _bootstrap_hash = hashlib.pbkdf2_hmac(
-                    'sha256', _bootstrap_pw.encode(), username.encode(), 100000
-                ).hex()
+                _bootstrap_hash = hash_password(_bootstrap_pw, username)
                 # Dominio configurable; default: dominio corporativo PatPrimo
                 _seed_domain = os.getenv('SEED_EMAIL_DOMAIN', 'patprimo.com.co')
                 db.session.add(User(
@@ -17610,7 +17871,7 @@ def api_admin_team_import_template():
         ('• Si el username ya existe en tu empresa, esa fila se OMITE.', ''),
         ('• Los roles permitidos son: admin, technician, employee.', ''),
         ('• El sistema crea los usuarios EN TU EMPRESA actual automáticamente.', ''),
-        ('• Las contraseñas se hashean con PBKDF2.', ''),
+        ('• Las contraseñas se hashean con Argon2id (OWASP 2024).', ''),
     ]
     for i, (a, b) in enumerate(instructions, 1):
         c1 = ws2.cell(row=i, column=1, value=a)
@@ -17724,9 +17985,9 @@ def api_admin_team_import():
             skipped_details.append({'username': username, 'reason': 'ya existe en esta empresa'})
             continue
 
-        # Hash password
+        # Hash password (Argon2id)
         try:
-            pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), username.encode(), 100000).hex()
+            pwd_hash = hash_password(password, username)
         except Exception as e:
             errors.append({'row': idx, 'error': f'{username}: error generando password ({e})'})
             continue
@@ -17978,8 +18239,8 @@ def api_admin_team_create():
         if not ok:
             return jsonify({'success': False, 'error': err}), 400
 
-        # Hash de contraseña
-        password_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), username.encode(), 100000).hex()
+        # Hash de contraseña (Argon2id)
+        password_hash = hash_password(password, username)
 
         u = User(
             username=username,
@@ -18045,7 +18306,7 @@ def api_admin_team_update(user_id):
             ok, err = validate_password(pwd, username=u.username)
             if not ok:
                 return jsonify({'success': False, 'error': err}), 400
-            u.password_hash = hashlib.pbkdf2_hmac('sha256', pwd.encode(), u.username.encode(), 100000).hex()
+            u.password_hash = hash_password(pwd, u.username)
             u.must_change_password = True  # Forzar cambio en próximo login
             password_changed = True
         db.session.commit()
@@ -19694,23 +19955,85 @@ def api_monitor_escalations():
 # Autenticación por Bearer token (API Key generada en el panel admin)
 # ═════════════════════════════════════════════════════════════════════════════
 
+# ── Rate limit por API key ─────────────────────────────────────────────
+#
+# Sliding-window in-memory. Cada key mantiene una deque con los timestamps de
+# las últimas requests. Antes de aceptar, se descartan los que están fuera del
+# window y se cuentan los que quedan. Si superan el max, se rechaza con 429.
+#
+# Trade-offs conscientes:
+#   - En memoria del proceso: con múltiples workers cada uno tiene su propio
+#     contador. Como Gunicorn usa 1 worker eventlet, no es problema hoy.
+#     Si algún día se pasa a Redis, mover este dict allí.
+#   - No persiste entre restarts. OK — un attacker que espera un restart no
+#     va a tener mejor puerta.
+#
+# Configurable por env: API_KEY_RATE_LIMIT_PER_MIN (default 100).
+import collections as _collections
+
+_API_KEY_RATE_LIMIT_PER_MIN = int(os.getenv('API_KEY_RATE_LIMIT_PER_MIN', '100'))
+_API_KEY_RATE_LIMIT_WINDOW_SEC = 60
+_api_key_rate_buckets = _collections.defaultdict(_collections.deque)
+
+
+def _check_api_key_rate_limit(api_key):
+    """Devuelve (allowed, retry_after_seconds).
+    Aplica un rate limit sliding-window por api_key.id."""
+    now = time.time()
+    cutoff = now - _API_KEY_RATE_LIMIT_WINDOW_SEC
+    bucket = _api_key_rate_buckets[api_key.id]
+    # Purgar timestamps fuera del window (más antiguos que cutoff).
+    while bucket and bucket[0] < cutoff:
+        bucket.popleft()
+    if len(bucket) >= _API_KEY_RATE_LIMIT_PER_MIN:
+        # El más antiguo del bucket determina cuánto falta hasta que "expire".
+        retry_after = int(bucket[0] + _API_KEY_RATE_LIMIT_WINDOW_SEC - now) + 1
+        return False, max(1, retry_after)
+    bucket.append(now)
+    return True, 0
+
+
 def _validate_api_key():
     """Valida el header 'X-Authorization: Bearer <token>' (o Authorization).
-    Devuelve (api_key, None) si es válido, o (None, error_response) si no."""
+    Devuelve (api_key, None) si es válido, o (None, error_response) si no.
+
+    Aplica rate limit por API key después de identificarla: 100 req/min por
+    default, configurable con API_KEY_RATE_LIMIT_PER_MIN. Excedido → 429 con
+    Retry-After.
+    """
     auth = request.headers.get('X-Authorization') or request.headers.get('Authorization') or ''
     if not auth.lower().startswith('bearer '):
-        return None, (jsonify({'success': False, 'error': 'Falta header X-Authorization: Bearer <token>'}), 401)
+        return None, (jsonify({'success': False, 'error': 'Falta header X-Authorization: Bearer <token>', 'error_code': 'missing_auth'}), 401)
     token = auth[7:].strip()
     if not token:
-        return None, (jsonify({'success': False, 'error': 'Token vacío'}), 401)
+        return None, (jsonify({'success': False, 'error': 'Token vacío', 'error_code': 'missing_auth'}), 401)
 
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     api_key = ApiKey.query.filter_by(token_hash=token_hash, is_active=True).first()
     if not api_key:
-        return None, (jsonify({'success': False, 'error': 'Token inválido o revocado'}), 401)
+        return None, (jsonify({'success': False, 'error': 'Token inválido o revocado', 'error_code': 'invalid_token'}), 401)
 
     if api_key.expires_at and api_key.expires_at < datetime.now():
-        return None, (jsonify({'success': False, 'error': 'Token expirado'}), 401)
+        return None, (jsonify({'success': False, 'error': 'Token expirado', 'error_code': 'expired_token'}), 401)
+
+    # Rate limit por API key.
+    allowed, retry_after = _check_api_key_rate_limit(api_key)
+    if not allowed:
+        try:
+            log_audit('api_rate_limited', None, 'api_key', api_key.id,
+                      f'Rate limit por API key "{api_key.name}" (empresa {api_key.company}) desde {request.remote_addr}. '
+                      f'Retry-After: {retry_after}s')
+        except Exception:
+            pass
+        resp = jsonify({
+            'success': False,
+            'error': f'Rate limit excedido ({_API_KEY_RATE_LIMIT_PER_MIN} req/min por API key). Reintentá en {retry_after}s.',
+            'error_code': 'rate_limited',
+            'retry_after': retry_after,
+        })
+        resp.status_code = 429
+        resp.headers['Retry-After'] = str(retry_after)
+        return None, (resp, 429)
 
     # Registrar uso
     api_key.last_used_at = datetime.now()
@@ -19952,6 +20275,42 @@ def api_v1_external_create_ticket():
 
     # Referencia externa (Aranda style) y campos adicionales
     external_ref = _safe_str(data.get('externalRef') or data.get('external_ref')).strip()[:100]
+
+    # ── Guarda de idempotencia por externalRef ──
+    # Si ya existe un ticket con esta referencia en la empresa del token, NO
+    # creamos duplicado — devolvemos el ticket original con HTTP 200 e
+    # `idempotent: true`. Esto le permite a Tendency reintentar sin miedo
+    # ante timeouts o errores de red.
+    if external_ref:
+        existing = Ticket.query.filter(
+            Ticket.company == api_key.company,
+            Ticket.description.like(f'%📌 Ref. externa: {external_ref}%')
+        ).order_by(Ticket.id.desc()).first()
+        if existing:
+            try:
+                log_audit('api_ticket_idempotent', None, 'ticket', existing.id,
+                          f'Idempotencia: externalRef={external_ref} ya existía como {existing.ticket_number}. '
+                          f'API key "{api_key.name}" desde {request.remote_addr}.')
+            except Exception:
+                pass
+            existing_subtasks = Subtask.query.filter_by(ticket_id=existing.id).order_by(Subtask.order_idx).all()
+            return jsonify({
+                'success': True,
+                'idempotent': True,
+                'error_code': 'already_exists',
+                'id': existing.id,
+                'ticket_number': existing.ticket_number,
+                'url': f'{request.host_url.rstrip("/")}/technician/ticket/{existing.id}',
+                'status': existing.status,
+                'external_ref': external_ref,
+                'created_at': existing.created_at.isoformat(timespec='seconds') if existing.created_at else None,
+                'subtasks': [
+                    {'id': s.id, 'subtask_number': s.subtask_number, 'title': s.title, 'status': s.status}
+                    for s in existing_subtasks
+                ],
+                'message': 'Ticket ya existía. No se creó uno nuevo.',
+            }), 200
+
     additional_fields = data.get('listAdditionalField') or data.get('additional_fields') or []
     if external_ref or additional_fields:
         meta_lines = []
@@ -20494,6 +20853,114 @@ def api_v1_external_get_ticket(ticket_id):
         'resolved_at': ticket.resolved_at.isoformat(timespec='seconds') if ticket.resolved_at else None,
         'sla_deadline': ticket.sla_deadline.isoformat(timespec='seconds') if ticket.sla_deadline else None,
     })
+
+
+@app.route('/api/v1/external/tickets', methods=['GET'])
+def api_v1_external_tickets_search():
+    """Consulta de tickets por externalRef (idempotencia).
+
+    Query params:
+        externalRef  Referencia externa exacta (obligatorio).
+
+    Uso típico por Tendency: antes de reintentar una creación fallida por
+    timeout, consultar si el ticket ya se creó — la BD respeta el par
+    (company, externalRef) como llave lógica de idempotencia.
+
+    Respuestas:
+        200 → ticket encontrado.
+        404 → no existe ninguno con esa referencia en la empresa del token.
+        401 → sin token.
+        403 → token sin scope tickets:read.
+
+    Auth: header 'X-Authorization: Bearer <TOKEN>', scope 'tickets:read'.
+    """
+    api_key, err = _validate_api_key()
+    if err:
+        return err
+    if not _api_key_has_scope(api_key, 'tickets:read'):
+        return jsonify({'success': False, 'error': 'Token sin scope tickets:read', 'error_code': 'forbidden_scope'}), 403
+
+    ext_ref = (request.args.get('externalRef') or request.args.get('external_ref') or '').strip()
+    if not ext_ref:
+        return jsonify({'success': False, 'error': 'Falta query param externalRef', 'error_code': 'missing_field'}), 400
+    if len(ext_ref) > 100:
+        return jsonify({'success': False, 'error': 'externalRef excede 100 caracteres', 'error_code': 'bad_request'}), 400
+
+    # La descripción del ticket incluye "📌 Ref. externa: <ext_ref>". Buscamos por LIKE
+    # con guarda de empresa. Cuando la guarda de idempotencia esté migrada a una
+    # columna dedicada, esto se cambia a filter_by(external_ref=ext_ref).
+    ticket = Ticket.query.filter(
+        Ticket.company == api_key.company,
+        Ticket.description.like(f'%📌 Ref. externa: {ext_ref}%')
+    ).order_by(Ticket.id.desc()).first()
+
+    if not ticket:
+        return jsonify({'success': False, 'error': 'Ticket no encontrado', 'error_code': 'not_found'}), 404
+
+    assignee = User.query.get(ticket.assignee_id) if ticket.assignee_id else None
+    creator = User.query.get(ticket.creator_id) if ticket.creator_id else None
+    return jsonify({
+        'success': True,
+        'id': ticket.id,
+        'ticket_number': ticket.ticket_number,
+        'title': ticket.title,
+        'category': ticket.category,
+        'priority': ticket.priority,
+        'status': ticket.status,
+        'company': ticket.company,
+        'external_ref': ext_ref,
+        'creator': {'id': creator.id, 'name': creator.name, 'email': creator.email} if creator else None,
+        'assignee': {'id': assignee.id, 'name': assignee.name, 'email': assignee.email} if assignee else None,
+        'created_at': ticket.created_at.isoformat(timespec='seconds') if ticket.created_at else None,
+        'updated_at': ticket.updated_at.isoformat(timespec='seconds') if ticket.updated_at else None,
+        'resolved_at': ticket.resolved_at.isoformat(timespec='seconds') if ticket.resolved_at else None,
+        'sla_deadline': ticket.sla_deadline.isoformat(timespec='seconds') if ticket.sla_deadline else None,
+    }), 200
+
+
+@app.route('/api/v1/external/guiones', methods=['GET'])
+def api_v1_external_guiones_catalog():
+    """Catálogo público (por token) de guiones disponibles para la empresa
+    del token. Comprometido a Tendency para el 20/08/2026.
+
+    Respuesta:
+        200 → {"success": true, "company": "pash", "guiones": [ ... ]}
+
+    Cada guion trae code, name, descripción, prioridad y categoría default,
+    cantidad de subtareas y `updated_at` para que el consumer detecte cambios
+    por polling si lo prefiere en vez de notificación por correo.
+
+    Auth: header 'X-Authorization: Bearer <TOKEN>'. Scope 'tickets:create'
+    (mismo scope que crear un ticket — no requiere permiso adicional).
+    """
+    api_key, err = _validate_api_key()
+    if err:
+        return err
+    # tickets:read también válido — cualquier scope de la API externa alcanza
+    if not (_api_key_has_scope(api_key, 'tickets:create') or _api_key_has_scope(api_key, 'tickets:read')):
+        return jsonify({'success': False, 'error': 'Token sin scope suficiente', 'error_code': 'forbidden_scope'}), 403
+
+    guiones = Guion.query.filter_by(company=api_key.company, is_active=True).order_by(Guion.name).all()
+    result = []
+    for g in guiones:
+        subtask_count = GuionSubtask.query.filter_by(guion_id=g.id).count()
+        result.append({
+            'code': g.code,
+            'name': g.name,
+            'description': g.description or '',
+            'default_priority': g.default_priority,
+            'default_category': g.default_category,
+            'subtask_count': subtask_count,
+            'is_active': True,
+            'updated_at': g.updated_at.isoformat(timespec='seconds') if g.updated_at else None,
+        })
+
+    return jsonify({
+        'success': True,
+        'company': api_key.company,
+        'guiones': result,
+        'count': len(result),
+    }), 200
 
 
 # ═════════════════════════════════════════════════════════════════════════════

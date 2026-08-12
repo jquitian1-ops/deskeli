@@ -44,6 +44,8 @@ cryptography==45.0.7
 cffi==2.0.0
 pycparser==3.0
 bcrypt==5.0.0
+argon2-cffi==23.1.0
+argon2-cffi-bindings==21.2.0
 bleach==6.3.0
 webencodings==0.5.1
 
