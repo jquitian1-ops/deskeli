@@ -43,6 +43,11 @@ import bleach
 import re
 import hashlib
 import secrets
+import collections as _collections
+
+# Decoradores de auth (Fase 1 refactor) — reemplazan `if 'user_id' not in session`
+# copiados inline. Ver security/decorators.py para el detalle.
+from security.decorators import require_role, require_login, require_admin, require_technician_or_admin
 
 # ═════════════════════════════════════════════════════════════════════════════
 # RATE LIMITING RNF-03-07 - 120 req/min por IP
@@ -3553,6 +3558,7 @@ def api_admin_db_diagnostico():
 
 
 @app.route('/api/admin/subtasks/repair-reopened', methods=['POST'])
+@require_admin
 def api_admin_subtasks_repair_reopened():
     """Restaura subtareas que fueron reabiertas indebidamente. Detecta víctimas del
     bug del <select> sin opción 'closed' usando 2 criterios:
@@ -3568,9 +3574,6 @@ def api_admin_subtasks_repair_reopened():
 
     Body opcional: {"dry_run": true} — solo cuenta, no modifica.
     """
-    if 'user_id' not in session or session.get('role') != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
-
     data = request.get_json(silent=True) or {}
     dry_run = bool(data.get('dry_run', False))
     scope = admin_companies_scope()
@@ -13203,10 +13206,8 @@ def api_subtask_get(subtask_id):
 
 
 @app.route('/api/subtask/<int:subtask_id>', methods=['PATCH'])
+@require_technician_or_admin
 def api_subtask_update(subtask_id):
-    if 'user_id' not in session or session['role'] not in ['technician', 'admin']:
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
-
     subtask = Subtask.query.get_or_404(subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id)
     if not ticket or ticket.company not in admin_companies_scope():
@@ -13299,10 +13300,8 @@ def api_subtask_update(subtask_id):
 
 
 @app.route('/api/subtask/<int:subtask_id>', methods=['DELETE'])
+@require_technician_or_admin
 def api_subtask_delete(subtask_id):
-    if 'user_id' not in session or session['role'] not in ['technician', 'admin']:
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
-
     subtask = Subtask.query.get_or_404(subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id)
     if not ticket or ticket.company not in admin_companies_scope():
@@ -16076,10 +16075,9 @@ def api_admin_subroles_import():
 
 
 @app.route('/api/admin/users/<int:user_id>/subroles', methods=['GET'])
+@require_admin
 def api_user_subroles_get(user_id):
     """Subroles asignados a un usuario."""
-    if 'user_id' not in session or session['role'] != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     user = User.query.get_or_404(user_id)
     if user.company != session.get('company') and not is_master_admin():
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
@@ -16095,11 +16093,10 @@ def api_user_subroles_get(user_id):
 
 
 @app.route('/api/admin/users/<int:user_id>/subroles', methods=['POST'])
+@require_admin
 def api_user_subroles_set(user_id):
     """Reemplaza completamente la lista de subroles asignados al usuario.
     Body: {subrole_ids: [1, 2, 3]}"""
-    if 'user_id' not in session or session['role'] != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     user = User.query.get_or_404(user_id)
     if user.company != session.get('company') and not is_master_admin():
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
@@ -19969,8 +19966,6 @@ def api_monitor_escalations():
 #     va a tener mejor puerta.
 #
 # Configurable por env: API_KEY_RATE_LIMIT_PER_MIN (default 100).
-import collections as _collections
-
 _API_KEY_RATE_LIMIT_PER_MIN = int(os.getenv('API_KEY_RATE_LIMIT_PER_MIN', '100'))
 _API_KEY_RATE_LIMIT_WINDOW_SEC = 60
 _api_key_rate_buckets = _collections.defaultdict(_collections.deque)
@@ -20968,10 +20963,9 @@ def api_v1_external_guiones_catalog():
 # ═════════════════════════════════════════════════════════════════════════════
 
 @app.route('/api/admin/guiones', methods=['GET'])
+@require_admin
 def api_admin_guiones_list():
     """Lista todos los guiones de la empresa del admin."""
-    if 'user_id' not in session or session['role'] != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     scope = admin_companies_scope()
     guiones = Guion.query.filter(Guion.company.in_(scope)).order_by(Guion.company, Guion.name).all()
     result = []
@@ -20993,10 +20987,9 @@ def api_admin_guiones_list():
 
 
 @app.route('/api/admin/guiones', methods=['POST'])
+@require_admin
 def api_admin_guiones_create():
     """Crea un guión nuevo."""
-    if 'user_id' not in session or session['role'] != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     data = request.get_json() or {}
     code = (data.get('code') or '').strip().lower()
     name = (data.get('name') or '').strip()
@@ -21028,10 +21021,9 @@ def api_admin_guiones_create():
 
 
 @app.route('/api/admin/guiones/<int:guion_id>', methods=['GET'])
+@require_admin
 def api_admin_guion_get(guion_id):
     """Devuelve un guión con sus subtareas."""
-    if 'user_id' not in session or session['role'] != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     g = Guion.query.get_or_404(guion_id)
     if g.company not in admin_companies_scope():
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
@@ -21058,10 +21050,9 @@ def api_admin_guion_get(guion_id):
 
 
 @app.route('/api/admin/guiones/<int:guion_id>', methods=['PUT'])
+@require_admin
 def api_admin_guion_update(guion_id):
     """Actualiza metadatos del guión (no las subtareas)."""
-    if 'user_id' not in session or session['role'] != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     g = Guion.query.get_or_404(guion_id)
     if g.company not in admin_companies_scope():
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
@@ -21080,10 +21071,9 @@ def api_admin_guion_update(guion_id):
 
 
 @app.route('/api/admin/guiones/<int:guion_id>', methods=['DELETE'])
+@require_admin
 def api_admin_guion_delete(guion_id):
     """Elimina un guión y todas sus subtareas asociadas."""
-    if 'user_id' not in session or session['role'] != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     g = Guion.query.get_or_404(guion_id)
     if g.company not in admin_companies_scope():
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
@@ -21095,10 +21085,9 @@ def api_admin_guion_delete(guion_id):
 
 
 @app.route('/api/admin/guiones/<int:guion_id>/subtasks', methods=['POST'])
+@require_admin
 def api_admin_guion_subtask_create(guion_id):
     """Agrega una subtarea preconfigurada al guión."""
-    if 'user_id' not in session or session['role'] != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     g = Guion.query.get_or_404(guion_id)
     if g.company not in admin_companies_scope():
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
@@ -21140,10 +21129,9 @@ def api_admin_guion_subtask_create(guion_id):
 
 
 @app.route('/api/admin/guion-subtasks/<int:subtask_id>', methods=['PUT'])
+@require_admin
 def api_admin_guion_subtask_update(subtask_id):
     """Actualiza una subtarea del guión."""
-    if 'user_id' not in session or session['role'] != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     gs = GuionSubtask.query.get_or_404(subtask_id)
     g = Guion.query.get(gs.guion_id)
     if not g or g.company not in admin_companies_scope():
@@ -21178,10 +21166,9 @@ def api_admin_guion_subtask_update(subtask_id):
 
 
 @app.route('/api/admin/guion-subtasks/<int:subtask_id>', methods=['DELETE'])
+@require_admin
 def api_admin_guion_subtask_delete(subtask_id):
     """Elimina una subtarea del guión."""
-    if 'user_id' not in session or session['role'] != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     gs = GuionSubtask.query.get_or_404(subtask_id)
     g = Guion.query.get(gs.guion_id)
     if not g or g.company not in admin_companies_scope():
@@ -21196,13 +21183,12 @@ def api_admin_guion_subtask_delete(subtask_id):
 # ─── Export / Import de guiones (plantillas de subtareas) ───────────────────
 
 @app.route('/api/admin/guiones/export', methods=['GET'])
+@require_admin
 def api_admin_guiones_export():
     """Exporta guiones a JSON descargable.
     Query params:
       - guion_id (opcional): exporta solo ese guion; sin él, exporta todos los del scope.
     El JSON usa emails para los assignees (portable entre instalaciones)."""
-    if 'user_id' not in session or session['role'] != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     scope = admin_companies_scope()
     guion_id = request.args.get('guion_id', type=int)
     q = Guion.query.filter(Guion.company.in_(scope))
@@ -21246,6 +21232,7 @@ def api_admin_guiones_export():
 
 
 @app.route('/api/admin/guiones/import', methods=['POST'])
+@require_admin
 def api_admin_guiones_import():
     """Importa guiones desde JSON.
     Body: {"guiones": [...], "mode": "skip"|"update"|"rename", "target_company": "..."}
@@ -21254,8 +21241,6 @@ def api_admin_guiones_import():
       - mode=rename: si el code choca, agrega sufijo -imp1, -imp2, ...
       - target_company: si se pasa, sobrescribe la company del JSON (útil para copiar entre empresas).
     Los assignees se resuelven por email dentro de la empresa destino; si no se encuentra, queda sin asignar."""
-    if 'user_id' not in session or session['role'] != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     scope = admin_companies_scope()
 
     # Aceptar body JSON o multipart con archivo 'file'
@@ -21543,13 +21528,12 @@ def _replicate_guiones_to_peers(source_user, guion_ids):
 # ─── Sync masivo Eliot → Pash + Primatela ─────────────────────────────────
 
 @app.route('/api/admin/replication/sync-eliot', methods=['POST'])
+@require_admin
 def api_admin_replication_sync_eliot():
     """Aplica la replicación de subroles y guiones para TODOS los técnicos/admins
     activos de Eliot, propagando a sus peers (mismo email) en Pash y Primatela.
     Útil para sincronizar asignaciones que ya existían antes de habilitar la
     propagación automática."""
-    if 'user_id' not in session or session['role'] != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     if 'eliot' not in admin_companies_scope():
         return jsonify({'success': False, 'error': 'Sin acceso a Eliot'}), 403
 
@@ -21638,10 +21622,9 @@ def api_security_devtools_detected():
 # ─── Asignación de guiones a especialistas (M:N desde Gestión de Usuarios) ───
 
 @app.route('/api/admin/users/<int:user_id>/guiones', methods=['GET'])
+@require_admin
 def api_user_guiones_get(user_id):
     """Guiones asignados a un especialista + catálogo de guiones disponibles de su empresa."""
-    if 'user_id' not in session or session['role'] != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     user = User.query.get_or_404(user_id)
     if user.company not in admin_companies_scope():
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
@@ -21667,11 +21650,10 @@ def api_user_guiones_get(user_id):
 
 
 @app.route('/api/admin/users/<int:user_id>/guiones', methods=['POST'])
+@require_admin
 def api_user_guiones_set(user_id):
     """Reemplaza la lista de guiones asignados al usuario.
     Body: {guion_ids: [1, 2, 3]}"""
-    if 'user_id' not in session or session['role'] != 'admin':
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     user = User.query.get_or_404(user_id)
     if user.company not in admin_companies_scope():
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
