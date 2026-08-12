@@ -782,7 +782,13 @@ class TechnicianProfile(db.Model):
     tickets_resolved_total = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
-    user = db.relationship('User', backref='profile')
+    # cascade='all, delete-orphan' + single_parent: al borrar el User, borrá
+    # también su TechnicianProfile en vez de intentar SET user_id=NULL (que
+    # viola el NOT NULL constraint y explotaba con IntegrityError).
+    user = db.relationship(
+        'User',
+        backref=db.backref('profile', uselist=False, cascade='all, delete-orphan', single_parent=True)
+    )
 
     def get_skills_list(self):
         return [s.strip() for s in self.skills.split(',') if s.strip()]
@@ -18388,6 +18394,39 @@ def api_user_role_labels_set(user_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def _cleanup_user_dependents(user):
+    """Borra los registros que FK-referencian a `user` con NOT NULL, para
+    evitar que Postgres/SQLite disparen IntegrityError al hacer db.session.delete(user).
+
+    Tablas afectadas (todas tienen user_id NOT NULL):
+      - technician_profiles (1 por user, uniqueness)
+      - user_sessions (N por user)
+      - user_subroles (ya tiene cascade en el modelo — se limpia solo, pero
+        borramos explícito para no depender del orden de flush)
+      - user_guiones (idem)
+
+    Los tickets, subtareas y mensajes NO se tocan aquí: el endpoint verifica
+    antes que el user no tenga tickets asignados ni creados.
+    """
+    try:
+        TechnicianProfile.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    except Exception as e:
+        print(f'[cleanup] TechnicianProfile de {user.id}: {e}')
+    try:
+        UserSession.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    except Exception as e:
+        print(f'[cleanup] UserSession de {user.id}: {e}')
+    try:
+        UserSubrole.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    except Exception as e:
+        print(f'[cleanup] UserSubrole de {user.id}: {e}')
+    try:
+        UserGuion.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    except Exception as e:
+        print(f'[cleanup] UserGuion de {user.id}: {e}')
+    db.session.flush()
+
+
 @app.route('/api/admin/team/<int:user_id>', methods=['DELETE'])
 def api_admin_team_delete(user_id):
     """Eliminar usuario (con protección)"""
@@ -18422,12 +18461,16 @@ def api_admin_team_delete(user_id):
             m_assigned = Ticket.query.filter_by(assignee_id=m.id).count()
             m_created = Ticket.query.filter_by(creator_id=m.id).count()
             if m_assigned == 0 and m_created == 0:
+                _cleanup_user_dependents(m)
                 db.session.delete(m)
                 mirrors_deleted += 1
             else:
                 # No podemos borrar el espejo — desactivarlo en su lugar
                 m.is_active = False
 
+    # Limpiar dependents del usuario antes del delete para evitar violaciones
+    # de NOT NULL en tablas con FK (TechnicianProfile, UserSession, etc.).
+    _cleanup_user_dependents(u)
     db.session.delete(u)
     db.session.commit()
     audit_msg = f'Usuario eliminado: {name}'
