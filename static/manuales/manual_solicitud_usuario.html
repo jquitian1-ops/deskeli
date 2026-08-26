@@ -1,0 +1,1993 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual — Cómo solicitar usuarios · DeskEli</title>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, sans-serif;
+        background: #f9fafb;
+        color: #1f2937;
+        line-height: 1.65;
+    }
+    :root {
+        --primary: #7c3aed;
+        --primary-dark: #5b21b6;
+        --primary-mid: #6d28d9;
+        --primary-light: #ede9fe;
+        --primary-lighter: #faf5ff;
+        --dark: #1f2937;
+        --text: #1f2937;
+        --text-muted: #6b7280;
+        --bg: #f9fafb;
+        --card-bg: #ffffff;
+        --border: #e5e7eb;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #3b82f6;
+    }
+
+    /* TOP BAR */
+    .topbar {
+        position: sticky; top: 0; z-index: 100;
+        background: linear-gradient(135deg, #1f2937, #7c3aed);
+        color: white;
+        padding: 14px 28px;
+        box-shadow: 0 4px 20px rgba(124,58,237,0.25);
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 14px; }
+    .topbar-logo {
+        width: 48px; height: 48px;
+        border-radius: 50%;
+        border: 2px solid #7c3aed !important;
+        background: transparent !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        object-fit: cover;
+    }
+    .topbar h1 { font-size: 20px; font-weight: 800; letter-spacing: 0.3px; }
+    .topbar .subtitle { font-size: 12px; opacity: 0.9; }
+    .topbar-actions { display: flex; gap: 8px; align-items: center; }
+    .btn-action {
+        padding: 8px 14px; border: none; border-radius: 6px;
+        background: rgba(255,255,255,0.15); color: white;
+        font-size: 13px; font-weight: 600; cursor: pointer;
+        transition: all 0.2s; text-decoration: none;
+    }
+    .btn-action:hover { background: rgba(255,255,255,0.28); transform: translateY(-1px); }
+    .btn-primary { background: white; color: var(--primary-dark); }
+
+    /* LAYOUT */
+    .layout { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 64px); }
+
+    /* SIDEBAR */
+    .sidebar {
+        background: white;
+        border-right: 1px solid var(--border);
+        padding: 24px 18px;
+        position: sticky; top: 64px;
+        height: calc(100vh - 64px);
+        overflow-y: auto;
+    }
+    .sidebar h3 {
+        font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
+        color: var(--text-muted); margin: 14px 0 6px;
+    }
+    .sidebar a {
+        display: block;
+        padding: 9px 14px;
+        margin-bottom: 3px;
+        color: #374151;
+        text-decoration: none;
+        border-radius: 6px;
+        font-size: 13.5px;
+        transition: all 0.15s;
+        border-left: 3px solid transparent;
+    }
+    .sidebar a:hover { background: var(--primary-lighter); color: var(--primary); }
+    .sidebar a.active {
+        background: linear-gradient(135deg, var(--primary-light), #ddd6fe);
+        color: var(--primary-dark);
+        font-weight: 700;
+        border-left-color: var(--primary);
+    }
+
+    /* PROGRESS BAR */
+    .progress {
+        position: sticky; top: 64px; z-index: 90;
+        height: 4px; background: #f3f4f6;
+    }
+    .progress-bar {
+        height: 100%; background: linear-gradient(90deg, var(--primary), var(--primary-mid));
+        width: 6%;
+        transition: width 0.3s;
+        box-shadow: 0 0 12px rgba(124,58,237,0.5);
+    }
+
+    /* MAIN */
+    .main {
+        padding: 40px 60px 80px;
+        max-width: 1100px;
+    }
+    .section {
+        display: none;
+        animation: fadeIn 0.4s ease;
+    }
+    .section.active { display: block; }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* HEADINGS */
+    h2.section-title {
+        font-size: 32px; font-weight: 900; color: var(--dark);
+        margin-bottom: 8px;
+    }
+    h2.section-title .emoji { margin-right: 10px; }
+    .section-subtitle {
+        color: var(--text-muted);
+        font-size: 15px;
+        margin-bottom: 30px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+    }
+    h3 { color: var(--dark); margin: 24px 0 12px; font-size: 20px; }
+    h4 { color: var(--primary-dark); margin: 18px 0 8px; font-size: 16px; }
+    p { margin-bottom: 12px; color: #374151; font-size: 14.5px; }
+
+    /* HERO */
+    .hero {
+        background: linear-gradient(135deg, #faf5ff, #ede9fe);
+        border-radius: 14px;
+        padding: 40px;
+        text-align: center;
+        border: 1px solid var(--primary-light);
+        box-shadow: 0 4px 24px rgba(124,58,237,0.08);
+        margin-bottom: 30px;
+    }
+    .hero-logo {
+        display: block;
+        width: 120px; height: 120px;
+        margin: 0 auto 20px;
+        border-radius: 50%;
+        border: 4px solid var(--primary) !important;
+        background: transparent !important;
+        box-shadow: 0 8px 24px rgba(124,58,237,0.3);
+        object-fit: cover;
+    }
+    .hero h1 { font-size: 32px; color: var(--dark); margin-bottom: 10px; }
+    .hero p { font-size: 15px; color: #4b5563; max-width: 640px; margin: 0 auto 8px; }
+
+    /* CARDS */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 20px 0; }
+    .card {
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px;
+        transition: all 0.2s;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .card:hover {
+        transform: translateY(-3px);
+        border-color: var(--primary);
+        box-shadow: 0 8px 20px rgba(124,58,237,0.12);
+    }
+    .card-icon { font-size: 32px; margin-bottom: 12px; }
+    .card h4 { color: var(--primary); margin: 0 0 8px; font-size: 15px; }
+    .card p { font-size: 13px; color: var(--text-muted); margin: 0; }
+
+    /* CALLOUTS */
+    .callout {
+        margin: 18px 0;
+        padding: 16px 20px;
+        border-radius: 8px;
+        border-left: 4px solid;
+        display: flex; gap: 12px;
+    }
+    .callout-icon { font-size: 24px; flex-shrink: 0; }
+    .callout-content { flex: 1; }
+    .callout-tip { background: #eff6ff; border-color: var(--info); }
+    .callout-tip .callout-title { color: #1d4ed8; }
+    .callout-warn { background: #fffbeb; border-color: var(--warning); }
+    .callout-warn .callout-title { color: #b45309; }
+    .callout-danger { background: #fef2f2; border-color: var(--danger); }
+    .callout-danger .callout-title { color: #b91c1c; }
+    .callout-success { background: #ecfdf5; border-color: var(--success); }
+    .callout-success .callout-title { color: #047857; }
+    .callout-title { font-weight: 700; margin-bottom: 4px; font-size: 14px; }
+    .callout p { color: #374151; font-size: 14px; margin: 0; }
+
+    /* STEPS */
+    .steps { counter-reset: step; margin: 20px 0; }
+    .step {
+        position: relative;
+        padding: 18px 22px 18px 68px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        margin-bottom: 14px;
+        counter-increment: step;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .step::before {
+        content: counter(step);
+        position: absolute; left: 18px; top: 18px;
+        width: 36px; height: 36px;
+        background: linear-gradient(135deg, var(--primary), var(--primary-mid));
+        color: white; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 800; font-size: 16px;
+        box-shadow: 0 3px 8px rgba(124,58,237,0.35);
+    }
+    .step-title { font-weight: 700; color: var(--dark); margin-bottom: 6px; font-size: 15px; }
+    .step-desc { font-size: 13.5px; color: #4b5563; }
+
+    /* MOCKUP */
+    .mockup {
+        background: white;
+        border: 2px dashed #cbd5e1;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 18px 0;
+        position: relative;
+    }
+    .mockup::before {
+        content: "👁 Vista del portal";
+        position: absolute; top: -10px; left: 16px;
+        background: var(--bg); padding: 0 8px;
+        font-size: 11px; color: var(--text-muted); font-weight: 700;
+    }
+    .mockup-field { margin-bottom: 12px; }
+    .mockup-field label {
+        display: block; font-size: 12px; font-weight: 700;
+        color: #92400e; margin-bottom: 4px;
+    }
+    .mockup-input {
+        background: #f9fafb;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 13px;
+        color: #374151;
+        font-family: 'Consolas', monospace;
+    }
+    .mockup-select::after { content: " ▾"; color: #6b7280; float: right; }
+
+    /* TABLES */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 16px 0;
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        font-size: 13.5px;
+        border: 1px solid var(--border);
+    }
+    th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+    th {
+        background: var(--primary);
+        color: white;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 11px;
+        letter-spacing: 0.5px;
+    }
+    tr:nth-child(even) td { background: #f9fafb; }
+
+    /* CONTROLES TABLE (formato T-APPS) */
+    .controls-table {
+        margin: 20px 0;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    .controls-table table {
+        margin: 0;
+        border: none;
+        border-radius: 0;
+    }
+    .controls-table th {
+        background: #1e3a8a;
+        color: white;
+    }
+    .control-cell {
+        vertical-align: top;
+    }
+    .control-name {
+        font-weight: 700;
+        color: var(--primary-dark);
+        font-size: 13px;
+        text-transform: uppercase;
+    }
+    .control-detalle {
+        font-size: 12px;
+        color: #4b5563;
+        line-height: 1.55;
+    }
+    .control-espejo-badge {
+        display: inline-block;
+        margin-top: 6px;
+        padding: 2px 8px;
+        background: #fef3c7;
+        color: #92400e;
+        border-radius: 10px;
+        font-size: 10.5px;
+        font-weight: 700;
+    }
+
+    /* BADGES */
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+    .badge-required { background: #fee2e2; color: #991b1b; }
+    .badge-optional { background: #e5e7eb; color: #374151; }
+    .badge-new { background: #d1fae5; color: #065f46; }
+    .badge-ingreso { background: #dbeafe; color: #1e40af; }
+    .badge-mod { background: #fef3c7; color: #92400e; }
+    .badge-traslado { background: #ddd6fe; color: #5b21b6; }
+
+    kbd {
+        display: inline-block; padding: 2px 8px;
+        background: #f3f4f6; border: 1px solid #d1d5db;
+        border-radius: 4px; font-family: monospace; font-size: 12px;
+        font-weight: 700; box-shadow: 0 1px 0 #d1d5db;
+    }
+
+    code {
+        background: var(--primary-lighter);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 13px;
+        color: var(--primary-dark);
+        font-family: 'Consolas', monospace;
+    }
+
+    /* NAV ARROWS */
+    .nav-arrows {
+        display: flex; justify-content: space-between;
+        margin-top: 40px; padding-top: 24px;
+        border-top: 1px solid var(--border);
+    }
+    .nav-arrows button {
+        padding: 12px 22px; border: none;
+        background: linear-gradient(135deg, var(--primary), var(--primary-mid));
+        color: white; border-radius: 8px;
+        font-size: 14px; font-weight: 700; cursor: pointer;
+        transition: all 0.2s;
+    }
+    .nav-arrows button:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(124,58,237,0.35); }
+    .nav-arrows button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* TIMELINE */
+    .timeline {
+        position: relative;
+        padding-left: 32px;
+        border-left: 3px solid var(--primary);
+        margin: 24px 0;
+    }
+    .timeline-item { margin-bottom: 22px; position: relative; }
+    .timeline-item::before {
+        content: '';
+        position: absolute; left: -40px; top: 8px;
+        width: 14px; height: 14px;
+        background: var(--primary); border: 3px solid white; border-radius: 50%;
+        box-shadow: 0 0 0 2px var(--primary);
+    }
+    .timeline-item h4 { font-size: 15px; margin-bottom: 4px; color: var(--dark); }
+    .timeline-item p { font-size: 13px; color: var(--text-muted); margin: 0; }
+
+    /* FIELD LIST */
+    .field-list {
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 16px 0;
+    }
+    .field-row {
+        display: grid;
+        grid-template-columns: 220px 1fr 100px;
+        padding: 12px 16px;
+        border-bottom: 1px solid #f3f4f6;
+        gap: 12px;
+        align-items: start;
+    }
+    .field-row:last-child { border-bottom: none; }
+    .field-name { font-weight: 700; color: var(--primary-dark); font-size: 13.5px; }
+    .field-desc { font-size: 13px; color: #4b5563; }
+    .field-req { text-align: right; }
+
+    /* CHECKBOX MOCKUP */
+    .checkbox-row {
+        display: grid;
+        grid-template-columns: 30px 200px 1fr 1fr;
+        gap: 12px;
+        padding: 10px 14px;
+        border-bottom: 1px solid #f3f4f6;
+        background: white;
+        align-items: start;
+    }
+    .checkbox-row:nth-child(even) { background: #f9fafb; }
+    .checkbox-row .cb {
+        width: 18px; height: 18px;
+        border: 2px solid #94a3b8;
+        border-radius: 3px;
+        display: inline-block;
+    }
+    .checkbox-row .cb-name {
+        font-weight: 700;
+        color: #1e3a8a;
+        font-size: 12.5px;
+        text-transform: uppercase;
+    }
+    .checkbox-row .cb-desc {
+        background: white; border: 1px solid #cbd5e1;
+        border-radius: 4px; padding: 8px 10px;
+        font-size: 12px; color: #374151;
+        font-family: 'Consolas', monospace;
+        min-height: 40px;
+    }
+    .checkbox-row .cb-detalle {
+        font-size: 11px;
+        color: #64748b;
+        line-height: 1.5;
+    }
+
+    /* PRINT */
+    @media print {
+        .topbar, .sidebar, .progress, .nav-arrows { display: none; }
+        .layout { grid-template-columns: 1fr; }
+        .section { display: block !important; page-break-before: always; }
+        .section:first-of-type { page-break-before: auto; }
+        body { background: white; color: black; }
+    }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <div class="topbar-left">
+        <img src="/static/eli.png" alt="Eli" class="topbar-logo" onerror="this.style.display='none'">
+        <div>
+            <h1>👤 Solicitar usuarios</h1>
+            <div class="subtitle">DeskEli · Guía para el empleado que solicita accesos</div>
+        </div>
+    </div>
+    <div class="topbar-actions">
+        <button class="btn-action" onclick="window.print()">🖨 Imprimir</button>
+        <a class="btn-action btn-primary" href="/employee/create">🚀 Crear solicitud</a>
+    </div>
+</div>
+
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<div class="layout">
+    <nav class="sidebar">
+        <h3>Antes de empezar</h3>
+        <a href="#bienvenida" onclick="showSection('bienvenida')" class="active">🏁 Bienvenida</a>
+        <a href="#cuando" onclick="showSection('cuando')">🎯 Cuándo usar esta plantilla</a>
+        <a href="#preparar" onclick="showSection('preparar')">📋 Info que necesitás tener</a>
+
+        <h3>Paso a paso</h3>
+        <a href="#buscar" onclick="showSection('buscar')">1️⃣ Buscar solicitudes previas</a>
+        <a href="#abrir" onclick="showSection('abrir')">2️⃣ Diligenciar nueva solicitud</a>
+        <a href="#datos" onclick="showSection('datos')">3️⃣ Datos generales</a>
+        <a href="#adjuntos" onclick="showSection('adjuntos')">4️⃣ Adjuntar documentos</a>
+        <a href="#controles" onclick="showSection('controles')">5️⃣ Lista de controles</a>
+        <a href="#aprobadores" onclick="showSection('aprobadores')">6️⃣ Aprobadores</a>
+        <a href="#enviar" onclick="showSection('enviar')">7️⃣ Enviar</a>
+
+        <h3>Los 24 controles</h3>
+        <a href="#controles-tecnologia" onclick="showSection('controles-tecnologia')">🖥 Equipos y ofimática</a>
+        <a href="#controles-red" onclick="showSection('controles-red')">🌐 Red / correo / VPN</a>
+        <a href="#controles-permisos" onclick="showSection('controles-permisos')">🔐 Permisos</a>
+        <a href="#controles-textiles" onclick="showSection('controles-textiles')">🧵 Aplicativos textiles</a>
+        <a href="#controles-comercial" onclick="showSection('controles-comercial')">🛍 Comercial / retail</a>
+        <a href="#controles-sap" onclick="showSection('controles-sap')">📦 SAP y KACTUS</a>
+
+        <h3>Después de enviar</h3>
+        <a href="#flujo" onclick="showSection('flujo')">🔄 Qué pasa con tu solicitud</a>
+        <a href="#seguir" onclick="showSection('seguir')">👁 Seguimiento del ticket</a>
+
+        <h3>Extras</h3>
+        <a href="#faq" onclick="showSection('faq')">❓ Preguntas frecuentes</a>
+        <a href="#errores" onclick="showSection('errores')">⚠️ Errores comunes</a>
+        <a href="#contacto" onclick="showSection('contacto')">✉️ Contacto</a>
+    </nav>
+
+    <main class="main">
+
+        <!-- BIENVENIDA -->
+        <section class="section active" id="sec-bienvenida">
+            <div class="hero">
+                <img src="/static/eli.png" alt="Eli" class="hero-logo" onerror="this.style.display='none'">
+                <h1>Solicitar usuarios en DeskEli</h1>
+                <p>Esta guía te explica paso a paso cómo pedir la <strong>creación, modificación o traslado</strong> de un usuario TI (accesos a red, correo, VPN, aplicativos textiles, SAP, etc.) usando el formulario de <strong>"Creación y Modificación de Usuarios"</strong>.</p>
+                <p style="margin-top:12px;font-size:13px;"><strong>Tiempo estimado:</strong> 15-25 minutos para llenar la solicitud completa con los controles.</p>
+            </div>
+
+            <h3>¿Qué vas a aprender?</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">📋</div>
+                    <h4>Preparar la solicitud</h4>
+                    <p>Qué información juntar antes de empezar y buscar si ya hay solicitudes previas.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">✍️</div>
+                    <h4>Datos generales</h4>
+                    <p>Los 13 campos obligatorios de la sección principal, con ejemplos.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">☑</div>
+                    <h4>Los 24 controles</h4>
+                    <p>Cuáles marcar según lo que la persona necesite y qué poner en cada descripción.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔄</div>
+                    <h4>Seguir el flujo</h4>
+                    <p>Aprobaciones (2 pasos siempre + 3er paso condicional por elementos tecnológicos) y ejecución en TI.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">💡</div>
+                <div class="callout-content">
+                    <div class="callout-title">Antes de solicitar un usuario nuevo</div>
+                    <p>Verificá con Talento Humano que la persona ya esté formalmente contratada (o esté por ingresar en una fecha concreta). El sistema requiere <strong>Fecha de Ingreso obligatoria</strong> y no debería crearse un usuario antes de que RRHH tenga el alta.</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button disabled>← Anterior</button>
+                <button onclick="showSection('cuando')">Siguiente → 🎯 Cuándo usarla</button>
+            </div>
+        </section>
+
+        <!-- CUÁNDO USAR -->
+        <section class="section" id="sec-cuando">
+            <h2 class="section-title"><span class="emoji">🎯</span>Cuándo usar esta plantilla</h2>
+            <p class="section-subtitle">3 tipos de solicitud cubiertos por el mismo formulario</p>
+
+            <table>
+                <thead>
+                    <tr><th>Tipo</th><th>Cuándo usarlo</th><th>Qué pasa</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="badge badge-ingreso">INGRESO</span></td>
+                        <td>Persona nueva que se acaba de contratar y necesita accesos desde cero.</td>
+                        <td>Se crea el usuario en Directorio Activo, correo corporativo y todos los aplicativos que marques.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-mod">MODIFICACIÓN</span></td>
+                        <td>Persona que ya trabaja pero cambia de cargo, área o necesita más/menos accesos.</td>
+                        <td>Solo se modifican los controles que marques en la lista. Su usuario de red y correo se mantienen.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-traslado">TRASLADO</span></td>
+                        <td>Persona que cambia de <strong>unidad de negocio o empresa</strong> (ej: pasa de Eliot a Pash o de Pash a Primatela).</td>
+                        <td>Se ajustan sus accesos según la nueva unidad. Algunos aplicativos se dan de baja y se crean nuevos.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">⚠️</div>
+                <div class="callout-content">
+                    <div class="callout-title">Diferencia entre MODIFICACIÓN y TRASLADO</div>
+                    <p><strong>MODIFICACIÓN</strong> = cambio dentro de la MISMA empresa (ej: promoción, cambio de área interna). <strong>TRASLADO</strong> = cambio de empresa (ej: de Manufacturas Eliot a Pash). Si dudás, usá MODIFICACIÓN — el técnico ajusta si corresponde.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-danger">
+                <div class="callout-icon">🚫</div>
+                <div class="callout-content">
+                    <div class="callout-title">Para eliminación / baja de personal</div>
+                    <p>Este formulario NO cubre la baja. Para dar de baja a alguien que sale de la empresa, coordiná con RRHH que emita la solicitud de baja por su canal correspondiente. Esto es política de auditoría para separar los flujos.</p>
+                </div>
+            </div>
+
+            <h3>Cuándo NO usar esta plantilla</h3>
+            <ul style="padding-left:24px; margin:10px 0;">
+                <li><strong>Reset de contraseña</strong> de un usuario existente → usá la plantilla <em>"Reset de contraseña"</em> o chateá con Eli (el bot).</li>
+                <li><strong>Reportar que no podés entrar</strong> a un aplicativo → creá un ticket normal categoría "Software".</li>
+                <li><strong>Solicitar hardware</strong> sin usuario nuevo → plantilla <em>"Solicitud de hardware"</em>.</li>
+            </ul>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('bienvenida')">← Bienvenida</button>
+                <button onclick="showSection('preparar')">Siguiente → 📋 Preparar info</button>
+            </div>
+        </section>
+
+        <!-- PREPARAR INFO -->
+        <section class="section" id="sec-preparar">
+            <h2 class="section-title"><span class="emoji">📋</span>Info que necesitás tener a mano</h2>
+            <p class="section-subtitle">Junta estos datos antes de abrir el formulario</p>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">💡</div>
+                <div class="callout-content">
+                    <div class="callout-title">La sesión no se guarda automáticamente</div>
+                    <p>Si te vas a la mitad del formulario, vas a perder los datos. Tener todo listo te ahorra empezar dos veces — sobre todo con la lista de controles que puede ser larga.</p>
+                </div>
+            </div>
+
+            <h3>Datos del tercero (persona para quien pedís)</h3>
+            <div class="field-list">
+                <div class="field-row">
+                    <div class="field-name">Tipo de Solicitud</div>
+                    <div class="field-desc">INGRESO, MODIFICACIÓN o TRASLADO.</div>
+                    <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
+                </div>
+                <div class="field-row">
+                    <div class="field-name">Unidad de Negocio</div>
+                    <div class="field-desc">Manufacturas Eliot, Pash, Primatela u otra del grupo.</div>
+                    <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
+                </div>
+                <div class="field-row">
+                    <div class="field-name">Documento</div>
+                    <div class="field-desc">Cédula, DNI, RUC o pasaporte del usuario final.</div>
+                    <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
+                </div>
+                <div class="field-row">
+                    <div class="field-name">Nombre</div>
+                    <div class="field-desc">Nombre completo como figura en la cédula. Se autopobla con tu nombre si sos vos quien solicita para vos mismo.</div>
+                    <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
+                </div>
+                <div class="field-row">
+                    <div class="field-name">Cargo</div>
+                    <div class="field-desc">Cómo se llama el puesto oficial. Ej: <em>LÍDER DE TIENDA, ANALISTA DE SISTEMAS</em>.</div>
+                    <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
+                </div>
+                <div class="field-row">
+                    <div class="field-name">Número de Contacto</div>
+                    <div class="field-desc">Celular o teléfono fijo. Con código de país si es internacional.</div>
+                    <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
+                </div>
+                <div class="field-row">
+                    <div class="field-name">Ubicación</div>
+                    <div class="field-desc">Sede o país. Ej: Eliot Calle 19, Pash Centro, Bolivia, Panamá.</div>
+                    <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
+                </div>
+                <div class="field-row">
+                    <div class="field-name">Fecha Ingreso</div>
+                    <div class="field-desc">Formato dd/mm/aaaa. Debe ser futura o de hoy.</div>
+                    <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
+                </div>
+                <div class="field-row">
+                    <div class="field-name">División / Centro de Costo</div>
+                    <div class="field-desc">Código contable. Se elige del dropdown. Si no lo conocés, consultá con Finanzas.</div>
+                    <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
+                </div>
+                <div class="field-row">
+                    <div class="field-name">Jefe Inmediato</div>
+                    <div class="field-desc">Se elige del dropdown de usuarios activos. Es quien va a aprobar la solicitud.</div>
+                    <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
+                </div>
+                <div class="field-row">
+                    <div class="field-name">Gerencia / Área</div>
+                    <div class="field-desc">Comercial, Financiera, Operaciones, TI, etc.</div>
+                    <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
+                </div>
+                <div class="field-row">
+                    <div class="field-name">Tipo de Contrato</div>
+                    <div class="field-desc">FIJO, TEMPORAL, CONTRATISTA, PRÁCTICAS.</div>
+                    <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
+                </div>
+                <div class="field-row">
+                    <div class="field-name">Reemplazo</div>
+                    <div class="field-desc">SÍ / NO. Si es SÍ, en la justificación indicá a quién reemplaza (para copiar accesos).</div>
+                    <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
+                </div>
+                <div class="field-row">
+                    <div class="field-name">Justificación de los Accesos</div>
+                    <div class="field-desc">Un párrafo corto explicando para qué se necesitan los accesos.</div>
+                    <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
+                </div>
+            </div>
+
+            <h3>Controles a solicitar</h3>
+            <p>Vas a tener que decidir cuáles de los 24 controles marcar según lo que la persona necesite. Cada control tiene su descripción específica — mirá la sección <a href="#controles" onclick="showSection('controles')">"Lista de controles"</a> para el detalle completo.</p>
+
+            <h3>Documento adjunto (opcional)</h3>
+            <ul style="padding-left:24px; margin:10px 0;">
+                <li>Si tenés el formato oficial firmado, subilo. Sirve para auditoría.</li>
+                <li>Si hay algún requerimiento especial (autorización de accesos VIP, presupuesto aprobado), incluí el PDF correspondiente.</li>
+            </ul>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('cuando')">← Cuándo usarla</button>
+                <button onclick="showSection('buscar')">Siguiente → 1️⃣ Buscar solicitudes</button>
+            </div>
+        </section>
+
+        <!-- PASO 1: BUSCAR -->
+        <section class="section" id="sec-buscar">
+            <h2 class="section-title"><span class="emoji">1️⃣</span>Buscar solicitudes previas (opcional)</h2>
+            <p class="section-subtitle">Antes de crear una nueva, verificá si ya existe</p>
+
+            <p>Cuando entrás al módulo <strong>Creación y Modificación de Usuarios</strong>, la primera pantalla que ves son los <strong>Filtros de Búsqueda de Asignación</strong>. Sirve para ver solicitudes anteriores tuyas o de tu área — útil por si estás dando seguimiento a algo o si querés verificar que la solicitud no exista aún.</p>
+
+            <div class="mockup">
+                <div style="font-weight:700;font-size:12px;color:#1e3a8a;margin-bottom:10px;">Filtros de Búsqueda de Asignación</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                    <div class="mockup-field">
+                        <label>No solicitud</label>
+                        <div class="mockup-input">&nbsp;</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>Tercero</label>
+                        <div class="mockup-input mockup-select">Seleccionar</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>Visualiza Anulado</label>
+                        <div class="mockup-input mockup-select">Seleccionar</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>Estado</label>
+                        <div class="mockup-input mockup-select">Seleccionar</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>Visualiza Todo</label>
+                        <div class="mockup-input mockup-select">NO</div>
+                    </div>
+                </div>
+                <div style="background:#3b82f6;color:white;padding:10px;text-align:center;border-radius:6px;font-weight:700;margin-top:14px;">Buscar</div>
+            </div>
+
+            <h3>Qué hacen los filtros</h3>
+            <table>
+                <thead><tr><th>Filtro</th><th>Para qué sirve</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>No solicitud</strong></td><td>Si tenés el código de una solicitud específica (ej: <code>SOL-2026-01245</code>).</td></tr>
+                    <tr><td><strong>Tercero</strong></td><td>Persona por la que estás preguntando (nombre del usuario final).</td></tr>
+                    <tr><td><strong>Visualiza Anulado</strong></td><td>Si querés ver solicitudes que fueron canceladas.</td></tr>
+                    <tr><td><strong>Estado</strong></td><td>Pendiente, En proceso, Aprobado, Rechazado, Completado.</td></tr>
+                    <tr><td><strong>Visualiza Todo</strong></td><td>NO = solo las tuyas · SÍ = todas las de tu área (si tenés permisos).</td></tr>
+                </tbody>
+            </table>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">💡</div>
+                <div class="callout-content">
+                    <div class="callout-title">Si ya existe una solicitud para esa persona</div>
+                    <p>Antes de crear otra, chequeá el estado. Si está pendiente o en proceso, esperá el desenlace. Si fue rechazada, mirá el motivo — probablemente haya que corregir algo puntual.</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('preparar')">← Preparar info</button>
+                <button onclick="showSection('abrir')">Siguiente → 2️⃣ Diligenciar</button>
+            </div>
+        </section>
+
+        <!-- PASO 2: ABRIR (Diligenciar) -->
+        <section class="section" id="sec-abrir">
+            <h2 class="section-title"><span class="emoji">2️⃣</span>Diligenciar una nueva solicitud</h2>
+            <p class="section-subtitle">Cómo abrir el formulario para crear la solicitud</p>
+
+            <div class="steps">
+                <div class="step">
+                    <div class="step-title">Ingresá al portal y entrá al módulo</div>
+                    <div class="step-desc">Menú lateral → <strong>Creación y Modificación de Usuarios → Formulario de Solicitud</strong>. Vas a ver la pantalla de filtros de búsqueda.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Clickeá el botón <strong>📄 Diligenciar Solicitud</strong></div>
+                    <div class="step-desc">Está arriba a la derecha, encima de la tabla "Lista de Solicitudes de Controles". Es el botón principal para crear una nueva.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Se abre el formulario "Registrar Solicitud de Control"</div>
+                    <div class="step-desc">Tiene 3 bloques: (1) <strong>Datos generales</strong>, (2) <strong>Adjuntar Archivos</strong>, (3) <strong>Listado de Controles</strong>.</div>
+                </div>
+            </div>
+
+            <div class="mockup">
+                <div style="font-weight:700;font-size:12px;color:#1e3a8a;margin-bottom:12px;text-align:right;">📄 Diligenciar Solicitud</div>
+                <div style="background:#eff6ff;padding:20px;border-radius:6px;text-align:center;font-size:13px;color:#1e40af;">
+                    <div style="font-weight:700;margin-bottom:8px;">Registrar Solicitud de Control</div>
+                    <div style="font-size:11px;color:#64748b;">El tipo de solicitud 'TRASLADO' aplica cuando el empleado cambia de unidad de negocio/empresa</div>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">💡</div>
+                <div class="callout-content">
+                    <div class="callout-title">El aviso amarillo arriba del formulario</div>
+                    <p>Justo arriba del bloque de datos verás una nota: <em>"El tipo de solicitud 'TRASLADO' aplica cuando el empleado cambia de unidad de negocio/empresa"</em>. Es un recordatorio importante para elegir bien el tipo.</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('buscar')">← Buscar</button>
+                <button onclick="showSection('datos')">Siguiente → 3️⃣ Datos generales</button>
+            </div>
+        </section>
+
+        <!-- PASO 3: DATOS GENERALES -->
+        <section class="section" id="sec-datos">
+            <h2 class="section-title"><span class="emoji">3️⃣</span>Datos generales</h2>
+            <p class="section-subtitle">Los 14 campos de la sección "Registrar Solicitud de Control"</p>
+
+            <p>Todos los campos con asterisco rojo <span style="color:#dc2626;">*</span> son obligatorios. Los campos <em>Ubicación, División/Centro de Costo, Jefe Inmediato, Gerencia/Área, Tipo de Contrato</em> y <em>Reemplazo</em> son dropdowns — cliqueá para desplegar y elegir.</p>
+
+            <div class="mockup">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                    <div class="mockup-field">
+                        <label>* Tipo de Solicitud</label>
+                        <div class="mockup-input mockup-select">INGRESO</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>* Unidad de negocio</label>
+                        <div class="mockup-input mockup-select">MANUFACTURAS ELIOT</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>* Documento</label>
+                        <div class="mockup-input">1023456789</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>* Nombre</label>
+                        <div class="mockup-input">ROSARIO MARISCAL PÉREZ</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>* Cargo</label>
+                        <div class="mockup-input">LÍDER DE TIENDA</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>* Número de Contacto</label>
+                        <div class="mockup-input">+591 77631301</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>* Ubicación</label>
+                        <div class="mockup-input mockup-select">Bolivia · Santa Cruz</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>* Fecha Ingreso</label>
+                        <div class="mockup-input">15/09/2026</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>* División/Centro de Costo</label>
+                        <div class="mockup-input mockup-select">21700001151800000002 - VENTAS PORTOFINO</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>* Jefe Inmediato</label>
+                        <div class="mockup-input mockup-select">GRACIELA FLÓREZ CORDERO</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>* Gerencia / Área</label>
+                        <div class="mockup-input mockup-select">COMERCIAL</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>* Tipo de Contrato</label>
+                        <div class="mockup-input mockup-select">FIJO</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>* Reemplazo</label>
+                        <div class="mockup-input mockup-select">NO</div>
+                    </div>
+                </div>
+                <div class="mockup-field" style="margin-top:10px;">
+                    <label>* Justificación de los Accesos</label>
+                    <div class="mockup-input" style="min-height:60px;">Se requiere el ingreso de Rosario Mariscal para gestionar la tienda en Santa Cruz. Necesita accesos a Ultrasystem para operar el POS, VPN para conexión remota, correo corporativo y acceso a SAP FMS Países en ambiente productivo.</div>
+                </div>
+            </div>
+
+            <h3>Consejos por campo</h3>
+            <ul style="padding-left:24px; margin:10px 0;">
+                <li><strong>Documento:</strong> escribilo sin puntos ni guiones si es cédula colombiana o boliviana. Si es pasaporte, ponelo tal cual.</li>
+                <li><strong>Nombre:</strong> como figura en la cédula. En mayúsculas para consistencia con el resto del sistema.</li>
+                <li><strong>Fecha Ingreso:</strong> formato <code>dd/mm/aaaa</code>. Tenés un ícono de calendario al final para seleccionar visualmente.</li>
+                <li><strong>División/Centro de Costo:</strong> es un código largo. Si no lo tenés, preguntá a Finanzas.</li>
+                <li><strong>Jefe Inmediato:</strong> dropdown con los usuarios activos de la unidad de negocio elegida. Escribí las primeras letras para filtrar.</li>
+                <li><strong>Justificación:</strong> escribí específicamente para qué se necesitan los accesos. Mientras más claro, más rápido aprueba el jefe.</li>
+            </ul>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">⚠️</div>
+                <div class="callout-content">
+                    <div class="callout-title">Si es reemplazo, aclaralo en la justificación</div>
+                    <p>Si elegís <strong>Reemplazo: SÍ</strong>, en la justificación agregá el nombre y login de la persona reemplazada. Ejemplo: <em>"Reemplaza a Juan Pérez (jperez), copiar sus mismos accesos como usuario espejo"</em>. TI copia los permisos exactos y ahorrás enumerar todos los aplicativos.</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('abrir')">← Diligenciar</button>
+                <button onclick="showSection('adjuntos')">Siguiente → 4️⃣ Adjuntar</button>
+            </div>
+        </section>
+
+        <!-- PASO 4: ADJUNTOS -->
+        <section class="section" id="sec-adjuntos">
+            <h2 class="section-title"><span class="emoji">4️⃣</span>Adjuntar Archivos</h2>
+            <p class="section-subtitle">Sección opcional pero recomendada</p>
+
+            <div class="mockup">
+                <div class="mockup-field">
+                    <label>Adjuntar Documento 1</label>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <div style="border:1px solid #d1d5db;padding:6px 12px;border-radius:4px;font-size:12px;background:white;">Elegir archivo</div>
+                        <span style="font-size:12px;color:#6b7280;">No se eligió ningún archivo</span>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Qué adjuntar</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">📝</div>
+                    <h4>Formato oficial firmado</h4>
+                    <p>Si tenés el A-NS-R-03 impreso con firmas del solicitante y VoBo del gerente, subilo. Es la evidencia principal para auditoría.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">💰</div>
+                    <h4>Aprobación presupuestal</h4>
+                    <p>Si el usuario requiere licencias con costo alto (Office Pro, Adobe Suite, SAP), adjuntá la aprobación de presupuesto.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔐</div>
+                    <h4>Autorización de puertos USB</h4>
+                    <p>Si marcás el control "Puertos USB", debés adjuntar la <strong>Hoja 4 del formato</strong> firmada con la declaración de responsabilidad.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📄</div>
+                    <h4>Contrato o carta de RRHH</h4>
+                    <p>Para INGRESO, ayuda mucho anexar la comunicación de RRHH que confirma la fecha de ingreso.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">💡</div>
+                <div class="callout-content">
+                    <div class="callout-title">Formatos aceptados</div>
+                    <p>PDF, JPG, PNG. Tamaño máximo por archivo: 10 MB. Si tenés varios documentos, uníos en un solo PDF o creá una nueva solicitud complementaria con más archivos.</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('datos')">← Datos generales</button>
+                <button onclick="showSection('controles')">Siguiente → 5️⃣ Lista de controles</button>
+            </div>
+        </section>
+
+        <!-- PASO 5: LISTA DE CONTROLES (VISTA GENERAL) -->
+        <section class="section" id="sec-controles">
+            <h2 class="section-title"><span class="emoji">5️⃣</span>Lista de Controles — Vista general</h2>
+            <p class="section-subtitle">Marca solo los controles que la persona necesite</p>
+
+            <p>La sección "Listado de Controles" es una <strong>tabla con 24 controles</strong> disponibles. Cada fila tiene: un <strong>checkbox</strong> para marcarlo, el <strong>nombre del control</strong>, una <strong>caja de descripción</strong> donde vos completás lo específico, y un <strong>detalle del control</strong> que es la explicación fija que da el sistema.</p>
+
+            <div class="mockup">
+                <div style="font-weight:700;font-size:12px;color:#1e3a8a;margin-bottom:10px;">Listado de Controles</div>
+                <div class="checkbox-row" style="background:#1e3a8a;color:white;font-weight:700;font-size:11px;">
+                    <div></div>
+                    <div>Nombre control</div>
+                    <div>Descripción</div>
+                    <div>Detalle del Control</div>
+                </div>
+                <div class="checkbox-row">
+                    <div class="cb"></div>
+                    <div class="cb-name">Elementos de Tecnología</div>
+                    <div class="cb-desc">Seleccionar…</div>
+                    <div class="cb-detalle">Seleccione los elementos de tecnología que requiera solicitar, esto está sujeto a posterior aprobación de las gerencias de área por costos.</div>
+                </div>
+                <div class="checkbox-row">
+                    <div class="cb"></div>
+                    <div class="cb-name">Herramientas Ofimáticas</div>
+                    <div class="cb-desc">Seleccionar…</div>
+                    <div class="cb-detalle">Herramientas ofimáticas (seleccione los aplicativos a los cuales requiere acceso y justificación).</div>
+                </div>
+                <div class="checkbox-row">
+                    <div class="cb"></div>
+                    <div class="cb-name">Directorio Activo</div>
+                    <div class="cb-desc">&nbsp;</div>
+                    <div class="cb-detalle">Usuario para ingresar al equipo de cómputo.</div>
+                </div>
+            </div>
+
+            <h3>Cómo marcar un control</h3>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-title">Clickeá el checkbox de la izquierda</div>
+                    <div class="step-desc">Al marcarlo, el control queda seleccionado y la caja de descripción se activa.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Escribí en la caja "Descripción" lo específico</div>
+                    <div class="step-desc">Guiate por el <strong>"Detalle del Control"</strong> a la derecha — ahí te dice qué información esperar.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Si el control tiene "Usuario Espejo", completalo</div>
+                    <div class="step-desc">Algunos controles (aplicativos textiles, comerciales, SAP) tienen un campo adicional <em>"Usuario Espejo"</em>. Ahí ponés el login de otra persona ya activa que tenga los mismos permisos que querés copiar.</div>
+                </div>
+            </div>
+
+            <h3>Los 24 controles agrupados por tipo</h3>
+            <div class="cards">
+                <div class="card" onclick="showSection('controles-tecnologia')" style="cursor:pointer;">
+                    <div class="card-icon">🖥</div>
+                    <h4>Equipos y ofimática (2)</h4>
+                    <p>Elementos de tecnología, Herramientas ofimáticas.</p>
+                </div>
+                <div class="card" onclick="showSection('controles-red')" style="cursor:pointer;">
+                    <div class="card-icon">🌐</div>
+                    <h4>Red / correo / VPN (5)</h4>
+                    <p>Directorio Activo, Correo, VPN, Carpetas compartidas, Puntos eléctricos/red.</p>
+                </div>
+                <div class="card" onclick="showSection('controles-permisos')" style="cursor:pointer;">
+                    <div class="card-icon">🔐</div>
+                    <h4>Permisos (4)</h4>
+                    <p>Impresión, Internet, SQL Gerber, Puertos USB.</p>
+                </div>
+                <div class="card" onclick="showSection('controles-textiles')" style="cursor:pointer;">
+                    <div class="card-icon">🧵</div>
+                    <h4>Aplicativos textiles (7)</h4>
+                    <p>Externos Confección, Eliotconf, Eliotex, Acatex, Costotex, Vertex, Tejido Plano.</p>
+                </div>
+                <div class="card" onclick="showSection('controles-comercial')" style="cursor:pointer;">
+                    <div class="card-icon">🛍</div>
+                    <h4>Comercial / retail (3)</h4>
+                    <p>Retail, Skycm, Biotime.</p>
+                </div>
+                <div class="card" onclick="showSection('controles-sap')" style="cursor:pointer;">
+                    <div class="card-icon">📦</div>
+                    <h4>SAP y KACTUS (3)</h4>
+                    <p>Kactus (Talento Humano), SAP Pash, SAP.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">⚠️</div>
+                <div class="callout-content">
+                    <div class="callout-title">No marques controles que no necesita</div>
+                    <p>Solicitar aplicativos "por si acaso" retrasa la aprobación y hace que el aprobador rechace el ticket. Marcá solo los que la persona realmente va a usar en su trabajo diario. Después se pueden agregar con una modificación.</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('adjuntos')">← Adjuntos</button>
+                <button onclick="showSection('controles-tecnologia')">Siguiente → 🖥 Equipos y ofimática</button>
+            </div>
+        </section>
+
+        <!-- CONTROLES: TECNOLOGÍA -->
+        <section class="section" id="sec-controles-tecnologia">
+            <h2 class="section-title"><span class="emoji">🖥</span>Controles: Equipos y ofimática</h2>
+            <p class="section-subtitle">Controles 1 y 2 · Hardware y software base</p>
+
+            <div class="controls-table">
+                <table>
+                    <thead>
+                        <tr><th style="width:200px;">Control</th><th>Qué poner en la descripción</th><th style="width:280px;">Detalle del sistema</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="control-cell">
+                                <div class="control-name">ELEMENTOS DE TECNOLOGÍA</div>
+                            </td>
+                            <td>
+                                <p style="margin:0;">Es un <strong>dropdown</strong> — desplegá y seleccioná los elementos. Opciones típicas:</p>
+                                <ul style="margin:6px 0 0 20px;font-size:12.5px;">
+                                    <li>Portátil (i5 / i7 / especificar RAM y almacenamiento)</li>
+                                    <li>Monitor adicional</li>
+                                    <li>Teclado y mouse USB / inalámbrico</li>
+                                    <li>Auriculares con micrófono</li>
+                                    <li>Cámara web</li>
+                                    <li>Disco duro externo (requiere justificación)</li>
+                                </ul>
+                            </td>
+                            <td class="control-detalle">Seleccione los elementos de tecnología que requiera solicitar, esto está sujeto a posterior aprobación de las gerencias de área por costos.</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell">
+                                <div class="control-name">HERRAMIENTAS OFIMÁTICAS</div>
+                            </td>
+                            <td>
+                                <p style="margin:0;">Es un <strong>dropdown</strong> — desplegá y seleccioná los aplicativos. Opciones:</p>
+                                <ul style="margin:6px 0 0 20px;font-size:12.5px;">
+                                    <li>Office 365 (Básica / Estándar / E3 con Teams)</li>
+                                    <li>Adobe Acrobat Reader</li>
+                                    <li>Adobe Acrobat Pro (requiere justificación)</li>
+                                    <li>Corel Draw / Illustrator / Photoshop</li>
+                                    <li>AutoCAD / Visio</li>
+                                    <li>Winrar / 7-Zip</li>
+                                </ul>
+                                <p style="margin:8px 0 0;font-size:12px;color:#dc2626;"><strong>Importante:</strong> justificá cada aplicativo con costo (Adobe Suite, Office Pro, AutoCAD, etc.).</p>
+                            </td>
+                            <td class="control-detalle">Herramientas ofimáticas (seleccione los aplicativos a los cuales requiere acceso y justificación).</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">💰</div>
+                <div class="callout-content">
+                    <div class="callout-title">Costos aprobados por Gerencia de Área</div>
+                    <p>Los elementos de tecnología y las licencias de software con costo <strong>no se autorizan directamente</strong>. Aunque marques el checkbox, la aprobación final la da el Gerente del Área por presupuesto. Justificá bien cada ítem para evitar rechazos.</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('controles')">← Vista general</button>
+                <button onclick="showSection('controles-red')">Siguiente → 🌐 Red / correo / VPN</button>
+            </div>
+        </section>
+
+        <!-- CONTROLES: RED / CORREO / VPN -->
+        <section class="section" id="sec-controles-red">
+            <h2 class="section-title"><span class="emoji">🌐</span>Controles: Red / correo / VPN</h2>
+            <p class="section-subtitle">Controles 3 al 6 · Accesos base de conectividad</p>
+
+            <div class="controls-table">
+                <table>
+                    <thead>
+                        <tr><th style="width:180px;">Control</th><th>Qué poner en la descripción</th><th style="width:260px;">Detalle del sistema</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">DIRECTORIO ACTIVO</div></td>
+                            <td>
+                                <p style="margin:0;">Marcalo siempre para INGRESO — es el usuario base para prender el equipo. Si es MODIFICACIÓN, solo si cambia el equipo.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;">Ejemplo: <em>"Crear usuario de red para nueva colaboradora. Grupo de departamento: COMERCIAL. Login sugerido: rmariscal"</em>.</p>
+                            </td>
+                            <td class="control-detalle">Usuario para ingresar al equipo de cómputo.</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">CORREO ELECTRÓNICO CORPORATIVO</div></td>
+                            <td>
+                                <p style="margin:0;">Indicá el <strong>dominio deseado</strong>, el <strong>tipo de licencia</strong> y una justificación breve.</p>
+                                <ul style="margin:6px 0 0 20px;font-size:12.5px;">
+                                    <li>Dominios: <code>@tekstelas.com</code>, <code>@patprimo.com.co</code>, <code>@pash.com.co</code>, <code>@patprimo.co</code></li>
+                                    <li>Tipo de licencia: <strong>Solo correo, Básica o Estándar</strong></li>
+                                    <li>Justificación: si va a manejar correo externo intensivo, indicá volumen esperado</li>
+                                </ul>
+                            </td>
+                            <td class="control-detalle">Dirección de correo electrónico corporativo (indicar el dominio. Ejemplo: @tekstelas.com; @patprimo.com.co; @pash.com.co; @patprimo.co; etc. Adicional indicar justificación y tipo de licencia (solo correo, básica o estándar)).</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">CREACIÓN VPN</div></td>
+                            <td>
+                                <p style="margin:0;">Marcalo si la persona va a hacer <strong>teletrabajo</strong> o necesita conexión remota a aplicativos internos.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;">Ejemplo: <em>"VPN corporativa para acceso a Ultrasystem y SAP desde ubicación remota. Modalidad teletrabajo full 5 días semana."</em></p>
+                            </td>
+                            <td class="control-detalle">Se requiere para conexión a los aplicativos en modalidad teletrabajo.</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">CARPETAS COMPARTIDAS</div></td>
+                            <td>
+                                <p style="margin:0;">Indicá <strong>la ruta exacta</strong> de la carpeta o carpetas.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;">Ejemplos:</p>
+                                <ul style="margin:4px 0 0 20px;font-size:12.5px;">
+                                    <li><code>\\srv-eliot\comercial\ventas-bolivia</code> — lectura</li>
+                                    <li><code>\\srv-eliot\comercial\reportes</code> — lectura/escritura</li>
+                                </ul>
+                                <p style="margin:6px 0 0;font-size:12px;color:#b45309;">Si son varias, poné una por línea con el tipo de permiso.</p>
+                            </td>
+                            <td class="control-detalle">Carpetas compartidas (por favor indicar la ruta de la carpeta donde requiere el acceso).</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">PUNTOS ELÉCTRICOS O RED</div></td>
+                            <td>
+                                <p style="margin:0;">Especificá si son <strong>revisión de puntos existentes</strong> o <strong>nuevos</strong>, y cuántos.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;">Ejemplo: <em>"2 puntos de red nuevos + 2 puntos eléctricos en escritorio nuevo, oficina 305, piso 3, Sede Calle 19"</em>.</p>
+                            </td>
+                            <td class="control-detalle">Describa si es revisión o nuevos. Adicional las cantidades de puntos de red y/o eléctricos que se requiere si son puntos nuevos.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('controles-tecnologia')">← Equipos y ofimática</button>
+                <button onclick="showSection('controles-permisos')">Siguiente → 🔐 Permisos</button>
+            </div>
+        </section>
+
+        <!-- CONTROLES: PERMISOS -->
+        <section class="section" id="sec-controles-permisos">
+            <h2 class="section-title"><span class="emoji">🔐</span>Controles: Permisos</h2>
+            <p class="section-subtitle">Controles 7 al 11 · Impresión, internet, puertos USB y SQL</p>
+
+            <div class="controls-table">
+                <table>
+                    <thead>
+                        <tr><th style="width:180px;">Control</th><th>Qué poner en la descripción</th><th style="width:260px;">Detalle del sistema</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">PERMISO DE IMPRIMIR</div></td>
+                            <td>
+                                <p style="margin:0;">Especificá:</p>
+                                <ul style="margin:6px 0 0 20px;font-size:12.5px;">
+                                    <li>Si es <strong>solo B/N</strong> o <strong>color</strong> (color requiere aprobación adicional)</li>
+                                    <li>La <strong>impresora asignada</strong> (nombre o ubicación)</li>
+                                    <li>Si necesita <strong>fotocopiado</strong> o <strong>escáner</strong> también</li>
+                                </ul>
+                            </td>
+                            <td class="control-detalle">Permisos de impresión (B/N; para opción de color está sujeto a aprobación por Dirección Operaciones e Infraestructura).</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">PERMISOS DE INTERNET</div></td>
+                            <td>
+                                <p style="margin:0;">Especificá la <strong>categoría</strong> y las <strong>páginas específicas</strong> si son extras.</p>
+                                <table style="margin:6px 0;font-size:12px;">
+                                    <thead><tr><th>Categoría</th><th>Descripción</th></tr></thead>
+                                    <tbody>
+                                        <tr><td><strong>AVANZADO (VIP)</strong></td><td>Redes sociales permitidas. Acceso amplio. Justificar por qué.</td></tr>
+                                        <tr><td><strong>BÁSICO (STAFF)</strong></td><td>Filtros más restrictivos. Para la mayoría.</td></tr>
+                                    </tbody>
+                                </table>
+                                <p style="margin:4px 0 0;font-size:12px;">Si necesita páginas extras (ej: Instagram, TikTok para community management), listalas.</p>
+                            </td>
+                            <td class="control-detalle">Debe detallar las páginas a las cuales van a acceder y especificar la categoría que requiere: - AVANZADO (VIP): aplica si requiere redes sociales, permite un acceso más amplio, con restricciones mínimas. - BÁSICO (STAFF): ofrece un nivel básico de acceso con filtros más restrictivos.</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">SQL GERBER</div></td>
+                            <td>
+                                <p style="margin:0;">Solo para personal técnico de diseño/patronaje. Indicá:</p>
+                                <ul style="margin:6px 0 0 20px;font-size:12.5px;">
+                                    <li><strong>Nombre de la carpeta / base</strong> específica</li>
+                                    <li><strong>Tipo de permiso</strong>: Lectura, Escritura o Lectura/Escritura</li>
+                                </ul>
+                            </td>
+                            <td class="control-detalle">Permisos SQL Gerber, se debe informar el nombre de la carpeta y el tipo de permiso (lectura, escritura o lectura/escritura).</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">PUERTOS USB</div></td>
+                            <td>
+                                <p style="margin:0;color:#dc2626;font-weight:700;">⚠ Requiere adjuntar Hoja 4 firmada.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;">Justificá por qué necesita habilitar puertos USB. Ejemplos válidos:</p>
+                                <ul style="margin:4px 0 0 20px;font-size:12.5px;">
+                                    <li>"Diseñador que trabaja con muestras de proveedores en pendrive"</li>
+                                    <li>"Auditor externo requiere ingresar planos"</li>
+                                </ul>
+                                <p style="margin:6px 0 0;font-size:12px;color:#b45309;">Si no adjuntás la hoja firmada, TI rechaza este control.</p>
+                            </td>
+                            <td class="control-detalle">Habilitación de puertos USB (deben justificar por qué se requiere el acceso).</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout callout-danger">
+                <div class="callout-icon">🔒</div>
+                <div class="callout-content">
+                    <div class="callout-title">Puertos USB: por qué son sensibles</div>
+                    <p>Habilitar puertos USB expone a la empresa a fuga de información (copiar archivos a un pendrive) y a malware. Por eso requiere <strong>firma de responsabilidad</strong> del usuario en la Hoja 4 del formato oficial. Sin esa firma, TI no lo procesa.</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('controles-red')">← Red / correo / VPN</button>
+                <button onclick="showSection('controles-textiles')">Siguiente → 🧵 Aplicativos textiles</button>
+            </div>
+        </section>
+
+        <!-- CONTROLES: TEXTILES -->
+        <section class="section" id="sec-controles-textiles">
+            <h2 class="section-title"><span class="emoji">🧵</span>Controles: Aplicativos textiles</h2>
+            <p class="section-subtitle">Controles 12 al 18 · Todos requieren Usuario Espejo</p>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">🪞</div>
+                <div class="callout-content">
+                    <div class="callout-title">Qué es "Usuario Espejo"</div>
+                    <p>Es el <strong>login de otro usuario activo</strong> en el mismo aplicativo, que ya tiene los permisos que querés que la nueva persona tenga. TI copia esos mismos permisos y ahorrás detallar rol por rol. <strong>El usuario espejo debe estar activo en la compañía</strong> — si está deshabilitado, no sirve.</p>
+                </div>
+            </div>
+
+            <div class="controls-table">
+                <table>
+                    <thead>
+                        <tr><th style="width:180px;">Control</th><th>Qué poner en la descripción</th><th style="width:220px;">Detalle del sistema</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">EXTERNOS CONFECCIÓN</div><span class="control-espejo-badge">+ Usuario Espejo</span></td>
+                            <td>
+                                <p style="margin:0;">Especificá los módulos, planta o taller externo. Ejemplo:</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Acceso al módulo de programación de talleres. Planta de Manrique." · <em>Usuario Espejo:</em> <code>mramirez</code></p>
+                            </td>
+                            <td class="control-detalle">Usuario para ingreso al aplicativo Externos Confección (deben indicar el usuario espejo, este debe estar activo en la compañía).</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">ELIOTCONF</div><span class="control-espejo-badge">+ Usuario Espejo</span></td>
+                            <td>
+                                <p style="margin:0;">Aplicativo de confección de Eliot. Especificá el rol o pantallas necesarias.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Ingreso a módulo de calidad. Perfil supervisor." · <em>Usuario Espejo:</em> <code>hlopez</code></p>
+                            </td>
+                            <td class="control-detalle">Usuario para ingreso al aplicativo Eliotconf (deben indicar el usuario espejo, este debe estar activo en la compañía).</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">ELIOTEX</div><span class="control-espejo-badge">+ Usuario Espejo</span></td>
+                            <td>
+                                <p style="margin:0;">Aplicativo textil. Especificá el módulo o rol.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Módulo de tejeduría. Rol de operador." · <em>Usuario Espejo:</em> <code>jgarcia</code></p>
+                            </td>
+                            <td class="control-detalle">Usuario para ingreso al aplicativo Eliotex (deben indicar el usuario espejo, este debe estar activo en la compañía).</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">ACATEX</div><span class="control-espejo-badge">+ Usuario Espejo</span></td>
+                            <td>
+                                <p style="margin:0;">Aplicativo de acabado textil. Detallá el rol.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Ingreso al módulo de tintorería. Perfil operador." · <em>Usuario Espejo:</em> <code>pmartinez</code></p>
+                            </td>
+                            <td class="control-detalle">Usuario para ingreso al aplicativo Acatex (deben indicar el usuario espejo, este debe estar activo en la compañía).</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">COSTOTEX</div><span class="control-espejo-badge">+ Usuario Espejo</span></td>
+                            <td>
+                                <p style="margin:0;">Aplicativo de costeo textil.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Módulo de consulta de costos por referencia. Perfil comercial." · <em>Usuario Espejo:</em> <code>lrodriguez</code></p>
+                            </td>
+                            <td class="control-detalle">Usuario para ingreso al aplicativo Costotex (deben indicar el usuario espejo, este debe estar activo en la compañía).</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">VERTEX</div><span class="control-espejo-badge">+ Usuario Espejo</span></td>
+                            <td>
+                                <p style="margin:0;">Aplicativo Vertex. Especificá el módulo.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Módulo de trazabilidad. Rol lector." · <em>Usuario Espejo:</em> <code>afernandez</code></p>
+                            </td>
+                            <td class="control-detalle">Usuario para ingreso al aplicativo Vertex (deben indicar el usuario espejo, este debe estar activo en la compañía).</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">TEJIDO PLANO</div><span class="control-espejo-badge">+ Usuario Espejo</span></td>
+                            <td>
+                                <p style="margin:0;">Aplicativo de tejeduría plano.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Ingreso al módulo de programación de telares. Perfil supervisor de planta." · <em>Usuario Espejo:</em> <code>jjimenez</code></p>
+                            </td>
+                            <td class="control-detalle">Usuario para ingreso al aplicativo Tejido Plano (deben indicar el usuario espejo, este debe estar activo en la compañía).</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">⚠️</div>
+                <div class="callout-content">
+                    <div class="callout-title">Si no sabés qué usuario espejo poner</div>
+                    <p>Preguntá al jefe inmediato o al supervisor del área quién tiene actualmente los permisos que la nueva persona va a necesitar. Un usuario espejo mal elegido puede dar accesos innecesarios (o dejar sin permisos que sí requiere).</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('controles-permisos')">← Permisos</button>
+                <button onclick="showSection('controles-comercial')">Siguiente → 🛍 Comercial / retail</button>
+            </div>
+        </section>
+
+        <!-- CONTROLES: COMERCIAL -->
+        <section class="section" id="sec-controles-comercial">
+            <h2 class="section-title"><span class="emoji">🛍</span>Controles: Comercial / retail</h2>
+            <p class="section-subtitle">Controles 19 al 21 · Aplicativos de venta y asistencia</p>
+
+            <div class="controls-table">
+                <table>
+                    <thead>
+                        <tr><th style="width:180px;">Control</th><th>Qué poner en la descripción</th><th style="width:240px;">Detalle del sistema</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">RETAIL</div><span class="control-espejo-badge">+ Usuario Espejo</span></td>
+                            <td>
+                                <p style="margin:0;">Especificá <strong>país(es)</strong> y <strong>marca(s)</strong>.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Acceso a POS de tienda para Bolivia. Marcas: Pat Primo y Portofino. Rol líder de tienda." · <em>Usuario Espejo:</em> <code>tienda-bolivia-01</code></p>
+                            </td>
+                            <td class="control-detalle">Usuario para ingreso al aplicativo Retail (deben indicar el usuario espejo, este debe estar activo en la compañía). Especificar para qué país y marcas requiere los accesos.</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">SKYCM</div></td>
+                            <td>
+                                <p style="margin:0;">Solo para <strong>asesores comerciales</strong> que trabajan con Skycm Market Place.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Asesor comercial nuevo, requiere acceso al marketplace para gestionar cartera de clientes zona norte."</p>
+                            </td>
+                            <td class="control-detalle">Solicitud al aplicativo Skycm Market Place (asesores comerciales).</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">BIOTIME</div></td>
+                            <td>
+                                <p style="margin:0;">Aplicativo de control de asistencia (marcación biométrica). Indicá <strong>país</strong> y <strong>usuario espejo</strong>.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Marcación en sede Bogotá. País Colombia. Usuario Espejo: <code>ramirez_col</code>."</p>
+                            </td>
+                            <td class="control-detalle">Biotime indicar el país y usuario espejo donde requiere el acceso.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('controles-textiles')">← Aplicativos textiles</button>
+                <button onclick="showSection('controles-sap')">Siguiente → 📦 SAP y KACTUS</button>
+            </div>
+        </section>
+
+        <!-- CONTROLES: SAP Y KACTUS -->
+        <section class="section" id="sec-controles-sap">
+            <h2 class="section-title"><span class="emoji">📦</span>Controles: SAP y KACTUS</h2>
+            <p class="section-subtitle">Controles 22, 23 y 24 · Los aplicativos corporativos críticos</p>
+
+            <div class="controls-table">
+                <table>
+                    <thead>
+                        <tr><th style="width:180px;">Control</th><th>Qué poner en la descripción</th><th style="width:240px;">Detalle del sistema</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">KACTUS</div><span class="control-espejo-badge">+ Usuario Espejo</span></td>
+                            <td>
+                                <p style="margin:0;">Plataforma de <strong>nómina y gestión humana</strong>. Solo para personal autorizado de Talento Humano o líderes con permiso.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Módulo de consulta de novedades. Rol líder de área. Perfil solo lectura." · <em>Usuario Espejo:</em> <code>gflorez</code></p>
+                                <p style="margin:6px 0 0;font-size:12px;color:#b45309;">Este control lo administra el área de Talento Humano — TI reenvía la solicitud.</p>
+                            </td>
+                            <td class="control-detalle">Plataforma de acceso a módulos de nómina y gestión humana a nivel de creación de usuarios, permisos, accesos a programas, roles y tipo de usuario.</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">SAP PASH</div><span class="control-espejo-badge">+ Usuario Espejo</span></td>
+                            <td>
+                                <p style="margin:0;color:#dc2626;font-weight:700;">Solo marcar si el tipo de solicitud es MODIFICACIÓN y la persona ya tiene usuario en SAP Pash.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Ampliación al módulo MM productivo. Usuario ya existente." · <em>Usuario Espejo:</em> <code>compras_pash</code></p>
+                            </td>
+                            <td class="control-detalle">Solo seleccionar cuando sea tipo de solicitud MODIFICACIÓN y ya cuente con usuario en el aplicativo SAP Pash.</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">SAP</div><span class="control-espejo-badge">+ Usuario Espejo</span></td>
+                            <td>
+                                <p style="margin:0;">Es el control <strong>más importante</strong>. En la descripción indicá:</p>
+                                <ol style="margin:6px 0 0 20px;font-size:12.5px;">
+                                    <li>Si <strong>ya cuenta con usuario</strong> SAP (SÍ/NO)</li>
+                                    <li><strong>Ambiente</strong>: PRODUCTIVO / PREPRODUCTIVO (CALIDAD) / DESARROLLO</li>
+                                    <li><strong>Versión</strong>: AFS · FMS PASH · FMS PAISES · EWM · RISE</li>
+                                    <li><strong>Módulos requeridos</strong>: MM, SD, FI, CO, BW, etc.</li>
+                                </ol>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Ejemplo:</em> "Nuevo usuario. Ambiente PRODUCTIVO. Versión FMS PAISES. Módulos SD y MM." · <em>Usuario Espejo:</em> <code>rise_ventas</code></p>
+                            </td>
+                            <td class="control-detalle">En el campo descripción indicar si ya cuenta con usuario, adicional deben indicar el usuario espejo y el ambiente (PRODUCTIVO, PREPRODUCTIVO, CALIDAD, DESARROLLO), indicar versión (AFS, FMS PASH, FMS PAISES, EWM).</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout callout-danger">
+                <div class="callout-icon">⚠️</div>
+                <div class="callout-content">
+                    <div class="callout-title">Ambiente PRODUCTIVO requiere sustento</div>
+                    <p>Si pedís SAP PRODUCTIVO directamente, el aprobador va a mirar la justificación con lupa. Si la persona recién ingresa, es mejor pedir <strong>CALIDAD (QAS)</strong> primero y después ampliar a PRODUCTIVO cuando ya esté operando. Esto se llama <em>principio de mínimo privilegio</em>.</p>
+                </div>
+            </div>
+
+            <h3>Referencia rápida de versiones SAP</h3>
+            <table>
+                <thead><tr><th>Versión</th><th>Qué es</th><th>Cuándo</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>RISE</strong></td><td>SAP en la nube (moderno)</td><td>Empresas del grupo con migración a RISE</td></tr>
+                    <tr><td><strong>FMS PASH</strong></td><td>Fashion Management System de Pash</td><td>Usuarios operativos de Pash</td></tr>
+                    <tr><td><strong>FMS PAISES</strong></td><td>Fashion Management System para operaciones internacionales</td><td>Tiendas y equipos de Bolivia, Panamá, otros</td></tr>
+                    <tr><td><strong>AFS</strong></td><td>Apparel & Footwear Solution (SAP tradicional textil)</td><td>Legacy — algunas operaciones aún lo usan</td></tr>
+                    <tr><td><strong>EWM</strong></td><td>Extended Warehouse Management</td><td>Personal de bodegas y logística</td></tr>
+                </tbody>
+            </table>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('controles-comercial')">← Comercial / retail</button>
+                <button onclick="showSection('aprobadores')">Siguiente → 6️⃣ Aprobadores</button>
+            </div>
+        </section>
+
+        <!-- APROBADORES -->
+        <section class="section" id="sec-aprobadores">
+            <h2 class="section-title"><span class="emoji">6️⃣</span>Aprobadores</h2>
+            <p class="section-subtitle">2 o 3 niveles según lo que pidas</p>
+
+            <div class="callout callout-danger">
+                <div class="callout-icon">🔐</div>
+                <div class="callout-content">
+                    <div class="callout-title">La parte crítica del proceso</div>
+                    <p>Cada solicitud pasa por <strong>2 niveles de aprobación fijos</strong> (Jefe Inmediato + Responsable del Área) y — si marcaste el control <strong>ELEMENTOS DE TECNOLOGÍA</strong> — se agrega automáticamente un <strong>3er nivel: Gerencia de Tecnología</strong>. Cada aprobador recibe un correo con link para aprobar o rechazar. El ticket queda bloqueado hasta que todos los que apliquen aprueben.</p>
+                </div>
+            </div>
+
+            <h3>Los aprobadores</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">👔</div>
+                    <h4>1. Jefe Inmediato</h4>
+                    <p><span class="badge badge-required">Siempre</span> Lo elegiste en el dropdown de la sección de datos generales. Primer nivel de aprobación. Recibe el email antes que nadie.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🏢</div>
+                    <h4>2. Responsable del Área</h4>
+                    <p><span class="badge badge-required">Siempre</span> Lo elegiste también en el form. Segundo nivel — recibe el email <strong>después</strong> de que el Jefe Inmediato apruebe.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">💻</div>
+                    <h4>3. Gerencia de Tecnología</h4>
+                    <p><span class="badge badge-new">Solo si aplica</span> Se activa <strong>automáticamente si marcaste ELEMENTOS DE TECNOLOGÍA</strong> (portátil, monitor, teclado, etc). Es un aprobador fijo por empresa (no lo elegís vos — el sistema sabe quién es). Aprueba el gasto de equipos.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">💡</div>
+                <div class="callout-content">
+                    <div class="callout-title">¿Por qué el 3er nivel es automático?</div>
+                    <p>Los equipos de tecnología tienen impacto presupuestario alto. Por eso — si tu solicitud incluye pedido de hardware — pasa por la revisión del Gerente de TI de la empresa antes de llegar a operación. Es una regla del negocio: <strong>vos no elegís al Gerente de TI, el sistema lo hace por vos</strong> según la unidad de negocio. Solo llenás el formulario normal.</p>
+                </div>
+            </div>
+
+            <h3>Escenario A · Solicitud SIN Elementos de Tecnología (2 pasos)</h3>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>1. Ticket creado con estado "En espera de aprobación"</h4>
+                    <p>El ticket existe pero <strong>no llega al equipo TI todavía</strong>. Aparece en tu lista con el código de solicitud (ej: <code>SOL-2026-01245</code>).</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>2. Email al Jefe Inmediato</h4>
+                    <p>El jefe recibe un correo con toda la info + un <strong>link único</strong> para aprobar o rechazar.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>3. Jefe aprueba → Email al Responsable del Área</h4>
+                    <p>Se marca la primera decisión. Automáticamente se dispara el email al segundo aprobador.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>4. Responsable del Área aprueba → Ticket pasa a "En proceso"</h4>
+                    <p>Con las 2 aprobaciones, el ticket entra a la cola de TI. El especialista lo toma y ejecuta los controles.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>5. TI ejecuta control por control</h4>
+                    <p>Cada control marcado se convierte en una subtarea: crear cuenta AD, correo, VPN, usuarios en aplicativos, SAP, etc.</p>
+                </div>
+            </div>
+
+            <h3>Escenario B · Solicitud CON Elementos de Tecnología (3 pasos)</h3>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>1. Ticket creado con estado "En espera de aprobación"</h4>
+                    <p>Igual que antes. El sistema detecta que marcaste el control ELEMENTOS DE TECNOLOGÍA y activa automáticamente el 3er aprobador.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>2. Email al Jefe Inmediato → aprueba</h4>
+                    <p>Mismo flujo que antes.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>3. Email al Responsable del Área → aprueba</h4>
+                    <p>Mismo flujo que antes.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>4. Email al Gerente de Tecnología</h4>
+                    <p>Nuevo paso. El Gerente TI revisa específicamente el equipo solicitado (portátil, monitor, etc.) y valida el gasto contra presupuesto del área. Puede aprobar todo, rechazar el ticket completo, o pedir modificaciones al pedido por chat.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>5. Gerente de TI aprueba → Ticket pasa a "En proceso"</h4>
+                    <p>Con los 3 aprobadores, el ticket entra a la cola de TI.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>6. TI ejecuta todos los controles + entrega equipos</h4>
+                    <p>Además de crear los usuarios y accesos, TI arma la orden de compra o entrega los equipos ya asignados.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">⏱</div>
+                <div class="callout-content">
+                    <div class="callout-title">Impacto en tiempos</div>
+                    <p>El 3er aprobador puede sumar <strong>+1 a +3 días hábiles</strong> al proceso. Si la persona no necesita equipos nuevos (ej: va a usar un portátil que ya tiene la empresa), NO marques ELEMENTOS DE TECNOLOGÍA y evitás este paso. En ese caso, coordiná la asignación del equipo por otro canal.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">⚠️</div>
+                <div class="callout-content">
+                    <div class="callout-title">Si un aprobador rechaza</div>
+                    <p>El ticket queda en estado <strong>"Rechazado"</strong> y vos recibís notificación con el motivo. Podés corregir lo que haga falta y crear una <strong>nueva solicitud</strong>. Un rechazo NO se puede "reaprobar" — hay que empezar de cero (política de auditoría). Esto vale para los 3 niveles: si el Gerente TI rechaza el pedido de equipos, se cae toda la solicitud, no solo esa parte.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">💡</div>
+                <div class="callout-content">
+                    <div class="callout-title">Regla práctica</div>
+                    <p>Si el equipo lo vas a reciclar de otra persona (reemplazo) o ya está asignado, <strong>no marques ELEMENTOS DE TECNOLOGÍA</strong> y ahorrás una vuelta. Si es de verdad hardware nuevo del presupuesto, marcalo — el Gerente TI necesita validarlo.</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('controles-sap')">← SAP y KACTUS</button>
+                <button onclick="showSection('enviar')">Siguiente → 7️⃣ Enviar</button>
+            </div>
+        </section>
+
+        <!-- ENVIAR -->
+        <section class="section" id="sec-enviar">
+            <h2 class="section-title"><span class="emoji">7️⃣</span>Revisar y enviar</h2>
+            <p class="section-subtitle">Última verificación antes de disparar el workflow</p>
+
+            <h3>Checklist antes de enviar</h3>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-title">Nombre y documento están escritos correctamente</div>
+                    <div class="step-desc">Un typo acá significa crear una cuenta con el nombre mal. Revisá bien.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">La fecha de ingreso es futura o de hoy</div>
+                    <div class="step-desc">Formato dd/mm/aaaa. TI no procesa solicitudes con fecha pasada.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Jefe Inmediato y Gerencia/Área están bien elegidos</div>
+                    <div class="step-desc">Sin las 2 aprobaciones correctas, el ticket no avanza.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Todos los controles necesarios están marcados</div>
+                    <div class="step-desc">Si te olvidás alguno, agregarlo después implica otra solicitud completa y otras aprobaciones.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Cada control marcado tiene descripción completa</div>
+                    <div class="step-desc">Y los controles con "Usuario Espejo" tienen ese campo lleno con un login <strong>activo</strong>.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Si marcaste "Puertos USB", la Hoja 4 firmada está adjunta</div>
+                    <div class="step-desc">Sin adjunto, este control se rechaza automáticamente.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Si es SAP, indicaste ambiente y versión correctos</div>
+                    <div class="step-desc">PRD solo si de verdad lo necesita — sino, empezá con CALIDAD.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Si es MODIFICACIÓN de SAP Pash, marcaste ese control específico</div>
+                    <div class="step-desc">SAP PASH solo se marca en modificación de usuario ya existente. No en INGRESO.</div>
+                </div>
+            </div>
+
+            <h3>Botón para enviar</h3>
+            <p>Al final del formulario tenés el botón para guardar la solicitud. El sistema genera un número (ej: <code>SOL-2026-01245</code>) que aparece en el listado de solicitudes con estado "En espera de aprobación".</p>
+
+            <div class="callout callout-success">
+                <div class="callout-icon">✅</div>
+                <div class="callout-content">
+                    <div class="callout-title">Se envió correctamente</div>
+                    <p>El portal te redirige al listado con tu solicitud arriba de todo. Los aprobadores reciben el email en <strong>menos de 1 minuto</strong>. Vos podés cerrar la sesión — el flujo continúa sin vos.</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('aprobadores')">← Aprobadores</button>
+                <button onclick="showSection('flujo')">Siguiente → 🔄 Qué pasa después</button>
+            </div>
+        </section>
+
+        <!-- FLUJO DESPUÉS -->
+        <section class="section" id="sec-flujo">
+            <h2 class="section-title"><span class="emoji">🔄</span>Qué pasa con tu solicitud</h2>
+            <p class="section-subtitle">Flujo completo desde el envío hasta la entrega</p>
+
+            <h3>Tiempos esperados</h3>
+            <table>
+                <thead>
+                    <tr><th>Etapa</th><th>Tiempo típico</th><th>Depende de</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Aprobación del Jefe Inmediato</td><td>2-24 horas hábiles</td><td>Disponibilidad del jefe</td></tr>
+                    <tr><td>Aprobación del Responsable del Área</td><td>4-48 horas hábiles</td><td>Disponibilidad del responsable</td></tr>
+                    <tr><td>Aprobación del Gerente de Tecnología <span class="badge badge-new">condicional</span></td><td>+1 a +3 días hábiles</td><td>Solo si marcaste ELEMENTOS DE TECNOLOGÍA</td></tr>
+                    <tr><td>Asignación en TI</td><td>Menos de 1 hora</td><td>Asignación automática</td></tr>
+                    <tr><td>Ejecución de controles (según cantidad)</td><td>1-3 días hábiles</td><td>Cantidad de controles + SAP + validaciones</td></tr>
+                    <tr><td><strong>Total ideal SIN equipos</strong></td><td><strong>3-5 días hábiles</strong></td><td>Solicitudes de accesos únicamente</td></tr>
+                    <tr><td><strong>Total ideal CON equipos</strong></td><td><strong>5-8 días hábiles</strong></td><td>Incluye aprobación Gerente TI + posible orden de compra</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Estados por los que pasa el ticket</h3>
+            <div class="cards">
+                <div class="card">
+                    <h4>🟡 En espera de aprobación</h4>
+                    <p>Esperando aprobación del Jefe Inmediato, del Responsable del Área o del Gerente de Tecnología (si marcaste elementos tecnológicos).</p>
+                </div>
+                <div class="card">
+                    <h4>🟢 En proceso</h4>
+                    <p>Ambos aprobaron. TI trabajando en los controles.</p>
+                </div>
+                <div class="card">
+                    <h4>✅ Completado</h4>
+                    <p>Todos los controles ejecutados. TI notifica y el ticket cierra.</p>
+                </div>
+                <div class="card">
+                    <h4>🔴 Rechazado</h4>
+                    <p>Alguno de los aprobadores rechazó. Motivo en el chat del ticket.</p>
+                </div>
+                <div class="card">
+                    <h4>⚫ Anulado</h4>
+                    <p>Vos o un admin cancelaste la solicitud antes de que se completara.</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('enviar')">← Enviar</button>
+                <button onclick="showSection('seguir')">Siguiente → 👁 Seguimiento</button>
+            </div>
+        </section>
+
+        <!-- SEGUIMIENTO -->
+        <section class="section" id="sec-seguir">
+            <h2 class="section-title"><span class="emoji">👁</span>Seguimiento del ticket</h2>
+            <p class="section-subtitle">Cómo saber en qué punto está</p>
+
+            <h3>Desde el listado de solicitudes</h3>
+            <p>La tabla <strong>"Lista de Solicitudes de Controles"</strong> muestra todas tus solicitudes con las siguientes columnas:</p>
+
+            <div class="mockup">
+                <table style="margin:0;">
+                    <thead>
+                        <tr><th>Código</th><th>Nombre Tercero</th><th>Identificación</th><th>Estado</th><th>Responsable Actual</th><th>Tipo Solicitud</th><th>Fecha Creación</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code style="font-size:11px;">SOL-2026-01245</code></td>
+                            <td>Rosario Mariscal</td>
+                            <td>3852273</td>
+                            <td>🟡 En espera</td>
+                            <td>Graciela Flórez</td>
+                            <td>INGRESO</td>
+                            <td>25/08/2026</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>Qué columnas te dicen algo importante</h3>
+            <ul style="padding-left:24px;margin:10px 0;">
+                <li><strong>Estado:</strong> te dice si está en espera, en proceso, completada o rechazada.</li>
+                <li><strong>Responsable Actual:</strong> quién tiene que actuar ahora. Si dice "Graciela Flórez", falta que ella apruebe. Si dice "Especialista TI", ya se aprobó y está en operación.</li>
+                <li><strong>Caso Aranda:</strong> el número que el sistema abre en el flujo de operación (algunos tickets se enrutan a Aranda para ejecución).</li>
+                <li><strong>Fecha Creación:</strong> cuándo enviaste la solicitud — útil para calcular SLA.</li>
+            </ul>
+
+            <h3>Detalle de la solicitud</h3>
+            <p>Cliqueá <strong>"Opciones"</strong> en la fila para ver el detalle completo — historial de aprobaciones, chat con TI, controles ejecutados vs pendientes.</p>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">🔒</div>
+                <div class="callout-content">
+                    <div class="callout-title">Nunca compartas contraseñas por chat</div>
+                    <p>El técnico jamás te va a pedir contraseñas ni tokens por el chat. Si te llegan a pedir eso, es una alerta de seguridad — reportalo directamente a tu gerente y a TI. Las credenciales del usuario nuevo se entregan por correo cifrado o presencialmente.</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('flujo')">← Qué pasa después</button>
+                <button onclick="showSection('faq')">Siguiente → ❓ FAQ</button>
+            </div>
+        </section>
+
+        <!-- FAQ -->
+        <section class="section" id="sec-faq">
+            <h2 class="section-title"><span class="emoji">❓</span>Preguntas frecuentes</h2>
+            <p class="section-subtitle">Dudas típicas de empleados que solicitan usuarios</p>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">❓</div>
+                <div class="callout-content">
+                    <div class="callout-title">¿Cuántos controles debería marcar como mínimo?</div>
+                    <p>Para un INGRESO típico: al menos <strong>Directorio Activo</strong> (obligatorio para prender el equipo) y los aplicativos que la persona va a usar. Un rol operativo básico puede necesitar 4-6 controles; un rol técnico de sistemas puede necesitar 12-15.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">❓</div>
+                <div class="callout-content">
+                    <div class="callout-title">¿Puedo solicitar accesos para alguien de otra empresa del grupo?</div>
+                    <p>Sí, pero la <strong>Unidad de Negocio</strong> debe ser la de esa persona, no la tuya. El Jefe Inmediato también tiene que ser de esa empresa. Si dudás, usá TRASLADO en vez de INGRESO.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">❓</div>
+                <div class="callout-content">
+                    <div class="callout-title">¿Qué pasa si mi jefe está de vacaciones?</div>
+                    <p>Antes de crear la solicitud, coordiná con tu jefe quién es el delegado durante su ausencia y elegí a esa persona como aprobador. Si igual seleccionás al jefe de vacaciones, la solicitud queda parada hasta que vuelva.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">❓</div>
+                <div class="callout-content">
+                    <div class="callout-title">¿El "Usuario Espejo" tiene que ser de la misma empresa?</div>
+                    <p>Sí. El usuario espejo debe estar <strong>activo en la misma unidad de negocio</strong> del solicitado. Si es alguien que se fue de la empresa, no funciona — el sistema no puede copiar permisos de una cuenta deshabilitada.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">❓</div>
+                <div class="callout-content">
+                    <div class="callout-title">¿Puedo modificar la solicitud después de enviarla?</div>
+                    <p>Mientras esté en <em>"En espera de aprobación"</em>, podés agregar información al chat pero no cambiar los campos originales. Si necesitás corregir algo importante, contactá al aprobador para que rechace y cree una nueva. Si ya está en proceso, el técnico puede recibir tus ajustes menores por chat.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">❓</div>
+                <div class="callout-content">
+                    <div class="callout-title">¿Cuál es la diferencia entre SAP y SAP PASH?</div>
+                    <p><strong>SAP</strong> es el control general para pedir accesos SAP (RISE, FMS PAISES, AFS, EWM). <strong>SAP PASH</strong> es específico para modificaciones sobre el SAP Pash <em>en usuarios que ya existen</em>. Para INGRESO nuevo con SAP Pash, usá el control SAP con la versión FMS PASH.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">❓</div>
+                <div class="callout-content">
+                    <div class="callout-title">¿Puedo elegirme a mí mismo como aprobador?</div>
+                    <p>El sistema no lo impide técnicamente, pero es política que <strong>el solicitante no puede ser aprobador de la misma solicitud</strong>. Los auditores lo revisan y si detectan self-approval, el ticket se anula.</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('seguir')">← Seguimiento</button>
+                <button onclick="showSection('errores')">Siguiente → ⚠️ Errores comunes</button>
+            </div>
+        </section>
+
+        <!-- ERRORES -->
+        <section class="section" id="sec-errores">
+            <h2 class="section-title"><span class="emoji">⚠️</span>Errores comunes que retrasan la solicitud</h2>
+            <p class="section-subtitle">Los más frecuentes que hacen que el ticket rebote</p>
+
+            <table>
+                <thead>
+                    <tr><th>Error</th><th>Consecuencia</th><th>Cómo evitarlo</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Elegir aprobador que está de vacaciones</td>
+                        <td>Ticket queda parado hasta que vuelva (puede esperar semanas).</td>
+                        <td>Coordiná antes con el jefe para saber quién es el delegado.</td>
+                    </tr>
+                    <tr>
+                        <td>Nombre o documento del usuario mal escritos</td>
+                        <td>Cuenta AD creada incorrectamente → hay que corregir después.</td>
+                        <td>Copiá y pegá desde la cédula. Revisá 2 veces antes de enviar.</td>
+                    </tr>
+                    <tr>
+                        <td>Fecha de ingreso pasada</td>
+                        <td>TI rechaza — indica que el usuario ya debería estar creado.</td>
+                        <td>Solicitá con al menos 3-5 días hábiles de antelación.</td>
+                    </tr>
+                    <tr>
+                        <td>Justificación vacía o genérica ("necesito accesos")</td>
+                        <td>El aprobador rechaza por falta de sustento.</td>
+                        <td>Explicá específicamente la función del usuario y por qué necesita cada control.</td>
+                    </tr>
+                    <tr>
+                        <td>Marcar Puertos USB sin adjuntar Hoja 4</td>
+                        <td>TI rechaza automáticamente ese control.</td>
+                        <td>Descargá la Hoja 4, hacé firmar al usuario, escaneá y adjuntá.</td>
+                    </tr>
+                    <tr>
+                        <td>Usuario Espejo inactivo o mal escrito</td>
+                        <td>TI no puede copiar permisos → pregunta por chat → demora.</td>
+                        <td>Confirmá con el jefe qué login está activo antes de ponerlo.</td>
+                    </tr>
+                    <tr>
+                        <td>Pedir SAP PRODUCTIVO sin justificar</td>
+                        <td>Rechazo por política de acceso a productivo.</td>
+                        <td>Justificá específicamente por qué se necesita PRD (no CALIDAD).</td>
+                    </tr>
+                    <tr>
+                        <td>Marcar SAP PASH en un INGRESO nuevo</td>
+                        <td>Error de tipo — SAP PASH solo es para modificación.</td>
+                        <td>Para INGRESO usá el control SAP con versión FMS PASH.</td>
+                    </tr>
+                    <tr>
+                        <td>Marcar controles "por si acaso"</td>
+                        <td>Aprobador rechaza por accesos innecesarios.</td>
+                        <td>Solo marcá lo que la persona realmente va a usar.</td>
+                    </tr>
+                    <tr>
+                        <td>No especificar país y marca en Retail</td>
+                        <td>TI abre chat para preguntar → demora 1-2 días.</td>
+                        <td>Siempre indicá país y marcas (Pat Primo, Portofino, Pash, etc.).</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="callout callout-success">
+                <div class="callout-icon">✅</div>
+                <div class="callout-content">
+                    <div class="callout-title">Regla de oro</div>
+                    <p>Si dudás de algún dato, no lo inventes — preguntá primero al jefe, a Finanzas o a RRHH. Un dato correcto ahorra rebotes y días de espera.</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('faq')">← FAQ</button>
+                <button onclick="showSection('contacto')">Siguiente → ✉️ Contacto</button>
+            </div>
+        </section>
+
+        <!-- CONTACTO -->
+        <section class="section" id="sec-contacto">
+            <h2 class="section-title"><span class="emoji">✉️</span>Contacto y soporte</h2>
+            <p class="section-subtitle">Si algo se traba, escribinos</p>
+
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">💬</div>
+                    <h4>Chat con Eli (bot IA)</h4>
+                    <p>Para dudas simples sobre cómo llenar los controles. Ícono flotante 🟣 abajo a la derecha en tu portal.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🎫</div>
+                    <h4>Ticket normal</h4>
+                    <p>Si tenés un problema técnico con el portal (no con la solicitud en sí), creá un ticket categoría "Software".</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">👥</div>
+                    <h4>Canal Teams TI</h4>
+                    <p><strong>TI - Soporte DeskEli</strong> para dudas rápidas del equipo TI.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">👔</div>
+                    <h4>Escalación</h4>
+                    <p>Si un aprobador no responde en más de 3 días hábiles, escalá al canal Teams o directamente a Fernando Ramírez (Gerente TI).</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">🚀</div>
+                <div class="callout-content">
+                    <div class="callout-title">Sugerencias para mejorar este formulario</div>
+                    <p>Si detectás controles que faltan o descripciones confusas, mandanos sugerencias por el canal Teams. El formulario y sus controles se actualizan periódicamente para reflejar los aplicativos vigentes.</p>
+                </div>
+            </div>
+
+            <div style="margin-top:40px;padding:30px;text-align:center;background:linear-gradient(135deg,#faf5ff,#ede9fe);border-radius:12px;">
+                <div style="font-size:32px;margin-bottom:10px;">🎓</div>
+                <h3 style="color:var(--primary-dark);margin:0 0 8px;">Ya podés crear tu primera solicitud</h3>
+                <p style="color:#4b5563;margin-bottom:16px;">Con lo que aprendiste acá tenés todo lo necesario para pedir un usuario correctamente.</p>
+                <a href="/employee/create" class="btn-action" style="background:var(--primary);color:white;padding:12px 24px;font-size:14px;text-decoration:none;">🚀 Crear solicitud ahora</a>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('errores')">← Errores comunes</button>
+                <button disabled>Siguiente →</button>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<script>
+    if (window.location.search.match(/[?&](print|all)=1/)) {
+        document.querySelectorAll('.section').forEach(s => {
+            s.classList.add('active');
+            s.style.display = 'block';
+            s.style.pageBreakBefore = 'always';
+        });
+        const sb = document.querySelector('.sidebar'); if (sb) sb.style.display = 'none';
+        const pg = document.querySelector('.progress'); if (pg) pg.style.display = 'none';
+        const tb = document.querySelector('.topbar'); if (tb) tb.style.position = 'static';
+        const layout = document.querySelector('.layout'); if (layout) layout.style.gridTemplateColumns = '1fr';
+    }
+
+    function showSection(id) {
+        if (window.location.search.match(/[?&](print|all)=1/)) return;
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        const el = document.getElementById('sec-' + id);
+        if (el) el.classList.add('active');
+
+        document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+        const link = document.querySelector(`.sidebar a[href="#${id}"]`);
+        if (link) link.classList.add('active');
+
+        const sections = ['bienvenida','cuando','preparar','buscar','abrir','datos','adjuntos','controles','controles-tecnologia','controles-red','controles-permisos','controles-textiles','controles-comercial','controles-sap','aprobadores','enviar','flujo','seguir','faq','errores','contacto'];
+        const idx = sections.indexOf(id);
+        const pct = Math.round(((idx + 1) / sections.length) * 100);
+        document.getElementById('progressBar').style.width = pct + '%';
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+</script>
+
+</body>
+</html>

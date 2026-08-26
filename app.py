@@ -1187,6 +1187,340 @@ class Approval(db.Model):
     approver = db.relationship('User', foreign_keys=[approver_id])
     workflow = db.relationship('ApprovalWorkflow')
 
+
+# ═════════════════════════════════════════════════════════════════════════════
+# MÓDULO: SOLICITUDES DE CREACIÓN Y MODIFICACIÓN DE USUARIOS
+# Referencia: requisitosmodulosolicitudaccesosdeskeli.md
+# ═════════════════════════════════════════════════════════════════════════════
+
+# Estados del flujo (§8.1 del MD)
+SOLICITUD_ESTADO_PENDIENTE_JEFE = 'PENDIENTE_APROBACION_JEFE_INMEDIATO'
+SOLICITUD_ESTADO_DEVUELTO_JEFE = 'DEVUELTO_JEFE_INMEDIATO'
+SOLICITUD_ESTADO_RECHAZADO_JEFE = 'RECHAZADO_POR_JEFE_INMEDIATO'
+SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA = 'PENDIENTE_APROBACION_GERENTE_DE_AREA'
+SOLICITUD_ESTADO_DEVUELTO_GERENTE_AREA = 'DEVUELTO_POR_GERENTE_DE_AREA'
+SOLICITUD_ESTADO_RECHAZADO_GERENTE_AREA = 'RECHAZADO_POR_GERENTE_DE_AREA'
+SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI = 'PENDIENTE_APROBACION_ANALISTA_TI'
+SOLICITUD_ESTADO_DEVUELTO_ANALISTA_TI = 'DEVUELTO_POR_ANALISTA_TI'
+SOLICITUD_ESTADO_RECHAZADO_ANALISTA_TI = 'RECHAZADO_POR_ANALISTA_TI'
+SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI = 'PENDIENTE_APROBACION_GERENTE_DE_TI'
+SOLICITUD_ESTADO_DEVUELTO_GERENTE_TI = 'DEVUELTO_POR_GERENTE_DE_TI'
+SOLICITUD_ESTADO_RECHAZADO_GERENTE_TI = 'RECHAZADO_POR_GERENTE_DE_TI'
+SOLICITUD_ESTADO_APROBADO_GERENTE_TI = 'APROBADO_POR_GERENTE_DE_TI'
+SOLICITUD_ESTADO_EN_TRAMITE = 'SOLICITUD_EN_TRAMITE'
+SOLICITUD_ESTADO_CERRADO = 'CERRADO'
+SOLICITUD_ESTADO_ANULADO = 'ANULADO'
+
+SOLICITUD_ESTADOS = [
+    SOLICITUD_ESTADO_PENDIENTE_JEFE,
+    SOLICITUD_ESTADO_DEVUELTO_JEFE,
+    SOLICITUD_ESTADO_RECHAZADO_JEFE,
+    SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA,
+    SOLICITUD_ESTADO_DEVUELTO_GERENTE_AREA,
+    SOLICITUD_ESTADO_RECHAZADO_GERENTE_AREA,
+    SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI,
+    SOLICITUD_ESTADO_DEVUELTO_ANALISTA_TI,
+    SOLICITUD_ESTADO_RECHAZADO_ANALISTA_TI,
+    SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI,
+    SOLICITUD_ESTADO_DEVUELTO_GERENTE_TI,
+    SOLICITUD_ESTADO_RECHAZADO_GERENTE_TI,
+    SOLICITUD_ESTADO_APROBADO_GERENTE_TI,
+    SOLICITUD_ESTADO_EN_TRAMITE,
+    SOLICITUD_ESTADO_CERRADO,
+    SOLICITUD_ESTADO_ANULADO,
+]
+
+# Etiquetas humanas para el UI
+SOLICITUD_ESTADO_LABEL = {
+    SOLICITUD_ESTADO_PENDIENTE_JEFE: 'Pendiente aprobación Jefe Inmediato',
+    SOLICITUD_ESTADO_DEVUELTO_JEFE: 'Devuelto por Jefe Inmediato',
+    SOLICITUD_ESTADO_RECHAZADO_JEFE: 'Rechazado por Jefe Inmediato',
+    SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA: 'Pendiente aprobación Gerente de Área',
+    SOLICITUD_ESTADO_DEVUELTO_GERENTE_AREA: 'Devuelto por Gerente de Área',
+    SOLICITUD_ESTADO_RECHAZADO_GERENTE_AREA: 'Rechazado por Gerente de Área',
+    SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI: 'Pendiente aprobación Analista TI',
+    SOLICITUD_ESTADO_DEVUELTO_ANALISTA_TI: 'Devuelto por Analista TI',
+    SOLICITUD_ESTADO_RECHAZADO_ANALISTA_TI: 'Rechazado por Analista TI',
+    SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI: 'Pendiente aprobación Gerente de TI',
+    SOLICITUD_ESTADO_DEVUELTO_GERENTE_TI: 'Devuelto por Gerente de TI',
+    SOLICITUD_ESTADO_RECHAZADO_GERENTE_TI: 'Rechazado por Gerente de TI',
+    SOLICITUD_ESTADO_APROBADO_GERENTE_TI: 'Aprobado por Gerente de TI',
+    SOLICITUD_ESTADO_EN_TRAMITE: 'Solicitud en trámite',
+    SOLICITUD_ESTADO_CERRADO: 'Cerrado',
+    SOLICITUD_ESTADO_ANULADO: 'Anulado',
+}
+
+# Nivel al que pertenece cada estado pendiente. Usado para saber qué aprobador
+# es el que debe actuar en el estado actual.
+SOLICITUD_NIVEL_POR_ESTADO = {
+    SOLICITUD_ESTADO_PENDIENTE_JEFE: 'jefe_inmediato',
+    SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA: 'gerente_area',
+    SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI: 'analista_ti',
+    SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI: 'gerente_ti',
+}
+
+# Devuelto → volver al pendiente del mismo nivel al reenviar
+SOLICITUD_DEVUELTO_A_PENDIENTE = {
+    SOLICITUD_ESTADO_DEVUELTO_JEFE: SOLICITUD_ESTADO_PENDIENTE_JEFE,
+    SOLICITUD_ESTADO_DEVUELTO_GERENTE_AREA: SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA,
+    SOLICITUD_ESTADO_DEVUELTO_ANALISTA_TI: SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI,
+    SOLICITUD_ESTADO_DEVUELTO_GERENTE_TI: SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI,
+}
+
+# Aprobar → siguiente estado pendiente (o final si es el último)
+SOLICITUD_APROBAR_SIGUIENTE = {
+    SOLICITUD_ESTADO_PENDIENTE_JEFE: SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA,
+    SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA: SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI,
+    SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI: SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI,
+    SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI: SOLICITUD_ESTADO_APROBADO_GERENTE_TI,
+}
+
+# Rechazar → estado final por nivel
+SOLICITUD_RECHAZAR_A = {
+    SOLICITUD_ESTADO_PENDIENTE_JEFE: SOLICITUD_ESTADO_RECHAZADO_JEFE,
+    SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA: SOLICITUD_ESTADO_RECHAZADO_GERENTE_AREA,
+    SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI: SOLICITUD_ESTADO_RECHAZADO_ANALISTA_TI,
+    SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI: SOLICITUD_ESTADO_RECHAZADO_GERENTE_TI,
+}
+
+# Devolver → estado devuelto por nivel
+SOLICITUD_DEVOLVER_A = {
+    SOLICITUD_ESTADO_PENDIENTE_JEFE: SOLICITUD_ESTADO_DEVUELTO_JEFE,
+    SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA: SOLICITUD_ESTADO_DEVUELTO_GERENTE_AREA,
+    SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI: SOLICITUD_ESTADO_DEVUELTO_ANALISTA_TI,
+    SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI: SOLICITUD_ESTADO_DEVUELTO_GERENTE_TI,
+}
+
+# Estados finales: no admiten más transiciones
+SOLICITUD_ESTADOS_FINALES = {
+    SOLICITUD_ESTADO_RECHAZADO_JEFE,
+    SOLICITUD_ESTADO_RECHAZADO_GERENTE_AREA,
+    SOLICITUD_ESTADO_RECHAZADO_ANALISTA_TI,
+    SOLICITUD_ESTADO_RECHAZADO_GERENTE_TI,
+    SOLICITUD_ESTADO_CERRADO,
+    SOLICITUD_ESTADO_ANULADO,
+}
+
+SOLICITUD_TIPOS = ('INGRESO', 'MODIFICACION', 'TRASLADO')
+
+
+class Control(db.Model):
+    """Catálogo maestro de controles (elementos tecnológicos + accesos).
+
+    Administrable desde /admin/controles. Cada Solicitud selecciona uno o
+    varios de estos controles.
+    """
+    __tablename__ = 'controles_catalogo'
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(80), nullable=False, index=True)
+    name = db.Column(db.String(160), nullable=False)
+    descripcion = db.Column(db.Text)  # detalle largo/descripción
+    tipo = db.Column(db.String(20), default='acceso', index=True)  # 'elemento' | 'acceso'
+    needs_espejo = db.Column(db.Boolean, default=False)  # si necesita usuario espejo
+    costo_referencia = db.Column(db.Numeric(12, 2))  # opcional
+    company = db.Column(db.String(20), index=True)  # NULL = global a las 3 empresas
+    is_active = db.Column(db.Boolean, default=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    __table_args__ = (
+        db.Index('ix_controles_company_active', 'company', 'is_active'),
+        db.UniqueConstraint('code', 'company', name='uq_controles_code_company'),
+    )
+
+
+class SolicitudUsuario(db.Model):
+    """Solicitud de creación/modificación/traslado de usuario.
+
+    Contiene los 14 campos comunes + condicionales, referencia a los aprobadores
+    de cada nivel, y el estado actual del flujo.
+    """
+    __tablename__ = 'solicitudes_usuarios'
+    id = db.Column(db.Integer, primary_key=True)
+    codigo = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    company = db.Column(db.String(20), nullable=False, index=True)
+
+    tipo_solicitud = db.Column(db.String(20), nullable=False, index=True)  # INGRESO|MODIFICACION|TRASLADO
+    unidad_negocio = db.Column(db.String(120))
+    documento = db.Column(db.String(40), nullable=False, index=True)
+    nombre = db.Column(db.String(200), nullable=False)
+    cargo = db.Column(db.String(160))
+    numero_contacto = db.Column(db.String(40))
+    ubicacion = db.Column(db.String(160))
+    centro_costo = db.Column(db.String(160))
+    tipo_contrato = db.Column(db.String(80))
+
+    # Aprobadores nivel 1 y 2: los elige el solicitante en el form
+    jefe_inmediato_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    gerente_area_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    # Aprobadores nivel 3 y 4: se resuelven automáticamente por empresa al crear
+    analista_ti_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
+    gerente_ti_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
+
+    justificacion = db.Column(db.Text, nullable=False)
+
+    # Campos condicionales tipo INGRESO
+    fecha_ingreso = db.Column(db.Date)
+    es_reemplazo = db.Column(db.Boolean)
+    nombre_reemplazo = db.Column(db.String(200))
+    # Campo condicional MODIFICACION/TRASLADO
+    usuario_red = db.Column(db.String(120))
+
+    # Estado del flujo
+    estado = db.Column(db.String(60), nullable=False, default=SOLICITUD_ESTADO_PENDIENTE_JEFE, index=True)
+    caso_externo = db.Column(db.String(80))  # equiv. "Caso Aranda" en T-APPS (opcional)
+    anulado = db.Column(db.Boolean, default=False, index=True)
+
+    creator_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    closed_at = db.Column(db.DateTime)
+
+    # Relaciones
+    creator = db.relationship('User', foreign_keys=[creator_id])
+    jefe_inmediato = db.relationship('User', foreign_keys=[jefe_inmediato_id])
+    gerente_area = db.relationship('User', foreign_keys=[gerente_area_id])
+    analista_ti = db.relationship('User', foreign_keys=[analista_ti_id])
+    gerente_ti = db.relationship('User', foreign_keys=[gerente_ti_id])
+    controles = db.relationship('SolicitudControl', backref='solicitud',
+                                cascade='all, delete-orphan', order_by='SolicitudControl.id')
+    historial = db.relationship('SolicitudHistorial', backref='solicitud',
+                                cascade='all, delete-orphan', order_by='SolicitudHistorial.created_at')
+    adjuntos = db.relationship('SolicitudAdjunto', backref='solicitud',
+                               cascade='all, delete-orphan')
+
+    __table_args__ = (
+        db.Index('ix_solicitudes_company_estado', 'company', 'estado'),
+        db.Index('ix_solicitudes_company_creator', 'company', 'creator_id'),
+    )
+
+    def responsable_actual_id(self):
+        """Devuelve el user_id del aprobador que debe actuar sobre el estado actual."""
+        nivel = SOLICITUD_NIVEL_POR_ESTADO.get(self.estado)
+        if not nivel:
+            # También cuando está devuelto: el solicitante es el responsable
+            if self.estado in SOLICITUD_DEVUELTO_A_PENDIENTE:
+                return self.creator_id
+            return None
+        return {
+            'jefe_inmediato': self.jefe_inmediato_id,
+            'gerente_area': self.gerente_area_id,
+            'analista_ti': self.analista_ti_id,
+            'gerente_ti': self.gerente_ti_id,
+        }.get(nivel)
+
+
+class SolicitudControl(db.Model):
+    """Detalle de cada control seleccionado en una Solicitud."""
+    __tablename__ = 'solicitudes_controles'
+    id = db.Column(db.Integer, primary_key=True)
+    solicitud_id = db.Column(db.Integer, db.ForeignKey('solicitudes_usuarios.id'), nullable=False, index=True)
+    control_id = db.Column(db.Integer, db.ForeignKey('controles_catalogo.id'), nullable=False, index=True)
+    descripcion_detalle = db.Column(db.Text)  # lo que el usuario escribe al marcarlo
+    usuario_espejo = db.Column(db.String(120))
+    costo = db.Column(db.Numeric(12, 2))
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    control = db.relationship('Control')
+
+
+class SolicitudHistorial(db.Model):
+    """Auditoría de transiciones de estado de una Solicitud."""
+    __tablename__ = 'solicitudes_historial'
+    id = db.Column(db.Integer, primary_key=True)
+    solicitud_id = db.Column(db.Integer, db.ForeignKey('solicitudes_usuarios.id'), nullable=False, index=True)
+    estado_anterior = db.Column(db.String(60))
+    estado_nuevo = db.Column(db.String(60), nullable=False)
+    aprobador_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    accion = db.Column(db.String(30))  # aprobar|devolver|rechazar|anular|reenviar|crear
+    observacion = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.now, index=True)
+
+    aprobador = db.relationship('User', foreign_keys=[aprobador_id])
+
+
+class SolicitudAdjunto(db.Model):
+    """Archivos adjuntos de una Solicitud (soportes, autorizaciones, etc.)."""
+    __tablename__ = 'solicitudes_adjuntos'
+    id = db.Column(db.Integer, primary_key=True)
+    solicitud_id = db.Column(db.Integer, db.ForeignKey('solicitudes_usuarios.id'), nullable=False, index=True)
+    filename = db.Column(db.String(255), nullable=False)
+    original_name = db.Column(db.String(255))
+    mime_type = db.Column(db.String(80))
+    size_bytes = db.Column(db.Integer)
+    file_data = db.Column(db.LargeBinary)  # storage inline (patrón de TicketAttachment)
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    uploaded_by = db.relationship('User', foreign_keys=[uploaded_by_id])
+
+
+def _next_solicitud_codigo(company):
+    """Genera el próximo consecutivo por empresa: SOL-ELIOT-00001."""
+    prefix = f'SOL-{(company or "").upper()}-'
+    last = (SolicitudUsuario.query
+            .filter(SolicitudUsuario.codigo.like(prefix + '%'))
+            .order_by(SolicitudUsuario.id.desc())
+            .first())
+    if last and last.codigo:
+        try:
+            n = int(last.codigo.split('-')[-1]) + 1
+        except (ValueError, IndexError):
+            n = 1
+    else:
+        n = 1
+    return f'{prefix}{n:05d}'
+
+
+# Config de aprobadores TI por empresa. Fallback: primer admin de la empresa.
+# Se puede sobreescribir editando la solicitud desde el UI antes de crear.
+_TI_APPROVERS_BY_COMPANY = {
+    'eliot': {'analista_ti_email': None, 'gerente_ti_email': None},
+    'pash': {'analista_ti_email': None, 'gerente_ti_email': None},
+    'primatela': {'analista_ti_email': None, 'gerente_ti_email': None},
+}
+
+
+def _resolve_ti_approver(company, kind):
+    """Resuelve al aprobador TI de la empresa. kind='analista_ti'|'gerente_ti'.
+    Devuelve un User o None."""
+    conf = _TI_APPROVERS_BY_COMPANY.get(company or '', {})
+    email_key = f'{kind}_email'
+    email = conf.get(email_key)
+    if email:
+        u = User.query.filter(
+            db.func.lower(User.email) == email.lower(),
+            User.company == company,
+            User.is_active == True,
+        ).first()
+        if u:
+            return u
+    # Fallback: primer admin de la empresa
+    return User.query.filter_by(company=company, role='admin', is_active=True).first()
+
+
+def solicitud_can_view(user, solicitud):
+    """Reglas de visibilidad. Admin: todo de sus empresas. Creator: propia.
+    Aprobador de cualquier nivel: la propia."""
+    if not user or not solicitud:
+        return False
+    if solicitud.company != user.company and user.role != 'admin':
+        return False
+    if user.role == 'admin':
+        return True
+    if solicitud.creator_id == user.id:
+        return True
+    if user.id in (solicitud.jefe_inmediato_id, solicitud.gerente_area_id,
+                   solicitud.analista_ti_id, solicitud.gerente_ti_id):
+        return True
+    return False
+
+
+def solicitud_can_create(user):
+    """Solo technician + admin pueden crear (equivalen a Usuario Especialista + Administrador)."""
+    return bool(user) and user.role in ('admin', 'technician')
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # FUNCIONES DE UTILIDAD
 # ═════════════════════════════════════════════════════════════════════════════
@@ -2421,10 +2755,20 @@ def employee_create():
         # Aprobaciones multi-nivel: si algún workflow matchea, entra en cola de aprobación
         try:
             template_name_used = request.form.get('template_name') or None
+            # Leer los valores del form del template (nombre → valor) para resolver
+            # aprobadores dinámicos (`user_from_form_field`) del workflow.
+            form_data_raw = request.form.get('template_form_data') or '{}'
+            try:
+                template_form_data = json.loads(form_data_raw) if form_data_raw else {}
+                if not isinstance(template_form_data, dict):
+                    template_form_data = {}
+            except Exception:
+                template_form_data = {}
+
             match = find_matching_workflow(ticket, template_name=template_name_used)
             if match:
                 workflow, steps = match
-                create_approvals_for_ticket(ticket, workflow, steps)
+                create_approvals_for_ticket(ticket, workflow, steps, form_data=template_form_data)
                 db.session.commit()
                 log_audit('ticket_pending_approval', user.id, 'ticket', ticket.id,
                           f"Ticket {ticket.ticket_number} en espera de aprobación (workflow: {workflow.name})")
@@ -4799,18 +5143,31 @@ def _approvals_serialize_workflow(w, include_approvers=True):
         'approvers_count': len(approvers),
     }
     if include_approvers:
-        # Enriquecer con datos del usuario
+        # Enriquecer con datos del usuario (soporta estáticos, dinámicos y condicionales)
         enriched = []
         for step in approvers:
             uid = step.get('user_id')
-            u = User.query.get(uid) if uid else None
-            enriched.append({
+            dyn_field = step.get('user_from_form_field')
+            condition_ctl = step.get('condition_control_marked')
+            entry = {
                 'order': step.get('order', len(enriched) + 1),
+                'role_label': step.get('role_label', ''),
                 'user_id': uid,
-                'user_name': u.name if u else '(usuario eliminado)',
-                'user_email': u.email if u else '',
-                'role_label': step.get('role_label', '')
-            })
+                'user_from_form_field': dyn_field or None,
+                'is_dynamic': bool(dyn_field),
+                'condition_control_marked': condition_ctl or None,
+                'is_conditional': bool(condition_ctl),
+            }
+            if dyn_field:
+                entry['user_name'] = f'⚡ Dinámico (campo del form: "{dyn_field}")'
+                entry['user_email'] = ''
+            else:
+                u = User.query.get(uid) if uid else None
+                entry['user_name'] = u.name if u else '(usuario eliminado)'
+                entry['user_email'] = u.email if u else ''
+            if condition_ctl:
+                entry['user_name'] = f'🎯 Condicional ({condition_ctl}) · ' + entry['user_name']
+            enriched.append(entry)
         d['approvers'] = enriched
     return d
 
@@ -4863,13 +5220,121 @@ def find_matching_workflow(ticket, template_name=None):
     return None
 
 
-def create_approvals_for_ticket(ticket, workflow, steps):
+def _resolve_dynamic_approver(field_value, company):
+    """Convierte el valor de un campo de form (user_id numérico o email o nombre)
+    a un User real de la misma empresa. Retorna el User o None.
+    """
+    if not field_value:
+        return None
+    val = str(field_value).strip()
+    if not val:
+        return None
+    # 1) Como user_id numérico
+    if val.isdigit():
+        u = User.query.filter_by(id=int(val), company=company, is_active=True).first()
+        if u:
+            return u
+    # 2) Como email
+    if '@' in val:
+        u = User.query.filter(
+            db.func.lower(User.email) == val.lower(),
+            User.company == company,
+            User.is_active == True,
+        ).first()
+        if u:
+            return u
+    # 3) Como username
+    u = User.query.filter(
+        db.func.lower(User.username) == val.lower(),
+        User.company == company,
+        User.is_active == True,
+    ).first()
+    if u:
+        return u
+    return None
+
+
+def _is_control_marked_in_form(form_data, control_code):
+    """Retorna True si el empleado marcó el control con ese code en el
+    campo `controles` del form (que viene como JSON string).
+    """
+    if not form_data or not control_code:
+        return False
+    raw = form_data.get('controles')
+    if not raw:
+        return False
+    try:
+        controles = json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        return False
+    if not isinstance(controles, dict):
+        return False
+    ctl = controles.get(control_code)
+    if not isinstance(ctl, dict):
+        return False
+    return bool(ctl.get('marcado'))
+
+
+def create_approvals_for_ticket(ticket, workflow, steps, form_data=None):
     """Crea los N Approval records y marca el ticket como pending_approval.
-    Envía email al primer aprobador."""
+    Envía email al primer aprobador.
+
+    Soporta 3 tipos de step:
+      - **Estático**: `user_id` fijo en el step.
+      - **Dinámico**: `user_from_form_field` = nombre del campo del form
+        que contiene user_id/email/username del aprobador.
+      - **Condicional**: `condition_control_marked` = code del control
+        (dentro del campo control_list `controles`). El step solo se crea
+        si el empleado marcó ese control. Combina con user_id o dinámico.
+
+    Ejemplo: workflow con 3 pasos:
+      1. Jefe inmediato (dinámico, siempre)
+      2. Responsable del área (dinámico, siempre)
+      3. Gerente de TI (estático user_id=5,
+         condition_control_marked='elementos_tecnologia')
+    """
+    form_data = form_data or {}
+    unresolved_dynamic = []  # para log de auditoría
+    skipped_conditional = []  # steps saltados por no cumplir condición
+
     for i, step in enumerate(steps):
         uid = step.get('user_id')
+        dynamic_field = step.get('user_from_form_field')
+        condition_control = step.get('condition_control_marked')
+
+        # ── VALIDAR CONDICIÓN (si aplica) ──
+        if condition_control:
+            if not _is_control_marked_in_form(form_data, condition_control):
+                skipped_conditional.append({
+                    'order': step.get('order', i + 1),
+                    'role_label': step.get('role_label', ''),
+                    'condition_control': condition_control,
+                })
+                print(f"[approvals] Step {i+1} SALTADO: control '{condition_control}' no marcado en el form")
+                continue
+            else:
+                print(f"[approvals] Step {i+1} ACTIVADO: control '{condition_control}' marcado → se agrega aprobador")
+
+        # Resolver aprobador dinámico si aplica
+        if not uid and dynamic_field:
+            field_value = form_data.get(dynamic_field)
+            resolved = _resolve_dynamic_approver(field_value, ticket.company)
+            if resolved:
+                uid = resolved.id
+                print(f"[approvals] Step {i+1} resuelto dinámicamente: campo '{dynamic_field}' → user_id={uid} ({resolved.name})")
+            else:
+                unresolved_dynamic.append({
+                    'order': step.get('order', i + 1),
+                    'field': dynamic_field,
+                    'value': field_value,
+                    'role_label': step.get('role_label', ''),
+                })
+                print(f"[approvals] Step {i+1} sin resolver: campo '{dynamic_field}' valor '{field_value}' no matchea usuario activo en {ticket.company}")
+                continue
+
         if not uid:
             continue
+
         approval = Approval(
             ticket_id=ticket.id,
             workflow_id=workflow.id,
@@ -4880,6 +5345,30 @@ def create_approvals_for_ticket(ticket, workflow, steps):
             token=secrets.token_urlsafe(32)
         )
         db.session.add(approval)
+
+    # Si algún step dinámico quedó sin resolver, registrar en auditoría
+    if unresolved_dynamic:
+        try:
+            log_audit(
+                'approval_dynamic_unresolved', None, 'ticket', ticket.id,
+                f"Workflow '{workflow.name}' tuvo {len(unresolved_dynamic)} aprobador(es) "
+                f"dinámico(s) sin resolver: {unresolved_dynamic}. El ticket se creó igual "
+                f"pero puede necesitar reasignación manual."
+            )
+        except Exception:
+            pass
+
+    if skipped_conditional:
+        try:
+            log_audit(
+                'approval_conditional_skipped', None, 'ticket', ticket.id,
+                f"Workflow '{workflow.name}' saltó {len(skipped_conditional)} step(s) "
+                f"por condición no cumplida: {skipped_conditional}. El empleado no marcó "
+                f"el control requerido, así que ese aprobador no participa."
+            )
+        except Exception:
+            pass
+
     ticket.status = 'pending_approval'
     ticket.updated_at = datetime.now()
     db.session.flush()
@@ -5014,20 +5503,39 @@ def api_admin_workflow_create():
     if not isinstance(approvers, list) or not approvers:
         return jsonify({'success': False, 'error': 'Al menos un aprobador es requerido'}), 400
 
-    # Validar aprobadores
+    # Validar aprobadores (soporta estáticos por user_id, o dinámicos por
+    # user_from_form_field que se resuelven al momento de crear el ticket)
     clean_approvers = []
     for i, step in enumerate(approvers):
         uid = step.get('user_id')
-        if not uid:
-            return jsonify({'success': False, 'error': f'Aprobador #{i+1} sin user_id'}), 400
-        u = User.query.get(uid)
-        if not u or u.company != company:
-            return jsonify({'success': False, 'error': f'Aprobador #{i+1} inválido o de otra empresa'}), 400
-        clean_approvers.append({
-            'order': i + 1,
-            'user_id': uid,
-            'role_label': (step.get('role_label') or '').strip()[:120]
-        })
+        dyn_field = (step.get('user_from_form_field') or '').strip()[:80]
+        role_label = (step.get('role_label') or '').strip()[:120]
+
+        condition_ctl = (step.get('condition_control_marked') or '').strip()[:80] or None
+
+        if dyn_field:
+            entry = {
+                'order': i + 1,
+                'user_from_form_field': dyn_field,
+                'role_label': role_label,
+            }
+            if condition_ctl:
+                entry['condition_control_marked'] = condition_ctl
+            clean_approvers.append(entry)
+        elif uid:
+            u = User.query.get(uid)
+            if not u or u.company != company:
+                return jsonify({'success': False, 'error': f'Aprobador #{i+1} inválido o de otra empresa'}), 400
+            entry = {
+                'order': i + 1,
+                'user_id': uid,
+                'role_label': role_label,
+            }
+            if condition_ctl:
+                entry['condition_control_marked'] = condition_ctl
+            clean_approvers.append(entry)
+        else:
+            return jsonify({'success': False, 'error': f'Aprobador #{i+1} requiere user_id o user_from_form_field'}), 400
 
     w = ApprovalWorkflow(
         company=company,
@@ -5076,14 +5584,32 @@ def api_admin_workflow_update(wid):
         clean = []
         for i, step in enumerate(approvers):
             uid = step.get('user_id')
-            u = User.query.get(uid) if uid else None
-            if not u or u.company != w.company:
-                return jsonify({'success': False, 'error': f'Aprobador #{i+1} inválido'}), 400
-            clean.append({
-                'order': i + 1,
-                'user_id': uid,
-                'role_label': (step.get('role_label') or '').strip()[:120]
-            })
+            dyn_field = (step.get('user_from_form_field') or '').strip()[:80]
+            role_label = (step.get('role_label') or '').strip()[:120]
+            condition_ctl = (step.get('condition_control_marked') or '').strip()[:80] or None
+            if dyn_field:
+                entry = {
+                    'order': i + 1,
+                    'user_from_form_field': dyn_field,
+                    'role_label': role_label,
+                }
+                if condition_ctl:
+                    entry['condition_control_marked'] = condition_ctl
+                clean.append(entry)
+            elif uid:
+                u = User.query.get(uid)
+                if not u or u.company != w.company:
+                    return jsonify({'success': False, 'error': f'Aprobador #{i+1} inválido'}), 400
+                entry = {
+                    'order': i + 1,
+                    'user_id': uid,
+                    'role_label': role_label,
+                }
+                if condition_ctl:
+                    entry['condition_control_marked'] = condition_ctl
+                clean.append(entry)
+            else:
+                return jsonify({'success': False, 'error': f'Aprobador #{i+1} requiere user_id o user_from_form_field'}), 400
         w.approvers_json = json.dumps(clean)
     w.updated_at = datetime.now()
     db.session.commit()
@@ -5802,9 +6328,115 @@ def search_kb_match(question_text):
     return None, 0
 
 
+def search_articles_match(question_text, company=None):
+    """Busca la mejor coincidencia en KnowledgeArticle (KB con ~537 artículos).
+    Retorna (article, score) o (None, 0) si no hay match suficiente.
+
+    Reusa la lógica de tokenización/scoring de api_kb_search: title=5, category=3,
+    tags=3, body=1 por token expandido con sinónimos IT.
+    Filtra por empresa del usuario (o globales, company IS NULL).
+    """
+    q_lower = (question_text or '').lower().strip()
+    if len(q_lower) < 3:
+        return None, 0
+
+    try:
+        expanded_tokens, _original_tokens = _kb_tokenize_query(question_text)
+    except Exception:
+        expanded_tokens = []
+
+    if not expanded_tokens:
+        return None, 0
+
+    base_q = KnowledgeArticle.query.filter(KnowledgeArticle.is_published == True)
+    if company:
+        base_q = base_q.filter(
+            db.or_(
+                KnowledgeArticle.company == company,
+                KnowledgeArticle.company.is_(None),
+            )
+        )
+
+    or_clauses = []
+    for t in expanded_tokens:
+        like = f'%{t}%'
+        or_clauses.append(KnowledgeArticle.title.ilike(like))
+        or_clauses.append(KnowledgeArticle.body.ilike(like))
+        or_clauses.append(KnowledgeArticle.tags.ilike(like))
+        or_clauses.append(KnowledgeArticle.category.ilike(like))
+
+    try:
+        candidates = base_q.filter(db.or_(*or_clauses)).limit(200).all()
+    except Exception as e:
+        print(f"[BOT] Error consultando KnowledgeArticle: {e}")
+        return None, 0
+
+    if not candidates:
+        return None, 0
+
+    phrase = _kb_normalize_lower(question_text) or ''
+    best = None
+    best_score = 0
+    for a in candidates:
+        title = (a.title or '').lower()
+        body = (a.body or '').lower()
+        tags = (a.tags or '').lower()
+        cat = (a.category or '').lower()
+        s = 0
+        for t in expanded_tokens:
+            tl = t.lower()
+            if tl in title: s += 5
+            if tl in cat: s += 3
+            if tl in tags: s += 3
+            if tl in body: s += 1
+        # Bonus fuerte si la frase entera aparece en el título
+        if phrase and phrase in title:
+            s += 10
+        if s > best_score:
+            best_score = s
+            best = a
+
+    # Umbral: al menos 10 puntos (ej: 2 hits en title, o 1 en title + 5 en body, o frase en title)
+    MIN_SCORE = 10
+    if best and best_score >= MIN_SCORE:
+        print(f"[BOT] ✓ Match en KnowledgeArticle: '{best.title}' (score: {best_score})")
+        return best, best_score
+    print(f"[BOT] Sin match suficiente en KnowledgeArticle (mejor={best_score}, umbral={MIN_SCORE})")
+    return None, 0
+
+
+def _format_article_for_bot(article):
+    """Formatea un artículo de KnowledgeArticle como respuesta corta para Eli.
+    Usa el excerpt si existe, si no, toma los primeros ~800 caracteres del body
+    (markdown liviano, sin renderizar HTML). Añade link al artículo completo.
+    """
+    if not article:
+        return ''
+    excerpt = (article.excerpt or '').strip()
+    body = (article.body or '').strip()
+    # Preferir excerpt; si no, cortar body preservando fin de línea
+    if excerpt:
+        preview = excerpt
+    else:
+        preview = body[:800]
+        # Cortar al último salto de línea para no dejar frase colgando
+        last_nl = preview.rfind('\n')
+        if last_nl > 400:
+            preview = preview[:last_nl].rstrip()
+    link = f'/kb/article/{article.slug}'
+    return (
+        f"{preview}\n\n"
+        f"📖 Artículo completo: {article.title} ({link})"
+    )
+
+
 @app.route('/api/bot/ask', methods=['POST'])
 def api_bot_ask():
-    """Bot de soporte inteligente: primero busca en KB, luego Claude"""
+    """Bot de soporte inteligente en 3 pasos:
+    1) Base de conocimiento del bot (auto-alimentada, BotKnowledge)
+    2) Artículos KB (KnowledgeArticle, ~537 artículos) — filtrado por empresa
+    3) Claude API si nada matchea
+    """
     try:
         data = request.get_json(force=True) if request.data else {}
         question = data.get('question', '').strip()
@@ -5812,24 +6444,46 @@ def api_bot_ask():
         if not question or len(question) < 3:
             return jsonify({'success': False, 'error': 'Pregunta muy corta'}), 400
 
+        # Empresa del usuario (si está autenticado) para filtrar artículos
+        user_company = session.get('company') if 'user_id' in session else None
+
         answer = None
         source = None
         kb_match = None
         kb_score = 0
+        article_match = None
+        article_score = 0
 
-        # PASO 1: BUSCAR EN BASE DE CONOCIMIENTO (Soluciones Bot)
+        # PASO 1: BUSCAR EN BASE DE CONOCIMIENTO DEL BOT (auto-alimentada)
         try:
             kb_match, kb_score = search_kb_match(question)
             if kb_match:
                 answer = kb_match.answer
                 source = 'kb'
-                print(f"[BOT] ✓ Match en KB: '{kb_match.question}' (score: {kb_score})")
+                print(f"[BOT] ✓ Match en KB bot: '{kb_match.question}' (score: {kb_score})")
         except Exception as e:
-            print(f"[BOT] Error búsqueda KB: {e}")
+            print(f"[BOT] Error búsqueda KB bot: {e}")
 
-        # PASO 2: Si no hay match en KB, usar CLAUDE
+        # PASO 2: Si no hay match en KB bot, buscar en KnowledgeArticle (KB nueva)
         if not answer:
-            print(f"[BOT] No hay match en KB, llamando a Claude...")
+            print(f"[BOT] Sin match en KB bot, buscando en KnowledgeArticle...")
+            try:
+                article_match, article_score = search_articles_match(question, company=user_company)
+                if article_match:
+                    answer = _format_article_for_bot(article_match)
+                    source = 'article'
+                    # Sumar view del artículo (feedback pasivo de uso)
+                    try:
+                        article_match.views = (article_match.views or 0) + 1
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
+            except Exception as e:
+                print(f"[BOT] Error búsqueda KnowledgeArticle: {e}")
+
+        # PASO 3: Si nada de lo anterior, usar CLAUDE (internet/IA)
+        if not answer:
+            print(f"[BOT] Sin match en ninguna KB, llamando a Claude...")
             try:
                 if CLAUDE_API_KEY and CLAUDE_API_KEY.startswith('sk-'):
                     import anthropic
@@ -5935,11 +6589,12 @@ def api_bot_ask():
             print(f"[BOT] Error creando ticket: {e}")
             db.session.rollback()
 
-        # Si la respuesta viene de KB, el ticket es resolved (auto-cerrado)
-        resolved = (source == 'kb')
+        # Si la respuesta viene de KB o artículo, el ticket es resolved (auto-cerrado)
+        resolved = source in ('kb', 'article')
         source_label = {
-            'kb': '📚 Base de Conocimiento',
-            'claude': '🤖 IA (Claude)',
+            'kb': '📚 KB del Bot (auto-alimentada)',
+            'article': '📖 Artículos KB',
+            'claude': '🌐 IA + Internet (Claude)',
             'fallback': '📝 Sin respuesta automática'
         }.get(source, source)
 
@@ -5955,6 +6610,9 @@ def api_bot_ask():
             'source_label': source_label,
             'kb_question': kb_match.question if kb_match else None,
             'kb_category': kb_match.category if kb_match else None,
+            'article_id': article_match.id if article_match else None,
+            'article_title': article_match.title if article_match else None,
+            'article_slug': article_match.slug if article_match else None,
             'ticket_number': ticket_number,
             'ticket_message': ticket_msg,
             'assigned_to': specialist_name
@@ -11249,14 +11907,11 @@ def send_teams_webhook(company, event, ticket):
 
 @app.route('/admin/servers')
 def admin_servers_page():
-    """Pagina admin para CRUD de servidores monitoreados (RF-03-11)."""
+    """Deprecated: la pagina CRUD se fusiono con el tab Conectividad del dashboard.
+    Se mantiene esta ruta como redirect para no romper bookmarks/links viejos."""
     if 'user_id' not in session or session.get('role') != 'admin':
         return redirect(url_for('login'))
-    user = User.query.get(session['user_id'])
-    return render_template('admin/servers.html',
-                           company_info=COMPANY_COLORS.get(user.company, {}),
-                           is_master=is_master_admin(),
-                           user=user)
+    return redirect('/admin/dashboard#tab-5')
 
 
 @app.route('/api/admin/servers', methods=['GET'])
@@ -17799,6 +18454,51 @@ def _all_role_labels(user):
     return result
 
 
+@app.route('/api/templates/approvers', methods=['GET'])
+def api_template_approvers():
+    """Lista usuarios activos de la empresa del usuario autenticado, para poblar
+    campos tipo `user_select` en plantillas (ej. seleccionar jefe inmediato).
+
+    Filtra siempre por la empresa del solicitante (segregación multi-tenant).
+
+    Query params:
+        role   Opcional. CSV de roles a incluir (admin,technician,employee).
+               Default: admin,technician,employee (todos).
+    """
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'No autenticado'}), 401
+
+    company = session.get('company')
+    if not company:
+        return jsonify({'success': False, 'error': 'Empresa no identificada'}), 400
+
+    roles_param = (request.args.get('role') or '').strip()
+    allowed_roles = {'admin', 'technician', 'employee'}
+    if roles_param:
+        wanted = {r.strip().lower() for r in roles_param.split(',') if r.strip()}
+        roles_filter = list(wanted & allowed_roles)
+        if not roles_filter:
+            roles_filter = list(allowed_roles)
+    else:
+        roles_filter = list(allowed_roles)
+
+    users = User.query.filter(
+        User.company == company,
+        User.is_active == True,
+        User.role.in_(roles_filter),
+    ).order_by(User.name).all()
+
+    return jsonify({
+        'success': True,
+        'users': [{
+            'id': u.id,
+            'name': u.name or u.username,
+            'email': u.email or '',
+            'role': u.role,
+        } for u in users]
+    })
+
+
 @app.route('/api/admin/users', methods=['GET'])
 def api_admin_users_list():
     """Lista usuarios activos, filtrados por empresa (o todos si el admin es
@@ -21751,6 +22451,756 @@ def api_admin_api_keys_delete(key_id):
     log_audit('api_key_deleted', session['user_id'], 'api_key', key_id,
               f'API Key "{name}" eliminada permanentemente')
     return jsonify({'success': True, 'message': 'API Key eliminada'})
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# MÓDULO: SOLICITUDES DE CREACIÓN Y MODIFICACIÓN DE USUARIOS — ENDPOINTS
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _current_user_or_401():
+    """Devuelve (user, error_response). Usar en el pattern:
+        user, err = _current_user_or_401()
+        if err: return err
+    """
+    if 'user_id' not in session:
+        return None, (jsonify({'success': False, 'error': 'No autorizado'}), 401)
+    user = User.query.get(session['user_id'])
+    if not user or not user.is_active:
+        return None, (jsonify({'success': False, 'error': 'Usuario inválido'}), 401)
+    return user, None
+
+
+def _serialize_control(c):
+    return {
+        'id': c.id,
+        'code': c.code,
+        'name': c.name,
+        'descripcion': c.descripcion,
+        'tipo': c.tipo,
+        'needs_espejo': bool(c.needs_espejo),
+        'costo_referencia': float(c.costo_referencia) if c.costo_referencia is not None else None,
+        'company': c.company,
+        'is_active': bool(c.is_active),
+    }
+
+
+def _serialize_solicitud_row(s):
+    """Serialización compacta para el listado."""
+    return {
+        'id': s.id,
+        'codigo': s.codigo,
+        'tipo_solicitud': s.tipo_solicitud,
+        'documento': s.documento,
+        'nombre': s.nombre,
+        'cargo': s.cargo,
+        'centro_costo': s.centro_costo,
+        'unidad_negocio': s.unidad_negocio,
+        'estado': s.estado,
+        'estado_label': SOLICITUD_ESTADO_LABEL.get(s.estado, s.estado),
+        'anulado': bool(s.anulado),
+        'responsable_actual_id': s.responsable_actual_id(),
+        'caso_externo': s.caso_externo,
+        'creator_id': s.creator_id,
+        'creator_name': s.creator.name if s.creator else None,
+        'created_at': s.created_at.isoformat() if s.created_at else None,
+    }
+
+
+def _serialize_solicitud_detail(s):
+    """Serialización completa para la vista de detalle."""
+    def _u(u):
+        return {'id': u.id, 'name': u.name, 'email': u.email} if u else None
+
+    return {
+        'id': s.id,
+        'codigo': s.codigo,
+        'company': s.company,
+        'tipo_solicitud': s.tipo_solicitud,
+        'unidad_negocio': s.unidad_negocio,
+        'documento': s.documento,
+        'nombre': s.nombre,
+        'cargo': s.cargo,
+        'numero_contacto': s.numero_contacto,
+        'ubicacion': s.ubicacion,
+        'centro_costo': s.centro_costo,
+        'tipo_contrato': s.tipo_contrato,
+        'jefe_inmediato': _u(s.jefe_inmediato),
+        'gerente_area': _u(s.gerente_area),
+        'analista_ti': _u(s.analista_ti),
+        'gerente_ti': _u(s.gerente_ti),
+        'justificacion': s.justificacion,
+        'fecha_ingreso': s.fecha_ingreso.isoformat() if s.fecha_ingreso else None,
+        'es_reemplazo': s.es_reemplazo,
+        'nombre_reemplazo': s.nombre_reemplazo,
+        'usuario_red': s.usuario_red,
+        'estado': s.estado,
+        'estado_label': SOLICITUD_ESTADO_LABEL.get(s.estado, s.estado),
+        'caso_externo': s.caso_externo,
+        'anulado': bool(s.anulado),
+        'creator': _u(s.creator),
+        'created_at': s.created_at.isoformat() if s.created_at else None,
+        'closed_at': s.closed_at.isoformat() if s.closed_at else None,
+        'controles': [
+            {
+                'id': sc.id,
+                'control_id': sc.control_id,
+                'control_code': sc.control.code if sc.control else None,
+                'control_name': sc.control.name if sc.control else None,
+                'needs_espejo': bool(sc.control.needs_espejo) if sc.control else False,
+                'descripcion_detalle': sc.descripcion_detalle,
+                'usuario_espejo': sc.usuario_espejo,
+                'costo': float(sc.costo) if sc.costo is not None else None,
+            }
+            for sc in s.controles
+        ],
+        'historial': [
+            {
+                'id': h.id,
+                'estado_anterior': h.estado_anterior,
+                'estado_anterior_label': SOLICITUD_ESTADO_LABEL.get(h.estado_anterior, h.estado_anterior),
+                'estado_nuevo': h.estado_nuevo,
+                'estado_nuevo_label': SOLICITUD_ESTADO_LABEL.get(h.estado_nuevo, h.estado_nuevo),
+                'aprobador': _u(h.aprobador),
+                'accion': h.accion,
+                'observacion': h.observacion,
+                'created_at': h.created_at.isoformat() if h.created_at else None,
+            }
+            for h in s.historial
+        ],
+        'adjuntos': [
+            {
+                'id': a.id,
+                'filename': a.original_name or a.filename,
+                'mime_type': a.mime_type,
+                'size_bytes': a.size_bytes,
+                'uploaded_by': _u(a.uploaded_by),
+                'created_at': a.created_at.isoformat() if a.created_at else None,
+            }
+            for a in s.adjuntos
+        ],
+        'costo_total': sum((float(sc.costo) for sc in s.controles if sc.costo is not None), 0.0),
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CRUD de catálogo de Controles (admin)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/controles', methods=['GET'])
+def api_controles_list():
+    """Lista los controles activos visibles a la empresa del usuario.
+    Incluye globales (company=NULL) + los específicos de su empresa."""
+    user, err = _current_user_or_401()
+    if err: return err
+    include_inactive = request.args.get('include_inactive') == '1' and user.role == 'admin'
+    q = Control.query.filter(
+        (Control.company == user.company) | (Control.company.is_(None))
+    )
+    if not include_inactive:
+        q = q.filter(Control.is_active == True)
+    controles = q.order_by(Control.name).all()
+    return jsonify({'success': True, 'controles': [_serialize_control(c) for c in controles]})
+
+
+@app.route('/api/controles', methods=['POST'])
+def api_controles_create():
+    user, err = _current_user_or_401()
+    if err: return err
+    if user.role != 'admin':
+        return jsonify({'success': False, 'error': 'Solo admin puede crear controles'}), 403
+    data = request.get_json() or {}
+    code = (data.get('code') or '').strip().lower()
+    name = (data.get('name') or '').strip()
+    if not code or not name:
+        return jsonify({'success': False, 'error': 'code y name son obligatorios'}), 400
+    company = (data.get('company') or '').strip() or None
+    # Validar duplicado
+    if Control.query.filter_by(code=code, company=company).first():
+        return jsonify({'success': False, 'error': 'Ya existe un control con ese code en esta empresa'}), 409
+    c = Control(
+        code=code,
+        name=name,
+        descripcion=(data.get('descripcion') or '').strip(),
+        tipo=data.get('tipo') or 'acceso',
+        needs_espejo=bool(data.get('needs_espejo')),
+        costo_referencia=data.get('costo_referencia'),
+        company=company,
+        is_active=True,
+    )
+    db.session.add(c)
+    db.session.commit()
+    log_audit('control_created', user.id, 'control', c.id, f'Control "{c.name}" creado')
+    return jsonify({'success': True, 'control': _serialize_control(c)}), 201
+
+
+@app.route('/api/controles/<int:control_id>', methods=['PUT'])
+def api_controles_update(control_id):
+    user, err = _current_user_or_401()
+    if err: return err
+    if user.role != 'admin':
+        return jsonify({'success': False, 'error': 'Solo admin puede modificar controles'}), 403
+    c = Control.query.get(control_id)
+    if not c:
+        return jsonify({'success': False, 'error': 'Control no encontrado'}), 404
+    data = request.get_json() or {}
+    for field in ('name', 'descripcion', 'tipo'):
+        if field in data:
+            setattr(c, field, (data.get(field) or '').strip() or None)
+    if 'needs_espejo' in data:
+        c.needs_espejo = bool(data['needs_espejo'])
+    if 'costo_referencia' in data:
+        c.costo_referencia = data['costo_referencia']
+    if 'is_active' in data:
+        c.is_active = bool(data['is_active'])
+    db.session.commit()
+    log_audit('control_updated', user.id, 'control', c.id, f'Control "{c.name}" modificado')
+    return jsonify({'success': True, 'control': _serialize_control(c)})
+
+
+@app.route('/api/controles/<int:control_id>', methods=['DELETE'])
+def api_controles_delete(control_id):
+    """Soft delete (is_active=False). No borra si tiene solicitudes asociadas."""
+    user, err = _current_user_or_401()
+    if err: return err
+    if user.role != 'admin':
+        return jsonify({'success': False, 'error': 'Solo admin puede eliminar controles'}), 403
+    c = Control.query.get(control_id)
+    if not c:
+        return jsonify({'success': False, 'error': 'Control no encontrado'}), 404
+    c.is_active = False
+    db.session.commit()
+    log_audit('control_deactivated', user.id, 'control', c.id, f'Control "{c.name}" desactivado')
+    return jsonify({'success': True, 'message': 'Control desactivado'})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Solicitudes de Usuarios
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/solicitudes-usuarios', methods=['POST'])
+def api_solicitudes_create():
+    """Crea una solicitud. Inicia flujo en estado PENDIENTE_JEFE_INMEDIATO.
+    Resuelve automáticamente Analista TI y Gerente TI por empresa (fallback: admin)."""
+    user, err = _current_user_or_401()
+    if err: return err
+    if not solicitud_can_create(user):
+        return jsonify({'success': False, 'error': 'Solo Usuario Especialista o Administrador pueden crear solicitudes'}), 403
+
+    data = request.get_json() or {}
+
+    # Validaciones campos comunes
+    tipo = (data.get('tipo_solicitud') or '').upper().strip()
+    if tipo not in SOLICITUD_TIPOS:
+        return jsonify({'success': False, 'error': f'tipo_solicitud debe ser uno de {SOLICITUD_TIPOS}'}), 400
+
+    required = ['documento', 'nombre', 'jefe_inmediato_id', 'gerente_area_id', 'justificacion']
+    for f in required:
+        if not data.get(f):
+            return jsonify({'success': False, 'error': f'Campo obligatorio faltante: {f}'}), 400
+
+    # Al menos 1 control seleccionado
+    controles_in = data.get('controles') or []
+    if not isinstance(controles_in, list) or len(controles_in) == 0:
+        return jsonify({'success': False, 'error': 'Debe seleccionar al menos un control'}), 400
+
+    # Validar aprobadores nivel 1 y 2 existen y son de la misma empresa
+    jefe = User.query.get(data['jefe_inmediato_id'])
+    gerente = User.query.get(data['gerente_area_id'])
+    if not jefe or jefe.company != user.company:
+        return jsonify({'success': False, 'error': 'Jefe Inmediato inválido'}), 400
+    if not gerente or gerente.company != user.company:
+        return jsonify({'success': False, 'error': 'Gerente de Área inválido'}), 400
+
+    # Resolver aprobadores TI (analista + gerente)
+    analista_ti = _resolve_ti_approver(user.company, 'analista_ti')
+    gerente_ti = _resolve_ti_approver(user.company, 'gerente_ti')
+    if not analista_ti or not gerente_ti:
+        return jsonify({'success': False, 'error': 'No se pudieron resolver los aprobadores TI de la empresa'}), 500
+
+    # Condicionales por tipo
+    fecha_ingreso = None
+    es_reemplazo = None
+    nombre_reemplazo = None
+    usuario_red = None
+    if tipo == 'INGRESO':
+        fi = data.get('fecha_ingreso')
+        if not fi:
+            return jsonify({'success': False, 'error': 'fecha_ingreso obligatoria para INGRESO'}), 400
+        try:
+            from datetime import date as _date
+            fecha_ingreso = _date.fromisoformat(fi)
+        except Exception:
+            return jsonify({'success': False, 'error': 'fecha_ingreso debe ser ISO YYYY-MM-DD'}), 400
+        es_reemplazo = bool(data.get('es_reemplazo'))
+        if es_reemplazo:
+            nombre_reemplazo = (data.get('nombre_reemplazo') or '').strip()
+            if not nombre_reemplazo:
+                return jsonify({'success': False, 'error': 'nombre_reemplazo obligatorio cuando es_reemplazo=true'}), 400
+    else:  # MODIFICACION o TRASLADO
+        usuario_red = (data.get('usuario_red') or '').strip()
+        if not usuario_red:
+            return jsonify({'success': False, 'error': f'usuario_red obligatorio para {tipo}'}), 400
+
+    # Crear solicitud
+    s = SolicitudUsuario(
+        codigo=_next_solicitud_codigo(user.company),
+        company=user.company,
+        tipo_solicitud=tipo,
+        unidad_negocio=(data.get('unidad_negocio') or '').strip() or None,
+        documento=str(data['documento']).strip(),
+        nombre=data['nombre'].strip(),
+        cargo=(data.get('cargo') or '').strip() or None,
+        numero_contacto=(data.get('numero_contacto') or '').strip() or None,
+        ubicacion=(data.get('ubicacion') or '').strip() or None,
+        centro_costo=(data.get('centro_costo') or '').strip() or None,
+        tipo_contrato=(data.get('tipo_contrato') or '').strip() or None,
+        jefe_inmediato_id=jefe.id,
+        gerente_area_id=gerente.id,
+        analista_ti_id=analista_ti.id,
+        gerente_ti_id=gerente_ti.id,
+        justificacion=data['justificacion'].strip(),
+        fecha_ingreso=fecha_ingreso,
+        es_reemplazo=es_reemplazo,
+        nombre_reemplazo=nombre_reemplazo,
+        usuario_red=usuario_red,
+        estado=SOLICITUD_ESTADO_PENDIENTE_JEFE,
+        caso_externo=(data.get('caso_externo') or '').strip() or None,
+        creator_id=user.id,
+    )
+    db.session.add(s)
+    db.session.flush()  # necesita id para SolicitudControl FK
+
+    # Insertar controles
+    for c_in in controles_in:
+        if not isinstance(c_in, dict):
+            continue
+        cid = c_in.get('control_id')
+        if not cid:
+            continue
+        ctrl = Control.query.get(cid)
+        if not ctrl or not ctrl.is_active:
+            continue
+        if ctrl.company and ctrl.company != user.company:
+            continue
+        sc = SolicitudControl(
+            solicitud_id=s.id,
+            control_id=ctrl.id,
+            descripcion_detalle=(c_in.get('descripcion_detalle') or '').strip() or None,
+            usuario_espejo=(c_in.get('usuario_espejo') or '').strip() or None,
+            costo=c_in.get('costo'),
+        )
+        db.session.add(sc)
+
+    if not s.controles and len(controles_in) > 0:
+        # Todos los controles eran inválidos
+        db.session.rollback()
+        return jsonify({'success': False, 'error': 'Ninguno de los controles seleccionados es válido'}), 400
+
+    # Historial: creación
+    db.session.add(SolicitudHistorial(
+        solicitud_id=s.id,
+        estado_anterior=None,
+        estado_nuevo=SOLICITUD_ESTADO_PENDIENTE_JEFE,
+        aprobador_id=user.id,
+        accion='crear',
+        observacion=f'Solicitud creada por {user.name}',
+    ))
+
+    db.session.commit()
+    log_audit('solicitud_created', user.id, 'solicitud', s.id, f'Solicitud {s.codigo} creada')
+    _notify_next_approver(s)  # notificar al siguiente
+    return jsonify({'success': True, 'solicitud': _serialize_solicitud_detail(s)}), 201
+
+
+@app.route('/api/solicitudes-usuarios', methods=['GET'])
+def api_solicitudes_list():
+    """Listado con filtros (§5.1). Un usuario normal ve las suyas; admin ve todas
+    (con toggle visualiza_todo). Ver también las que le corresponden aprobar."""
+    user, err = _current_user_or_401()
+    if err: return err
+
+    # Filtros
+    numero = (request.args.get('numero') or '').strip()
+    documento_or_nombre = (request.args.get('q') or '').strip()  # tercero
+    estado = (request.args.get('estado') or '').strip()
+    visualiza_anulado = request.args.get('visualiza_anulado') == '1'
+    visualiza_todo = request.args.get('visualiza_todo') == '1' and user.role == 'admin'
+
+    q = SolicitudUsuario.query
+    if user.role != 'admin':
+        # Solo su empresa
+        q = q.filter(SolicitudUsuario.company == user.company)
+        # Solo las suyas o las que le toca aprobar
+        q = q.filter(
+            (SolicitudUsuario.creator_id == user.id) |
+            (SolicitudUsuario.jefe_inmediato_id == user.id) |
+            (SolicitudUsuario.gerente_area_id == user.id) |
+            (SolicitudUsuario.analista_ti_id == user.id) |
+            (SolicitudUsuario.gerente_ti_id == user.id)
+        )
+    else:
+        # Admin: por defecto su empresa; si visualiza_todo, todas las de su scope
+        if not visualiza_todo:
+            q = q.filter(SolicitudUsuario.company == user.company)
+
+    if numero:
+        q = q.filter(SolicitudUsuario.codigo.ilike(f'%{numero}%'))
+    if documento_or_nombre:
+        pat = f'%{documento_or_nombre}%'
+        q = q.filter((SolicitudUsuario.documento.ilike(pat)) | (SolicitudUsuario.nombre.ilike(pat)))
+    if estado:
+        q = q.filter(SolicitudUsuario.estado == estado)
+    if not visualiza_anulado:
+        q = q.filter(SolicitudUsuario.anulado == False)
+
+    q = q.order_by(SolicitudUsuario.created_at.desc())
+    solicitudes = q.limit(500).all()
+    return jsonify({
+        'success': True,
+        'solicitudes': [_serialize_solicitud_row(s) for s in solicitudes],
+        'estados': [{'code': e, 'label': SOLICITUD_ESTADO_LABEL[e]} for e in SOLICITUD_ESTADOS],
+    })
+
+
+@app.route('/api/solicitudes-usuarios/<int:solicitud_id>', methods=['GET'])
+def api_solicitudes_detail(solicitud_id):
+    user, err = _current_user_or_401()
+    if err: return err
+    s = SolicitudUsuario.query.get(solicitud_id)
+    if not s or not solicitud_can_view(user, s):
+        return jsonify({'success': False, 'error': 'Solicitud no encontrada'}), 404
+    return jsonify({'success': True, 'solicitud': _serialize_solicitud_detail(s)})
+
+
+def _apply_transition(s, user, accion, observacion):
+    """Aplica una transición y registra en historial. Devuelve (ok, error, next_estado)."""
+    estado_actual = s.estado
+    if estado_actual in SOLICITUD_ESTADOS_FINALES:
+        return False, f'Solicitud en estado final ({estado_actual}), no admite {accion}', None
+    if s.anulado:
+        return False, 'Solicitud anulada', None
+
+    # Validar que el user es el aprobador correcto del estado actual
+    if accion in ('aprobar', 'devolver', 'rechazar'):
+        expected_id = s.responsable_actual_id()
+        if user.role != 'admin' and user.id != expected_id:
+            return False, 'No es el aprobador de este nivel', None
+        if estado_actual not in SOLICITUD_APROBAR_SIGUIENTE:
+            # Está en un DEVUELTO_*: no puede aprobar/rechazar directamente
+            return False, f'La solicitud está en estado "{estado_actual}", no admite {accion}', None
+
+    if accion == 'aprobar':
+        next_estado = SOLICITUD_APROBAR_SIGUIENTE[estado_actual]
+    elif accion == 'devolver':
+        if not observacion:
+            return False, 'La devolución requiere observación', None
+        next_estado = SOLICITUD_DEVOLVER_A[estado_actual]
+    elif accion == 'rechazar':
+        if not observacion:
+            return False, 'El rechazo requiere observación', None
+        next_estado = SOLICITUD_RECHAZAR_A[estado_actual]
+    elif accion == 'anular':
+        # Solo creator o admin. No si está cerrado.
+        if estado_actual == SOLICITUD_ESTADO_CERRADO:
+            return False, 'No se puede anular una solicitud cerrada', None
+        if user.role != 'admin' and user.id != s.creator_id:
+            return False, 'Solo el creador o un admin pueden anular', None
+        next_estado = SOLICITUD_ESTADO_ANULADO
+    elif accion == 'reenviar':
+        # Solo el creator, sobre un estado DEVUELTO_*
+        if user.id != s.creator_id and user.role != 'admin':
+            return False, 'Solo el creador puede reenviar', None
+        if estado_actual not in SOLICITUD_DEVUELTO_A_PENDIENTE:
+            return False, 'Solo se puede reenviar desde un estado DEVUELTO', None
+        next_estado = SOLICITUD_DEVUELTO_A_PENDIENTE[estado_actual]
+    elif accion == 'cerrar':
+        # Solo admin/analista TI, sobre APROBADO_GERENTE_TI o EN_TRAMITE
+        if user.role not in ('admin', 'technician'):
+            return False, 'Solo admin o técnico puede cerrar', None
+        if estado_actual not in (SOLICITUD_ESTADO_APROBADO_GERENTE_TI, SOLICITUD_ESTADO_EN_TRAMITE):
+            return False, f'No se puede cerrar desde {estado_actual}', None
+        next_estado = SOLICITUD_ESTADO_CERRADO
+    elif accion == 'marcar_tramite':
+        if user.role not in ('admin', 'technician'):
+            return False, 'Solo admin o técnico puede marcar en trámite', None
+        if estado_actual != SOLICITUD_ESTADO_APROBADO_GERENTE_TI:
+            return False, 'Solo desde APROBADO_POR_GERENTE_DE_TI', None
+        next_estado = SOLICITUD_ESTADO_EN_TRAMITE
+    else:
+        return False, f'Acción desconocida: {accion}', None
+
+    # Aplicar
+    s.estado = next_estado
+    if next_estado == SOLICITUD_ESTADO_ANULADO:
+        s.anulado = True
+    if next_estado == SOLICITUD_ESTADO_CERRADO:
+        s.closed_at = datetime.now()
+
+    db.session.add(SolicitudHistorial(
+        solicitud_id=s.id,
+        estado_anterior=estado_actual,
+        estado_nuevo=next_estado,
+        aprobador_id=user.id,
+        accion=accion,
+        observacion=observacion,
+    ))
+    return True, None, next_estado
+
+
+@app.route('/api/solicitudes-usuarios/<int:solicitud_id>/aprobar', methods=['POST'])
+def api_solicitudes_aprobar(solicitud_id):
+    user, err = _current_user_or_401()
+    if err: return err
+    s = SolicitudUsuario.query.get(solicitud_id)
+    if not s or not solicitud_can_view(user, s):
+        return jsonify({'success': False, 'error': 'Solicitud no encontrada'}), 404
+    data = request.get_json() or {}
+    ok, error, next_estado = _apply_transition(s, user, 'aprobar', (data.get('observacion') or '').strip() or None)
+    if not ok:
+        return jsonify({'success': False, 'error': error}), 400
+    db.session.commit()
+    log_audit('solicitud_aprobada', user.id, 'solicitud', s.id, f'{s.codigo}: aprobada, pasa a {next_estado}')
+    _notify_next_approver(s)
+    return jsonify({'success': True, 'estado': next_estado, 'estado_label': SOLICITUD_ESTADO_LABEL.get(next_estado)})
+
+
+@app.route('/api/solicitudes-usuarios/<int:solicitud_id>/devolver', methods=['POST'])
+def api_solicitudes_devolver(solicitud_id):
+    user, err = _current_user_or_401()
+    if err: return err
+    s = SolicitudUsuario.query.get(solicitud_id)
+    if not s or not solicitud_can_view(user, s):
+        return jsonify({'success': False, 'error': 'Solicitud no encontrada'}), 404
+    data = request.get_json() or {}
+    ok, error, next_estado = _apply_transition(s, user, 'devolver', (data.get('observacion') or '').strip() or None)
+    if not ok:
+        return jsonify({'success': False, 'error': error}), 400
+    db.session.commit()
+    log_audit('solicitud_devuelta', user.id, 'solicitud', s.id, f'{s.codigo}: devuelta')
+    return jsonify({'success': True, 'estado': next_estado, 'estado_label': SOLICITUD_ESTADO_LABEL.get(next_estado)})
+
+
+@app.route('/api/solicitudes-usuarios/<int:solicitud_id>/rechazar', methods=['POST'])
+def api_solicitudes_rechazar(solicitud_id):
+    user, err = _current_user_or_401()
+    if err: return err
+    s = SolicitudUsuario.query.get(solicitud_id)
+    if not s or not solicitud_can_view(user, s):
+        return jsonify({'success': False, 'error': 'Solicitud no encontrada'}), 404
+    data = request.get_json() or {}
+    ok, error, next_estado = _apply_transition(s, user, 'rechazar', (data.get('observacion') or '').strip() or None)
+    if not ok:
+        return jsonify({'success': False, 'error': error}), 400
+    db.session.commit()
+    log_audit('solicitud_rechazada', user.id, 'solicitud', s.id, f'{s.codigo}: rechazada')
+    return jsonify({'success': True, 'estado': next_estado, 'estado_label': SOLICITUD_ESTADO_LABEL.get(next_estado)})
+
+
+@app.route('/api/solicitudes-usuarios/<int:solicitud_id>/anular', methods=['POST'])
+def api_solicitudes_anular(solicitud_id):
+    user, err = _current_user_or_401()
+    if err: return err
+    s = SolicitudUsuario.query.get(solicitud_id)
+    if not s or not solicitud_can_view(user, s):
+        return jsonify({'success': False, 'error': 'Solicitud no encontrada'}), 404
+    data = request.get_json() or {}
+    ok, error, next_estado = _apply_transition(s, user, 'anular', (data.get('observacion') or '').strip() or None)
+    if not ok:
+        return jsonify({'success': False, 'error': error}), 400
+    db.session.commit()
+    log_audit('solicitud_anulada', user.id, 'solicitud', s.id, f'{s.codigo}: anulada')
+    return jsonify({'success': True, 'estado': next_estado})
+
+
+@app.route('/api/solicitudes-usuarios/<int:solicitud_id>/reenviar', methods=['POST'])
+def api_solicitudes_reenviar(solicitud_id):
+    """El creador reenvía la solicitud tras corregir por una devolución."""
+    user, err = _current_user_or_401()
+    if err: return err
+    s = SolicitudUsuario.query.get(solicitud_id)
+    if not s or not solicitud_can_view(user, s):
+        return jsonify({'success': False, 'error': 'Solicitud no encontrada'}), 404
+    data = request.get_json() or {}
+    ok, error, next_estado = _apply_transition(s, user, 'reenviar', (data.get('observacion') or 'Reenviado tras corrección').strip())
+    if not ok:
+        return jsonify({'success': False, 'error': error}), 400
+    db.session.commit()
+    log_audit('solicitud_reenviada', user.id, 'solicitud', s.id, f'{s.codigo}: reenviada')
+    _notify_next_approver(s)
+    return jsonify({'success': True, 'estado': next_estado, 'estado_label': SOLICITUD_ESTADO_LABEL.get(next_estado)})
+
+
+@app.route('/api/solicitudes-usuarios/<int:solicitud_id>/cerrar', methods=['POST'])
+def api_solicitudes_cerrar(solicitud_id):
+    user, err = _current_user_or_401()
+    if err: return err
+    s = SolicitudUsuario.query.get(solicitud_id)
+    if not s or not solicitud_can_view(user, s):
+        return jsonify({'success': False, 'error': 'Solicitud no encontrada'}), 404
+    data = request.get_json() or {}
+    ok, error, next_estado = _apply_transition(s, user, 'cerrar', (data.get('observacion') or 'Solicitud cerrada').strip())
+    if not ok:
+        return jsonify({'success': False, 'error': error}), 400
+    db.session.commit()
+    log_audit('solicitud_cerrada', user.id, 'solicitud', s.id, f'{s.codigo}: cerrada')
+    return jsonify({'success': True, 'estado': next_estado})
+
+
+@app.route('/api/solicitudes-usuarios/<int:solicitud_id>/marcar-tramite', methods=['POST'])
+def api_solicitudes_marcar_tramite(solicitud_id):
+    """Marca la solicitud como 'en trámite' (equivalente a Aranda en T-APPS)."""
+    user, err = _current_user_or_401()
+    if err: return err
+    s = SolicitudUsuario.query.get(solicitud_id)
+    if not s or not solicitud_can_view(user, s):
+        return jsonify({'success': False, 'error': 'Solicitud no encontrada'}), 404
+    data = request.get_json() or {}
+    caso = (data.get('caso_externo') or '').strip()
+    if caso:
+        s.caso_externo = caso
+    ok, error, next_estado = _apply_transition(s, user, 'marcar_tramite', (data.get('observacion') or f'En trámite {caso}').strip())
+    if not ok:
+        return jsonify({'success': False, 'error': error}), 400
+    db.session.commit()
+    log_audit('solicitud_en_tramite', user.id, 'solicitud', s.id, f'{s.codigo}: en trámite')
+    return jsonify({'success': True, 'estado': next_estado})
+
+
+@app.route('/api/solicitudes-usuarios/<int:solicitud_id>/adjuntos', methods=['POST'])
+def api_solicitudes_upload_adjunto(solicitud_id):
+    """Sube un adjunto a la solicitud."""
+    user, err = _current_user_or_401()
+    if err: return err
+    s = SolicitudUsuario.query.get(solicitud_id)
+    if not s or not solicitud_can_view(user, s):
+        return jsonify({'success': False, 'error': 'Solicitud no encontrada'}), 404
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'Sin archivo'}), 400
+    f = request.files['file']
+    if not f or not f.filename:
+        return jsonify({'success': False, 'error': 'Archivo vacío'}), 400
+    if not _allowed_attachment(f.filename):
+        return jsonify({'success': False, 'error': 'Tipo de archivo no permitido'}), 400
+    from werkzeug.utils import secure_filename
+    safe = secure_filename(f.filename)
+    data = f.read()
+    if not data:
+        return jsonify({'success': False, 'error': 'Archivo vacío'}), 400
+    adj = SolicitudAdjunto(
+        solicitud_id=s.id,
+        filename=safe,
+        original_name=f.filename,
+        mime_type=f.mimetype,
+        size_bytes=len(data),
+        file_data=data,
+        uploaded_by_id=user.id,
+    )
+    db.session.add(adj)
+    db.session.commit()
+    return jsonify({'success': True, 'adjunto_id': adj.id})
+
+
+@app.route('/api/solicitudes-usuarios/<int:solicitud_id>/adjuntos/<int:adjunto_id>', methods=['GET'])
+def api_solicitudes_download_adjunto(solicitud_id, adjunto_id):
+    user, err = _current_user_or_401()
+    if err: return err
+    s = SolicitudUsuario.query.get(solicitud_id)
+    if not s or not solicitud_can_view(user, s):
+        return jsonify({'success': False, 'error': 'No encontrada'}), 404
+    adj = SolicitudAdjunto.query.filter_by(id=adjunto_id, solicitud_id=solicitud_id).first()
+    if not adj:
+        return jsonify({'success': False, 'error': 'Adjunto no encontrado'}), 404
+    from flask import Response
+    return Response(
+        adj.file_data,
+        mimetype=adj.mime_type or 'application/octet-stream',
+        headers={'Content-Disposition': f'attachment; filename="{adj.original_name or adj.filename}"'}
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Rutas de páginas (templates HTML)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/solicitudes-usuarios', methods=['GET'])
+def solicitudes_list_page():
+    """Listado de solicitudes. Visible para technician + admin."""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    role = session.get('role')
+    if role not in ('admin', 'technician'):
+        return redirect(url_for('login'))
+    return render_template('solicitudes/list.html', session_role=role)
+
+
+@app.route('/solicitudes-usuarios/nueva', methods=['GET'])
+def solicitudes_new_page():
+    """Formulario de creación. Visible para technician + admin."""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    role = session.get('role')
+    if role not in ('admin', 'technician'):
+        return redirect(url_for('login'))
+    return render_template('solicitudes/create.html', session_role=role)
+
+
+@app.route('/solicitudes-usuarios/<int:solicitud_id>', methods=['GET'])
+def solicitudes_detail_page(solicitud_id):
+    """Vista de detalle de una solicitud."""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    role = session.get('role')
+    if role not in ('admin', 'technician'):
+        return redirect(url_for('login'))
+    return render_template('solicitudes/detail.html',
+                           solicitud_id=solicitud_id,
+                           current_user_id=session['user_id'],
+                           current_role=role)
+
+
+@app.route('/admin/controles', methods=['GET'])
+def admin_controles_page():
+    """Panel de administración del catálogo de controles."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return redirect(url_for('login'))
+    return render_template('admin/controles.html')
+
+
+def _notify_next_approver(solicitud):
+    """Notifica al aprobador del estado actual. Best-effort: silencia errores.
+    Se emite por WebSocket (Socket.IO room = company) si está disponible,
+    y se registra en log_audit."""
+    try:
+        approver_id = solicitud.responsable_actual_id()
+        if not approver_id:
+            return
+        approver = User.query.get(approver_id)
+        if not approver:
+            return
+        log_audit(
+            'solicitud_notificacion',
+            approver_id,
+            'solicitud',
+            solicitud.id,
+            f'{solicitud.codigo} está pendiente de aprobación por {approver.name} ({solicitud.estado})'
+        )
+        # WebSocket (si existe socketio en el módulo)
+        try:
+            socketio.emit(
+                'solicitud_notification',
+                {
+                    'solicitud_id': solicitud.id,
+                    'codigo': solicitud.codigo,
+                    'estado': solicitud.estado,
+                    'estado_label': SOLICITUD_ESTADO_LABEL.get(solicitud.estado, solicitud.estado),
+                    'approver_id': approver_id,
+                },
+                room=f'company_{solicitud.company}'
+            )
+        except Exception:
+            pass
+    except Exception as e:
+        print(f'[warn] _notify_next_approver: {e}')
 
 
 # ═════════════════════════════════════════════════════════════════════════════

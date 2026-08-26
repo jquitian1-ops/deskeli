@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Capacitación DeskEli - Programa de Entrenamiento</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: #f5f7fa;
+    color: #1f2937;
+    line-height: 1.6;
+  }
+  a { color: #7c3aed; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Layout */
+  .app {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    min-height: 100vh;
+  }
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { position: static !important; height: auto !important; }
+  }
+
+  /* Sidebar */
+  .sidebar {
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    color: white;
+    padding: 24px 18px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .sidebar h1 {
+    font-size: 20px;
+    margin-bottom: 4px;
+    color: white;
+  }
+  .sidebar .subtitle {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-bottom: 24px;
+  }
+  .sidebar h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #64748b;
+    margin: 20px 0 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #334155;
+  }
+  .sidebar a {
+    display: block;
+    color: #cbd5e1;
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 2px;
+    text-decoration: none;
+    transition: all 0.15s;
+  }
+  .sidebar a:hover {
+    background: #334155;
+    color: white;
+    text-decoration: none;
+  }
+  .sidebar a.active {
+    background: #7c3aed;
+    color: white;
+    font-weight: 600;
+  }
+  .sidebar a .icon {
+    display: inline-block;
+    width: 20px;
+    margin-right: 4px;
+  }
+
+  /* Main */
+  .main {
+    padding: 40px 60px;
+    max-width: 1100px;
+  }
+  @media (max-width: 700px) {
+    .main { padding: 24px 20px; }
+  }
+
+  section {
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    margin-bottom: 30px;
+    scroll-margin-top: 20px;
+  }
+  section h2 {
+    color: #1e293b;
+    margin-bottom: 16px;
+    font-size: 26px;
+    padding-bottom: 12px;
+    border-bottom: 3px solid #7c3aed;
+  }
+  section h3 {
+    color: #334155;
+    margin: 24px 0 12px;
+    font-size: 18px;
+  }
+  section p, section li { color: #475569; font-size: 15px; }
+  section ul, section ol { padding-left: 24px; margin: 12px 0; }
+  section li { margin-bottom: 6px; }
+  section strong { color: #1e293b; }
+  section code {
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #7c3aed;
+    font-family: 'Consolas', monospace;
+  }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+    color: white;
+    padding: 60px 40px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    text-align: center;
+  }
+  .hero h1 {
+    font-size: 36px;
+    margin-bottom: 12px;
+    color: white;
+  }
+  .hero p {
+    font-size: 17px;
+    opacity: 0.95;
+    max-width: 700px;
+    margin: 0 auto 24px;
+    color: white;
+  }
+  .hero .badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.2);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    margin-bottom: 16px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  /* Grids */
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin: 20px 0;
+  }
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 20px 0;
+  }
+  @media (max-width: 800px) {
+    .grid-3, .grid-2 { grid-template-columns: 1fr; }
+  }
+
+  /* Cards */
+  .card {
+    background: #f8fafc;
+    padding: 24px;
+    border-radius: 10px;
+    border-left: 4px solid #7c3aed;
+    transition: all 0.2s;
+  }
+  .card:hover {
+    background: white;
+    box-shadow: 0 4px 12px rgba(124,58,237,0.15);
+    transform: translateY(-2px);
+  }
+  .card .card-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    display: block;
+  }
+  .card h4 {
+    color: #1e293b;
+    margin-bottom: 8px;
+    font-size: 16px;
+  }
+  .card p {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+  }
+  .card-empleado { border-left-color: #10b981; }
+  .card-empleado:hover { box-shadow: 0 4px 12px rgba(16,185,129,0.15); }
+  .card-tecnico { border-left-color: #3b82f6; }
+  .card-tecnico:hover { box-shadow: 0 4px 12px rgba(59,130,246,0.15); }
+  .card-admin { border-left-color: #f59e0b; }
+  .card-admin:hover { box-shadow: 0 4px 12px rgba(245,158,11,0.15); }
+
+  /* Pathway */
+  .path {
+    background: #f8fafc;
+    border-radius: 10px;
+    padding: 20px;
+    border: 2px solid #e2e8f0;
+    margin: 20px 0;
+  }
+  .path.empleado { border-color: #10b981; }
+  .path.tecnico { border-color: #3b82f6; }
+  .path.admin { border-color: #f59e0b; }
+  .path-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .path-icon {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    font-size: 28px;
+    color: white;
+    flex-shrink: 0;
+  }
+  .path.empleado .path-icon { background: #10b981; }
+  .path.tecnico .path-icon { background: #3b82f6; }
+  .path.admin .path-icon { background: #f59e0b; }
+  .path h3 { margin: 0; font-size: 20px; }
+  .path-duration {
+    font-size: 12px;
+    color: #64748b;
+    background: #e2e8f0;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  /* Steps */
+  .step {
+    display: flex;
+    gap: 16px;
+    margin: 14px 0;
+    padding: 14px;
+    background: white;
+    border-radius: 8px;
+    align-items: flex-start;
+  }
+  .step-num {
+    background: #7c3aed;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+  .step-content h4 {
+    font-size: 15px;
+    color: #1e293b;
+    margin-bottom: 4px;
+  }
+  .step-content p {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+  }
+
+  /* Alerts */
+  .alert {
+    padding: 16px 20px;
+    border-radius: 8px;
+    margin: 16px 0;
+    border-left: 4px solid;
+  }
+  .alert-info {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #1e3a8a;
+  }
+  .alert-warning {
+    background: #fffbeb;
+    border-color: #f59e0b;
+    color: #78350f;
+  }
+  .alert-success {
+    background: #f0fdf4;
+    border-color: #10b981;
+    color: #14532d;
+  }
+  .alert-danger {
+    background: #fef2f2;
+    border-color: #dc2626;
+    color: #7f1d1d;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background: #7c3aed;
+    color: white;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+  .btn:hover {
+    background: #6d28d9;
+    text-decoration: none;
+    color: white;
+    transform: translateY(-1px);
+  }
+  .btn-secondary {
+    background: white;
+    color: #7c3aed;
+    border: 2px solid #7c3aed;
+  }
+  .btn-secondary:hover {
+    background: #f5f3ff;
+    color: #6d28d9;
+  }
+  .btn-green { background: #10b981; }
+  .btn-green:hover { background: #059669; }
+  .btn-blue { background: #3b82f6; }
+  .btn-blue:hover { background: #2563eb; }
+  .btn-orange { background: #f59e0b; }
+  .btn-orange:hover { background: #d97706; }
+
+  /* Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: 14px;
+  }
+  th {
+    background: #7c3aed;
+    color: white;
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
+  td {
+    padding: 12px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  tr:hover td { background: #f8fafc; }
+
+  /* Quiz */
+  .quiz {
+    background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+    padding: 24px;
+    border-radius: 10px;
+    margin: 16px 0;
+    border: 2px solid #ddd6fe;
+  }
+  .quiz-q {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 14px;
+  }
+  .quiz-opts {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .quiz-opt {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+  .quiz-opt:hover {
+    border-color: #7c3aed;
+    transform: translateX(4px);
+  }
+  .quiz-opt input {
+    margin-right: 12px;
+    accent-color: #7c3aed;
+  }
+  .quiz-opt.correct {
+    background: #f0fdf4;
+    border-color: #10b981;
+    color: #14532d;
+  }
+  .quiz-opt.wrong {
+    background: #fef2f2;
+    border-color: #dc2626;
+    color: #7f1d1d;
+  }
+  .quiz-feedback {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    display: none;
+  }
+  .quiz-feedback.show { display: block; }
+
+  /* Progress */
+  .progress-bar {
+    width: 100%;
+    height: 10px;
+    background: #e2e8f0;
+    border-radius: 5px;
+    overflow: hidden;
+    margin: 12px 0;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #7c3aed, #4f46e5);
+    width: 0%;
+    transition: width 0.4s;
+  }
+
+  /* Print */
+  @media print {
+    .sidebar { display: none; }
+    .app { display: block; }
+    .main { padding: 20px; }
+    section { break-inside: avoid; box-shadow: none; }
+    .btn { display: none; }
+  }
+
+  /* Utility */
+  .text-center { text-align: center; }
+  .mt-4 { margin-top: 24px; }
+  .mb-4 { margin-bottom: 24px; }
+  .flex { display: flex; gap: 12px; flex-wrap: wrap; }
+
+  /* Badge */
+  .tag {
+    display: inline-block;
+    padding: 3px 10px;
+    background: #ede9fe;
+    color: #7c3aed;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-right: 6px;
+  }
+  .tag-green { background: #d1fae5; color: #065f46; }
+  .tag-blue { background: #dbeafe; color: #1e40af; }
+  .tag-orange { background: #fed7aa; color: #9a3412; }
+
+  /* Timeline */
+  .timeline {
+    position: relative;
+    padding-left: 30px;
+    border-left: 3px solid #7c3aed;
+    margin: 20px 0;
+  }
+  .timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+  }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -37px;
+    top: 6px;
+    width: 12px;
+    height: 12px;
+    background: #7c3aed;
+    border: 3px solid white;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px #7c3aed;
+  }
+  .timeline-item h4 {
+    font-size: 15px;
+    color: #1e293b;
+    margin-bottom: 4px;
+  }
+  .timeline-item p {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <h1>🎓 Capacitación</h1>
+    <div class="subtitle">DeskEli Enterprise · Programa de Entrenamiento</div>
+
+    <h3>Bienvenida</h3>
+    <a href="#inicio"><span class="icon">🏠</span>Inicio</a>
+    <a href="#objetivos"><span class="icon">🎯</span>Objetivos</a>
+    <a href="#rutas"><span class="icon">🛤️</span>Rutas de aprendizaje</a>
+
+    <h3>Rutas por rol</h3>
+    <a href="#empleado" style="color:#6ee7b7;"><span class="icon">👤</span>Ruta Empleado</a>
+    <a href="#tecnico" style="color:#93c5fd;"><span class="icon">🔧</span>Ruta Técnico</a>
+    <a href="#admin" style="color:#fcd34d;"><span class="icon">👔</span>Ruta Administrador</a>
+
+    <h3>Práctica</h3>
+    <a href="#ejercicios"><span class="icon">✍️</span>Ejercicios</a>
+    <a href="#casos"><span class="icon">📋</span>Casos de uso</a>
+    <a href="#quiz"><span class="icon">🏆</span>Quiz certificación</a>
+
+    <h3>Recursos</h3>
+    <a href="#descargas"><span class="icon">📥</span>Descargas</a>
+    <a href="#faq"><span class="icon">❓</span>FAQ</a>
+    <a href="#contacto"><span class="icon">✉️</span>Contacto</a>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- HERO -->
+    <div class="hero" id="inicio">
+      <div class="badge">Programa de Capacitación</div>
+      <h1>Bienvenido a DeskEli</h1>
+      <p>Un programa estructurado de entrenamiento para dominar la plataforma de gestión de tickets de TI. Diseñado para empleados, técnicos y administradores.</p>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <a href="#rutas" class="btn" style="background:white;color:#7c3aed;">🚀 Comenzar</a>
+        <a href="#descargas" class="btn" style="background:transparent;color:white;border:2px solid white;">📥 Descargar material</a>
+      </div>
+    </div>
+
+    <!-- OBJETIVOS -->
+    <section id="objetivos">
+      <h2>🎯 Objetivos de la capacitación</h2>
+      <p>Al finalizar este programa los participantes serán capaces de:</p>
+      <div class="grid-3">
+        <div class="card">
+          <span class="card-icon">📝</span>
+          <h4>Crear y gestionar tickets</h4>
+          <p>Registrar incidencias con la información correcta, adjuntar evidencias, hacer seguimiento hasta el cierre.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">⚡</span>
+          <h4>Optimizar tiempos de respuesta</h4>
+          <p>Cumplir SLAs, priorizar correctamente y manejar escalaciones cuando corresponda.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">🤝</span>
+          <h4>Colaborar entre áreas</h4>
+          <p>Comunicarse efectivamente en el sistema, delegar tareas y trabajar con subtareas por especialista.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">📊</span>
+          <h4>Interpretar métricas</h4>
+          <p>Leer dashboards, entender KPIs de SLA, tickets abiertos, tickets resueltos, satisfacción.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">🔐</span>
+          <h4>Aplicar buenas prácticas de seguridad</h4>
+          <p>Manejo de credenciales, sesiones, roles y datos sensibles según la política de la empresa.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">🚀</span>
+          <h4>Autonomía en el uso diario</h4>
+          <p>Resolver dudas por sí mismo consultando la base de conocimientos y los manuales.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- RUTAS DE APRENDIZAJE -->
+    <section id="rutas">
+      <h2>🛤️ Rutas de aprendizaje</h2>
+      <p>Cada rol tiene un camino de aprendizaje diseñado según sus responsabilidades. Elegí tu ruta:</p>
+
+      <!-- Ruta Empleado -->
+      <div class="path empleado" id="empleado">
+        <div class="path-header">
+          <div class="path-icon">👤</div>
+          <div>
+            <h3>Ruta Empleado</h3>
+            <span class="path-duration">⏱ Duración: 60 minutos</span>
+            <span class="tag tag-green">Fácil</span>
+          </div>
+        </div>
+        <p><strong>Público:</strong> Todos los empleados de las 3 empresas (Eliot, Pash, Primatela) que necesiten reportar incidentes de TI.</p>
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h4>Ingreso al portal</h4>
+            <p>Acceso vía URL corporativa. Login con credenciales de red / Microsoft Entra ID.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h4>Crear un ticket nuevo</h4>
+            <p>Título claro, descripción completa, prioridad correcta, categoría, evidencia adjunta (screenshots).</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h4>Consultar el estado</h4>
+            <p>Panel de "Mis tickets" con estados: Abierto → En proceso → Resuelto → Cerrado.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <h4>Chatear con el técnico asignado</h4>
+            <p>Responder preguntas, aportar información adicional, aprobar soluciones propuestas.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <h4>Calificar la resolución (CSAT)</h4>
+            <p>Al cerrarse el ticket, calificar de 1 a 5 estrellas y agregar comentario opcional.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <h4>Autoservicio con base de conocimientos</h4>
+            <p>Antes de crear ticket, consultar la KB con Ctrl+K y buscar soluciones a problemas comunes.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">7</div>
+          <div class="step-content">
+            <h4>🤖 Chat con Eli (Bot Asistente IA)</h4>
+            <p>Botón flotante 🟣 abajo a la derecha. Le describís tu problema en lenguaje natural. Si Eli te ayuda → marcás "Sí, me ayudó" y se registra. Si no → "Crear ticket" y va a un técnico con la conversación adjunta.</p>
+          </div>
+        </div>
+
+        <div class="mt-4 flex">
+          <a href="manual_empleado.html" class="btn btn-green" target="_blank">📖 Ver manual completo</a>
+          <a href="#casos-empleado" class="btn btn-secondary">💡 Ver casos de uso</a>
+        </div>
+      </div>
+
+      <!-- Ruta Técnico -->
+      <div class="path tecnico" id="tecnico">
+        <div class="path-header">
+          <div class="path-icon">🔧</div>
+          <div>
+            <h3>Ruta Técnico de TI</h3>
+            <span class="path-duration">⏱ Duración: 2.5 horas</span>
+            <span class="tag tag-blue">Intermedio</span>
+          </div>
+        </div>
+        <p><strong>Público:</strong> Técnicos e ingenieros del equipo TI que atienden tickets.</p>
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h4>Cola de trabajo (My Queue)</h4>
+            <p>Ver todos los tickets asignados, filtrar por prioridad, SLA, categoría.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h4>Tomar un ticket</h4>
+            <p>Cambiar estado a "En proceso", registrar tiempo trabajado, comentar avances.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h4>Gestión de SLA</h4>
+            <p>Semáforo verde/amarillo/rojo. Escalación automática al 50%, 100% y 200% del tiempo.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <h4>Subtareas y guiones</h4>
+            <p>Descomponer un ticket complejo en subtareas asignadas a especialistas. Uso de plantillas (guiones).</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <h4>🤖 Tickets creados desde Eli (Bot)</h4>
+            <p>Cómo identificarlos (tag "bot"), leer la conversación previa, no repetir preguntas al empleado, aportar soluciones nuevas a la KB del bot.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <h4>Time tracking</h4>
+            <p>Registrar horas trabajadas con play/pause. Ver reportes de productividad.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">7</div>
+          <div class="step-content">
+            <h4>Documentar solución en KB</h4>
+            <p>Convertir soluciones frecuentes en artículos de base de conocimiento para reducir tickets futuros.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">8</div>
+          <div class="step-content">
+            <h4>Escalación al gerente</h4>
+            <p>Cuándo escalar, cómo escalar, qué información incluir.</p>
+          </div>
+        </div>
+
+        <div class="mt-4 flex">
+          <a href="manual_tecnico.html" class="btn btn-blue" target="_blank">📖 Ver manual completo</a>
+          <a href="#casos-tecnico" class="btn btn-secondary">💡 Ver casos de uso</a>
+        </div>
+      </div>
+
+      <!-- Ruta Admin -->
+      <div class="path admin" id="admin">
+        <div class="path-header">
+          <div class="path-icon">👔</div>
+          <div>
+            <h3>Ruta Administrador</h3>
+            <span class="path-duration">⏱ Duración: 5 horas</span>
+            <span class="tag tag-orange">Avanzado</span>
+          </div>
+        </div>
+        <p><strong>Público:</strong> Gerente de TI, Líder de TI, super-usuarios administradores del sistema.</p>
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h4>Dashboard admin y tablero Kanban</h4>
+            <p>Vista consolidada de todos los tickets, KPIs en tiempo real, filtros avanzados por empresa.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h4>Gestión de usuarios y roles</h4>
+            <p>Crear, editar, bloquear usuarios. Asignar roles: empleado, técnico, admin. Multi-empresa.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h4>Configuración de SLAs</h4>
+            <p>Definir tiempos por prioridad (Crítica, Alta, Media, Baja). Configurar auto-escalación.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <h4>Perfiles IA para asignación automática</h4>
+            <p>Configurar habilidades por técnico. El sistema asigna tickets según skill match + carga.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <h4>🤖 Configuración de Eli (Bot Asistente IA)</h4>
+            <p>API Key Anthropic, categorías dentro/fuera de alcance, gestión de la KB del bot (Soluciones Bot), import/export, monitoreo de tokens Claude, tasa de resolución, fallback si se acaba el presupuesto.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <h4>Integraciones Teams / LDAP / Microsoft Entra</h4>
+            <p>Configurar webhooks a Teams, LDAP por empresa, SSO con Microsoft Entra ID.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">7</div>
+          <div class="step-content">
+            <h4>Monitor de conectividad de servidores</h4>
+            <p>Agregar servidores críticos, ver métricas de uptime (24h/7d/30d/90d), alarmas automáticas.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">8</div>
+          <div class="step-content">
+            <h4>Flujos de aprobación</h4>
+            <p>Crear workflows para PO, transportes SAP, cambios críticos. Asignar aprobadores.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">9</div>
+          <div class="step-content">
+            <h4>Reportes y auditoría</h4>
+            <p>System log, exportación CSV/Excel, retención 12 meses. Reportes gerenciales.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">10</div>
+          <div class="step-content">
+            <h4>Backup y recuperación</h4>
+            <p>Configurar backups automáticos diarios. Ejecutar restore manual. Retención 30 días.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">11</div>
+          <div class="step-content">
+            <h4>Sesiones activas y forzar logout</h4>
+            <p>Ver quién está conectado. Terminar sesiones sospechosas. Revocación de JWT en tiempo real.</p>
+          </div>
+        </div>
+
+        <div class="mt-4 flex">
+          <a href="manual_admin.html" class="btn btn-orange" target="_blank">📖 Ver manual completo</a>
+          <a href="#casos-admin" class="btn btn-secondary">💡 Ver casos de uso</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- EJERCICIOS -->
+    <section id="ejercicios">
+      <h2>✍️ Ejercicios prácticos</h2>
+      <p>Estos ejercicios están diseñados para reforzar los conceptos mientras usás el sistema real. Reservate un tiempo para completarlos en ambiente de prueba.</p>
+
+      <h3>Para empleados</h3>
+      <ol>
+        <li><strong>Crear ticket con evidencia:</strong> reportá un problema (ej. impresora no imprime). Adjuntá al menos 2 screenshots del error. Prioridad correcta.</li>
+        <li><strong>Buscar en KB antes de crear:</strong> antes de crear un ticket sobre reset de contraseña, buscá en la base de conocimientos y aplicá la solución que encuentres.</li>
+        <li><strong>Responder al técnico:</strong> cuando el técnico te haga una pregunta en el chat, respondé con la información completa que necesite.</li>
+        <li><strong>Calificar CSAT:</strong> al cerrarse un ticket, calificá honestamente y dejá un comentario constructivo.</li>
+      </ol>
+
+      <h3>Para técnicos</h3>
+      <ol>
+        <li><strong>Priorizar cola:</strong> tenés 8 tickets asignados. Ordenalos según SLA restante. Explicá por qué elegiste ese orden.</li>
+        <li><strong>Ticket con subtareas:</strong> tomá un ticket complejo (ej. "instalar nueva impresora de red"). Descomponelo en subtareas asignadas a diferentes especialistas.</li>
+        <li><strong>Time tracking:</strong> trabajá en un ticket con el botón "play". Al terminar el día, revisá el reporte y validá que el tiempo esté correcto.</li>
+        <li><strong>Documentar en KB:</strong> si resolviste un problema por segunda vez, creá un artículo de KB con los pasos.</li>
+        <li><strong>Escalar correctamente:</strong> simulá una escalación al gerente por un problema fuera de tu alcance. Incluí toda la info relevante.</li>
+      </ol>
+
+      <h3>Para administradores</h3>
+      <ol>
+        <li><strong>Crear un nuevo técnico:</strong> creá el usuario, asignale rol técnico, asignale perfil IA con skills, verificá que reciba tickets automáticamente.</li>
+        <li><strong>Configurar un SLA:</strong> definí un SLA nuevo (ej. "Prioridad Alta = 6 horas de resolución"). Verificá que la escalación funcione.</li>
+        <li><strong>Integración Teams:</strong> configurá un webhook para el canal de "TI Alertas". Enviá un ticket crítico y verificá que llegue la notificación.</li>
+        <li><strong>Backup + restore:</strong> ejecutá un backup manual. Descargalo. Restauralo en ambiente staging.</li>
+        <li><strong>Workflow de aprobación:</strong> creá un workflow para "cambios críticos" con 2 niveles de aprobación (Líder → Gerente).</li>
+        <li><strong>Monitor de servidores:</strong> agregá un servidor crítico (ej. servidor SAP). Verificá métricas de uptime en 24h.</li>
+      </ol>
+    </section>
+
+    <!-- CASOS DE USO -->
+    <section id="casos">
+      <h2>📋 Casos de uso reales</h2>
+
+      <h3 id="casos-empleado">Caso 1: empleado — "No puedo entrar a mi email"</h3>
+      <div class="alert alert-info">
+        <strong>Situación:</strong> María del área de contabilidad no puede entrar a su correo Outlook desde su laptop.
+      </div>
+      <ol>
+        <li>María abre DeskEli → busca en KB "no puedo entrar al correo" → encuentra artículo con 3 posibles causas</li>
+        <li>Prueba la primera solución (limpiar caché del navegador) → no funciona</li>
+        <li>Crea ticket → Prioridad Alta (no puede trabajar) → categoría "Correo" → adjunta screenshot del error</li>
+        <li>Sistema asigna automáticamente a Juan (técnico con skill "Email/Exchange")</li>
+        <li>Juan chatea con María → pide credenciales de red (no las envía por chat sino por email cifrado)</li>
+        <li>Juan resetea password AD → María prueba → funciona</li>
+        <li>Juan cierra el ticket → María califica 5 estrellas → comentario: "Muy rápido, gracias!"</li>
+      </ol>
+
+      <h3 id="casos-tecnico">Caso 2: técnico — "Servidor SAP no responde"</h3>
+      <div class="alert alert-warning">
+        <strong>Situación:</strong> El monitor de conectividad detecta que el servidor SAP PRD está caído. Se dispara alarma automática.
+      </div>
+      <ol>
+        <li>Sistema crea ticket automático de Prioridad Crítica → aparece en cola del oncall</li>
+        <li>Envía mensaje a canal Teams "TI Alertas Críticas"</li>
+        <li>Técnico Carlos toma el ticket → cambia estado a "En proceso"</li>
+        <li>Descompone en subtareas:
+          <ul>
+            <li>Verificar conectividad de red (asignado a "Networking")</li>
+            <li>Verificar servicios SAP (Carlos mismo)</li>
+            <li>Verificar base de datos HANA (asignado a "DBA")</li>
+          </ul>
+        </li>
+        <li>Cada especialista trabaja su subtarea, chatea avances</li>
+        <li>Identifican: reinicio de servicio de aplicación resolvió el problema</li>
+        <li>Carlos documenta la causa raíz + solución en KB → artículo "SAP PRD caído por servicio detenido"</li>
+        <li>Cierra el ticket → sistema notifica a stakeholders</li>
+      </ol>
+
+      <h3>Caso 4: empleado + técnico — "Conversación con Eli que se convierte en ticket"</h3>
+      <div class="alert alert-info">
+        <strong>Situación:</strong> Ana del área de compras no puede abrir un archivo Excel — le sale "archivo dañado". Es 4:30 PM y necesita enviar la orden antes de las 5.
+      </div>
+      <ol>
+        <li>Ana ve el ícono flotante 🟣 de Eli en su portal → click → escribe "Excel no abre, dice archivo dañado"</li>
+        <li>Eli responde en 2 segundos: 3 pasos posibles (abrir Excel primero + archivo, verificar bloqueo de macros, usar "Abrir y reparar")</li>
+        <li>Ana prueba el paso 2 → sigue sin funcionar → responde "sigue igual"</li>
+        <li>Eli propone: reparar la instalación de Office</li>
+        <li>Ana: "no tengo permisos para instalar"</li>
+        <li>Eli detecta que necesita técnico → sugiere "Crear ticket" → Ana confirma</li>
+        <li>Sistema crea ticket <strong>TKT-ELIOT-01245</strong> priority Alta con:
+          <ul>
+            <li>Título: "Excel no abre, dice archivo dañado" (extraído de la conversación)</li>
+            <li>Categoría: Software (auto-sugerida por Eli)</li>
+            <li>Descripción: la conversación completa formateada</li>
+            <li>Tag: <code>bot</code> + <code>eli</code></li>
+          </ul>
+        </li>
+        <li>Ticket se asigna automáticamente a Luis (técnico con skill "Office/Outlook")</li>
+        <li>Luis abre el ticket, ve la conversación → sabe que Ana ya probó pasos 1-3, no necesita permisos → conecta remoto con TeamViewer</li>
+        <li>Repara Office desde su acceso privilegiado → 8 minutos después Excel funciona</li>
+        <li>Luis cierra el ticket → Ana envía la orden a las 4:52 PM → califica 5 estrellas</li>
+        <li><strong>Resultado:</strong> el técnico ahorró 5-10 min de preguntas iniciales gracias a la conversación con Eli</li>
+      </ol>
+
+      <div class="alert alert-success">
+        <strong>💡 Lección para el equipo:</strong> Eli NO reemplaza al técnico — lo <em>habilita</em>. Aunque no resuelva, la conversación previa le ahorra tiempo al técnico y da al empleado la sensación de que "algo está pasando" mientras espera.
+      </div>
+
+      <h3 id="casos-admin">Caso 3: administrador — "Onboarding de 10 técnicos nuevos"</h3>
+      <div class="alert alert-success">
+        <strong>Situación:</strong> Contrataron 10 nuevos técnicos para el área de soporte. Hay que darles acceso al sistema.
+      </div>
+      <ol>
+        <li>Admin recibe la lista con nombres, emails, empresas asignadas (Eliot / Pash / Primatela)</li>
+        <li>Va a "Gestión de usuarios" → crea usuarios en batch (import CSV)</li>
+        <li>Asigna rol "Técnico" + empresa correspondiente</li>
+        <li>Va a "Perfiles IA" → define skills por técnico (algunos son de redes, otros de SAP, etc.)</li>
+        <li>Configura el nivel de proficiencia por skill (junior/senior)</li>
+        <li>Verifica que el algoritmo de asignación funcione → crea 3 tickets de prueba con distintas categorías → confirma que se asignan al técnico correcto por skill match</li>
+        <li>Comunica a los técnicos por email (con link al portal + credenciales iniciales)</li>
+        <li>Programa capacitación grupal para el próximo martes usando este mismo material</li>
+      </ol>
+    </section>
+
+    <!-- QUIZ -->
+    <section id="quiz">
+      <h2>🏆 Quiz de certificación</h2>
+      <p>Contestá las siguientes preguntas para validar tu conocimiento. Necesitás <strong>80% de aciertos</strong> para aprobar.</p>
+
+      <div class="progress-bar">
+        <div class="progress-fill" id="quiz-progress"></div>
+      </div>
+      <div id="quiz-score" style="text-align:center;font-size:14px;color:#64748b;margin-bottom:16px;">Progreso: <span id="score-num">0</span> de 9</div>
+
+      <!-- P1 -->
+      <div class="quiz" data-answer="c">
+        <div class="quiz-q">1. ¿Cuál es la primera acción que debería hacer un empleado ante un problema técnico?</div>
+        <div class="quiz-opts">
+          <label class="quiz-opt"><input type="radio" name="q1" value="a"> Llamar directamente al gerente de TI</label>
+          <label class="quiz-opt"><input type="radio" name="q1" value="b"> Reiniciar el equipo y esperar</label>
+          <label class="quiz-opt"><input type="radio" name="q1" value="c"> Buscar en la base de conocimientos (KB) por si hay solución conocida</label>
+          <label class="quiz-opt"><input type="radio" name="q1" value="d"> Contactar directamente al proveedor del software</label>
+        </div>
+        <div class="quiz-feedback"></div>
+      </div>
+
+      <!-- P2 -->
+      <div class="quiz" data-answer="b">
+        <div class="quiz-q">2. ¿Qué información NO debería enviarse por el chat del ticket?</div>
+        <div class="quiz-opts">
+          <label class="quiz-opt"><input type="radio" name="q2" value="a"> Descripción del problema</label>
+          <label class="quiz-opt"><input type="radio" name="q2" value="b"> Contraseñas o credenciales sensibles</label>
+          <label class="quiz-opt"><input type="radio" name="q2" value="c"> Screenshots del error</label>
+          <label class="quiz-opt"><input type="radio" name="q2" value="d"> Pasos que ya intentaste</label>
+        </div>
+        <div class="quiz-feedback"></div>
+      </div>
+
+      <!-- P3 -->
+      <div class="quiz" data-answer="d">
+        <div class="quiz-q">3. Un ticket con prioridad Crítica ¿en cuánto tiempo debe ser tomado por un técnico según el SLA típico?</div>
+        <div class="quiz-opts">
+          <label class="quiz-opt"><input type="radio" name="q3" value="a"> 24 horas</label>
+          <label class="quiz-opt"><input type="radio" name="q3" value="b"> 8 horas</label>
+          <label class="quiz-opt"><input type="radio" name="q3" value="c"> 4 horas</label>
+          <label class="quiz-opt"><input type="radio" name="q3" value="d"> 2 horas o menos (según configuración de la empresa)</label>
+        </div>
+        <div class="quiz-feedback"></div>
+      </div>
+
+      <!-- P4 -->
+      <div class="quiz" data-answer="c">
+        <div class="quiz-q">4. ¿Qué significa el semáforo amarillo en la barra de SLA de un ticket?</div>
+        <div class="quiz-opts">
+          <label class="quiz-opt"><input type="radio" name="q4" value="a"> El SLA ya se venció</label>
+          <label class="quiz-opt"><input type="radio" name="q4" value="b"> El ticket está pausado</label>
+          <label class="quiz-opt"><input type="radio" name="q4" value="c"> Se consumió entre el 50% y 100% del tiempo SLA</label>
+          <label class="quiz-opt"><input type="radio" name="q4" value="d"> El técnico está en descanso</label>
+        </div>
+        <div class="quiz-feedback"></div>
+      </div>
+
+      <!-- P5 -->
+      <div class="quiz" data-answer="a">
+        <div class="quiz-q">5. ¿Qué característica permite descomponer un ticket complejo en tareas para varios especialistas?</div>
+        <div class="quiz-opts">
+          <label class="quiz-opt"><input type="radio" name="q5" value="a"> Subtareas / guiones</label>
+          <label class="quiz-opt"><input type="radio" name="q5" value="b"> Backup automático</label>
+          <label class="quiz-opt"><input type="radio" name="q5" value="c"> Base de conocimientos</label>
+          <label class="quiz-opt"><input type="radio" name="q5" value="d"> Monitor de servidores</label>
+        </div>
+        <div class="quiz-feedback"></div>
+      </div>
+
+      <!-- P6 -->
+      <div class="quiz" data-answer="b">
+        <div class="quiz-q">6. La segregación multi-empresa (Eliot / Pash / Primatela) garantiza que:</div>
+        <div class="quiz-opts">
+          <label class="quiz-opt"><input type="radio" name="q6" value="a"> Todos los usuarios ven todos los tickets del sistema</label>
+          <label class="quiz-opt"><input type="radio" name="q6" value="b"> Los usuarios de una empresa solo ven datos de su empresa</label>
+          <label class="quiz-opt"><input type="radio" name="q6" value="c"> Solo los administradores pueden crear tickets</label>
+          <label class="quiz-opt"><input type="radio" name="q6" value="d"> Los backups se hacen por separado por empresa</label>
+        </div>
+        <div class="quiz-feedback"></div>
+      </div>
+
+      <!-- P7 -->
+      <div class="quiz" data-answer="d">
+        <div class="quiz-q">7. Como administrador, ¿dónde configurás los tiempos de escalación automática de un SLA?</div>
+        <div class="quiz-opts">
+          <label class="quiz-opt"><input type="radio" name="q7" value="a"> Editando directamente config.py en el servidor</label>
+          <label class="quiz-opt"><input type="radio" name="q7" value="b"> Cambiando el código de la aplicación</label>
+          <label class="quiz-opt"><input type="radio" name="q7" value="c"> Solicitando cambios al proveedor</label>
+          <label class="quiz-opt"><input type="radio" name="q7" value="d"> En el panel admin → sección Configuración → SLA (sin cambios de código)</label>
+        </div>
+        <div class="quiz-feedback"></div>
+      </div>
+
+      <!-- P8 - Eli -->
+      <div class="quiz" data-answer="b">
+        <div class="quiz-q">8. Cuando Eli (el bot) no puede resolver un problema y crea un ticket para el técnico, ¿qué recibe el técnico?</div>
+        <div class="quiz-opts">
+          <label class="quiz-opt"><input type="radio" name="q8b" value="a"> Solo el título del problema</label>
+          <label class="quiz-opt"><input type="radio" name="q8b" value="b"> El ticket con la conversación completa empleado-Eli adjunta</label>
+          <label class="quiz-opt"><input type="radio" name="q8b" value="c"> Nada, tiene que empezar de cero preguntándole al empleado</label>
+          <label class="quiz-opt"><input type="radio" name="q8b" value="d"> Un audio del empleado</label>
+        </div>
+        <div class="quiz-feedback"></div>
+      </div>
+
+      <!-- P9 -->
+      <div class="quiz" data-answer="c">
+        <div class="quiz-q">9. ¿Cuál es la política de retención estándar de los backups?</div>
+        <div class="quiz-opts">
+          <label class="quiz-opt"><input type="radio" name="q9" value="a"> 7 días</label>
+          <label class="quiz-opt"><input type="radio" name="q9" value="b"> 90 días</label>
+          <label class="quiz-opt"><input type="radio" name="q9" value="c"> 30 días</label>
+          <label class="quiz-opt"><input type="radio" name="q9" value="d"> Indefinidamente</label>
+        </div>
+        <div class="quiz-feedback"></div>
+      </div>
+
+      <div class="text-center mt-4">
+        <button class="btn" onclick="calcularQuiz()">✅ Calificar quiz</button>
+        <button class="btn btn-secondary" onclick="resetQuiz()">🔄 Reiniciar</button>
+      </div>
+      <div id="quiz-result" style="margin-top:20px;padding:20px;border-radius:8px;text-align:center;display:none;font-size:16px;font-weight:600;"></div>
+    </section>
+
+    <!-- DESCARGAS -->
+    <section id="descargas">
+      <h2>📥 Material descargable</h2>
+      <p>Todos los recursos disponibles para consulta offline y compartir con el equipo:</p>
+
+      <div class="grid-3">
+        <div class="card card-empleado">
+          <span class="card-icon">👤</span>
+          <h4>Manual del Empleado</h4>
+          <p>Guía completa de uso del portal para empleados. Cómo crear tickets, chatear, calificar.</p>
+          <div style="margin-top:12px;">
+            <a href="manual_empleado.html" target="_blank" class="btn btn-green" style="font-size:12px;padding:6px 12px;">HTML</a>
+            <span style="font-size:11px;color:#64748b;margin-left:8px;">PDF en Descargas</span>
+          </div>
+        </div>
+        <div class="card card-tecnico">
+          <span class="card-icon">🔧</span>
+          <h4>Manual del Técnico</h4>
+          <p>Guía completa para técnicos: cola, SLA, subtareas, time tracking, KB, escalaciones.</p>
+          <div style="margin-top:12px;">
+            <a href="manual_tecnico.html" target="_blank" class="btn btn-blue" style="font-size:12px;padding:6px 12px;">HTML</a>
+            <span style="font-size:11px;color:#64748b;margin-left:8px;">PDF en Descargas</span>
+          </div>
+        </div>
+        <div class="card card-admin">
+          <span class="card-icon">👔</span>
+          <h4>Manual del Administrador</h4>
+          <p>Guía completa admin: dashboards, config, usuarios, integraciones, backup, monitoring.</p>
+          <div style="margin-top:12px;">
+            <a href="manual_admin.html" target="_blank" class="btn btn-orange" style="font-size:12px;padding:6px 12px;">HTML</a>
+            <span style="font-size:11px;color:#64748b;margin-left:8px;">PDF en Descargas</span>
+          </div>
+        </div>
+      </div>
+
+      <h3>Material complementario</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Recurso</th>
+            <th>Descripción</th>
+            <th>Formato</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Presentación DeskEli</strong></td>
+            <td>Slides ejecutivos para presentar el sistema</td>
+            <td>HTML</td>
+            <td><a href="presentacion_deskeli.html" target="_blank">Ver</a></td>
+          </tr>
+          <tr>
+            <td><strong>Manual API externa</strong></td>
+            <td>Para integraciones con proveedores (Tendency y otros)</td>
+            <td>HTML</td>
+            <td><a href="api_externa.html" target="_blank">Ver</a></td>
+          </tr>
+          <tr>
+            <td><strong>Setup Microsoft Entra</strong></td>
+            <td>Guía de configuración de SSO con Entra ID</td>
+            <td>HTML</td>
+            <td><a href="microsoft_entra_setup.html" target="_blank">Ver</a></td>
+          </tr>
+          <tr>
+            <td><strong>Manual asignación automática</strong></td>
+            <td>Cómo configurar el algoritmo de asignación por IA</td>
+            <td>HTML</td>
+            <td><a href="manual_asignacion_automatica.html" target="_blank">Ver</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq">
+      <h2>❓ Preguntas frecuentes</h2>
+
+      <div class="alert alert-info">
+        <strong>¿Necesito instalar algo en mi computadora?</strong><br>
+        No. DeskEli funciona 100% en el navegador. Solo necesitás Chrome o Edge actualizado (versión 100+).
+      </div>
+
+      <div class="alert alert-info">
+        <strong>¿Puedo acceder desde el celular?</strong><br>
+        Sí, el portal es responsive. En dispositivos móviles la experiencia está optimizada para las funciones más usadas (crear ticket, chatear, ver estado).
+      </div>
+
+      <div class="alert alert-info">
+        <strong>¿Qué pasa si el ticket no queda resuelto y me califican mal?</strong><br>
+        Las calificaciones bajas se revisan mensualmente en reunión de equipo. Son un feedback para mejorar, no un castigo. Lo importante es entender la causa raíz.
+      </div>
+
+      <div class="alert alert-info">
+        <strong>¿Puedo trabajar en varios tickets a la vez?</strong><br>
+        Sí, pero se recomienda concentrar el time tracking en uno a la vez para reportes precisos. Usá el botón play/pause.
+      </div>
+
+      <div class="alert alert-info">
+        <strong>¿Cuánto tiempo se guardan los tickets cerrados?</strong><br>
+        Todos los tickets se archivan indefinidamente. Los logs del sistema se retienen 12 meses (política de seguridad).
+      </div>
+
+      <div class="alert alert-info">
+        <strong>Como admin, ¿puedo eliminar un usuario que se fue de la empresa?</strong><br>
+        Se recomienda <strong>desactivar</strong>, no eliminar. Los tickets históricos deben mantener la referencia al usuario original para auditoría. La eliminación total requiere aprobación de gerencia.
+      </div>
+
+      <div class="alert alert-warning">
+        <strong>¿Los usuarios de Pash pueden ver tickets de Manufacturas Eliot?</strong><br>
+        No. La segregación multi-empresa es estricta a nivel de base de datos, WebSocket y búsqueda. Solo los master admin tienen visibilidad global.
+      </div>
+
+      <div class="alert alert-warning">
+        <strong>¿Qué hago si detecto un intento de acceso sospechoso?</strong><br>
+        Como admin, ir a "Sesiones Activas" → terminar la sesión sospechosa → cambiar contraseña del usuario afectado → revisar system_log del último día → escalar al equipo de seguridad si corresponde.
+      </div>
+    </section>
+
+    <!-- CRONOGRAMA SUGERIDO -->
+    <section>
+      <h2>📅 Cronograma sugerido de capacitación</h2>
+      <p>Propuesta para capacitación grupal presencial + práctica autónoma:</p>
+
+      <div class="timeline">
+        <div class="timeline-item">
+          <h4>Día 1 (mañana) - Sesión general (2 horas)</h4>
+          <p>Presentación del sistema + demostración en vivo + Q&amp;A. Audiencia: todos los roles.</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Día 1 (tarde) - Taller empleados (1 hora)</h4>
+          <p>Práctica hands-on de creación de tickets + KB + CSAT. Ejercicios 1-4.</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Día 2 (mañana) - Taller técnicos (3 horas)</h4>
+          <p>Cola, SLA, subtareas, time tracking, KB documentation, escalaciones. Ejercicios 1-5.</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Día 2 (tarde) - Taller administradores (3 horas)</h4>
+          <p>Configuración completa del sistema + backup + integraciones. Ejercicios 1-6.</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Día 3 - Práctica autónoma (día completo)</h4>
+          <p>Cada rol trabaja con casos reales en ambiente de staging. Facilitador disponible para dudas.</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Día 4 - Quiz de certificación + cierre</h4>
+          <p>Aplicación del quiz de esta capacitación. Entrega de constancias. Feedback del programa.</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Día 5 - Salida a producción</h4>
+          <p>Uso real del sistema con acompañamiento de facilitador. Retrospectiva al final del día.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTACTO -->
+    <section id="contacto">
+      <h2>✉️ Contacto y soporte</h2>
+      <div class="grid-2">
+        <div class="card">
+          <span class="card-icon">👨‍💼</span>
+          <h4>Fernando Ramírez</h4>
+          <p><strong>Gerente de TI</strong><br>Estrategia general del sistema y decisiones ejecutivas.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">👩‍💼</span>
+          <h4>Patricia Salinas</h4>
+          <p><strong>Líder de TI</strong><br>Coordinación operativa del equipo técnico.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">🎯</span>
+          <h4>Eduardo Montoya</h4>
+          <p><strong>Propietario del Proyecto</strong><br>Owner del roadmap y priorización de features.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">💬</span>
+          <h4>Canal Teams</h4>
+          <p><strong>TI - Soporte DeskEli</strong><br>Canal principal para dudas rápidas del sistema.</p>
+        </div>
+      </div>
+
+      <div class="alert alert-success mt-4">
+        <strong>💡 Tip:</strong> Si tenés una duda que no está en el manual ni en la KB, primero preguntala en el canal Teams. Si nadie la respondió en 2 horas laborales, creá un ticket en el sistema.
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <div style="text-align:center;padding:30px;color:#94a3b8;font-size:13px;">
+      <p>© 2026 DeskEli Enterprise · Manufacturas Eliot, Pash, Primatela</p>
+      <p style="margin-top:6px;">Programa de capacitación v1.0 · Actualizado 2026-08-14</p>
+      <p style="margin-top:12px;">
+        <a href="#inicio" style="color:#7c3aed;">↑ Volver arriba</a>
+      </p>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // Quiz
+  function calcularQuiz() {
+    const quizzes = document.querySelectorAll('.quiz');
+    let correctas = 0;
+    let respondidas = 0;
+
+    quizzes.forEach(q => {
+      const answer = q.dataset.answer;
+      const selected = q.querySelector('input:checked');
+      const feedback = q.querySelector('.quiz-feedback');
+
+      // Limpiar clases
+      q.querySelectorAll('.quiz-opt').forEach(o => {
+        o.classList.remove('correct', 'wrong');
+      });
+
+      if (!selected) {
+        feedback.className = 'quiz-feedback show';
+        feedback.style.background = '#fef3c7';
+        feedback.style.color = '#78350f';
+        feedback.textContent = '⚠️ No respondiste esta pregunta.';
+        return;
+      }
+      respondidas++;
+
+      if (selected.value === answer) {
+        correctas++;
+        selected.parentElement.classList.add('correct');
+        feedback.className = 'quiz-feedback show';
+        feedback.style.background = '#d1fae5';
+        feedback.style.color = '#065f46';
+        feedback.textContent = '✅ Correcto!';
+      } else {
+        selected.parentElement.classList.add('wrong');
+        // Marcar la correcta
+        q.querySelectorAll('.quiz-opt input').forEach(input => {
+          if (input.value === answer) {
+            input.parentElement.classList.add('correct');
+          }
+        });
+        feedback.className = 'quiz-feedback show';
+        feedback.style.background = '#fee2e2';
+        feedback.style.color = '#7f1d1d';
+        feedback.textContent = '❌ Incorrecto. La respuesta correcta está marcada en verde.';
+      }
+    });
+
+    const total = quizzes.length;
+    const porcentaje = Math.round((correctas / total) * 100);
+    document.getElementById('score-num').textContent = correctas;
+    document.getElementById('quiz-progress').style.width = porcentaje + '%';
+
+    const result = document.getElementById('quiz-result');
+    result.style.display = 'block';
+    if (porcentaje >= 80) {
+      result.style.background = '#d1fae5';
+      result.style.color = '#065f46';
+      result.innerHTML = `🎉 ¡APROBADO! Obtuviste ${correctas}/${total} (${porcentaje}%). Podés solicitar tu constancia al facilitador.`;
+    } else {
+      result.style.background = '#fee2e2';
+      result.style.color = '#7f1d1d';
+      result.innerHTML = `📚 Puntaje: ${correctas}/${total} (${porcentaje}%). Necesitás 80% para aprobar. Revisá los manuales y volvé a intentarlo.`;
+    }
+
+    result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function resetQuiz() {
+    document.querySelectorAll('.quiz input').forEach(i => i.checked = false);
+    document.querySelectorAll('.quiz-opt').forEach(o => o.classList.remove('correct', 'wrong'));
+    document.querySelectorAll('.quiz-feedback').forEach(f => f.classList.remove('show'));
+    document.getElementById('quiz-progress').style.width = '0%';
+    document.getElementById('score-num').textContent = '0';
+    document.getElementById('quiz-result').style.display = 'none';
+    document.getElementById('quiz').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // Sidebar active link on scroll
+  const sections = document.querySelectorAll('section, .hero');
+  const navLinks = document.querySelectorAll('.sidebar a');
+
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => {
+      const top = s.offsetTop - 100;
+      if (window.scrollY >= top) current = s.id;
+    });
+    navLinks.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+    });
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Catálogo de Controles - DeskEli Admin</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Segoe UI',Tahoma,sans-serif; background:#f5f7fa; }
+        .header { background:linear-gradient(135deg,#1e3a8a,#1e40af); color:white; padding:18px 24px; display:flex; align-items:center; justify-content:space-between; }
+        .header h1 { font-size:22px; }
+        .header a { color:white; text-decoration:none; padding:8px 14px; background:rgba(255,255,255,0.15); border-radius:6px; font-size:13px; }
+        .container { max-width: min(1400px, 96vw); margin: 20px auto; padding: 0 20px; }
+        .card { background:white; padding:20px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.06); margin-bottom:18px; }
+        .toolbar { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+        .btn { padding:9px 16px; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:13px; text-decoration:none; display:inline-block; }
+        .btn-primary { background:#1e40af; color:white; }
+        .btn-primary:hover { background:#1e3a8a; }
+        .btn-secondary { background:#e5e7eb; color:#374151; }
+        .btn-danger { background:#dc2626; color:white; }
+        .btn-warning { background:#f59e0b; color:white; }
+        table { width:100%; background:white; border-collapse:collapse; }
+        thead { background:#1e3a8a; color:white; }
+        th, td { padding:10px 12px; text-align:left; border-bottom:1px solid #e5e7eb; font-size:13px; }
+        tbody tr:hover { background:#f9fafb; }
+        .badge { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:700; }
+        .badge-elemento { background:#dbeafe; color:#1e40af; }
+        .badge-acceso { background:#e0e7ff; color:#4338ca; }
+        .badge-espejo { background:#fef3c7; color:#92400e; }
+        .badge-inactive { background:#fee2e2; color:#991b1b; }
+        .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,0.5); display:none; align-items:center; justify-content:center; z-index:1000; }
+        .modal { background:white; padding:24px; border-radius:10px; width:90%; max-width:600px; max-height:90vh; overflow-y:auto; }
+        .modal h3 { margin-bottom:16px; color:#1e3a8a; }
+        .form-group { margin-bottom:14px; }
+        .form-group label { display:block; font-size:12px; color:#374151; font-weight:700; margin-bottom:5px; }
+        .form-group input, .form-group select, .form-group textarea { width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; font-family:inherit; }
+        .form-group textarea { min-height:80px; resize:vertical; }
+        .toast { position:fixed; top:20px; right:20px; padding:14px 20px; border-radius:8px; color:white; font-weight:700; z-index:2000; box-shadow:0 4px 12px rgba(0,0,0,0.2); }
+        .toast.ok { background:#16a34a; }
+        .toast.err { background:#dc2626; }
+    </style>
+    <script src="/static/js/session_guard.js"></script>
+</head>
+<body>
+    <div class="header">
+        <h1>⚙️ Catálogo de Controles</h1>
+        <div style="display:flex; gap:10px;">
+            <a href="/solicitudes-usuarios">📋 Solicitudes</a>
+            <a href="/admin-dashboard">← Admin</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <div class="toolbar">
+                <div>
+                    <span style="color:#6b7280; font-size:14px;">Total activos: <strong id="totalCount">—</strong></span>
+                    <label style="margin-left:20px; font-size:13px; color:#374151;">
+                        <input type="checkbox" id="includeInactive" onchange="loadControles()"> Ver inactivos
+                    </label>
+                </div>
+                <button class="btn btn-primary" onclick="openModal()">+ Nuevo control</button>
+            </div>
+
+            <div id="tableContainer">
+                <div style="text-align:center; padding:40px; color:#6b7280;">⏳ Cargando…</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-bg" id="modal">
+        <div class="modal">
+            <h3 id="modalTitle">Nuevo control</h3>
+            <div class="form-group">
+                <label>Code (identificador interno) *</label>
+                <input type="text" id="f-code" placeholder="ej: nuevo_control" pattern="[a-z0-9_]+">
+            </div>
+            <div class="form-group">
+                <label>Nombre visible *</label>
+                <input type="text" id="f-name" placeholder="ej: NUEVO CONTROL">
+            </div>
+            <div class="form-group">
+                <label>Descripción</label>
+                <textarea id="f-descripcion"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Tipo</label>
+                <select id="f-tipo">
+                    <option value="acceso">Acceso (a sistema/app)</option>
+                    <option value="elemento">Elemento tecnológico (equipo/periférico)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" id="f-espejo"> Requiere Usuario Espejo</label>
+            </div>
+            <div class="form-group">
+                <label>Costo de referencia (opcional)</label>
+                <input type="number" step="0.01" id="f-costo">
+            </div>
+            <div class="form-group">
+                <label>Empresa específica (opcional; vacío = global a las 3)</label>
+                <select id="f-company">
+                    <option value="">— Global —</option>
+                    <option value="eliot">Eliot</option>
+                    <option value="pash">Pash</option>
+                    <option value="primatela">Primatela</option>
+                </select>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveControl()">💾 Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    let _controles = [];
+    let _editingId = null;
+
+    function esc(s) { return s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    function toast(msg, ok=true) {
+        const el = document.createElement('div');
+        el.className = 'toast ' + (ok ? 'ok' : 'err');
+        el.textContent = msg;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 3500);
+    }
+
+    async function loadControles() {
+        const inc = document.getElementById('includeInactive').checked ? '?include_inactive=1' : '';
+        try {
+            const r = await fetch('/api/controles' + inc);
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error);
+            _controles = data.controles;
+            render();
+        } catch (e) {
+            document.getElementById('tableContainer').innerHTML =
+                `<div style="text-align:center; padding:40px; color:#dc2626;">❌ ${esc(e.message)}</div>`;
+        }
+    }
+
+    function render() {
+        document.getElementById('totalCount').textContent = _controles.filter(c => c.is_active).length;
+        if (_controles.length === 0) {
+            document.getElementById('tableContainer').innerHTML =
+                '<div style="text-align:center; padding:40px; color:#6b7280;">Sin controles. Creá uno con el botón de arriba, o corré <code>python scripts/seed_controles_catalogo.py</code></div>';
+            return;
+        }
+        let html = `
+        <table>
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Nombre</th>
+                    <th>Descripción</th>
+                    <th>Tipo</th>
+                    <th>Costo</th>
+                    <th>Empresa</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>`;
+        _controles.forEach(c => {
+            html += `
+                <tr>
+                    <td><code style="background:#f3f4f6; padding:2px 6px; border-radius:3px; font-size:11px;">${esc(c.code)}</code></td>
+                    <td><strong>${esc(c.name)}</strong>${c.needs_espejo ? ' <span class="badge badge-espejo">Espejo</span>' : ''}</td>
+                    <td style="color:#6b7280; font-size:12px;">${esc((c.descripcion || '').substring(0, 80))}${(c.descripcion || '').length > 80 ? '…' : ''}</td>
+                    <td><span class="badge badge-${c.tipo}">${esc(c.tipo)}</span></td>
+                    <td>${c.costo_referencia != null ? '$' + c.costo_referencia.toFixed(2) : '—'}</td>
+                    <td>${esc(c.company || 'Global')}</td>
+                    <td>${c.is_active ? '<span style="color:#16a34a;">● Activo</span>' : '<span class="badge badge-inactive">Inactivo</span>'}</td>
+                    <td>
+                        <button class="btn btn-secondary" style="padding:5px 10px; font-size:11px;" onclick="editControl(${c.id})">✏️</button>
+                        ${c.is_active ? `<button class="btn btn-danger" style="padding:5px 10px; font-size:11px;" onclick="deactivateControl(${c.id})">🚫</button>` : ''}
+                    </td>
+                </tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('tableContainer').innerHTML = html;
+    }
+
+    function openModal(editing=null) {
+        _editingId = editing;
+        document.getElementById('modalTitle').textContent = editing ? 'Editar control' : 'Nuevo control';
+        if (editing) {
+            const c = _controles.find(x => x.id === editing);
+            if (!c) return;
+            document.getElementById('f-code').value = c.code;
+            document.getElementById('f-code').disabled = true;
+            document.getElementById('f-name').value = c.name;
+            document.getElementById('f-descripcion').value = c.descripcion || '';
+            document.getElementById('f-tipo').value = c.tipo;
+            document.getElementById('f-espejo').checked = c.needs_espejo;
+            document.getElementById('f-costo').value = c.costo_referencia || '';
+            document.getElementById('f-company').value = c.company || '';
+            document.getElementById('f-company').disabled = true;
+        } else {
+            document.getElementById('f-code').value = '';
+            document.getElementById('f-code').disabled = false;
+            document.getElementById('f-name').value = '';
+            document.getElementById('f-descripcion').value = '';
+            document.getElementById('f-tipo').value = 'acceso';
+            document.getElementById('f-espejo').checked = false;
+            document.getElementById('f-costo').value = '';
+            document.getElementById('f-company').value = '';
+            document.getElementById('f-company').disabled = false;
+        }
+        document.getElementById('modal').style.display = 'flex';
+    }
+
+    function editControl(id) { openModal(id); }
+
+    function closeModal() { document.getElementById('modal').style.display = 'none'; _editingId = null; }
+
+    async function saveControl() {
+        const payload = {
+            code: document.getElementById('f-code').value.trim().toLowerCase(),
+            name: document.getElementById('f-name').value.trim(),
+            descripcion: document.getElementById('f-descripcion').value.trim(),
+            tipo: document.getElementById('f-tipo').value,
+            needs_espejo: document.getElementById('f-espejo').checked,
+            costo_referencia: document.getElementById('f-costo').value ? parseFloat(document.getElementById('f-costo').value) : null,
+            company: document.getElementById('f-company').value || null,
+            is_active: true,
+        };
+        if (!payload.code || !payload.name) { alert('code y nombre son obligatorios'); return; }
+        try {
+            const url = _editingId ? `/api/controles/${_editingId}` : '/api/controles';
+            const method = _editingId ? 'PUT' : 'POST';
+            const r = await fetch(url, {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error);
+            toast('✓ Guardado', true);
+            closeModal();
+            await loadControles();
+        } catch (e) {
+            toast('❌ ' + e.message, false);
+        }
+    }
+
+    async function deactivateControl(id) {
+        if (!confirm('¿Desactivar este control? Las solicitudes existentes que lo referencian NO se verán afectadas.')) return;
+        try {
+            const r = await fetch(`/api/controles/${id}`, {method: 'DELETE'});
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error);
+            toast('✓ Desactivado', true);
+            await loadControles();
+        } catch (e) {
+            toast('❌ ' + e.message, false);
+        }
+    }
+
+    loadControles();
+    </script>
+</body>
+</html>

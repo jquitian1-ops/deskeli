@@ -648,9 +648,6 @@
                 <a class="sidebar-link" data-tab="15" onclick="switchTab(15)">
                     <span><span class="sl-icon">⏱</span>Time Tracking</span>
                 </a>
-                <a class="sidebar-link" href="/admin/servers" target="_self">
-                    <span><span class="sl-icon">🖥</span>Monitoreo Servidores</span>
-                </a>
                 <a class="sidebar-link" href="/admin/sessions" target="_self">
                     <span><span class="sl-icon">👥</span>Sesiones Activas</span>
                 </a>
@@ -1495,6 +1492,27 @@
                     <div style="text-align: center; padding: 40px; color: #999;">Cargando servidores...</div>
                 </div>
             </div>
+
+            <!-- Modal Métricas de Uptime -->
+            <div id="metrics-modal-bg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;">
+                <div style="background:white;border-radius:10px;max-width:780px;width:92%;padding:24px;max-height:90vh;overflow-y:auto;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
+                        <h2 id="metrics-title" style="font-size:18px;color:#111827;margin:0;">📊 Métricas de servidor</h2>
+                        <select id="metrics-window" onchange="reloadServerMetrics()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="24h">Últimas 24 horas</option>
+                            <option value="7d">Últimos 7 días</option>
+                            <option value="30d">Últimos 30 días</option>
+                            <option value="90d">Últimos 90 días</option>
+                        </select>
+                    </div>
+                    <div id="metrics-content">
+                        <div style="padding:40px;text-align:center;color:#9ca3af;">⏳ Cargando métricas...</div>
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+                        <button onclick="closeServerMetrics()" style="padding:8px 16px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-weight:600;">Cerrar</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- TAB 7: ESCALACIONES (REAL) -->
@@ -1695,6 +1713,9 @@
                         <button onclick="openAdminCreateTicket()" style="padding:8px 16px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;">
                             ➕ Crear Ticket
                         </button>
+                        <a href="/solicitudes-usuarios" style="padding:8px 16px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;text-decoration:none;" title="Solicitud formal de creación/modificación/traslado de usuarios con flujo de aprobación de 4 niveles">
+                            👤 Creación o Modificación de Usuarios
+                        </a>
                         <input type="text" id="tickets-search" placeholder="🔍 Buscar..." oninput="filterTicketsTab()"
                             style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; width: 200px;">
                         <select id="tickets-filter-status" onchange="filterTicketsTab()"
@@ -4604,16 +4625,18 @@
                     let alarmBadge = s.alarm_active ? '<span style="background:#dc2626;color:white;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:bold;margin-left:8px;animation:alarm-pulse 1s infinite;">🚨 ALARMA</span>' : '';
                     let criticalBadge = s.is_critical ? '<span style="background:#fbbf24;color:#78350f;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:bold;margin-left:6px;">CRÍTICO</span>' : '';
 
+                    const safeName = (s.name || '').replace(/'/g, "\\'");
                     html += `
-                        <div style="padding:15px;border-left:4px solid ${color};background:${bg};border-radius:6px;display:flex;justify-content:space-between;align-items:center;${s.alarm_active ? 'box-shadow: 0 0 12px rgba(220,38,38,0.4);' : ''}">
-                            <div>
+                        <div style="padding:15px;border-left:4px solid ${color};background:${bg};border-radius:6px;display:flex;justify-content:space-between;align-items:center;gap:12px;${s.alarm_active ? 'box-shadow: 0 0 12px rgba(220,38,38,0.4);' : ''}">
+                            <div style="flex:1;min-width:0;">
                                 <div style="font-weight:bold;color:${color};">${icon} ${s.name}${criticalBadge}${alarmBadge}</div>
                                 <div style="font-size:12px;color:#666;margin-top:4px;">${s.host}:${s.port} | Verificado: ${s.checked_at}${s.consecutive_failures > 0 ? ' | Fallos: ' + s.consecutive_failures : ''}</div>
                                 ${s.description ? `<div style="font-size:11px;color:#888;margin-top:2px;font-style:italic;">${s.description}</div>` : ''}
                             </div>
-                            <div style="text-align:right;">
+                            <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
                                 <div style="font-weight:bold;color:${color};font-size:13px;">${statusLabel}</div>
                                 <div style="font-size:12px;color:#666;">${s.latency_ms}ms</div>
+                                <button onclick="showServerMetrics(${s.id}, '${safeName}')" style="padding:5px 12px;background:white;border:1px solid #d1d5db;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600;color:#374151;" title="Uptime 24h/7d/30d/90d">📊 Métricas</button>
                             </div>
                         </div>
                     `;
@@ -4625,6 +4648,110 @@
                 serversEl.innerHTML = '<div style="text-align:center;padding:40px;color:#dc2626;">Error: ' + err.message + '</div>';
             }
         }
+
+        // ============ MODAL DE MÉTRICAS DE UPTIME POR SERVIDOR ============
+        let _metricsServerId = null;
+
+        function showServerMetrics(id, name) {
+            _metricsServerId = id;
+            document.getElementById('metrics-title').textContent = '📊 ' + (name || 'Servidor');
+            document.getElementById('metrics-window').value = '24h';
+            document.getElementById('metrics-modal-bg').style.display = 'flex';
+            reloadServerMetrics();
+        }
+
+        function closeServerMetrics() {
+            document.getElementById('metrics-modal-bg').style.display = 'none';
+            _metricsServerId = null;
+        }
+
+        async function reloadServerMetrics() {
+            if (!_metricsServerId) return;
+            const w = document.getElementById('metrics-window').value;
+            const content = document.getElementById('metrics-content');
+            content.innerHTML = '<div style="padding:40px;text-align:center;color:#9ca3af;">⏳ Cargando métricas...</div>';
+            try {
+                const r = await fetch(`/api/admin/servers/${_metricsServerId}/uptime?window=${w}`);
+                const data = await r.json();
+                if (!data.success) {
+                    content.innerHTML = '<div style="padding:20px;color:#dc2626;">Error: ' + (data.error || 'no disponible') + '</div>';
+                    return;
+                }
+                renderServerMetrics(data);
+            } catch (e) {
+                content.innerHTML = '<div style="padding:20px;color:#dc2626;">Error de red: ' + e.message + '</div>';
+            }
+        }
+
+        function renderServerMetrics(data) {
+            const uptime = data.uptime_pct !== null ? data.uptime_pct + '%' : '—';
+            const uptimeColor = data.uptime_pct === null ? '#9ca3af'
+                : (data.uptime_pct >= 99 ? '#065f46'
+                : (data.uptime_pct >= 95 ? '#92400e' : '#991b1b'));
+            const latAvg = data.latency_avg_ms !== null ? data.latency_avg_ms + ' ms' : '—';
+            const latMax = data.latency_max_ms !== null ? data.latency_max_ms + ' ms' : '—';
+            const downtime = (data.total_downtime_minutes || 0).toFixed(1) + ' min';
+
+            let sparkline = '';
+            const pings = data.recent_pings || [];
+            if (pings.length > 0) {
+                const svgW = 700, svgH = 70;
+                const n = pings.length;
+                const maxLat = Math.max(...pings.map(p => p.latency_ms || 0), 1);
+                const barW = svgW / n;
+                const bars = pings.map((p, i) => {
+                    const x = i * barW;
+                    const bh = p.is_up ? Math.max(2, (p.latency_ms / maxLat) * svgH) : svgH;
+                    const y = svgH - bh;
+                    const c = p.is_up ? '#16a34a' : '#dc2626';
+                    return `<rect x="${x}" y="${y}" width="${Math.max(1, barW - 1)}" height="${bh}" fill="${c}"/>`;
+                }).join('');
+                sparkline = `<svg viewBox="0 0 ${svgW} ${svgH}" preserveAspectRatio="none" style="width:100%;height:70px;background:#f9fafb;border-radius:6px;">${bars}</svg>`;
+            }
+
+            document.getElementById('metrics-content').innerHTML = `
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+                    <div style="padding:14px;background:#f9fafb;border-radius:8px;text-align:center;">
+                        <div style="font-size:11px;color:#6b7280;font-weight:600;">UPTIME</div>
+                        <div style="font-size:24px;font-weight:800;color:${uptimeColor};">${uptime}</div>
+                    </div>
+                    <div style="padding:14px;background:#f9fafb;border-radius:8px;text-align:center;">
+                        <div style="font-size:11px;color:#6b7280;font-weight:600;">INCIDENTES</div>
+                        <div style="font-size:24px;font-weight:800;color:#374151;">${data.incidents}</div>
+                    </div>
+                    <div style="padding:14px;background:#f9fafb;border-radius:8px;text-align:center;">
+                        <div style="font-size:11px;color:#6b7280;font-weight:600;">DOWNTIME</div>
+                        <div style="font-size:24px;font-weight:800;color:#374151;">${downtime}</div>
+                    </div>
+                    <div style="padding:14px;background:#f9fafb;border-radius:8px;text-align:center;">
+                        <div style="font-size:11px;color:#6b7280;font-weight:600;">LATENCIA PROM</div>
+                        <div style="font-size:20px;font-weight:800;color:#374151;">${latAvg}</div>
+                    </div>
+                    <div style="padding:14px;background:#f9fafb;border-radius:8px;text-align:center;">
+                        <div style="font-size:11px;color:#6b7280;font-weight:600;">LATENCIA MÁX</div>
+                        <div style="font-size:20px;font-weight:800;color:#374151;">${latMax}</div>
+                    </div>
+                    <div style="padding:14px;background:#f9fafb;border-radius:8px;text-align:center;">
+                        <div style="font-size:11px;color:#6b7280;font-weight:600;">PINGS</div>
+                        <div style="font-size:20px;font-weight:800;color:#374151;">${data.total_pings}</div>
+                    </div>
+                </div>
+                <div style="margin-top:12px;">
+                    <div style="font-size:12px;color:#6b7280;margin-bottom:6px;font-weight:600;">📈 ÚLTIMOS ${pings.length} PINGS · <span style="color:#16a34a;">verde=up</span> · <span style="color:#dc2626;">rojo=down</span></div>
+                    ${sparkline || '<div style="padding:20px;text-align:center;color:#9ca3af;font-size:12px;background:#f9fafb;border-radius:6px;">Sin datos en la ventana seleccionada</div>'}
+                </div>
+            `;
+        }
+
+        // Cerrar modal con Escape o click en el fondo
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.getElementById('metrics-modal-bg').style.display === 'flex') {
+                closeServerMetrics();
+            }
+        });
+        document.getElementById('metrics-modal-bg').addEventListener('click', (e) => {
+            if (e.target.id === 'metrics-modal-bg') closeServerMetrics();
+        });
 
         // Auto-refresh de conectividad CADA 15 SEGUNDOS (más rápido para detectar caídas)
         function startConnectivityAutoRefresh() {

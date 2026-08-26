@@ -26,6 +26,16 @@
             max-width: 600px;
             margin: 30px auto;
             padding: 0 20px;
+            transition: max-width 0.25s ease;
+        }
+
+        /* Cuando se carga una plantilla que necesita ancho (ej. Creación de Usuarios con 14 campos + 24 controles),
+           el contenedor se expande a casi toda la pantalla para replicar el layout tipo T-APPS. */
+        body.template-wide .container {
+            max-width: min(1500px, 95vw);
+        }
+        body.template-wide .header > div {
+            max-width: min(1500px, 95vw) !important;
         }
 
         .form-card {
@@ -33,6 +43,22 @@
             padding: 30px;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Grid de 2 columnas para los campos dinámicos de la plantilla en modo ancho.
+           Los control_list y campos marcados como .tpl-fullrow ocupan las 2 columnas. */
+        body.template-wide #dynamicFieldsContainer {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 20px;
+        }
+        body.template-wide #dynamicFieldsContainer > .tpl-fullrow {
+            grid-column: 1 / -1;
+        }
+        @media (max-width: 900px) {
+            body.template-wide #dynamicFieldsContainer {
+                grid-template-columns: 1fr;
+            }
         }
 
         .form-title {
@@ -475,6 +501,7 @@ function applyEmpTemplate() {
         _currentTemplateFields = null;
         if (dynBlock) dynBlock.style.display = 'none';
         if (container) container.innerHTML = '';
+        document.body.classList.remove('template-wide');
         return;
     }
     const t = _empTemplates.find(x => x.id === id);
@@ -503,9 +530,19 @@ function applyEmpTemplate() {
     if (_currentTemplateFields && _currentTemplateFields.length > 0) {
         renderDynamicFields(_currentTemplateFields);
         dynBlock.style.display = 'block';
+        // Modo ancho: cuando la plantilla tiene muchos campos o incluye control_list,
+        // expandir el layout a casi toda la pantalla (estilo T-APPS).
+        const needsWide = _currentTemplateFields.length >= 5
+            || _currentTemplateFields.some(f => f.type === 'control_list');
+        document.body.classList.toggle('template-wide', needsWide);
+        if (needsWide) {
+            // Hacer scroll suave al bloque de plantilla para que el usuario vea el cambio
+            setTimeout(() => dynBlock.scrollIntoView({behavior:'smooth', block:'start'}), 60);
+        }
     } else {
         dynBlock.style.display = 'none';
         container.innerHTML = '';
+        document.body.classList.remove('template-wide');
     }
 }
 
@@ -530,21 +567,165 @@ function renderDynamicFields(fields) {
                 .concat(f.options.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`))
                 .join('');
             input = `<select id="${fieldId}" data-tpl-name="${escapeHtml(f.name)}" data-tpl-label="${escapeHtml(f.label)}" ${requiredAttr} style="width:100%;padding:9px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;background:white;">${opts}</select>`;
+        } else if (f.type === 'user_select') {
+            // Select con usuarios activos de la empresa. Se puebla vía fetch a /api/templates/approvers.
+            // Guarda user_id como valor (para que el workflow lo resuelva a User).
+            const roleQuery = f.role_filter ? `?role=${encodeURIComponent(f.role_filter)}` : '';
+            input = `<select id="${fieldId}" data-tpl-name="${escapeHtml(f.name)}" data-tpl-label="${escapeHtml(f.label)}" data-user-select="${escapeHtml(roleQuery)}" ${requiredAttr} style="width:100%;padding:9px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;background:white;"><option value="">⏳ Cargando usuarios…</option></select>`;
         } else if (f.type === 'date') {
             input = `<input type="date" id="${fieldId}" data-tpl-name="${escapeHtml(f.name)}" data-tpl-label="${escapeHtml(f.label)}" ${requiredAttr} style="width:100%;padding:9px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">`;
+        } else if (f.type === 'control_list' && Array.isArray(f.controls)) {
+            // Tabla de controles estilo T-APPS: checkbox + nombre + descripción + detalle
+            input = _renderControlList(fieldId, f);
         } else {
             input = `<input type="text" id="${fieldId}" data-tpl-name="${escapeHtml(f.name)}" data-tpl-label="${escapeHtml(f.label)}" ${requiredAttr} placeholder="${placeholder}" style="width:100%;padding:9px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">`;
         }
-        html += `
-            <div style="margin-bottom:12px;">
-                <label for="${fieldId}" style="display:block;font-size:13px;font-weight:600;color:#92400e;margin-bottom:4px;">
-                    ${escapeHtml(f.label || f.name)} ${required}
-                </label>
-                ${input}
-            </div>
-        `;
+
+        // Los control_list se renderizan sin la etiqueta arriba (ya tiene su propio header)
+        if (f.type === 'control_list') {
+            html += `<div class="tpl-fullrow" style="margin-bottom:12px;">${input}</div>`;
+        } else {
+            // Los campos con hint muestran una nota amarilla debajo del label
+            const hint = f.hint ? `<div style="font-size:11px;color:#b45309;margin-bottom:6px;background:#fffbeb;padding:6px 10px;border-radius:4px;border-left:3px solid #f59e0b;">${escapeHtml(f.hint)}</div>` : '';
+            // Campos que ocupan las 2 columnas: textarea, campos con hint largo, o full_row explícito
+            const fullRow = f.full_row === true
+                || f.type === 'textarea'
+                || (f.hint && String(f.hint).length > 80);
+            const fullRowClass = fullRow ? ' class="tpl-fullrow"' : '';
+            html += `
+                <div${fullRowClass} style="margin-bottom:12px;">
+                    <label for="${fieldId}" style="display:block;font-size:13px;font-weight:600;color:#92400e;margin-bottom:4px;">
+                        ${escapeHtml(f.label || f.name)} ${required}
+                    </label>
+                    ${hint}
+                    ${input}
+                </div>
+            `;
+        }
     });
     container.innerHTML = html;
+
+    // Poblar los user_select con usuarios activos de la empresa
+    const userSelects = container.querySelectorAll('select[data-user-select]');
+    if (userSelects.length > 0) {
+        _populateUserSelects(userSelects);
+    }
+
+    // Habilitar/deshabilitar los inputs de control_list según el checkbox
+    _wireControlListCheckboxes(container);
+}
+
+function _renderControlList(fieldId, f) {
+    const controls = f.controls || [];
+    const requiredAttr = f.required ? 'data-cl-required="1"' : '';
+    let rows = '';
+    controls.forEach((ctl, i) => {
+        const code = escapeHtml(ctl.code || 'c' + i);
+        const name = escapeHtml(ctl.name || ctl.code || 'Control');
+        const detalle = escapeHtml(ctl.detalle || '');
+        const needsEspejo = !!ctl.needs_espejo;
+        const rowId = fieldId + '_' + code;
+        const espejoRow = needsEspejo
+            ? `<div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:11px;color:#92400e;font-weight:600;white-space:nowrap;">Usuario Espejo:</span>
+                    <input type="text" data-cl-espejo="${code}" placeholder="Login activo en la compañía" disabled
+                        style="flex:1;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;background:#f9fafb;">
+                </div>`
+            : '';
+        rows += `
+            <tr>
+                <td style="padding:10px;text-align:center;vertical-align:top;border-bottom:1px solid #e5e7eb;">
+                    <input type="checkbox" data-cl-check="${code}" data-cl-name="${name}" id="${rowId}"
+                        style="width:16px;height:16px;cursor:pointer;">
+                </td>
+                <td style="padding:10px;vertical-align:top;border-bottom:1px solid #e5e7eb;">
+                    <label for="${rowId}" style="font-weight:700;color:#1e3a8a;font-size:12px;cursor:pointer;">${name}</label>
+                    ${needsEspejo ? '<div style="margin-top:3px;"><span style="display:inline-block;padding:1px 6px;background:#fef3c7;color:#92400e;border-radius:8px;font-size:10px;font-weight:700;">+ Usuario Espejo</span></div>' : ''}
+                </td>
+                <td style="padding:10px;vertical-align:top;border-bottom:1px solid #e5e7eb;">
+                    <textarea data-cl-desc="${code}" rows="2" placeholder="Marca el checkbox y completa aquí…" disabled
+                        style="width:100%;padding:6px 8px;border:1px solid #d1d5db;border-radius:4px;font-family:inherit;font-size:12px;resize:vertical;background:#f9fafb;"></textarea>
+                    ${espejoRow}
+                </td>
+                <td style="padding:10px;vertical-align:top;border-bottom:1px solid #e5e7eb;font-size:11px;color:#64748b;line-height:1.5;">
+                    ${detalle}
+                </td>
+            </tr>
+        `;
+    });
+    return `
+        <div data-tpl-name="${escapeHtml(f.name)}" data-tpl-label="${escapeHtml(f.label)}" data-tpl-type="control_list" ${requiredAttr}
+             style="margin:8px 0;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+            <div style="background:#7c3aed;color:white;padding:10px 14px;font-weight:700;font-size:13px;">
+                ☑ ${escapeHtml(f.label || 'Listado de Controles')} ${f.required ? '<span style="color:#fecaca;">*</span>' : ''}
+            </div>
+            <div style="padding:10px 14px;background:#fef3c7;font-size:11.5px;color:#92400e;border-bottom:1px solid #f59e0b;">
+                💡 Marca solo los controles que la persona realmente necesite. Cada control marcado obliga a completar su descripción (y el Usuario Espejo si aplica).
+            </div>
+            <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;font-size:12px;background:white;">
+                    <thead>
+                        <tr style="background:#1e3a8a;color:white;">
+                            <th style="padding:8px;font-size:11px;text-align:center;width:40px;">✓</th>
+                            <th style="padding:8px;font-size:11px;text-align:left;width:180px;">Nombre del control</th>
+                            <th style="padding:8px;font-size:11px;text-align:left;">Descripción</th>
+                            <th style="padding:8px;font-size:11px;text-align:left;width:280px;">Detalle del Control</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function _wireControlListCheckboxes(container) {
+    // Al marcar el checkbox, se habilita el textarea y el input de espejo si aplica.
+    container.querySelectorAll('input[data-cl-check]').forEach(cb => {
+        cb.addEventListener('change', function() {
+            const code = cb.getAttribute('data-cl-check');
+            const desc = container.querySelector(`textarea[data-cl-desc="${code}"]`);
+            const esp = container.querySelector(`input[data-cl-espejo="${code}"]`);
+            const enabled = cb.checked;
+            if (desc) {
+                desc.disabled = !enabled;
+                desc.style.background = enabled ? 'white' : '#f9fafb';
+                if (enabled) desc.focus();
+            }
+            if (esp) {
+                esp.disabled = !enabled;
+                esp.style.background = enabled ? 'white' : '#f9fafb';
+            }
+        });
+    });
+}
+
+async function _populateUserSelects(selects) {
+    // Cachear por role query para no repetir fetch
+    const cache = {};
+    for (const sel of selects) {
+        const roleQuery = sel.getAttribute('data-user-select') || '';
+        try {
+            let users = cache[roleQuery];
+            if (!users) {
+                const r = await fetch('/api/templates/approvers' + roleQuery);
+                const data = await r.json();
+                users = data.success ? (data.users || []) : [];
+                cache[roleQuery] = users;
+            }
+            const currentValue = sel.value;
+            const opts = ['<option value="">— Selecciona —</option>'];
+            for (const u of users) {
+                const label = u.name + (u.email ? ' (' + u.email + ')' : '');
+                opts.push('<option value="' + u.id + '" data-label="' + escapeHtml(u.name) + '">' + escapeHtml(label) + '</option>');
+            }
+            sel.innerHTML = opts.join('');
+            if (currentValue) sel.value = currentValue;
+        } catch (e) {
+            sel.innerHTML = '<option value="">⚠ No se pudo cargar</option>';
+            console.warn('Error cargando aprobadores:', e);
+        }
+    }
 }
 
 // ===== ADJUNTOS: pegado de imágenes y file picker =====
@@ -632,9 +813,73 @@ document.addEventListener('DOMContentLoaded', () => {
         const fields = document.querySelectorAll('[data-tpl-name]');
         let allOk = true;
         const lines = [];
+        const controlLinesForDesc = [];
+        const formData = {};  // { name → value } para workflow de aprobación dinámica
         fields.forEach(el => {
             const name = el.getAttribute('data-tpl-name');
             const label = el.getAttribute('data-tpl-label');
+            const tplType = el.getAttribute('data-tpl-type');
+
+            // Manejo especial del control_list: no tiene value; iteramos sus checkboxes
+            if (tplType === 'control_list') {
+                const requiredList = el.hasAttribute('data-cl-required');
+                const checks = el.querySelectorAll('input[data-cl-check]:checked');
+                const controlsPayload = {};
+                let controlsTxt = '';
+                let anyBadDesc = false;
+
+                if (requiredList && checks.length === 0) {
+                    el.style.borderColor = '#dc2626';
+                    allOk = false;
+                    return;
+                }
+                el.style.borderColor = '#e5e7eb';
+
+                checks.forEach(cb => {
+                    const code = cb.getAttribute('data-cl-check');
+                    const ctlName = cb.getAttribute('data-cl-name') || code;
+                    const descEl = el.querySelector(`textarea[data-cl-desc="${code}"]`);
+                    const espEl = el.querySelector(`input[data-cl-espejo="${code}"]`);
+                    const desc = (descEl && descEl.value || '').trim();
+                    const esp = (espEl && espEl.value || '').trim();
+
+                    if (!desc) {
+                        // Descripción obligatoria si está marcado
+                        if (descEl) descEl.style.borderColor = '#dc2626';
+                        anyBadDesc = true;
+                    } else {
+                        if (descEl) descEl.style.borderColor = '#d1d5db';
+                    }
+
+                    // Espejo obligatorio si el input existe (needs_espejo)
+                    if (espEl && !esp) {
+                        espEl.style.borderColor = '#dc2626';
+                        anyBadDesc = true;
+                    } else if (espEl) {
+                        espEl.style.borderColor = '#d1d5db';
+                    }
+
+                    controlsPayload[code] = {
+                        marcado: true,
+                        nombre: ctlName,
+                        descripcion: desc,
+                    };
+                    if (espEl) controlsPayload[code].usuario_espejo = esp;
+
+                    let block = '✓ ' + ctlName + '\n  Descripción: ' + (desc || '(pendiente)');
+                    if (espEl) block += '\n  Usuario Espejo: ' + (esp || '(pendiente)');
+                    controlsTxt += block + '\n\n';
+                });
+
+                if (anyBadDesc) allOk = false;
+
+                if (checks.length > 0) {
+                    lines.push('**' + label + ':**\n\n' + controlsTxt.trim());
+                }
+                if (name) formData[name] = JSON.stringify(controlsPayload);
+                return;
+            }
+
             const required = el.hasAttribute('required');
             const val = (el.value || '').trim();
             if (required && !val) {
@@ -644,7 +889,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 el.style.borderColor = '#d1d5db';
             }
             if (val) {
-                lines.push('**' + label + ':**\n' + val);
+                // Para user_select, mostrar el nombre en la descripción pero
+                // enviar el user_id al backend para resolver el aprobador
+                let displayVal = val;
+                if (el.tagName === 'SELECT' && el.hasAttribute('data-user-select')) {
+                    const opt = el.selectedOptions[0];
+                    if (opt) {
+                        const userLabel = opt.getAttribute('data-label') || opt.textContent;
+                        displayVal = userLabel + ' (id:' + val + ')';
+                    }
+                }
+                lines.push('**' + label + ':**\n' + displayVal);
+                if (name) formData[name] = val;
             }
         });
         if (!allOk) {
@@ -657,6 +913,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const userText = (desc.value || '').trim();
         const generated = lines.join('\n\n');
         desc.value = generated + (userText ? '\n\n---\n\n**Notas adicionales:**\n' + userText : '');
+
+        // Guardar los valores del form como JSON en un hidden input para que el backend
+        // pueda resolver aprobadores dinámicos del workflow (campos user_from_form_field)
+        let hidden = document.getElementById('_template_form_data');
+        if (!hidden) {
+            hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = 'template_form_data';
+            hidden.id = '_template_form_data';
+            form.appendChild(hidden);
+        }
+        hidden.value = JSON.stringify(formData);
     });
 
     // Si hay adjuntos pegados (no en el input), enviar todo vía AJAX para incluirlos

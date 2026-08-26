@@ -476,6 +476,7 @@
         <a href="#sla" onclick="showSection('sla')">⏱ SLA y escalación</a>
         <a href="#cronometro" onclick="showSection('cronometro')">⏲ Cronómetro y tiempo</a>
         <a href="#chat" onclick="showSection('chat')">💬 Chat con el usuario</a>
+        <a href="#eli" onclick="showSection('eli')">🤖 Tickets desde Eli (Bot IA)</a>
         <a href="#subtareas" onclick="showSection('subtareas')">✅ Subtareas</a>
         <a href="#adjuntos" onclick="showSection('adjuntos')">📎 Adjuntos</a>
         <a href="#clasificar" onclick="showSection('clasificar')">🏷 Categorías y tags</a>
@@ -873,6 +874,125 @@
                 <li><strong>Confirmá antes de cerrar</strong>: "¿Podés probar y confirmarme si ya funciona?"</li>
                 <li><strong>Nunca culpes al usuario</strong> aunque el error sea suyo. Explicale sin juzgar.</li>
             </ul>
+        </section>
+
+        <!-- ─── ELI - TICKETS DESDE EL BOT ─── -->
+        <section class="section" id="sec-eli">
+            <h2 class="section-title"><span class="emoji">🤖</span>Tickets desde Eli (Bot IA)</h2>
+            <p class="section-subtitle">Cómo identificar, leer y trabajar tickets creados a través del asistente Eli</p>
+
+            <p><strong>Eli</strong> es el asistente de IA integrado en el portal del empleado. Los usuarios lo pueden abrir desde el ícono flotante 🟣 abajo a la derecha de su dashboard. Eli responde preguntas técnicas comunes (Hardware, Software, Email, Telefonía, Servidores, Windows, SAP) y — si no resuelve — <strong>crea un ticket para vos con toda la conversación adjunta</strong>.</p>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">💡</div>
+                <div class="callout-content">
+                    <div class="callout-title">Por qué te importa como técnico</div>
+                    <p>Cuando un ticket llega desde Eli, el empleado <strong>ya intentó resolver</strong> con el bot. La conversación te ahorra hacer las mismas preguntas y te da contexto valioso del problema. Leela antes de contactar al usuario.</p>
+                </div>
+            </div>
+
+            <h3>Cómo identificar un ticket creado desde Eli</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">🏷️</div>
+                    <h4>Etiqueta "bot" o "eli"</h4>
+                    <p>El ticket viene tageado. Filtrá tu cola por ese tag para ver solo los tickets originados en el chat.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">💬</div>
+                    <h4>Primer comentario del sistema</h4>
+                    <p>El primer mensaje del ticket incluye la conversación completa entre el empleado y Eli, con formato <code>[USER]</code> y <code>[BOT]</code>.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🎯</div>
+                    <h4>Categoría auto-sugerida</h4>
+                    <p>Eli propone la categoría según el tema detectado. Vos podés cambiarla si detectás que corresponde a otra.</p>
+                </div>
+            </div>
+
+            <h3>Dos tipos de tickets desde Eli</h3>
+            <table>
+                <thead>
+                    <tr><th>Tipo</th><th>Cuándo</th><th>Tu acción</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>✅ Ticket cerrado (auto-resuelto)</strong></td>
+                        <td>El empleado clickeó "Sí, me ayudó" en el chat. Eli lo resolvió.</td>
+                        <td>Solo revisar por muestreo (cada 10). Sirve para validar calidad de respuestas del bot y decidir si sugerís cambios al admin. No requiere trabajo activo.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>🎫 Ticket abierto (escalado)</strong></td>
+                        <td>Eli NO resolvió. El empleado clickeó "No, crear ticket" — lo escaló a vos.</td>
+                        <td>Trabajarlo como un ticket normal, pero <strong>leer la conversación primero</strong>. No repitas preguntas.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Cómo leer la conversación</h3>
+            <div class="mockup">
+                <div class="mock-header">
+                    <strong>💬 Conversación con Eli (originada 14:32)</strong>
+                </div>
+                <div style="padding:8px 0; font-size:13px; line-height:1.7;">
+                    <div style="margin-bottom:8px;"><strong>[USER]</strong> No puedo entrar a SAP, me dice usuario bloqueado</div>
+                    <div style="margin-bottom:8px; color:var(--primary-dark);"><strong>[BOT]</strong> Puede ser por 3 intentos fallidos. Probá reiniciar tu contraseña con estos pasos: 1) Ir a...</div>
+                    <div style="margin-bottom:8px;"><strong>[USER]</strong> Ya lo intenté y no me deja</div>
+                    <div style="margin-bottom:8px; color:var(--primary-dark);"><strong>[BOT]</strong> Ok, en ese caso el bloqueo puede ser del lado del servidor SAP. Voy a crear un ticket para que un técnico lo revise.</div>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">🎯</div>
+                <div class="callout-content">
+                    <div class="callout-title">Qué extraer de la conversación</div>
+                    <p>1) El <strong>síntoma original</strong> del usuario tal como lo describió · 2) Qué <strong>pasos ya intentó</strong> siguiendo al bot · 3) Qué <strong>error específico</strong> le apareció · 4) Si mencionó fecha/hora del problema · 5) Sistema o aplicación afectada.</p>
+                </div>
+            </div>
+
+            <h3>Cómo responder al empleado (que ya habló con Eli)</h3>
+            <ul style="padding-left:24px; margin:10px 0;">
+                <li><strong>Reconocé lo que ya hizo:</strong> "Vi que ya probaste reiniciar la contraseña con Eli, gracias por intentarlo antes." Esto muestra que leíste la conversación.</li>
+                <li><strong>Pedí solo info nueva:</strong> No repitas preguntas que ya respondió al bot.</li>
+                <li><strong>Si la sugerencia del bot fue incorrecta,</strong> podés marcarla en el ticket para que el admin ajuste la KB del bot.</li>
+            </ul>
+
+            <h3>Cuándo NO debería haber llegado un ticket desde Eli</h3>
+            <p>Eli tiene temas <strong>fuera de alcance</strong> configurados por el admin. Si te llega un ticket de esas categorías, es un signo de configuración incorrecta:</p>
+            <ul style="padding-left:24px; margin:10px 0;">
+                <li>Nómina · Seguridad crítica · Base de datos</li>
+                <li>Solicitudes de hardware nuevo</li>
+                <li>Aprobaciones (permisos, licencias, cambios en SAP)</li>
+            </ul>
+            <p>Si detectás patrones, avisá al admin para que ajuste la config de Eli.</p>
+
+            <h3>Métricas que verás</h3>
+            <p>En tu vista de reportes (sección "Mi productividad") tenés indicadores del bot:</p>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">📥</div>
+                    <h4>Tickets desde Eli</h4>
+                    <p>Cuántos tickets de tu cola vinieron del chat este mes.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">✅</div>
+                    <h4>Tasa de auto-resolución</h4>
+                    <p>Qué porcentaje de conversaciones con Eli terminan resueltas sin escalación. Mientras más alta, menos tickets a tu cola.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">⚡</div>
+                    <h4>Tiempo ahorrado</h4>
+                    <p>Estimado en minutos (basado en la conversación previa que no tuviste que hacer vos).</p>
+                </div>
+            </div>
+
+            <div class="callout callout-success">
+                <div class="callout-icon">🚀</div>
+                <div class="callout-content">
+                    <div class="callout-title">Ayudás a mejorar a Eli</div>
+                    <p>Cuando resolvés un ticket que Eli no pudo, tu solución + comentarios se pueden convertir en un artículo de la KB del bot. Pedile al admin que agregue tu solución con la sección Config → Soluciones Bot. Cada aporte reduce carga futura para todo el equipo.</p>
+                </div>
+            </div>
         </section>
 
         <!-- ─── SUBTAREAS ─── -->
@@ -1422,8 +1542,22 @@
 </div>
 
 <script>
+    // Modo print/all: si la URL tiene ?print=1 o ?all=1, mostrar TODAS las secciones (para PDF)
+    if (window.location.search.match(/[?&](print|all)=1/)) {
+        document.querySelectorAll('.section').forEach(s => {
+            s.classList.add('active');
+            s.style.display = 'block';
+            s.style.pageBreakBefore = 'always';
+        });
+        const sb = document.querySelector('.sidebar'); if (sb) sb.style.display = 'none';
+        const pg = document.querySelector('.progress'); if (pg) pg.style.display = 'none';
+        const tb = document.querySelector('.topbar'); if (tb) tb.style.position = 'static';
+        const layout = document.querySelector('.layout'); if (layout) layout.style.gridTemplateColumns = '1fr';
+    }
+
     // ─── Navegación por secciones ───
     function showSection(id) {
+        if (window.location.search.match(/[?&](print|all)=1/)) return;
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
         const el = document.getElementById('sec-' + id);
         if (el) el.classList.add('active');
@@ -1433,7 +1567,7 @@
         if (link) link.classList.add('active');
 
         // Progress bar (basado en índice de sección)
-        const sections = ['bienvenida','rol','login','dashboard','estados','tomar','sla','cronometro','chat','subtareas','adjuntos','clasificar','escalar','resolver','reasignar','reportes','trucos','faq','quiz'];
+        const sections = ['bienvenida','rol','login','dashboard','estados','tomar','sla','cronometro','chat','eli','subtareas','adjuntos','clasificar','escalar','resolver','reasignar','reportes','trucos','faq','quiz'];
         const idx = sections.indexOf(id);
         const pct = Math.round(((idx + 1) / sections.length) * 100);
         document.getElementById('progressBar').style.width = pct + '%';

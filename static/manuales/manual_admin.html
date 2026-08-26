@@ -1092,33 +1092,150 @@
             </div>
         </section>
 
-        <!-- BOT -->
+        <!-- BOT - ELI -->
         <section class="section" id="sec-bot">
-            <h2 class="section-title"><span class="emoji">🤖</span>Bot de Autoservicio</h2>
-            <p class="section-subtitle">Resolver problemas comunes antes de crear ticket</p>
+            <h2 class="section-title"><span class="emoji">🤖</span>Eli — Bot Asistente IA</h2>
+            <p class="section-subtitle">Configuración, monitoreo y gestión del asistente de autoservicio para empleados</p>
 
-            <p>El bot (integrado con Anthropic Claude) intenta resolver problemas comunes con base de conocimiento pre-grabada. Cuando el empleado empieza a describir el problema, el bot sugiere:</p>
+            <p><strong>Eli</strong> es el asistente de IA integrado en el portal del empleado. Cuando el empleado abre el ícono flotante 🟣 en su dashboard, Eli responde con base en:</p>
             <ul>
-                <li>Artículos de KB relevantes.</li>
-                <li>Pasos de solución para problemas típicos (contraseña, VPN, impresora).</li>
-                <li>Si nada aplica → crear ticket normalmente.</li>
+                <li>Una <strong>base de conocimiento (KB) local</strong> pre-grabada por vos (Soluciones Bot).</li>
+                <li>El motor de <strong>Anthropic Claude API</strong> para lenguaje natural y razonamiento sobre las soluciones.</li>
             </ul>
+            <p>Si Eli resuelve, el empleado marca "Sí, me ayudó" → se crea ticket <strong>cerrado</strong> (registro). Si no, el empleado marca "No, crear ticket" → se crea ticket <strong>abierto</strong> con la conversación completa adjunta.</p>
 
-            <h3>Gestionar la base de conocimiento</h3>
-            <p>Config → <strong>Soluciones Bot</strong>. Podés:</p>
-            <ul>
-                <li>Importar KB desde JSON.</li>
-                <li>Editar respuestas manualmente.</li>
-                <li>Exportar para backup / compartir entre empresas.</li>
-            </ul>
+            <h3>Arquitectura</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">💬</div>
+                    <h4>Frontend</h4>
+                    <p>Chat widget flotante en <code>templates/employee/dashboard.html</code>. Página independiente en <code>/bot</code>.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔌</div>
+                    <h4>Endpoints</h4>
+                    <p><code>POST /api/bot/ask</code> — envía pregunta<br><code>POST /api/bot/ticket-from-chat</code> — cierra o escala la conversación</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🧠</div>
+                    <h4>Motor</h4>
+                    <p>Claude API (modelo <code>claude-sonnet-4-6</code>) con prompt system que incluye la KB del bot filtrada por empresa.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🗄</div>
+                    <h4>Storage</h4>
+                    <p>Tabla <code>bot_solutions</code> con la KB por empresa. Logs de consultas en <code>system_log</code>.</p>
+                </div>
+            </div>
 
+            <h3>Configuración inicial</h3>
+            <div class="steps" style="margin:16px 0;">
+                <div style="padding:12px 16px;background:#f9fafb;border-radius:8px;margin-bottom:8px;">
+                    <strong>1. API Key de Anthropic</strong><br>
+                    En el archivo <code>.env</code> configurá <code>ANTHROPIC_API_KEY</code> con tu key de <a href="https://console.anthropic.com">console.anthropic.com</a>. Reiniciar el servicio.
+                </div>
+                <div style="padding:12px 16px;background:#f9fafb;border-radius:8px;margin-bottom:8px;">
+                    <strong>2. Categorías cubiertas</strong><br>
+                    Config → Soluciones Bot → tab "Alcance". Por defecto Eli responde: <em>Hardware, Software, Email, Telefonía, Servidores, Windows, SAP</em>.
+                </div>
+                <div style="padding:12px 16px;background:#f9fafb;border-radius:8px;margin-bottom:8px;">
+                    <strong>3. Categorías fuera de alcance</strong><br>
+                    <em>Nómina, Seguridad crítica, Base de datos</em>. Cuando el usuario pregunta algo de estos temas, Eli responde con mensaje de deriva a un humano (403 en el backend).
+                </div>
+                <div style="padding:12px 16px;background:#f9fafb;border-radius:8px;margin-bottom:8px;">
+                    <strong>4. Cargar KB de soluciones</strong><br>
+                    Tab "Soluciones" → Importar JSON o crear manualmente. Formato: título, categoría, pregunta ejemplo, respuesta paso a paso, tags.
+                </div>
+                <div style="padding:12px 16px;background:#f9fafb;border-radius:8px;margin-bottom:8px;">
+                    <strong>5. Multi-empresa</strong><br>
+                    Cada empresa tiene su propia KB. Podés compartir soluciones entre Eliot, Pash y Primatela con el botón "Sincronizar Eliot → Pash+Primatela" en Config.
+                </div>
+            </div>
+
+            <h3>Gestión de la KB del bot (Soluciones Bot)</h3>
+            <p>Config → <strong>Soluciones Bot</strong>. Tabs disponibles:</p>
+            <table>
+                <thead><tr><th>Tab</th><th>Función</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Soluciones</strong></td><td>Listado, crear, editar, eliminar respuestas. Cada solución tiene título, categoría, pregunta ejemplo, respuesta paso a paso, tags, empresa.</td></tr>
+                    <tr><td><strong>Alcance</strong></td><td>Categorías dentro/fuera de alcance. Mensaje personalizado cuando el usuario pregunta algo fuera de alcance.</td></tr>
+                    <tr><td><strong>Actividad reciente</strong></td><td>Últimas consultas, qué respondió Eli, si escaló o resolvió. Sirve para detectar preguntas frecuentes sin respuesta preparada.</td></tr>
+                    <tr><td><strong>Import/Export</strong></td><td>JSON de la KB para compartir entre empresas o hacer backup manual.</td></tr>
+                    <tr><td><strong>Métricas</strong></td><td>Consumo de tokens Claude del mes, tasa de auto-resolución, tickets escalados desde bot.</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Control de costos</h3>
             <div class="callout callout-warn">
                 <div class="callout-icon">💰</div>
                 <div class="callout-content">
-                    <div class="callout-title">Control de costos</div>
-                    <p>Cada consulta al bot consume tokens de la API Claude. El sistema cachea respuestas y monitorea el uso. Si te acercás al límite mensual, activá el fallback (solo KB local, sin llamadas Claude).</p>
+                    <div class="callout-title">Cada consulta cuesta tokens</div>
+                    <p>El sistema cachea respuestas idénticas (misma pregunta = misma respuesta cached, sin costo). También monitorea el consumo. Si te acercás al límite mensual, activá el <strong>fallback</strong>: Config → Soluciones Bot → tab Alcance → toggle "Solo KB local (sin Claude API)".</p>
                 </div>
             </div>
+
+            <p>Con el fallback activado, Eli busca matching por keywords en la KB local sin llamar a Claude. Menos preciso, pero cero costo. Útil como red de seguridad los últimos días del mes.</p>
+
+            <h3>Monitoreo</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">📊</div>
+                    <h4>Tokens consumidos</h4>
+                    <p>Ver en Métricas. Alerta configurable al 80% del budget mensual.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">✅</div>
+                    <h4>Tasa de resolución</h4>
+                    <p>% de conversaciones que terminan con "Sí, me ayudó" vs "Crear ticket". Meta &gt; 40%.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">⏱</div>
+                    <h4>Tiempo promedio de respuesta</h4>
+                    <p>Latencia end-to-end de Eli. Debería estar &lt; 3 segundos.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🚫</div>
+                    <h4>Consultas rechazadas</h4>
+                    <p>Preguntas fuera de alcance. Si aumenta mucho, revisá si hay que expandir el alcance.</p>
+                </div>
+            </div>
+
+            <h3>Cómo mejorar Eli continuamente</h3>
+            <ol style="padding-left:24px; margin:10px 0;">
+                <li><strong>Revisá "Actividad reciente" semanalmente</strong>. Buscá preguntas que Eli no supo responder.</li>
+                <li><strong>Pedile a los técnicos que aporten soluciones</strong> — cuando resuelven un ticket que Eli no pudo, esa solución debería entrar a la KB.</li>
+                <li><strong>Auditá conversaciones al azar</strong> — 10 al mes. ¿Las respuestas de Eli son correctas y útiles?</li>
+                <li><strong>Ajustá el prompt system</strong> si Eli responde con tono inadecuado o falta contexto de la empresa (nombre CEO, políticas, etc.).</li>
+                <li><strong>Excluí temas que el bot no debe tocar</strong>. Ej: si Eli está dando consejos financieros o legales, mové ese tema a "fuera de alcance".</li>
+            </ol>
+
+            <h3>Segregación multi-empresa (crítico)</h3>
+            <p>Cada empresa ve solo su propia KB de Eli. El prompt system incluye <code>company_id</code> y filtra los resultados. Confirmá que:</p>
+            <ul>
+                <li>Un usuario de Eliot NUNCA reciba una respuesta que menciona detalles de Pash o Primatela.</li>
+                <li>Las métricas están segregadas por empresa (o filtrables).</li>
+                <li>El export de KB respeta la empresa origen.</li>
+            </ul>
+
+            <div class="callout callout-danger">
+                <div class="callout-icon">🔒</div>
+                <div class="callout-content">
+                    <div class="callout-title">No enviar datos personales a Claude</div>
+                    <p>El bot debe usar <strong>solo descripciones anonimizadas</strong> del problema. Nunca enviar: números de empleado, correos personales, contraseñas, tokens SAP, información contable. Si detectás fuga en las conversaciones, escalá inmediatamente al equipo de seguridad y desactivá temporalmente Eli.</p>
+                </div>
+            </div>
+
+            <h3>Troubleshooting</h3>
+            <table>
+                <thead><tr><th>Síntoma</th><th>Causa probable</th><th>Fix</th></tr></thead>
+                <tbody>
+                    <tr><td>Eli responde "Error, intentá de nuevo"</td><td>API Claude no responde o key inválida</td><td>Verificar <code>ANTHROPIC_API_KEY</code>. Ver logs.</td></tr>
+                    <tr><td>Eli responde muy lento (&gt; 10s)</td><td>Latencia de la red o modelo saturado</td><td>Revisar status.anthropic.com. Considerar timeout más corto.</td></tr>
+                    <tr><td>Todas las preguntas caen "fuera de alcance"</td><td>Config de categorías mal cargada</td><td>Revisar tab Alcance. Confirmá categorías activas.</td></tr>
+                    <tr><td>Ticket creado desde bot sin conversación adjunta</td><td>Falla en <code>ticket-from-chat</code></td><td>Ver logs. Verificar que chatHistory no esté vacío al momento de crear ticket.</td></tr>
+                    <tr><td>Consumo de tokens muy alto</td><td>Preguntas largas + KB grande + no hay cache hits</td><td>Reducir tamaño de KB en el prompt. Activar cache más agresivo.</td></tr>
+                </tbody>
+            </table>
         </section>
 
         <!-- APROBACIONES MULTI-NIVEL -->
@@ -1147,6 +1264,25 @@
                 </div>
             </div>
 
+            <h3>Tipos de aprobadores por paso</h3>
+            <div class="cards">
+                <div class="card">
+                    <div class="card-icon">📌</div>
+                    <h4>Estático</h4>
+                    <p>Usuario fijo elegido al crear el workflow (<code>user_id</code>). Ideal para roles corporativos permanentes: Gerente TI, Directora Financiera, Auditor.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">⚡</div>
+                    <h4>Dinámico (por form)</h4>
+                    <p>Se lee de un campo del form del ticket (<code>user_from_form_field</code>). El empleado elige al aprobador desde un dropdown (típicamente su jefe inmediato o responsable de área). Un solo workflow sirve para toda la empresa.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🎯</div>
+                    <h4>Condicional</h4>
+                    <p>Se activa solo si el empleado marcó cierto control en la plantilla (<code>condition_control_marked</code>). Se combina con estático o dinámico. Ejemplo: Gerente TI se agrega solo si la solicitud pide elementos tecnológicos.</p>
+                </div>
+            </div>
+
             <h3>Crear un workflow</h3>
             <div class="steps">
                 <div class="step">
@@ -1171,14 +1307,30 @@
                 </div>
             </div>
 
-            <h3>Ejemplo típico</h3>
+            <h3>Ejemplo típico · Workflow "Creación y Modificación de Usuarios"</h3>
             <div class="callout callout-info">
                 <div class="callout-icon">📌</div>
                 <div class="callout-content">
-                    <div class="callout-title">Solicitud de acceso a SAP</div>
-                    <p><strong>Trigger:</strong> categoría "Accesos" + plantilla "Solicitud ingreso/modificación de usuarios"</p>
-                    <p><strong>Cadena:</strong> Jefe Inmediato → Gerente TI → Analista de Seguridad</p>
-                    <p>Cuando un empleado usa esa plantilla, el ticket se queda en <em>pending_approval</em> hasta que los 3 aprueben en orden. Si el jefe rechaza, no llega al gerente. Si aprueban todos, el ticket entra a la cola normal del equipo TI.</p>
+                    <div class="callout-title">Configuración recomendada (ya instalada por el seed)</div>
+                    <p><strong>Trigger:</strong> categoría "Accesos" + plantilla "Creación y Modificación de Usuarios"</p>
+                    <p><strong>Cadena de 3 pasos mixtos:</strong></p>
+                    <ol style="margin:10px 0 10px 24px;">
+                        <li><strong>⚡ Jefe Inmediato</strong> — dinámico, campo del form: <code>jefe_inmediato</code></li>
+                        <li><strong>⚡ Responsable del Área</strong> — dinámico, campo del form: <code>responsable_area</code></li>
+                        <li><strong>🎯 Gerente de Tecnología</strong> — estático (fijo por empresa), <strong>condicional: solo si el empleado marca <code>elementos_tecnologia</code></strong></li>
+                    </ol>
+                    <p>Si la solicitud NO pide equipos, se ejecutan solo los 2 primeros y el 3ero se salta automáticamente (queda registrado en <code>system_log</code> como <code>approval_conditional_skipped</code>). Si SÍ pide equipos, los 3 aprueban en orden secuencial.</p>
+                </div>
+            </div>
+
+            <h3>Cómo configurar un paso condicional</h3>
+            <p>Al agregar un aprobador en el editor de workflows, aparece un campo opcional <strong>"Condición: control marcado"</strong> — poné ahí el <code>code</code> del control (ej: <code>elementos_tecnologia</code>). Si el ticket entra al workflow pero el empleado no marcó ese control, el paso se salta sin necesidad de que nadie apruebe.</p>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">🧩</div>
+                <div class="callout-content">
+                    <div class="callout-title">Controles disponibles como condición</div>
+                    <p>El código del control debe existir en la plantilla que dispara el workflow. Para la plantilla estándar de usuarios, los codes son: <code>elementos_tecnologia</code>, <code>herramientas_ofimaticas</code>, <code>directorio_activo</code>, <code>correo_corporativo</code>, <code>creacion_vpn</code>, <code>carpetas_compartidas</code>, <code>permiso_imprimir</code>, <code>permisos_internet</code>, <code>puntos_electricos_red</code>, <code>sql_gerber</code>, <code>puertos_usb</code>, <code>sap</code>, <code>sap_pash</code>, <code>kactus</code>, y 10 más (ver <a href="/scripts/seed_template_solicitud_usuario.py">seed</a>).</p>
                 </div>
             </div>
 
@@ -1603,7 +1755,7 @@
                 <li>Registra el evento en el system_log.</li>
             </ul>
 
-            <p>Ingresá desde el sidebar → <strong>🖥 Monitoreo Servidores</strong> o directo a <code>/admin/servers</code>. Cada servidor tiene: nombre, host/IP, puerto, descripción, checkbox <em>crítico</em>. Estado (up/down), último check, latencia.</p>
+            <p>Ingresá desde el sidebar → <strong>🔗 Conectividad</strong> (tab 5 del dashboard admin). Cada servidor tiene: nombre, host/IP, puerto, descripción, checkbox <em>crítico</em>. Estado (up/down), último check, latencia. Desde el mismo tab podés agregar/editar/eliminar servidores con el botón <strong>⚙️ Configurar</strong>.</p>
 
             <h3>Acciones por servidor</h3>
             <ul>
@@ -1878,7 +2030,22 @@ python -c "from app import app, db; ..."     # Consultas ad-hoc</pre>
         'operacion','faq','quiz'
     ];
 
+    // Modo print/all: si la URL tiene ?print=1 o ?all=1, mostrar TODAS las secciones (para PDF)
+    if (window.location.search.match(/[?&](print|all)=1/)) {
+        document.querySelectorAll('.section').forEach(s => {
+            s.classList.add('active');
+            s.style.display = 'block';
+            s.style.pageBreakBefore = 'always';
+        });
+        const sb = document.querySelector('.sidebar'); if (sb) sb.style.display = 'none';
+        const pg = document.querySelector('.progress'); if (pg) pg.style.display = 'none';
+        const tb = document.querySelector('.topbar'); if (tb) tb.style.position = 'static';
+        const layout = document.querySelector('.layout'); if (layout) layout.style.gridTemplateColumns = '1fr';
+    }
+
     function showSection(id) {
+        // En modo print no navegamos, mostramos todo
+        if (window.location.search.match(/[?&](print|all)=1/)) return;
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
         const el = document.getElementById('sec-' + id);
         if (el) el.classList.add('active');

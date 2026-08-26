@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Solicitudes de Usuarios - DeskEli</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Segoe UI',Tahoma,sans-serif; background:#f5f7fa; }
+        .header {
+            background: linear-gradient(135deg,#7c3aed 0%,#5b21b6 100%);
+            color:white; padding:18px 24px;
+            display:flex; align-items:center; justify-content:space-between;
+        }
+        .header h1 { font-size:22px; }
+        .header a.btn-back { color:white; text-decoration:none; padding:8px 14px; background:rgba(255,255,255,0.15); border-radius:6px; font-size:13px; }
+        .container { max-width: min(1600px, 96vw); margin: 20px auto; padding: 0 20px; }
+        .filters {
+            background:white; padding:16px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.06);
+            margin-bottom:18px; display:grid;
+            grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap:12px;
+        }
+        .filters label { display:block; font-size:11px; color:#6b7280; font-weight:600; margin-bottom:4px; text-transform:uppercase; }
+        .filters input, .filters select { width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; }
+        .actions { display:flex; gap:10px; justify-content:space-between; align-items:center; margin-bottom:14px; }
+        .btn-primary { background:#7c3aed; color:white; border:none; padding:10px 18px; border-radius:6px; font-weight:700; cursor:pointer; font-size:14px; text-decoration:none; display:inline-block; }
+        .btn-primary:hover { background:#5b21b6; }
+        .btn-secondary { background:#e5e7eb; color:#374151; border:none; padding:10px 16px; border-radius:6px; font-weight:600; cursor:pointer; font-size:13px; }
+        table { width:100%; background:white; border-collapse:collapse; box-shadow:0 2px 6px rgba(0,0,0,0.06); border-radius:8px; overflow:hidden; }
+        thead { background:#1e3a8a; color:white; }
+        th, td { padding:10px 12px; text-align:left; font-size:13px; border-bottom:1px solid #e5e7eb; }
+        tbody tr:hover { background:#f9fafb; }
+        .badge { display:inline-block; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700; white-space:nowrap; }
+        .badge-pending { background:#fef3c7; color:#92400e; }
+        .badge-approved { background:#d1fae5; color:#065f46; }
+        .badge-rejected { background:#fee2e2; color:#991b1b; }
+        .badge-returned { background:#dbeafe; color:#1e40af; }
+        .badge-closed { background:#e5e7eb; color:#374151; }
+        .badge-tramite { background:#c7d2fe; color:#4338ca; }
+        .badge-anulado { background:#f3f4f6; color:#6b7280; text-decoration:line-through; }
+        .empty { text-align:center; padding:40px 20px; color:#6b7280; }
+        .toolbar-right { display:flex; gap:8px; }
+    </style>
+    <script src="/static/js/session_guard.js"></script>
+</head>
+<body>
+    <div class="header">
+        <h1>📋 Solicitudes de Creación / Modificación de Usuarios</h1>
+        <div style="display:flex; gap:10px;">
+            <a href="/{{ 'admin' if session_role == 'admin' else 'technician' }}-dashboard" class="btn-back">← Volver</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="filters">
+            <div>
+                <label for="f-numero">Nº Solicitud</label>
+                <input type="text" id="f-numero" placeholder="Ej: SOL-ELIOT-00042">
+            </div>
+            <div>
+                <label for="f-q">Documento / Nombre del tercero</label>
+                <input type="text" id="f-q" placeholder="Buscar por doc o nombre">
+            </div>
+            <div>
+                <label for="f-estado">Estado</label>
+                <select id="f-estado">
+                    <option value="">— Todos —</option>
+                </select>
+            </div>
+            <div>
+                <label>Visualiza Anulado</label>
+                <select id="f-anulado">
+                    <option value="0" selected>No</option>
+                    <option value="1">Sí</option>
+                </select>
+            </div>
+            {% if session_role == 'admin' %}
+            <div>
+                <label>Visualiza Todo</label>
+                <select id="f-todo">
+                    <option value="0" selected>No (mi empresa)</option>
+                    <option value="1">Sí (todo mi scope)</option>
+                </select>
+            </div>
+            {% endif %}
+            <div style="display:flex; align-items:flex-end;">
+                <button class="btn-secondary" onclick="loadSolicitudes()" style="width:100%;">🔍 Buscar</button>
+            </div>
+        </div>
+
+        <div class="actions">
+            <div>
+                <span style="color:#6b7280; font-size:13px;">Resultados: <strong id="totalCount">0</strong></span>
+            </div>
+            <div class="toolbar-right">
+                {% if session_role == 'admin' %}
+                <a href="/admin/controles" class="btn-secondary" style="text-decoration:none;">⚙️ Administrar Catálogo</a>
+                {% endif %}
+                <a href="/solicitudes-usuarios/nueva" class="btn-primary">+ Diligenciar Solicitud</a>
+            </div>
+        </div>
+
+        <div id="tableContainer">
+            <div class="empty">⏳ Cargando…</div>
+        </div>
+    </div>
+
+    <script>
+    const SESSION_ROLE = "{{ session_role }}";
+
+    async function loadSolicitudes() {
+        const numero = document.getElementById('f-numero').value.trim();
+        const q = document.getElementById('f-q').value.trim();
+        const estado = document.getElementById('f-estado').value;
+        const anulado = document.getElementById('f-anulado').value;
+        const todoEl = document.getElementById('f-todo');
+        const todo = todoEl ? todoEl.value : '0';
+
+        const params = new URLSearchParams();
+        if (numero) params.set('numero', numero);
+        if (q) params.set('q', q);
+        if (estado) params.set('estado', estado);
+        if (anulado === '1') params.set('visualiza_anulado', '1');
+        if (todo === '1') params.set('visualiza_todo', '1');
+
+        document.getElementById('tableContainer').innerHTML = '<div class="empty">⏳ Cargando…</div>';
+
+        try {
+            const r = await fetch('/api/solicitudes-usuarios?' + params.toString());
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error || 'Error al cargar');
+            renderEstados(data.estados);
+            renderTable(data.solicitudes);
+        } catch (e) {
+            document.getElementById('tableContainer').innerHTML = '<div class="empty" style="color:#dc2626;">❌ ' + e.message + '</div>';
+        }
+    }
+
+    let _estadosLoaded = false;
+    function renderEstados(estados) {
+        if (_estadosLoaded) return;
+        const sel = document.getElementById('f-estado');
+        estados.forEach(e => {
+            const opt = document.createElement('option');
+            opt.value = e.code;
+            opt.textContent = e.label;
+            sel.appendChild(opt);
+        });
+        _estadosLoaded = true;
+    }
+
+    function badgeFor(estado, anulado) {
+        if (anulado) return 'badge-anulado';
+        if (estado === 'CERRADO') return 'badge-closed';
+        if (estado === 'SOLICITUD_EN_TRAMITE') return 'badge-tramite';
+        if (estado === 'APROBADO_POR_GERENTE_DE_TI') return 'badge-approved';
+        if (estado.startsWith('DEVUELTO_')) return 'badge-returned';
+        if (estado.startsWith('RECHAZADO_')) return 'badge-rejected';
+        return 'badge-pending';
+    }
+
+    function esc(s) {
+        if (s == null) return '';
+        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    function renderTable(solicitudes) {
+        document.getElementById('totalCount').textContent = solicitudes.length;
+        if (solicitudes.length === 0) {
+            document.getElementById('tableContainer').innerHTML =
+                '<div class="empty">Sin solicitudes con estos filtros. <br><br>Diligenciá la primera con el botón de arriba.</div>';
+            return;
+        }
+        let html = `
+        <table>
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Tercero</th>
+                    <th>Documento</th>
+                    <th>Cargo</th>
+                    <th>Centro Costo</th>
+                    <th>Tipo</th>
+                    <th>Estado</th>
+                    <th>Creado por</th>
+                    <th>Fecha</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>`;
+        solicitudes.forEach(s => {
+            const fecha = s.created_at ? new Date(s.created_at).toLocaleDateString('es-CO') + ' ' + new Date(s.created_at).toLocaleTimeString('es-CO', {hour:'2-digit', minute:'2-digit'}) : '—';
+            html += `
+                <tr>
+                    <td><strong>${esc(s.codigo)}</strong></td>
+                    <td>${esc(s.nombre)}</td>
+                    <td>${esc(s.documento)}</td>
+                    <td>${esc(s.cargo || '—')}</td>
+                    <td>${esc(s.centro_costo || '—')}</td>
+                    <td><span style="font-size:11px; padding:2px 6px; background:#eff6ff; color:#1e40af; border-radius:4px;">${esc(s.tipo_solicitud)}</span></td>
+                    <td><span class="badge ${badgeFor(s.estado, s.anulado)}">${esc(s.estado_label)}</span></td>
+                    <td>${esc(s.creator_name || '—')}</td>
+                    <td style="font-size:12px; color:#6b7280;">${fecha}</td>
+                    <td>
+                        <a href="/solicitudes-usuarios/${s.id}" style="color:#7c3aed; text-decoration:none; font-weight:600; font-size:13px;">👁 Ver</a>
+                    </td>
+                </tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('tableContainer').innerHTML = html;
+    }
+
+    // Enter en filtros dispara búsqueda
+    ['f-numero','f-q'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') loadSolicitudes(); });
+    });
+
+    loadSolicitudes();
+    </script>
+</body>
+</html>

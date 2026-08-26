@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Solicitud - DeskEli</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Segoe UI',Tahoma,sans-serif; background:#f5f7fa; }
+        .header {
+            background: linear-gradient(135deg,#7c3aed 0%,#5b21b6 100%);
+            color:white; padding:18px 24px;
+            display:flex; align-items:center; justify-content:space-between;
+        }
+        .header h1 { font-size:22px; }
+        .header a { color:white; text-decoration:none; padding:8px 14px; background:rgba(255,255,255,0.15); border-radius:6px; font-size:13px; }
+        .container { max-width: min(1400px, 96vw); margin: 20px auto; padding: 0 20px; }
+        .card { background:white; padding:22px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.06); margin-bottom:18px; }
+        .section-title { color:#1e3a8a; font-size:15px; font-weight:800; margin-bottom:12px; padding-bottom:6px; border-bottom:2px solid #ede9fe; display:flex; align-items:center; gap:8px; }
+        .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px 22px; }
+        .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px 22px; }
+        .field-ro { display:flex; flex-direction:column; }
+        .field-ro label { font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:0.3px; font-weight:700; margin-bottom:3px; }
+        .field-ro .val { font-size:14px; color:#111827; padding:6px 10px; background:#f9fafb; border-radius:4px; border:1px solid #e5e7eb; min-height:32px; }
+        .badge { display:inline-block; padding:4px 12px; border-radius:14px; font-size:12px; font-weight:800; }
+        .badge-pending { background:#fef3c7; color:#92400e; }
+        .badge-approved { background:#d1fae5; color:#065f46; }
+        .badge-rejected { background:#fee2e2; color:#991b1b; }
+        .badge-returned { background:#dbeafe; color:#1e40af; }
+        .badge-closed { background:#e5e7eb; color:#374151; }
+        .badge-tramite { background:#c7d2fe; color:#4338ca; }
+        .badge-anulado { background:#f3f4f6; color:#6b7280; }
+        .btn { padding:10px 18px; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:13px; margin-right:6px; text-decoration:none; display:inline-block; }
+        .btn-approve { background:#16a34a; color:white; }
+        .btn-return { background:#f59e0b; color:white; }
+        .btn-reject { background:#dc2626; color:white; }
+        .btn-annul { background:#6b7280; color:white; }
+        .btn-resend { background:#7c3aed; color:white; }
+        .btn-tramite { background:#4338ca; color:white; }
+        .btn-close { background:#111827; color:white; }
+        .btn:hover { opacity:0.9; }
+        .btn:disabled { opacity:0.5; cursor:not-allowed; }
+        .action-bar { padding:16px; background:#faf5ff; border:2px solid #ede9fe; border-radius:8px; margin-bottom:18px; }
+        table.controles { width:100%; border-collapse:collapse; font-size:13px; margin-top:8px; }
+        table.controles thead { background:#1e3a8a; color:white; }
+        table.controles th, table.controles td { padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:left; }
+        table.controles tfoot td { background:#f9fafb; font-weight:800; }
+        .hist-timeline { position:relative; padding-left:24px; }
+        .hist-timeline::before { content:''; position:absolute; left:8px; top:0; bottom:0; width:2px; background:#e5e7eb; }
+        .hist-item { position:relative; margin-bottom:14px; padding:10px 14px; background:#f9fafb; border-radius:6px; }
+        .hist-item::before { content:''; position:absolute; left:-20px; top:14px; width:12px; height:12px; border-radius:50%; background:#7c3aed; }
+        .hist-item .hist-header { font-size:12px; color:#6b7280; margin-bottom:4px; }
+        .hist-item .hist-desc { font-size:13px; color:#111827; }
+        .hist-item .hist-obs { font-size:12px; color:#374151; margin-top:4px; font-style:italic; padding:4px 8px; background:white; border-left:3px solid #7c3aed; border-radius:2px; }
+        .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,0.5); display:none; align-items:center; justify-content:center; z-index:1000; }
+        .modal { background:white; padding:24px; border-radius:10px; width:90%; max-width:500px; }
+        .modal h3 { margin-bottom:12px; }
+        .modal textarea { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:6px; min-height:100px; font-family:inherit; margin:10px 0; }
+        .toast { position:fixed; top:20px; right:20px; padding:14px 20px; border-radius:8px; color:white; font-weight:700; z-index:2000; box-shadow:0 4px 12px rgba(0,0,0,0.2); }
+        .toast.ok { background:#16a34a; }
+        .toast.err { background:#dc2626; }
+    </style>
+    <script src="/static/js/session_guard.js"></script>
+</head>
+<body>
+    <div class="header">
+        <h1 id="hdrTitle">📋 Solicitud</h1>
+        <a href="/solicitudes-usuarios">← Volver al listado</a>
+    </div>
+
+    <div class="container" id="loadingContainer">
+        <div class="card" style="text-align:center; padding:60px;">⏳ Cargando…</div>
+    </div>
+
+    <div class="container" id="mainContainer" style="display:none;">
+        <!-- Cabecera con estado -->
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                <div>
+                    <div style="font-size:11px; color:#6b7280; text-transform:uppercase;">Código</div>
+                    <div style="font-size:22px; font-weight:800; color:#1e3a8a;" id="codigo">—</div>
+                    <div style="font-size:13px; color:#6b7280; margin-top:4px;">Creada por <strong id="creator">—</strong> el <span id="fechaCreada">—</span></div>
+                </div>
+                <div>
+                    <div style="font-size:11px; color:#6b7280; text-transform:uppercase;">Estado actual</div>
+                    <div id="estadoBadge" style="margin-top:6px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Acciones -->
+        <div id="actionBar" class="action-bar" style="display:none;">
+            <div style="font-size:13px; font-weight:700; margin-bottom:10px; color:#5b21b6;">🎯 Acciones disponibles para vos</div>
+            <div id="actionButtons"></div>
+        </div>
+
+        <!-- Datos del empleado -->
+        <div class="card">
+            <div class="section-title">👤 Datos del empleado</div>
+            <div class="grid-3">
+                <div class="field-ro"><label>Tipo</label><div class="val" id="tipo">—</div></div>
+                <div class="field-ro"><label>Unidad de negocio</label><div class="val" id="unidad_negocio">—</div></div>
+                <div class="field-ro"><label>Documento</label><div class="val" id="documento">—</div></div>
+                <div class="field-ro"><label>Nombre</label><div class="val" id="nombre">—</div></div>
+                <div class="field-ro"><label>Cargo</label><div class="val" id="cargo">—</div></div>
+                <div class="field-ro"><label>Número de contacto</label><div class="val" id="numero_contacto">—</div></div>
+                <div class="field-ro"><label>Ubicación</label><div class="val" id="ubicacion">—</div></div>
+                <div class="field-ro"><label>Centro de costo</label><div class="val" id="centro_costo">—</div></div>
+                <div class="field-ro"><label>Tipo de contrato</label><div class="val" id="tipo_contrato">—</div></div>
+                <div class="field-ro" id="fldFechaIngreso" style="display:none;"><label>Fecha de ingreso</label><div class="val" id="fecha_ingreso">—</div></div>
+                <div class="field-ro" id="fldReemplazo" style="display:none;"><label>¿Es reemplazo?</label><div class="val" id="es_reemplazo">—</div></div>
+                <div class="field-ro" id="fldNombreReempl" style="display:none;"><label>Nombre a reemplazar</label><div class="val" id="nombre_reemplazo">—</div></div>
+                <div class="field-ro" id="fldUsuarioRed" style="display:none;"><label>Usuario de red</label><div class="val" id="usuario_red">—</div></div>
+                <div class="field-ro" id="fldCasoExterno" style="display:none;"><label>Caso externo</label><div class="val" id="caso_externo">—</div></div>
+            </div>
+        </div>
+
+        <!-- Aprobadores -->
+        <div class="card">
+            <div class="section-title">✅ Cadena de aprobación</div>
+            <div class="grid-2">
+                <div class="field-ro"><label>1. Jefe Inmediato</label><div class="val" id="jefe_inmediato">—</div></div>
+                <div class="field-ro"><label>2. Gerente de Área</label><div class="val" id="gerente_area">—</div></div>
+                <div class="field-ro"><label>3. Analista TI</label><div class="val" id="analista_ti">—</div></div>
+                <div class="field-ro"><label>4. Gerente TI</label><div class="val" id="gerente_ti">—</div></div>
+            </div>
+        </div>
+
+        <!-- Justificación -->
+        <div class="card">
+            <div class="section-title">📝 Justificación</div>
+            <div id="justificacion" style="white-space:pre-wrap; font-size:14px; color:#111827; padding:12px; background:#f9fafb; border-radius:6px; border-left:4px solid #7c3aed;">—</div>
+        </div>
+
+        <!-- Controles solicitados -->
+        <div class="card">
+            <div class="section-title">📦 Controles solicitados</div>
+            <table class="controles">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Nombre control</th>
+                        <th>Descripción / Detalle</th>
+                        <th>Usuario Espejo</th>
+                        <th style="text-align:right;">Costo</th>
+                    </tr>
+                </thead>
+                <tbody id="controlesTbody"></tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="4" style="text-align:right;">Total:</td>
+                        <td style="text-align:right;" id="costoTotal">$0.00</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- Historial -->
+        <div class="card">
+            <div class="section-title">📜 Historial de aprobaciones</div>
+            <div class="hist-timeline" id="historial"></div>
+        </div>
+    </div>
+
+    <!-- Modal para observación -->
+    <div class="modal-bg" id="modalObs">
+        <div class="modal">
+            <h3 id="modalTitle">Observación</h3>
+            <textarea id="modalObsText" placeholder="Escribe la observación (obligatoria para devolver/rechazar)"></textarea>
+            <div style="display:flex; justify-content:flex-end; gap:8px;">
+                <button class="btn" style="background:#e5e7eb; color:#374151;" onclick="closeModal()">Cancelar</button>
+                <button class="btn" id="modalConfirmBtn" style="background:#7c3aed; color:white;" onclick="confirmModal()">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    const SOLICITUD_ID = {{ solicitud_id }};
+    const CURRENT_USER_ID = {{ current_user_id }};
+    const CURRENT_ROLE = "{{ current_role }}";
+    let _solicitud = null;
+    let _pendingAction = null;
+
+    function esc(s) { return s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    function badgeClass(estado, anulado) {
+        if (anulado) return 'badge-anulado';
+        if (estado === 'CERRADO') return 'badge-closed';
+        if (estado === 'SOLICITUD_EN_TRAMITE') return 'badge-tramite';
+        if (estado === 'APROBADO_POR_GERENTE_DE_TI') return 'badge-approved';
+        if (estado.startsWith('DEVUELTO_')) return 'badge-returned';
+        if (estado.startsWith('RECHAZADO_')) return 'badge-rejected';
+        return 'badge-pending';
+    }
+
+    function toast(msg, ok=true) {
+        const el = document.createElement('div');
+        el.className = 'toast ' + (ok ? 'ok' : 'err');
+        el.textContent = msg;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 3500);
+    }
+
+    async function loadSolicitud() {
+        try {
+            const r = await fetch(`/api/solicitudes-usuarios/${SOLICITUD_ID}`);
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error);
+            _solicitud = data.solicitud;
+            render();
+            document.getElementById('loadingContainer').style.display = 'none';
+            document.getElementById('mainContainer').style.display = 'block';
+            if (new URLSearchParams(location.search).get('ok') === '1') {
+                toast('✓ Solicitud registrada correctamente', true);
+                history.replaceState(null, '', location.pathname);
+            }
+        } catch (e) {
+            document.getElementById('loadingContainer').innerHTML =
+                `<div class="card" style="text-align:center; padding:60px; color:#dc2626;">❌ ${esc(e.message)}</div>`;
+        }
+    }
+
+    function render() {
+        const s = _solicitud;
+        document.getElementById('codigo').textContent = s.codigo;
+        document.getElementById('hdrTitle').textContent = `📋 ${s.codigo}`;
+        document.getElementById('creator').textContent = s.creator ? s.creator.name : '—';
+        document.getElementById('fechaCreada').textContent = s.created_at ? new Date(s.created_at).toLocaleString('es-CO') : '—';
+        document.getElementById('estadoBadge').innerHTML = `<span class="badge ${badgeClass(s.estado, s.anulado)}">${esc(s.anulado ? 'ANULADA' : s.estado_label)}</span>`;
+
+        // Datos empleado
+        document.getElementById('tipo').textContent = s.tipo_solicitud;
+        document.getElementById('unidad_negocio').textContent = s.unidad_negocio || '—';
+        document.getElementById('documento').textContent = s.documento;
+        document.getElementById('nombre').textContent = s.nombre;
+        document.getElementById('cargo').textContent = s.cargo || '—';
+        document.getElementById('numero_contacto').textContent = s.numero_contacto || '—';
+        document.getElementById('ubicacion').textContent = s.ubicacion || '—';
+        document.getElementById('centro_costo').textContent = s.centro_costo || '—';
+        document.getElementById('tipo_contrato').textContent = s.tipo_contrato || '—';
+
+        if (s.tipo_solicitud === 'INGRESO') {
+            document.getElementById('fldFechaIngreso').style.display = '';
+            document.getElementById('fecha_ingreso').textContent = s.fecha_ingreso || '—';
+            document.getElementById('fldReemplazo').style.display = '';
+            document.getElementById('es_reemplazo').textContent = s.es_reemplazo === true ? 'Sí' : (s.es_reemplazo === false ? 'No' : '—');
+            if (s.es_reemplazo) {
+                document.getElementById('fldNombreReempl').style.display = '';
+                document.getElementById('nombre_reemplazo').textContent = s.nombre_reemplazo || '—';
+            }
+        } else if (s.usuario_red) {
+            document.getElementById('fldUsuarioRed').style.display = '';
+            document.getElementById('usuario_red').textContent = s.usuario_red;
+        }
+        if (s.caso_externo) {
+            document.getElementById('fldCasoExterno').style.display = '';
+            document.getElementById('caso_externo').textContent = s.caso_externo;
+        }
+
+        // Aprobadores
+        const fmt = u => u ? `${esc(u.name)} <span style="color:#6b7280; font-size:12px;">(${esc(u.email)})</span>` : '—';
+        document.getElementById('jefe_inmediato').innerHTML = fmt(s.jefe_inmediato);
+        document.getElementById('gerente_area').innerHTML = fmt(s.gerente_area);
+        document.getElementById('analista_ti').innerHTML = fmt(s.analista_ti);
+        document.getElementById('gerente_ti').innerHTML = fmt(s.gerente_ti);
+
+        // Justificación
+        document.getElementById('justificacion').textContent = s.justificacion;
+
+        // Controles
+        const ctlRows = s.controles.map((c, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td><strong>${esc(c.control_name)}</strong></td>
+                <td>${esc(c.descripcion_detalle || '—')}</td>
+                <td>${esc(c.usuario_espejo || (c.needs_espejo ? '⚠ Falta' : '—'))}</td>
+                <td style="text-align:right;">${c.costo != null ? '$' + c.costo.toFixed(2) : '—'}</td>
+            </tr>
+        `).join('');
+        document.getElementById('controlesTbody').innerHTML = ctlRows || '<tr><td colspan="5" style="text-align:center; padding:20px;">Sin controles</td></tr>';
+        document.getElementById('costoTotal').textContent = '$' + (s.costo_total || 0).toFixed(2);
+
+        // Historial
+        const hist = s.historial.map(h => `
+            <div class="hist-item">
+                <div class="hist-header">
+                    ${h.created_at ? new Date(h.created_at).toLocaleString('es-CO') : '—'} · ${esc(h.aprobador ? h.aprobador.name : '—')} · <em>${esc(h.accion)}</em>
+                </div>
+                <div class="hist-desc">
+                    ${esc(h.estado_anterior_label || '(inicio)')} → <strong>${esc(h.estado_nuevo_label)}</strong>
+                </div>
+                ${h.observacion ? `<div class="hist-obs">${esc(h.observacion)}</div>` : ''}
+            </div>
+        `).join('');
+        document.getElementById('historial').innerHTML = hist || '<div style="color:#6b7280;">Sin registros aún.</div>';
+
+        // Acciones
+        renderActions();
+    }
+
+    function renderActions() {
+        const s = _solicitud;
+        const box = document.getElementById('actionButtons');
+        const bar = document.getElementById('actionBar');
+        const buttons = [];
+
+        const isResponsable = s.responsable_actual_id === CURRENT_USER_ID || CURRENT_ROLE === 'admin';
+        const isCreator = s.creator && s.creator.id === CURRENT_USER_ID;
+        const isFinal = ['CERRADO', 'ANULADO', 'RECHAZADO_POR_JEFE_INMEDIATO', 'RECHAZADO_POR_GERENTE_DE_AREA',
+                         'RECHAZADO_POR_ANALISTA_TI', 'RECHAZADO_POR_GERENTE_DE_TI'].includes(s.estado);
+        const isPending = s.estado.startsWith('PENDIENTE_');
+        const isReturned = s.estado.startsWith('DEVUELTO_');
+
+        if (isFinal || s.anulado) {
+            bar.style.display = 'none';
+            return;
+        }
+
+        // Aprobador puede aprobar/devolver/rechazar cuando está PENDIENTE en su nivel
+        if (isPending && isResponsable) {
+            buttons.push(`<button class="btn btn-approve" onclick="doAction('aprobar')">✓ Aprobar</button>`);
+            buttons.push(`<button class="btn btn-return" onclick="askObs('devolver', 'Devolver al solicitante')">↩ Devolver</button>`);
+            buttons.push(`<button class="btn btn-reject" onclick="askObs('rechazar', 'Rechazar solicitud')">✕ Rechazar</button>`);
+        }
+        // Creador puede reenviar cuando está DEVUELTO
+        if (isReturned && (isCreator || CURRENT_ROLE === 'admin')) {
+            buttons.push(`<button class="btn btn-resend" onclick="doAction('reenviar')">↪ Reenviar tras corrección</button>`);
+        }
+        // Aprobado por Gerente TI: admin/técnico marca en trámite o cierra
+        if (s.estado === 'APROBADO_POR_GERENTE_DE_TI' && (CURRENT_ROLE === 'admin' || CURRENT_ROLE === 'technician')) {
+            buttons.push(`<button class="btn btn-tramite" onclick="askCasoExterno()">🎫 Marcar en trámite</button>`);
+            buttons.push(`<button class="btn btn-close" onclick="doAction('cerrar')">🔒 Cerrar</button>`);
+        }
+        if (s.estado === 'SOLICITUD_EN_TRAMITE' && (CURRENT_ROLE === 'admin' || CURRENT_ROLE === 'technician')) {
+            buttons.push(`<button class="btn btn-close" onclick="doAction('cerrar')">🔒 Cerrar</button>`);
+        }
+        // Anular: creador o admin, cualquier estado no-final
+        if (!isFinal && (isCreator || CURRENT_ROLE === 'admin')) {
+            buttons.push(`<button class="btn btn-annul" onclick="askObs('anular', 'Anular solicitud')">🚫 Anular</button>`);
+        }
+
+        if (buttons.length === 0) {
+            bar.style.display = 'none';
+        } else {
+            bar.style.display = 'block';
+            box.innerHTML = buttons.join('');
+        }
+    }
+
+    async function doAction(action, extraPayload={}) {
+        try {
+            const r = await fetch(`/api/solicitudes-usuarios/${SOLICITUD_ID}/${action}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(extraPayload)
+            });
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error);
+            toast('✓ Acción realizada', true);
+            await loadSolicitud();
+        } catch (e) {
+            toast('❌ ' + e.message, false);
+        }
+    }
+
+    function askObs(action, title) {
+        _pendingAction = action;
+        document.getElementById('modalTitle').textContent = title;
+        document.getElementById('modalObsText').value = '';
+        document.getElementById('modalObs').style.display = 'flex';
+    }
+
+    function closeModal() { document.getElementById('modalObs').style.display = 'none'; _pendingAction = null; }
+
+    async function confirmModal() {
+        const obs = document.getElementById('modalObsText').value.trim();
+        if (!obs) { alert('La observación es obligatoria.'); return; }
+        const action = _pendingAction;
+        closeModal();
+        await doAction(action, {observacion: obs});
+    }
+
+    async function askCasoExterno() {
+        const caso = prompt('Código del caso externo (opcional, ej: ARANDA-12345):');
+        await doAction('marcar-tramite', {caso_externo: caso || null});
+    }
+
+    loadSolicitud();
+    </script>
+</body>
+</html>

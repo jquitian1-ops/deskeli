@@ -1103,7 +1103,19 @@
 <script>
     const sections = ['bienvenida','login','dashboard','crear','prioridad','adjuntos','bot','ver-tickets','detalle','estados','trucos','faq','quiz'];
 
+    // Modo print/all: si la URL tiene ?print=1 o ?all=1, mostrar TODAS las secciones (para PDF)
+    if (window.location.search.match(/[?&](print|all)=1/)) {
+        document.querySelectorAll('section').forEach(s => {
+            s.classList.add('active');
+            s.style.display = 'block';
+            s.style.pageBreakBefore = 'always';
+        });
+        const sb = document.querySelector('.sidebar'); if (sb) sb.style.display = 'none';
+        const pg = document.querySelector('.progress'); if (pg) pg.style.display = 'none';
+    }
+
     function showSection(id) {
+        if (window.location.search.match(/[?&](print|all)=1/)) return;
         // Hide all
         document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
         // Show target

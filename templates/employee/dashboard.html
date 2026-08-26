@@ -958,7 +958,7 @@
 
             const title = document.createElement('div');
             title.className = 'action-banner-title';
-            const isKB = (data.source === 'kb');
+            const isKB = (data.source === 'kb' || data.source === 'article');
             title.textContent = isKB
                 ? '💡 ¿Esta respuesta solucionó tu problema?'
                 : '🤔 ¿La respuesta te resolvió el problema?';

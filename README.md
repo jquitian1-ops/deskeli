@@ -177,7 +177,6 @@ proyecto_funcionando/
 │   │   ├── tickets.html · orchestrator.html
 │   │   ├── config.html · config_new.html  # 13 secciones config
 │   │   ├── approvals.html            # Workflow builder
-│   │   ├── servers.html              # Monitoreo + uptime
 │   │   ├── sessions.html             # Sesiones activas + kick
 │   │   ├── time_tracking.html · csat.html · kb.html · themes.html
 │   ├── technician/
