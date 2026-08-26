@@ -1199,7 +1199,8 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
             </div>
 
             <!-- PANEL ELI -->
-            <div id="techPanelEli" style="flex:1;display:flex;flex-direction:column;">
+            <!-- min-height:0 es CRÍTICO para que .chat-content-tech pueda hacer overflow-y:auto dentro del flexbox anidado -->
+            <div id="techPanelEli" style="flex:1 1 auto;min-height:0;display:flex;flex-direction:column;">
                 <div id="techEliMessages" class="chat-content-tech">
                     <div style="text-align:center;color:#666;padding:30px 10px;">
                         <img src="/static/eli.png" style="width:60px;height:60px;border-radius:50%;margin-bottom:8px;" onerror="this.style.display='none'">
@@ -1214,7 +1215,7 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
             </div>
 
             <!-- PANEL ESPECIALISTAS -->
-            <div id="techPanelSpec" style="flex:1;display:none;flex-direction:column;">
+            <div id="techPanelSpec" style="flex:1 1 auto;min-height:0;display:none;flex-direction:column;">
                 <div class="chat-spec-selector">
                     <label style="font-size:11px;color:#6b7280;font-weight:600;display:block;margin-bottom:4px;">💬 Conversación privada con:</label>
                     <select id="techSpecSelect" onchange="onTechSpecChange()" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;background:white;cursor:pointer;">
