@@ -1867,6 +1867,21 @@ def index():
 
     return redirect(url_for('login'))
 
+
+@app.route('/favicon.ico')
+def favicon():
+    """Sirve el avatar de Eli como favicon global (aparece en la pestaña
+    del navegador para cualquier página del sitio). Sirve el PNG con
+    Content-Type image/png para que browsers modernos lo acepten sin
+    problemas aunque la URL termine en .ico."""
+    from flask import send_from_directory
+    return send_from_directory(
+        os.path.join(app.root_path, 'static'),
+        'eli.png',
+        mimetype='image/png',
+        max_age=86400  # cache 24h
+    )
+
 @app.route('/bot')
 def bot_chat():
     """Interfaz del bot de soporte inteligente"""
