@@ -1455,6 +1455,31 @@ class SolicitudAdjunto(db.Model):
     uploaded_by = db.relationship('User', foreign_keys=[uploaded_by_id])
 
 
+class InfAprobador(db.Model):
+    """Catálogo administrable de aprobadores (Gerentes de Área) por centro
+    de costos / área. Se configura desde /admin/config → tab "Aprobadores".
+
+    Uso: cuando se diligencia una solicitud, el sistema puede sugerir el
+    Gerente de Área que corresponde según el Centro de Costos / Área del
+    empleado, usando este catálogo como fuente de verdad.
+    """
+    __tablename__ = 'inf_aprobadores'
+    id = db.Column(db.Integer, primary_key=True)
+    company = db.Column(db.String(20), nullable=False, index=True)
+    gerente_area = db.Column(db.String(200), nullable=False)
+    centro_costos = db.Column(db.String(160), nullable=False, index=True)
+    area = db.Column(db.String(160), nullable=False, index=True)
+    correo_gerente_area = db.Column(db.String(200), nullable=False)
+    is_active = db.Column(db.Boolean, default=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    __table_args__ = (
+        db.Index('ix_inf_aprobadores_company_cc', 'company', 'centro_costos'),
+        db.Index('ix_inf_aprobadores_company_area', 'company', 'area'),
+    )
+
+
 def _next_solicitud_codigo(company):
     """Genera el próximo consecutivo por empresa: SOL-ELIOT-00001."""
     prefix = f'SOL-{(company or "").upper()}-'
@@ -23171,6 +23196,116 @@ def api_solicitudes_mis_tickets_soporte():
             for t in tickets
         ]
     })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CRUD Inf. Aprobadores (Gerentes de Área por Centro de Costos)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _serialize_inf_aprobador(a):
+    return {
+        'id': a.id,
+        'company': a.company,
+        'gerente_area': a.gerente_area,
+        'centro_costos': a.centro_costos,
+        'area': a.area,
+        'correo_gerente_area': a.correo_gerente_area,
+        'is_active': bool(a.is_active),
+        'created_at': a.created_at.isoformat() if a.created_at else None,
+        'updated_at': a.updated_at.isoformat() if a.updated_at else None,
+    }
+
+
+@app.route('/api/admin/inf-aprobadores', methods=['GET'])
+def api_inf_aprobadores_list():
+    """Lista los aprobadores configurados. Admin ve los de su empresa (o de
+    todo el scope si es master)."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    include_inactive = request.args.get('include_inactive') == '1'
+    scope = admin_companies_scope()
+    q = InfAprobador.query.filter(InfAprobador.company.in_(scope))
+    if not include_inactive:
+        q = q.filter(InfAprobador.is_active == True)
+    aprobadores = q.order_by(InfAprobador.area, InfAprobador.centro_costos).all()
+    return jsonify({'success': True, 'aprobadores': [_serialize_inf_aprobador(a) for a in aprobadores]})
+
+
+@app.route('/api/admin/inf-aprobadores', methods=['POST'])
+def api_inf_aprobadores_create():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    data = request.get_json() or {}
+    gerente_area = (data.get('gerente_area') or '').strip()
+    centro_costos = (data.get('centro_costos') or '').strip()
+    area = (data.get('area') or '').strip()
+    correo = (data.get('correo_gerente_area') or '').strip().lower()
+    company = (data.get('company') or session.get('company') or '').strip()
+    if not (gerente_area and centro_costos and area and correo):
+        return jsonify({'success': False, 'error': 'Todos los campos son obligatorios'}), 400
+    if '@' not in correo:
+        return jsonify({'success': False, 'error': 'Correo inválido'}), 400
+    if company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Empresa fuera de scope'}), 403
+    a = InfAprobador(
+        company=company,
+        gerente_area=gerente_area,
+        centro_costos=centro_costos,
+        area=area,
+        correo_gerente_area=correo,
+        is_active=True,
+    )
+    db.session.add(a)
+    db.session.commit()
+    log_audit('inf_aprobador_created', session['user_id'], 'inf_aprobador', a.id,
+              f'Aprobador "{gerente_area}" ({area}/{centro_costos}) creado')
+    return jsonify({'success': True, 'aprobador': _serialize_inf_aprobador(a)}), 201
+
+
+@app.route('/api/admin/inf-aprobadores/<int:aprobador_id>', methods=['PUT'])
+def api_inf_aprobadores_update(aprobador_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    a = InfAprobador.query.get(aprobador_id)
+    if not a or a.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'No encontrado'}), 404
+    data = request.get_json() or {}
+    if 'gerente_area' in data:
+        v = (data['gerente_area'] or '').strip()
+        if not v: return jsonify({'success': False, 'error': 'gerente_area vacío'}), 400
+        a.gerente_area = v
+    if 'centro_costos' in data:
+        v = (data['centro_costos'] or '').strip()
+        if not v: return jsonify({'success': False, 'error': 'centro_costos vacío'}), 400
+        a.centro_costos = v
+    if 'area' in data:
+        v = (data['area'] or '').strip()
+        if not v: return jsonify({'success': False, 'error': 'area vacía'}), 400
+        a.area = v
+    if 'correo_gerente_area' in data:
+        v = (data['correo_gerente_area'] or '').strip().lower()
+        if '@' not in v: return jsonify({'success': False, 'error': 'Correo inválido'}), 400
+        a.correo_gerente_area = v
+    if 'is_active' in data:
+        a.is_active = bool(data['is_active'])
+    db.session.commit()
+    log_audit('inf_aprobador_updated', session['user_id'], 'inf_aprobador', a.id,
+              f'Aprobador {a.id} modificado')
+    return jsonify({'success': True, 'aprobador': _serialize_inf_aprobador(a)})
+
+
+@app.route('/api/admin/inf-aprobadores/<int:aprobador_id>', methods=['DELETE'])
+def api_inf_aprobadores_delete(aprobador_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    a = InfAprobador.query.get(aprobador_id)
+    if not a or a.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'No encontrado'}), 404
+    db.session.delete(a)
+    db.session.commit()
+    log_audit('inf_aprobador_deleted', session['user_id'], 'inf_aprobador', aprobador_id,
+              f'Aprobador {aprobador_id} eliminado')
+    return jsonify({'success': True})
 
 
 # ─────────────────────────────────────────────────────────────────────────────

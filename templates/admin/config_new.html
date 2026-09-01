@@ -491,6 +491,7 @@
                 <a class="config-tab" data-tab="microsoft"><span class="icon">🔐</span>Microsoft Entra ID</a>
                 <a class="config-tab" data-tab="api-keys"><span class="icon">🔌</span>API / Integraciones</a>
                 <a class="config-tab" data-tab="guiones"><span class="icon">📜</span>Guiones</a>
+                <a class="config-tab" data-tab="inf-aprobadores"><span class="icon">✅</span>Inf. Aprobadores</a>
                 <a class="config-tab" data-tab="empresas"><span class="icon">🏢</span>Empresas</a>
                 <a class="config-tab" data-tab="tema"><span class="icon">🌈</span>Tema visual</a>
                 <a class="config-tab" data-tab="bot"><span class="icon">🤖</span>Soluciones Bot</a>
@@ -1581,6 +1582,81 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                 <div class="panel-content" id="panel-tags">
                     <h2 class="config-panel-title">🌐 Tags y Etiquetas</h2>
                     <iframe data-src="/admin/config-old#sec-tags" class="config-iframe" style="display:none;"></iframe>
+                </div>
+
+                <!-- =========== INF. APROBADORES =========== -->
+                <div class="panel-content" id="panel-inf-aprobadores">
+                    <h2 class="config-panel-title">✅ Inf. Aprobadores</h2>
+                    <p style="color:#6b7280; margin-bottom:16px; font-size:13px;">
+                        Catálogo de <strong>Gerentes de Área</strong> por Centro de Costos. Cuando se diligencia una
+                        Solicitud de Creación / Modificación de Usuarios, este catálogo permite identificar al aprobador
+                        de nivel 2 (Gerente de Área) según el Centro de Costos o Área del empleado.
+                    </p>
+
+                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
+                        <input type="text" id="infAprobSearch" placeholder="🔍 Buscar por nombre, área, centro de costos…"
+                               oninput="filterInfAprobadores()"
+                               style="flex:1; min-width:220px; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:13px;">
+                        <label style="font-size:12px; color:#374151;">
+                            <input type="checkbox" id="infAprobIncludeInactive" onchange="loadInfAprobadores()"> Ver inactivos
+                        </label>
+                        <button onclick="openInfAprobModal()"
+                                style="padding:9px 16px; background:#7c3aed; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:700; font-size:13px;">
+                            + Nuevo aprobador
+                        </button>
+                    </div>
+
+                    <div id="infAprobListContainer">
+                        <div style="text-align:center; padding:30px; color:#6b7280;">⏳ Cargando…</div>
+                    </div>
+                </div>
+
+                <!-- Modal Inf. Aprobadores -->
+                <div id="infAprobModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center;">
+                    <div style="background:white; max-width:560px; width:92%; padding:26px; border-radius:12px; max-height:90vh; overflow-y:auto;">
+                        <h3 id="infAprobModalTitle" style="margin:0 0 16px; color:#1f2937;">✅ Nuevo aprobador</h3>
+                        <input type="hidden" id="infAprobId">
+                        <div style="display:grid; gap:14px;">
+                            <label style="display:block;">
+                                <span style="font-size:13px; font-weight:700; color:#374151;">Empresa</span>
+                                <select id="infAprobCompany" style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px; font-size:13px; background:white;">
+                                    <option value="eliot">Eliot</option>
+                                    <option value="pash">Pash</option>
+                                    <option value="primatela">Primatela</option>
+                                </select>
+                            </label>
+                            <label style="display:block;">
+                                <span style="font-size:13px; font-weight:700; color:#374151;">Gerente de Área *</span>
+                                <input id="infAprobGerente" type="text" placeholder="Nombre completo del gerente"
+                                       style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px; font-size:13px;">
+                            </label>
+                            <label style="display:block;">
+                                <span style="font-size:13px; font-weight:700; color:#374151;">Centro de Costos *</span>
+                                <input id="infAprobCC" type="text" placeholder="Ej: CC-1001, PRODUCCION, ADMIN"
+                                       style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px; font-size:13px;">
+                            </label>
+                            <label style="display:block;">
+                                <span style="font-size:13px; font-weight:700; color:#374151;">Área *</span>
+                                <input id="infAprobArea" type="text" placeholder="Ej: Manufactura, Comercial, TI"
+                                       style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px; font-size:13px;">
+                            </label>
+                            <label style="display:block;">
+                                <span style="font-size:13px; font-weight:700; color:#374151;">Correo del Gerente de Área *</span>
+                                <input id="infAprobCorreo" type="email" placeholder="gerente.area@empresa.com"
+                                       style="width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px; font-size:13px;">
+                            </label>
+                            <label id="infAprobActiveLabel" style="display:none; align-items:center; gap:8px; font-size:14px; padding-top:6px;">
+                                <input id="infAprobActive" type="checkbox" checked>
+                                <strong>Activo</strong>
+                            </label>
+                        </div>
+                        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
+                            <button onclick="closeInfAprobModal()"
+                                    style="padding:9px 16px; background:#e5e7eb; border:none; border-radius:6px; cursor:pointer; font-weight:600;">Cancelar</button>
+                            <button onclick="saveInfAprobador()"
+                                    style="padding:9px 16px; background:#7c3aed; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:700;">💾 Guardar</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="panel-content" id="panel-teams">
@@ -5025,6 +5101,164 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tab) tab.addEventListener('click', () => setTimeout(loadGuiones, 100));
     const panel = document.getElementById('panel-guiones');
     if (panel && panel.classList.contains('active')) loadGuiones();
+});
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * INF. APROBADORES — Gerentes de Área por Centro de Costos
+ * ═══════════════════════════════════════════════════════════════════════ */
+let _infAprobadores = [];
+
+function _escInf(s) { return s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function loadInfAprobadores() {
+    try {
+        const inc = document.getElementById('infAprobIncludeInactive').checked ? '?include_inactive=1' : '';
+        const r = await fetch('/api/admin/inf-aprobadores' + inc);
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error || 'Error');
+        _infAprobadores = data.aprobadores || [];
+        renderInfAprobadores();
+    } catch (e) {
+        document.getElementById('infAprobListContainer').innerHTML =
+            `<div style="text-align:center; padding:30px; color:#dc2626;">❌ ${_escInf(e.message)}</div>`;
+    }
+}
+
+function renderInfAprobadores() {
+    const search = (document.getElementById('infAprobSearch').value || '').toLowerCase().trim();
+    const filtered = search
+        ? _infAprobadores.filter(a =>
+            (a.gerente_area || '').toLowerCase().includes(search) ||
+            (a.area || '').toLowerCase().includes(search) ||
+            (a.centro_costos || '').toLowerCase().includes(search) ||
+            (a.correo_gerente_area || '').toLowerCase().includes(search))
+        : _infAprobadores;
+
+    const c = document.getElementById('infAprobListContainer');
+    if (filtered.length === 0) {
+        c.innerHTML = '<div style="text-align:center; padding:40px; color:#6b7280;">Sin aprobadores configurados. Creá el primero con el botón de arriba.</div>';
+        return;
+    }
+    let html = `<table style="width:100%; border-collapse:collapse; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.05); border-radius:6px; overflow:hidden;">
+        <thead>
+            <tr style="background:#f9fafb; text-align:left; font-size:12px; text-transform:uppercase; color:#6b7280;">
+                <th style="padding:10px 12px;">Empresa</th>
+                <th style="padding:10px 12px;">Gerente de Área</th>
+                <th style="padding:10px 12px;">Área</th>
+                <th style="padding:10px 12px;">Centro Costos</th>
+                <th style="padding:10px 12px;">Correo</th>
+                <th style="padding:10px 12px;">Estado</th>
+                <th style="padding:10px 12px; text-align:right;">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>`;
+    filtered.forEach(a => {
+        html += `<tr style="border-top:1px solid #f3f4f6;">
+            <td style="padding:10px 12px; font-size:12px; text-transform:capitalize;">${_escInf(a.company)}</td>
+            <td style="padding:10px 12px; font-weight:600; font-size:13px;">${_escInf(a.gerente_area)}</td>
+            <td style="padding:10px 12px; font-size:13px;">${_escInf(a.area)}</td>
+            <td style="padding:10px 12px; font-size:13px;"><code style="background:#f3f4f6; padding:2px 6px; border-radius:3px; font-size:11px;">${_escInf(a.centro_costos)}</code></td>
+            <td style="padding:10px 12px; font-size:12px; color:#6b7280;">${_escInf(a.correo_gerente_area)}</td>
+            <td style="padding:10px 12px;">${a.is_active
+                ? '<span style="color:#16a34a; font-size:12px; font-weight:700;">● Activo</span>'
+                : '<span style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:700;">Inactivo</span>'}</td>
+            <td style="padding:10px 12px; text-align:right;">
+                <button onclick="editInfAprobador(${a.id})" style="background:#e0e7ff; color:#4338ca; border:none; padding:5px 10px; border-radius:5px; cursor:pointer; font-size:11px; font-weight:700; margin-right:4px;">✏ Editar</button>
+                <button onclick="deleteInfAprobador(${a.id})" style="background:#fee2e2; color:#991b1b; border:none; padding:5px 10px; border-radius:5px; cursor:pointer; font-size:11px; font-weight:700;">🗑 Eliminar</button>
+            </td>
+        </tr>`;
+    });
+    html += '</tbody></table>';
+    c.innerHTML = html;
+}
+
+function filterInfAprobadores() { renderInfAprobadores(); }
+
+function openInfAprobModal(editing=null) {
+    document.getElementById('infAprobId').value = editing || '';
+    document.getElementById('infAprobModalTitle').textContent = editing ? '✏ Editar aprobador' : '✅ Nuevo aprobador';
+    document.getElementById('infAprobActiveLabel').style.display = editing ? 'flex' : 'none';
+    if (editing) {
+        const a = _infAprobadores.find(x => x.id === editing);
+        if (!a) return;
+        document.getElementById('infAprobCompany').value = a.company;
+        document.getElementById('infAprobCompany').disabled = true;
+        document.getElementById('infAprobGerente').value = a.gerente_area;
+        document.getElementById('infAprobCC').value = a.centro_costos;
+        document.getElementById('infAprobArea').value = a.area;
+        document.getElementById('infAprobCorreo').value = a.correo_gerente_area;
+        document.getElementById('infAprobActive').checked = a.is_active;
+    } else {
+        document.getElementById('infAprobCompany').disabled = false;
+        document.getElementById('infAprobCompany').value = '{{ session.company }}';
+        document.getElementById('infAprobGerente').value = '';
+        document.getElementById('infAprobCC').value = '';
+        document.getElementById('infAprobArea').value = '';
+        document.getElementById('infAprobCorreo').value = '';
+        document.getElementById('infAprobActive').checked = true;
+    }
+    document.getElementById('infAprobModal').style.display = 'flex';
+}
+
+function editInfAprobador(id) { openInfAprobModal(id); }
+
+function closeInfAprobModal() { document.getElementById('infAprobModal').style.display = 'none'; }
+
+async function saveInfAprobador() {
+    const id = document.getElementById('infAprobId').value;
+    const payload = {
+        company: document.getElementById('infAprobCompany').value,
+        gerente_area: document.getElementById('infAprobGerente').value.trim(),
+        centro_costos: document.getElementById('infAprobCC').value.trim(),
+        area: document.getElementById('infAprobArea').value.trim(),
+        correo_gerente_area: document.getElementById('infAprobCorreo').value.trim(),
+    };
+    if (id) payload.is_active = document.getElementById('infAprobActive').checked;
+
+    if (!payload.gerente_area || !payload.centro_costos || !payload.area || !payload.correo_gerente_area) {
+        alert('Todos los campos son obligatorios.');
+        return;
+    }
+    if (!payload.correo_gerente_area.includes('@')) {
+        alert('Correo inválido.');
+        return;
+    }
+
+    try {
+        const url = id ? `/api/admin/inf-aprobadores/${id}` : '/api/admin/inf-aprobadores';
+        const method = id ? 'PUT' : 'POST';
+        const r = await fetch(url, {
+            method, headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error || 'Error');
+        closeInfAprobModal();
+        await loadInfAprobadores();
+    } catch (e) {
+        alert('❌ ' + e.message);
+    }
+}
+
+async function deleteInfAprobador(id) {
+    const a = _infAprobadores.find(x => x.id === id);
+    if (!a) return;
+    if (!confirm(`¿Eliminar aprobador "${a.gerente_area}" (${a.area} / ${a.centro_costos})?\n\nEsta acción no se puede deshacer.`)) return;
+    try {
+        const r = await fetch(`/api/admin/inf-aprobadores/${id}`, {method: 'DELETE'});
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error || 'Error');
+        await loadInfAprobadores();
+    } catch (e) {
+        alert('❌ ' + e.message);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const tab = document.querySelector('.config-tab[data-tab="inf-aprobadores"]');
+    if (tab) tab.addEventListener('click', () => setTimeout(loadInfAprobadores, 100));
+    const panel = document.getElementById('panel-inf-aprobadores');
+    if (panel && panel.classList.contains('active')) loadInfAprobadores();
 });
 </script>
 
