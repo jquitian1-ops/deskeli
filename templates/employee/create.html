@@ -508,7 +508,10 @@ function applyEmpTemplate() {
     if (!t) return;
 
     document.getElementById('title').value = t.title_template || '';
-    document.getElementById('description').value = t.description_template || '';
+    // No auto-rellenamos la descripción con description_template: los form_fields
+    // estructurados de la plantilla ya recogen la info. El textarea queda vacío
+    // para que el usuario escriba notas adicionales solo si las necesita.
+    document.getElementById('description').value = '';
     if (t.priority && typeof selectPriority === 'function') {
         selectPriority(t.priority);
     }
