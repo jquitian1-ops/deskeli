@@ -1600,11 +1600,23 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                         <label style="font-size:12px; color:#374151;">
                             <input type="checkbox" id="infAprobIncludeInactive" onchange="loadInfAprobadores()"> Ver inactivos
                         </label>
+                        <a href="/api/admin/inf-aprobadores/template" download
+                           style="padding:9px 14px; background:#0891b2; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:700; font-size:12px; text-decoration:none;"
+                           title="Descarga un Excel con las columnas requeridas y 2 filas de ejemplo">
+                            📥 Plantilla Excel
+                        </a>
+                        <button onclick="document.getElementById('infAprobFileInput').click()"
+                                style="padding:9px 14px; background:#16a34a; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:700; font-size:12px;">
+                            📤 Importar Excel
+                        </button>
+                        <input type="file" id="infAprobFileInput" accept=".xlsx,.xls" style="display:none;" onchange="importInfAprobExcel(event)">
                         <button onclick="openInfAprobModal()"
                                 style="padding:9px 16px; background:#7c3aed; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:700; font-size:13px;">
                             + Nuevo aprobador
                         </button>
                     </div>
+
+                    <div id="infAprobImportResult" style="display:none; margin-bottom:12px;"></div>
 
                     <div id="infAprobListContainer">
                         <div style="text-align:center; padding:30px; color:#6b7280;">⏳ Cargando…</div>
@@ -5251,6 +5263,52 @@ async function deleteInfAprobador(id) {
         await loadInfAprobadores();
     } catch (e) {
         alert('❌ ' + e.message);
+    }
+}
+
+async function importInfAprobExcel(evt) {
+    const file = evt.target.files && evt.target.files[0];
+    evt.target.value = '';  // reset para poder subir el mismo archivo dos veces
+    if (!file) return;
+    if (!/\.(xlsx|xls)$/i.test(file.name)) {
+        alert('El archivo debe ser .xlsx o .xls');
+        return;
+    }
+    const resultDiv = document.getElementById('infAprobImportResult');
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<div style="padding:12px; background:#eff6ff; border-left:4px solid #3b82f6; border-radius:6px; color:#1e40af; font-size:13px;">⏳ Procesando ' + _escInf(file.name) + '…</div>';
+
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+        const r = await fetch('/api/admin/inf-aprobadores/import', {method: 'POST', body: fd});
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error || 'Error al importar');
+
+        // Feedback detallado
+        const created = data.created || 0;
+        const updated = data.updated || 0;
+        const errs = data.errors || [];
+        const errorsHtml = errs.length > 0
+            ? `<details style="margin-top:8px;"><summary style="cursor:pointer; color:#991b1b; font-weight:700;">${errs.length} error(es) — clic para ver</summary>
+                <ul style="margin:6px 0 0 20px; font-size:12px; color:#7c2d12;">${errs.map(e => `<li>${_escInf(e)}</li>`).join('')}</ul></details>`
+            : '';
+        const bg = errs.length > 0 ? '#fef3c7' : '#d1fae5';
+        const border = errs.length > 0 ? '#f59e0b' : '#16a34a';
+        const color = errs.length > 0 ? '#78350f' : '#065f46';
+        resultDiv.innerHTML = `
+            <div style="padding:14px 18px; background:${bg}; border-left:4px solid ${border}; border-radius:6px; color:${color};">
+                <div style="font-weight:800; font-size:14px; margin-bottom:4px;">
+                    ✅ Import terminado
+                </div>
+                <div style="font-size:13px;">
+                    <strong>${created}</strong> creados · <strong>${updated}</strong> actualizados · <strong>${errs.length}</strong> con error
+                </div>
+                ${errorsHtml}
+            </div>`;
+        await loadInfAprobadores();
+    } catch (e) {
+        resultDiv.innerHTML = `<div style="padding:12px; background:#fee2e2; border-left:4px solid #dc2626; border-radius:6px; color:#991b1b; font-size:13px;">❌ ${_escInf(e.message)}</div>`;
     }
 }
 

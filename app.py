@@ -23308,6 +23308,165 @@ def api_inf_aprobadores_delete(aprobador_id):
     return jsonify({'success': True})
 
 
+@app.route('/api/admin/inf-aprobadores/template', methods=['GET'])
+def api_inf_aprobadores_template():
+    """Descarga una plantilla Excel con las columnas + 2 filas de ejemplo."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Aprobadores'
+
+    headers = ['empresa', 'gerente_area', 'centro_costos', 'area', 'correo_gerente_area']
+    ws.append(headers)
+    header_fill = PatternFill(start_color='7C3AED', end_color='7C3AED', fill_type='solid')
+    header_font = Font(bold=True, color='FFFFFF', size=12)
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+    ws.append(['eliot', 'Juan Pérez', 'CC-1001', 'Manufactura', 'juan.perez@eliot.com'])
+    ws.append(['pash', 'María López', 'CC-2001', 'Comercial', 'maria.lopez@pash.com.co'])
+
+    # Ancho de columnas
+    widths = {'A': 12, 'B': 28, 'C': 18, 'D': 18, 'E': 32}
+    for col, w in widths.items():
+        ws.column_dimensions[col].width = w
+    ws.row_dimensions[1].height = 26
+
+    # Hoja de ayuda
+    ws2 = wb.create_sheet('Instrucciones')
+    instrucciones = [
+        ['Campo', 'Obligatorio', 'Descripción'],
+        ['empresa', 'Sí', 'Código de empresa: eliot, pash o primatela (minúsculas)'],
+        ['gerente_area', 'Sí', 'Nombre completo del Gerente de Área'],
+        ['centro_costos', 'Sí', 'Código o nombre del Centro de Costos (ej: CC-1001)'],
+        ['area', 'Sí', 'Área/Departamento (ej: Manufactura, Comercial, TI)'],
+        ['correo_gerente_area', 'Sí', 'Correo electrónico del gerente (debe contener @)'],
+        ['', '', ''],
+        ['Notas', '', ''],
+        ['- Las filas se importan a partir de la fila 2 (fila 1 son los encabezados).', '', ''],
+        ['- Si ya existe un aprobador con la misma (empresa, gerente, área, CC), se actualiza.', '', ''],
+        ['- Filas con campos vacíos o correo inválido se reportan como error pero no bloquean el resto.', '', ''],
+    ]
+    for row in instrucciones:
+        ws2.append(row)
+    for cell in ws2[1]:
+        cell.fill = PatternFill(start_color='E5E7EB', end_color='E5E7EB', fill_type='solid')
+        cell.font = Font(bold=True)
+    ws2.column_dimensions['A'].width = 26
+    ws2.column_dimensions['B'].width = 12
+    ws2.column_dimensions['C'].width = 60
+
+    from io import BytesIO
+    from flask import Response
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return Response(
+        buf.read(),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': 'attachment; filename="plantilla_inf_aprobadores.xlsx"'}
+    )
+
+
+@app.route('/api/admin/inf-aprobadores/import', methods=['POST'])
+def api_inf_aprobadores_import():
+    """Importa aprobadores desde un Excel. Idempotente: actualiza si el
+    (empresa, gerente_area, area, centro_costos) ya existe, si no crea nuevo.
+    Reporta errores por fila sin abortar el proceso."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'Sin archivo'}), 400
+    f = request.files['file']
+    if not f or not f.filename:
+        return jsonify({'success': False, 'error': 'Archivo vacío'}), 400
+    if not f.filename.lower().endswith(('.xlsx', '.xls')):
+        return jsonify({'success': False, 'error': 'Formato inválido. Debe ser .xlsx o .xls'}), 400
+
+    try:
+        from openpyxl import load_workbook
+        wb = load_workbook(f, data_only=True)
+        ws = wb.active
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'No se pudo leer el Excel: {e}'}), 400
+
+    scope = set(admin_companies_scope())
+    created, updated, errors = 0, 0, []
+
+    # Detectar encabezados (fila 1) o asumir orden si no coinciden
+    header_row = [str((c.value or '')).strip().lower() for c in ws[1]]
+    expected = ['empresa', 'gerente_area', 'centro_costos', 'area', 'correo_gerente_area']
+    if all(h in header_row for h in expected):
+        col_idx = {h: header_row.index(h) for h in expected}
+    else:
+        # Asumir orden por defecto
+        col_idx = {h: i for i, h in enumerate(expected)}
+
+    def _cell(row, key):
+        idx = col_idx[key]
+        return str((row[idx].value or '')).strip() if idx < len(row) else ''
+
+    for row_num, row in enumerate(ws.iter_rows(min_row=2), start=2):
+        # Fila totalmente vacía → saltar en silencio
+        if all(c.value is None or str(c.value).strip() == '' for c in row):
+            continue
+        try:
+            company = _cell(row, 'empresa').lower()
+            gerente = _cell(row, 'gerente_area')
+            cc = _cell(row, 'centro_costos')
+            area = _cell(row, 'area')
+            correo = _cell(row, 'correo_gerente_area').lower()
+
+            if not (company and gerente and cc and area and correo):
+                errors.append(f'Fila {row_num}: campo obligatorio vacío')
+                continue
+            if company not in scope:
+                errors.append(f'Fila {row_num}: empresa "{company}" fuera de tu scope')
+                continue
+            if '@' not in correo:
+                errors.append(f'Fila {row_num}: correo inválido "{correo}"')
+                continue
+
+            # Buscar si ya existe (misma llave lógica)
+            existing = InfAprobador.query.filter(
+                InfAprobador.company == company,
+                db.func.lower(InfAprobador.gerente_area) == gerente.lower(),
+                db.func.lower(InfAprobador.area) == area.lower(),
+                db.func.lower(InfAprobador.centro_costos) == cc.lower(),
+            ).first()
+            if existing:
+                existing.correo_gerente_area = correo
+                existing.is_active = True
+                updated += 1
+            else:
+                db.session.add(InfAprobador(
+                    company=company,
+                    gerente_area=gerente,
+                    centro_costos=cc,
+                    area=area,
+                    correo_gerente_area=correo,
+                    is_active=True,
+                ))
+                created += 1
+        except Exception as e:
+            errors.append(f'Fila {row_num}: {e}')
+
+    db.session.commit()
+    log_audit('inf_aprobadores_imported', session['user_id'], 'inf_aprobador', None,
+              f'Import: {created} nuevos, {updated} actualizados, {len(errors)} errores')
+    return jsonify({
+        'success': True,
+        'created': created,
+        'updated': updated,
+        'errors': errors,
+        'total_processed': created + updated + len(errors),
+    })
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Rutas de páginas (templates HTML)
 # ─────────────────────────────────────────────────────────────────────────────
