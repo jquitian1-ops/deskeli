@@ -207,15 +207,34 @@
                 </div>
             </div>
 
-            <!-- Adjuntos + Caso externo -->
+            <!-- Adjuntos + Ticket asociado -->
             <div class="card">
                 <div class="section-title">6. Soportes (opcional)</div>
-                <div class="grid-2">
-                    <div class="field">
-                        <label>Caso externo / Ticket asociado</label>
-                        <input type="text" id="caso_externo" placeholder="Ej: ARANDA-12345">
-                        <small class="hint">Si esta solicitud proviene de otro sistema.</small>
+
+                <!-- Buscador de tickets propios -->
+                <div class="field" style="position:relative; margin-bottom:16px;">
+                    <label>🎫 Ticket de soporte asociado</label>
+                    <input type="text" id="caso_externo" autocomplete="off"
+                           placeholder="Escribí número, título o dejá vacío. Sugerencias de tus tickets aparecen abajo."
+                           oninput="onCasoInput()" onfocus="onCasoInput()" onblur="hideTicketDropdown()">
+                    <small class="hint">Podés escribir un código externo (ARANDA-12345) o seleccionar uno de tus tickets propios.</small>
+                    <div id="ticketDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #d1d5db; border-radius:6px; box-shadow:0 6px 20px rgba(0,0,0,0.15); max-height:280px; overflow-y:auto; z-index:100; margin-top:4px;"></div>
+                </div>
+
+                <!-- Uploader de archivos -->
+                <div class="field">
+                    <label>📎 Adjuntar documentos de soporte</label>
+                    <div id="dropZone" style="border:2px dashed #c4b5fd; border-radius:8px; padding:24px; text-align:center; background:#faf5ff; cursor:pointer; transition:all 0.2s;"
+                         onclick="document.getElementById('fileInput').click()"
+                         ondragover="event.preventDefault(); this.style.background='#ede9fe'; this.style.borderColor='#7c3aed';"
+                         ondragleave="this.style.background='#faf5ff'; this.style.borderColor='#c4b5fd';"
+                         ondrop="onFileDrop(event)">
+                        <div style="font-size:32px; margin-bottom:6px;">📤</div>
+                        <div style="font-weight:700; color:#5b21b6; font-size:14px;">Arrastrá archivos aquí o hacé clic para seleccionar</div>
+                        <div style="font-size:12px; color:#6b7280; margin-top:4px;">Las imágenes se comprimen automáticamente. Podés seleccionar varios a la vez.</div>
+                        <input type="file" id="fileInput" multiple style="display:none;" onchange="onFilePick(event)">
                     </div>
+                    <div id="filesPreview" style="margin-top:12px;"></div>
                 </div>
             </div>
 
@@ -387,12 +406,154 @@
             });
             const data = await r.json();
             if (!data.success) throw new Error(data.error || 'Error al registrar');
-            window.location.href = `/solicitudes-usuarios/${data.solicitud.id}?ok=1`;
+            const solicitudId = data.solicitud.id;
+
+            // Subir adjuntos si hay
+            if (_pendingFiles.length > 0) {
+                btn.textContent = `⏳ Subiendo ${_pendingFiles.length} archivo(s)…`;
+                let uploaded = 0;
+                let failed = [];
+                for (const f of _pendingFiles) {
+                    const fd = new FormData();
+                    fd.append('file', f);
+                    try {
+                        const rup = await fetch(`/api/solicitudes-usuarios/${solicitudId}/adjuntos`, {method: 'POST', body: fd});
+                        const dup = await rup.json();
+                        if (dup.success) uploaded++;
+                        else failed.push(`${f.name}: ${dup.error}`);
+                    } catch (err) {
+                        failed.push(`${f.name}: ${err.message}`);
+                    }
+                }
+                if (failed.length > 0) {
+                    alert('Solicitud creada pero algunos adjuntos fallaron:\n\n' + failed.join('\n'));
+                }
+            }
+
+            window.location.href = `/solicitudes-usuarios/${solicitudId}?ok=1`;
         } catch (e) {
             alert('❌ ' + e.message);
             btn.disabled = false;
             btn.textContent = '✓ Registrar solicitud';
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Autocomplete de tickets de soporte (propios del usuario)
+    // ═══════════════════════════════════════════════════════════════════════
+    let _ticketSearchTimer = null;
+
+    function onCasoInput() {
+        clearTimeout(_ticketSearchTimer);
+        const q = document.getElementById('caso_externo').value.trim();
+        _ticketSearchTimer = setTimeout(() => searchTickets(q), 200);
+    }
+
+    async function searchTickets(q) {
+        try {
+            const url = '/api/solicitudes-usuarios/mis-tickets-soporte' + (q ? '?q=' + encodeURIComponent(q) : '');
+            const r = await fetch(url);
+            const data = await r.json();
+            if (!data.success) return;
+            renderTicketDropdown(data.tickets);
+        } catch (e) { /* silencioso */ }
+    }
+
+    function renderTicketDropdown(tickets) {
+        const dd = document.getElementById('ticketDropdown');
+        if (!tickets || tickets.length === 0) {
+            dd.style.display = 'none';
+            return;
+        }
+        const statusIcon = {open: '🟢', in_progress: '🟡', resolved: '✅', closed: '⚫'};
+        const rows = tickets.map(t => {
+            const fecha = t.created_at ? new Date(t.created_at).toLocaleDateString('es-CO') : '';
+            return `<div style="padding:10px 12px; cursor:pointer; border-bottom:1px solid #f3f4f6;"
+                        onmousedown="selectTicket('${esc(t.ticket_number)}')"
+                        onmouseover="this.style.background='#faf5ff'"
+                        onmouseout="this.style.background='white'">
+                        <div style="font-weight:700; color:#1e40af; font-size:13px;">${statusIcon[t.status] || '📌'} ${esc(t.ticket_number)}</div>
+                        <div style="font-size:12px; color:#374151; margin-top:2px;">${esc(t.title)}</div>
+                        <div style="font-size:11px; color:#9ca3af; margin-top:2px;">${esc(t.category || '')} · ${esc(fecha)}</div>
+                    </div>`;
+        }).join('');
+        dd.innerHTML = rows;
+        dd.style.display = 'block';
+    }
+
+    function selectTicket(ticketNumber) {
+        document.getElementById('caso_externo').value = ticketNumber;
+        hideTicketDropdown();
+    }
+
+    function hideTicketDropdown() {
+        // Delay para permitir click en las opciones (usando onmousedown en las filas)
+        setTimeout(() => {
+            document.getElementById('ticketDropdown').style.display = 'none';
+        }, 150);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Uploader de archivos con preview y compresión (server-side)
+    // ═══════════════════════════════════════════════════════════════════════
+    let _pendingFiles = [];  // archivos a subir tras crear la solicitud
+    const MAX_FILE_SIZE_MB = 25;
+
+    function onFilePick(evt) { addFiles(Array.from(evt.target.files || [])); evt.target.value = ''; }
+    function onFileDrop(evt) {
+        evt.preventDefault();
+        const dz = document.getElementById('dropZone');
+        dz.style.background = '#faf5ff';
+        dz.style.borderColor = '#c4b5fd';
+        addFiles(Array.from(evt.dataTransfer.files || []));
+    }
+
+    function addFiles(files) {
+        for (const f of files) {
+            if (f.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+                alert(`❌ "${f.name}" excede el máximo de ${MAX_FILE_SIZE_MB} MB.`);
+                continue;
+            }
+            // Evitar duplicados por nombre+size
+            if (_pendingFiles.some(x => x.name === f.name && x.size === f.size)) continue;
+            _pendingFiles.push(f);
+        }
+        renderFilesPreview();
+    }
+
+    function removeFile(idx) {
+        _pendingFiles.splice(idx, 1);
+        renderFilesPreview();
+    }
+
+    function fmtSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+
+    function renderFilesPreview() {
+        const container = document.getElementById('filesPreview');
+        if (_pendingFiles.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+        const items = _pendingFiles.map((f, i) => {
+            const isImg = f.type.startsWith('image/');
+            const icon = isImg ? '🖼' : (f.type.includes('pdf') ? '📄' : '📎');
+            const compressHint = isImg
+                ? '<span style="font-size:10px; padding:2px 6px; background:#d1fae5; color:#065f46; border-radius:8px; font-weight:700;">Se comprime</span>'
+                : '';
+            return `<div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:6px; margin-bottom:6px;">
+                        <span style="font-size:20px;">${icon}</span>
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-size:13px; font-weight:600; color:#111827; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(f.name)}</div>
+                            <div style="font-size:11px; color:#6b7280; margin-top:2px;">${fmtSize(f.size)} · ${esc(f.type || 'sin tipo')} ${compressHint}</div>
+                        </div>
+                        <button type="button" onclick="removeFile(${i})" style="background:#fee2e2; color:#991b1b; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:700;">✕</button>
+                    </div>`;
+        }).join('');
+        container.innerHTML = items + `<div style="margin-top:6px; font-size:11px; color:#6b7280;">${_pendingFiles.length} archivo(s) listos. Se suben al registrar la solicitud.</div>`;
     }
 
     loadCatalogo();

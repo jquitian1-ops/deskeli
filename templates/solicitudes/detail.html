@@ -154,6 +154,12 @@
             </table>
         </div>
 
+        <!-- Adjuntos -->
+        <div class="card" id="cardAdjuntos" style="display:none;">
+            <div class="section-title">📎 Documentos de soporte</div>
+            <div id="adjuntosList"></div>
+        </div>
+
         <!-- Historial -->
         <div class="card">
             <div class="section-title">📜 Historial de aprobaciones</div>
@@ -278,6 +284,26 @@
         `).join('');
         document.getElementById('controlesTbody').innerHTML = ctlRows || '<tr><td colspan="5" style="text-align:center; padding:20px;">Sin controles</td></tr>';
         document.getElementById('costoTotal').textContent = '$' + (s.costo_total || 0).toFixed(2);
+
+        // Adjuntos
+        if (s.adjuntos && s.adjuntos.length > 0) {
+            document.getElementById('cardAdjuntos').style.display = 'block';
+            const fmtSize = (b) => b < 1024 ? b + ' B' : b < 1024*1024 ? (b/1024).toFixed(1) + ' KB' : (b/(1024*1024)).toFixed(2) + ' MB';
+            const items = s.adjuntos.map(a => {
+                const isImg = (a.mime_type || '').startsWith('image/');
+                const icon = isImg ? '🖼' : ((a.mime_type || '').includes('pdf') ? '📄' : '📎');
+                const fecha = a.created_at ? new Date(a.created_at).toLocaleString('es-CO') : '';
+                return `<div style="display:flex; align-items:center; gap:10px; padding:10px 14px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:6px; margin-bottom:8px;">
+                            <span style="font-size:24px;">${icon}</span>
+                            <div style="flex:1; min-width:0;">
+                                <div style="font-size:14px; font-weight:600; color:#111827;">${esc(a.filename)}</div>
+                                <div style="font-size:11px; color:#6b7280; margin-top:2px;">${fmtSize(a.size_bytes || 0)} · Subido por ${esc(a.uploaded_by ? a.uploaded_by.name : '—')} · ${esc(fecha)}</div>
+                            </div>
+                            <a href="/api/solicitudes-usuarios/${SOLICITUD_ID}/adjuntos/${a.id}" download style="background:#7c3aed; color:white; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:700;">⬇ Descargar</a>
+                        </div>`;
+            }).join('');
+            document.getElementById('adjuntosList').innerHTML = items;
+        }
 
         // Historial
         const hist = s.historial.map(h => `

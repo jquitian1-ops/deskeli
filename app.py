@@ -23068,7 +23068,7 @@ def api_solicitudes_marcar_tramite(solicitud_id):
 
 @app.route('/api/solicitudes-usuarios/<int:solicitud_id>/adjuntos', methods=['POST'])
 def api_solicitudes_upload_adjunto(solicitud_id):
-    """Sube un adjunto a la solicitud."""
+    """Sube un adjunto a la solicitud, comprimiendo automáticamente si es imagen."""
     user, err = _current_user_or_401()
     if err: return err
     s = SolicitudUsuario.query.get(solicitud_id)
@@ -23082,22 +23082,32 @@ def api_solicitudes_upload_adjunto(solicitud_id):
     if not _allowed_attachment(f.filename):
         return jsonify({'success': False, 'error': 'Tipo de archivo no permitido'}), 400
     from werkzeug.utils import secure_filename
-    safe = secure_filename(f.filename)
-    data = f.read()
-    if not data:
+    try:
+        out_bytes, out_filename, out_mime, stats = compress_upload(f)
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'No se pudo procesar el archivo: {e}'}), 400
+    if not out_bytes:
         return jsonify({'success': False, 'error': 'Archivo vacío'}), 400
+    safe = secure_filename(out_filename or f.filename) or 'archivo'
     adj = SolicitudAdjunto(
         solicitud_id=s.id,
         filename=safe,
-        original_name=f.filename,
-        mime_type=f.mimetype,
-        size_bytes=len(data),
-        file_data=data,
+        original_name=(out_filename or f.filename)[:255],
+        mime_type=(out_mime or f.mimetype or '')[:120],
+        size_bytes=stats.get('final_size', len(out_bytes)),
+        file_data=out_bytes,
         uploaded_by_id=user.id,
     )
     db.session.add(adj)
     db.session.commit()
-    return jsonify({'success': True, 'adjunto_id': adj.id})
+    return jsonify({
+        'success': True,
+        'adjunto_id': adj.id,
+        'filename': adj.original_name,
+        'size_bytes': adj.size_bytes,
+        'compressed': bool(stats.get('compressed')),
+        'bytes_saved': (stats.get('original_size', 0) - stats.get('final_size', 0)) if stats.get('compressed') else 0,
+    })
 
 
 @app.route('/api/solicitudes-usuarios/<int:solicitud_id>/adjuntos/<int:adjunto_id>', methods=['GET'])
@@ -23116,6 +23126,51 @@ def api_solicitudes_download_adjunto(solicitud_id, adjunto_id):
         mimetype=adj.mime_type or 'application/octet-stream',
         headers={'Content-Disposition': f'attachment; filename="{adj.original_name or adj.filename}"'}
     )
+
+
+@app.route('/api/solicitudes-usuarios/mis-tickets-soporte', methods=['GET'])
+def api_solicitudes_mis_tickets_soporte():
+    """Autocomplete: tickets del usuario autenticado para asociar como soporte
+    de una solicitud. Filtra por company y creator/assignee = user actual.
+
+    Query params:
+        q  Texto libre (número, título o descripción).
+    """
+    user, err = _current_user_or_401()
+    if err: return err
+    q = (request.args.get('q') or '').strip()
+    query = Ticket.query.filter(
+        Ticket.company == user.company,
+        (Ticket.creator_id == user.id) | (Ticket.assignee_id == user.id),
+    )
+    if q:
+        pat = f'%{q}%'
+        query = query.filter(
+            (Ticket.ticket_number.ilike(pat)) |
+            (Ticket.title.ilike(pat)) |
+            (Ticket.description.ilike(pat))
+        )
+    # Excluir DMs/CHATs internos
+    INTERNAL_PREFIXES = ('DM-', 'CHAT-')
+    tickets = [
+        t for t in query.order_by(Ticket.created_at.desc()).limit(30).all()
+        if not (t.ticket_number or '').startswith(INTERNAL_PREFIXES)
+    ]
+    return jsonify({
+        'success': True,
+        'tickets': [
+            {
+                'id': t.id,
+                'ticket_number': t.ticket_number,
+                'title': t.title,
+                'status': t.status,
+                'priority': t.priority,
+                'category': t.category,
+                'created_at': t.created_at.isoformat() if t.created_at else None,
+            }
+            for t in tickets
+        ]
+    })
 
 
 # ─────────────────────────────────────────────────────────────────────────────
