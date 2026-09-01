@@ -75,7 +75,9 @@
                     </div>
                     <div class="field">
                         <label>Unidad de negocio</label>
-                        <input type="text" id="unidad_negocio" placeholder="Ej: Manufactura, Retail, Corporativo">
+                        <select id="unidad_negocio">
+                            <option value="">⏳ Cargando empresas…</option>
+                        </select>
                     </div>
                 </div>
                 <div id="tipoHint" class="callout info" style="margin-top:14px; display:none;"></div>
@@ -558,8 +560,29 @@
         container.innerHTML = items + `<div style="margin-top:6px; font-size:11px; color:#6b7280;">${_pendingFiles.length} archivo(s) listos. Se suben al registrar la solicitud.</div>`;
     }
 
+    async function loadEmpresas() {
+        const sel = document.getElementById('unidad_negocio');
+        try {
+            const r = await fetch('/api/companies');
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error || 'Error');
+            const companies = data.companies || [];
+            if (companies.length === 0) {
+                sel.innerHTML = '<option value="">— Sin empresas activas —</option>';
+                return;
+            }
+            sel.innerHTML = '<option value="">— Selecciona una empresa —</option>' +
+                companies.map(c =>
+                    `<option value="${esc(c.name)}">${c.icon ? esc(c.icon) + ' ' : ''}${esc(c.name)}</option>`
+                ).join('');
+        } catch (e) {
+            sel.innerHTML = `<option value="">❌ ${esc(e.message)}</option>`;
+        }
+    }
+
     loadCatalogo();
     loadUsuarios();
+    loadEmpresas();
     </script>
 </body>
 </html>
