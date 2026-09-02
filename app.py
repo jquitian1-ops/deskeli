@@ -23649,6 +23649,68 @@ def _seed_kb_articles_if_empty():
         print(f"  [WARN] No se pudo cargar KB seed: {e}")
 
 
+def _seed_controles_catalogo_if_empty():
+    """Auto-carga los 28 controles del catálogo si la tabla está vacía o si
+    faltan códigos nuevos. Idempotente: no toca los que ya existen con
+    misma llave (code+company). Usa la lista canónica de
+    scripts/seed_controles_catalogo.py para no duplicar la definición."""
+    try:
+        with app.app_context():
+            # Importar la lista canónica del script de seed
+            import importlib.util
+            scripts_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scripts')
+            seed_path = os.path.join(scripts_dir, 'seed_controles_catalogo.py')
+            if not os.path.exists(seed_path):
+                print(f"  [WARN] Controles seed: no encontré {seed_path}")
+                return
+            spec = importlib.util.spec_from_file_location('_seed_controles_mod', seed_path)
+            mod = importlib.util.module_from_spec(spec)
+            # Truco: el módulo importa `from app import app, db, Control` lo que
+            # causaría import circular; para evitarlo, inyectamos el módulo `app`
+            # ya cargado en sys.modules antes de exec.
+            import sys as _sys
+            _sys.modules.setdefault('app', _sys.modules[__name__])
+            spec.loader.exec_module(mod)
+            catalogo = getattr(mod, 'CATALOGO', [])
+            if not catalogo:
+                print("  [WARN] Controles seed: CATALOGO vacío en el script")
+                return
+
+            created, updated = 0, 0
+            for row in catalogo:
+                existing = Control.query.filter_by(code=row['code'], company=None).first()
+                if existing:
+                    # Actualizar campos por si cambió la descripción
+                    if (existing.name != row['name'] or
+                        existing.descripcion != row['descripcion'] or
+                        existing.tipo != row['tipo'] or
+                        bool(existing.needs_espejo) != bool(row['needs_espejo'])):
+                        existing.name = row['name']
+                        existing.descripcion = row['descripcion']
+                        existing.tipo = row['tipo']
+                        existing.needs_espejo = row['needs_espejo']
+                        existing.costo_referencia = row.get('costo_referencia')
+                        existing.is_active = True
+                        updated += 1
+                else:
+                    db.session.add(Control(
+                        code=row['code'],
+                        name=row['name'],
+                        descripcion=row['descripcion'],
+                        tipo=row['tipo'],
+                        needs_espejo=row['needs_espejo'],
+                        costo_referencia=row.get('costo_referencia'),
+                        company=None,
+                        is_active=True,
+                    ))
+                    created += 1
+            if created or updated:
+                db.session.commit()
+            print(f"  [OK] Controles seed: {created} nuevos + {updated} actualizados (total {len(catalogo)})")
+    except Exception as e:
+        print(f"  [WARN] No se pudo cargar Controles seed: {e}")
+
+
 def bootstrap_app():
     """Inicializa BD + arranca todos los schedulers en background.
     Llamado desde __main__ (dev server) o desde wsgi.py (Gunicorn)."""
@@ -23658,6 +23720,7 @@ def bootstrap_app():
 
     init_db()
     _seed_kb_articles_if_empty()
+    _seed_controles_catalogo_if_empty()
     start_server_monitoring()
     start_backup_scheduler()
     start_watchdog()
