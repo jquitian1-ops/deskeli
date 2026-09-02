@@ -136,7 +136,7 @@ CATALOGO = [
      'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
     # 28
     {'code': 'sap', 'name': 'SAP',
-     'descripcion': 'En el campo descripción indicar si ya cuenta con usuario; adicional deben indicar el Usuario Espejo y el ambiente (Productivo, Preproductivo, Calidad, Desarrollo). Indicar versión (AFS, FMS PASH, FMS PAISES, EWM).',
+     'descripcion': 'En el campo descripción indicar si ya cuenta con usuario; adicional deben indicar el Usuario Espejo y el ambiente (Productivo, Preproductivo, Calidad, Desarrollo). Indicar versión (AFS, FMS PASH, FMS PAISES, EWM, RISE).',
      'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
 ]
 
