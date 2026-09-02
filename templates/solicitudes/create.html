@@ -108,8 +108,8 @@
                         <input type="text" id="ubicacion" placeholder="Ej: Planta Norte">
                     </div>
                     <div class="field">
-                        <label>Centro de costo / División</label>
-                        <input type="text" id="centro_costo">
+                        <label>Área</label>
+                        <input type="text" id="centro_costo" readonly placeholder="Se completa automáticamente al elegir el Jefe Inmediato" style="background:#f9fafb;">
                     </div>
                     <div class="field">
                         <label>Tipo de contrato</label>
@@ -172,12 +172,12 @@
                 <div class="grid-2">
                     <div class="field">
                         <label>Jefe Inmediato <span class="req">*</span></label>
-                        <select id="jefe_inmediato_id" required>
+                        <select id="jefe_inmediato_id" required onchange="onJefeChange()">
                             <option value="">⏳ Cargando…</option>
                         </select>
                     </div>
                     <div class="field">
-                        <label>Gerente de Área <span class="req">*</span></label>
+                        <label>Gerencia/Área <span class="req">*</span></label>
                         <select id="gerente_area_id" required>
                             <option value="">⏳ Cargando…</option>
                         </select>
@@ -294,6 +294,24 @@
     function onReemplazoChange() {
         const v = document.getElementById('es_reemplazo').value;
         document.getElementById('fldReemplazo').classList.toggle('cond-hidden', v !== 'true');
+    }
+
+    // Al elegir Jefe Inmediato, autocompletar el campo "Área" con el
+    // area del catálogo Inf. Aprobadores asociado a ese jefe.
+    function onJefeChange() {
+        const sel = document.getElementById('jefe_inmediato_id');
+        const uid = parseInt(sel.value) || 0;
+        const areaInput = document.getElementById('centro_costo');
+        if (!uid || !_usuarios || _usuarios.length === 0) {
+            if (areaInput) areaInput.value = '';
+            return;
+        }
+        // _usuarios viene del endpoint /api/inf-aprobadores-para-solicitud
+        // y contiene el area por cada aprobador (matcheado por user_id).
+        const aprob = _usuarios.find(a => a.user_id === uid);
+        if (aprob && areaInput) {
+            areaInput.value = aprob.area || '';
+        }
     }
 
     async function loadCatalogo() {
