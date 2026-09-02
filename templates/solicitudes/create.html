@@ -296,21 +296,46 @@
         document.getElementById('fldReemplazo').classList.toggle('cond-hidden', v !== 'true');
     }
 
-    // Al elegir Jefe Inmediato, autocompletar el campo "Área" con el
-    // area del catálogo Inf. Aprobadores asociado a ese jefe.
+    // Al elegir Jefe Inmediato:
+    //   1) Autocompletar el campo "Área" con el area del catálogo Inf. Aprobadores.
+    //   2) Filtrar el select "Gerencia/Área" para mostrar solo los aprobadores
+    //      cuya area coincida con la del jefe seleccionado.
     function onJefeChange() {
         const sel = document.getElementById('jefe_inmediato_id');
         const uid = parseInt(sel.value) || 0;
         const areaInput = document.getElementById('centro_costo');
+        const gerSel = document.getElementById('gerente_area_id');
+
         if (!uid || !_usuarios || _usuarios.length === 0) {
             if (areaInput) areaInput.value = '';
+            if (gerSel) gerSel.innerHTML = '<option value="">— Primero elegí un Jefe Inmediato —</option>';
             return;
         }
+
         // _usuarios viene del endpoint /api/inf-aprobadores-para-solicitud
-        // y contiene el area por cada aprobador (matcheado por user_id).
+        // y contiene area/centro_costos para cada aprobador (matcheado por user_id).
         const aprob = _usuarios.find(a => a.user_id === uid);
-        if (aprob && areaInput) {
-            areaInput.value = aprob.area || '';
+        const areaJefe = aprob ? (aprob.area || '') : '';
+
+        if (areaInput) areaInput.value = areaJefe;
+
+        // Filtrar Gerencia/Área por la misma area del jefe (case-insensitive)
+        if (gerSel) {
+            const normAreaJefe = areaJefe.trim().toLowerCase();
+            const filtrados = _usuarios.filter(a =>
+                (a.area || '').trim().toLowerCase() === normAreaJefe
+            );
+            if (filtrados.length === 0) {
+                gerSel.innerHTML = `<option value="">⚠ Sin Gerencia/Área configurada para "${esc(areaJefe)}"</option>`;
+                return;
+            }
+            const opts = filtrados.map(a => {
+                if (a.user_id) {
+                    return `<option value="${a.user_id}" title="${esc(a.correo)}">${esc(a.label)}</option>`;
+                }
+                return `<option value="" disabled title="${esc(a.correo)} no matchea con un usuario activo del sistema">${esc(a.label)} — ⚠ sin usuario</option>`;
+            }).join('');
+            gerSel.innerHTML = `<option value="">— Seleccionar Gerencia/Área (${esc(areaJefe)}) —</option>` + opts;
         }
     }
 
@@ -378,33 +403,34 @@
     }
 
     async function loadUsuarios() {
-        // Pobla los selects de Jefe Inmediato y Gerente de Área desde el
-        // catálogo /admin/config → Inf. Aprobadores. El value del <option>
-        // es el user_id (resuelto por correo en el backend); los aprobadores
-        // configurados sin usuario en el sistema aparecen deshabilitados.
+        // Pobla el select de Jefe Inmediato desde el catálogo Inf. Aprobadores.
+        // El select de Gerencia/Área se rellena en onJefeChange() según el area
+        // del jefe elegido (para que solo aparezcan aprobadores de la misma area).
         try {
             const r = await fetch('/api/inf-aprobadores-para-solicitud');
             const data = await r.json();
             if (!data.success) throw new Error(data.error || 'error');
             _usuarios = data.aprobadores || [];
 
-            const fill = (selId, placeholder) => {
-                const sel = document.getElementById(selId);
-                if (_usuarios.length === 0) {
-                    sel.innerHTML = `<option value="">— Sin aprobadores configurados. Contactá al admin. —</option>`;
-                    return;
+            const jefeSel = document.getElementById('jefe_inmediato_id');
+            const gerSel = document.getElementById('gerente_area_id');
+
+            if (_usuarios.length === 0) {
+                jefeSel.innerHTML = `<option value="">— Sin aprobadores configurados. Contactá al admin. —</option>`;
+                gerSel.innerHTML = `<option value="">— Sin aprobadores configurados —</option>`;
+                return;
+            }
+
+            const opts = _usuarios.map(a => {
+                if (a.user_id) {
+                    return `<option value="${a.user_id}" title="${esc(a.correo)}">${esc(a.label)}</option>`;
                 }
-                const opts = _usuarios.map(a => {
-                    if (a.user_id) {
-                        return `<option value="${a.user_id}" title="${esc(a.correo)}">${esc(a.label)}</option>`;
-                    }
-                    // Sin User activo con ese correo: deshabilitar y avisar
-                    return `<option value="" disabled title="${esc(a.correo)} no matchea con un usuario activo del sistema">${esc(a.label)} — ⚠ sin usuario</option>`;
-                }).join('');
-                sel.innerHTML = `<option value="">— ${placeholder} —</option>` + opts;
-            };
-            fill('jefe_inmediato_id', 'Seleccionar Jefe Inmediato');
-            fill('gerente_area_id', 'Seleccionar Gerente de Área');
+                return `<option value="" disabled title="${esc(a.correo)} no matchea con un usuario activo del sistema">${esc(a.label)} — ⚠ sin usuario</option>`;
+            }).join('');
+            jefeSel.innerHTML = `<option value="">— Seleccionar Jefe Inmediato —</option>` + opts;
+
+            // Gerencia/Área queda vacío hasta que se elija Jefe
+            gerSel.innerHTML = `<option value="">— Primero elegí un Jefe Inmediato —</option>`;
         } catch (e) {
             document.getElementById('jefe_inmediato_id').innerHTML = `<option value="">❌ ${esc(e.message)}</option>`;
             document.getElementById('gerente_area_id').innerHTML = `<option value="">❌ ${esc(e.message)}</option>`;
