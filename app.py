@@ -23246,6 +23246,45 @@ def api_inf_aprobadores_list():
     return jsonify({'success': True, 'aprobadores': [_serialize_inf_aprobador(a) for a in aprobadores]})
 
 
+@app.route('/api/inf-aprobadores-para-solicitud', methods=['GET'])
+def api_inf_aprobadores_para_solicitud():
+    """Devuelve el catálogo de Inf. Aprobadores de la empresa del usuario
+    autenticado, resolviendo el user_id de cada aprobador por su correo.
+
+    Usado por el formulario "Diligenciar Solicitud" para poblar los selects
+    de Jefe Inmediato y Gerente de Área a partir del catálogo administrable
+    (en lugar de listar todos los usuarios activos).
+
+    - Si el correo del aprobador matchea un User activo → user_id lo referencia.
+    - Si no matchea → user_id = null (la opción aparece deshabilitada en el UI).
+    """
+    user, err = _current_user_or_401()
+    if err: return err
+    aprobadores = InfAprobador.query.filter(
+        InfAprobador.company == user.company,
+        InfAprobador.is_active == True,
+    ).order_by(InfAprobador.area, InfAprobador.centro_costos, InfAprobador.gerente_area).all()
+
+    result = []
+    for a in aprobadores:
+        u = User.query.filter(
+            db.func.lower(User.email) == (a.correo_gerente_area or '').lower(),
+            User.company == user.company,
+            User.is_active == True,
+        ).first()
+        result.append({
+            'inf_aprobador_id': a.id,
+            'user_id': u.id if u else None,
+            'gerente_area': a.gerente_area,
+            'correo': a.correo_gerente_area,
+            'area': a.area,
+            'centro_costos': a.centro_costos,
+            'label': f'{a.gerente_area} — {a.area} · {a.centro_costos}',
+            'has_user': u is not None,
+        })
+    return jsonify({'success': True, 'aprobadores': result})
+
+
 @app.route('/api/admin/inf-aprobadores', methods=['POST'])
 def api_inf_aprobadores_create():
     if 'user_id' not in session or session.get('role') != 'admin':

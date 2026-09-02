@@ -163,7 +163,12 @@
             <!-- Aprobadores -->
             <div class="card">
                 <div class="section-title">3. Aprobadores (jerárquicos)</div>
-                <div class="callout">Los aprobadores TI (Analista y Gerente TI) se asignan automáticamente según la empresa. Solo debes seleccionar Jefe Inmediato y Gerente de Área.</div>
+                <div class="callout">
+                    Los Jefes Inmediatos y Gerentes de Área se cargan desde el catálogo
+                    <strong>Inf. Aprobadores</strong> configurado en <em>/admin/config</em>.
+                    Cada opción muestra <em>Nombre — Área · Centro de Costos</em>.
+                    Los aprobadores TI (Analista y Gerente TI) se asignan automáticamente por empresa.
+                </div>
                 <div class="grid-2">
                     <div class="field">
                         <label>Jefe Inmediato <span class="req">*</span></label>
@@ -355,18 +360,33 @@
     }
 
     async function loadUsuarios() {
+        // Pobla los selects de Jefe Inmediato y Gerente de Área desde el
+        // catálogo /admin/config → Inf. Aprobadores. El value del <option>
+        // es el user_id (resuelto por correo en el backend); los aprobadores
+        // configurados sin usuario en el sistema aparecen deshabilitados.
         try {
-            const r = await fetch('/api/templates/approvers');
+            const r = await fetch('/api/inf-aprobadores-para-solicitud');
             const data = await r.json();
             if (!data.success) throw new Error(data.error || 'error');
-            _usuarios = data.users || [];
+            _usuarios = data.aprobadores || [];
+
             const fill = (selId, placeholder) => {
                 const sel = document.getElementById(selId);
-                sel.innerHTML = `<option value="">— ${placeholder} —</option>` +
-                    _usuarios.map(u => `<option value="${u.id}">${esc(u.name)} (${esc(u.email)})</option>`).join('');
+                if (_usuarios.length === 0) {
+                    sel.innerHTML = `<option value="">— Sin aprobadores configurados. Contactá al admin. —</option>`;
+                    return;
+                }
+                const opts = _usuarios.map(a => {
+                    if (a.user_id) {
+                        return `<option value="${a.user_id}" title="${esc(a.correo)}">${esc(a.label)}</option>`;
+                    }
+                    // Sin User activo con ese correo: deshabilitar y avisar
+                    return `<option value="" disabled title="${esc(a.correo)} no matchea con un usuario activo del sistema">${esc(a.label)} — ⚠ sin usuario</option>`;
+                }).join('');
+                sel.innerHTML = `<option value="">— ${placeholder} —</option>` + opts;
             };
-            fill('jefe_inmediato_id', 'Seleccionar jefe');
-            fill('gerente_area_id', 'Seleccionar gerente');
+            fill('jefe_inmediato_id', 'Seleccionar Jefe Inmediato');
+            fill('gerente_area_id', 'Seleccionar Gerente de Área');
         } catch (e) {
             document.getElementById('jefe_inmediato_id').innerHTML = `<option value="">❌ ${esc(e.message)}</option>`;
             document.getElementById('gerente_area_id').innerHTML = `<option value="">❌ ${esc(e.message)}</option>`;
