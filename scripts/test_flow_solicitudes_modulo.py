@@ -59,9 +59,11 @@ check('SOLICITUD_ESTADO_LABEL mapea todos los estados',
 print('\n[2/8] Máquina de transiciones')
 # ─────────────────────────────────────────────────────────────────────────────
 
-check('APROBAR_SIGUIENTE mapea Jefe -> GerenteArea -> AnalistaTI -> GerenteTI -> Aprobado',
+check('APROBAR_SIGUIENTE mapea Jefe -> AnalistaTI -> GerenteArea -> GerenteTI -> Aprobado (orden oficial)',
       'SOLICITUD_APROBAR_SIGUIENTE = {' in app_src and
-      'SOLICITUD_ESTADO_PENDIENTE_JEFE: SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA' in app_src and
+      'SOLICITUD_ESTADO_PENDIENTE_JEFE: SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI' in app_src and
+      'SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI: SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA' in app_src and
+      'SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA: SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI' in app_src and
       'SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI: SOLICITUD_ESTADO_APROBADO_GERENTE_TI' in app_src)
 
 check('DEVOLVER_A definido para los 4 niveles',
@@ -107,9 +109,22 @@ endpoints_esperados = [
     ("POST /marcar-tramite", "@app.route('/api/solicitudes-usuarios/<int:solicitud_id>/marcar-tramite', methods=['POST'])"),
     ("POST /adjuntos", "@app.route('/api/solicitudes-usuarios/<int:solicitud_id>/adjuntos', methods=['POST'])"),
     ("GET  /adjuntos/<id>", "@app.route('/api/solicitudes-usuarios/<int:solicitud_id>/adjuntos/<int:adjunto_id>', methods=['GET'])"),
+    ("POST /decidir/<token> (aprobar por correo)", "@app.route('/api/solicitudes-usuarios/decidir/<token>', methods=['POST'])"),
 ]
 for label, sig in endpoints_esperados:
     check(f'Endpoint {label}', sig in app_src)
+
+# Aprobación por correo
+check('Modelo SolicitudApprovalToken declarado',
+      'class SolicitudApprovalToken(db.Model)' in app_src)
+check('Funcion _send_solicitud_approval_email() existe',
+      'def _send_solicitud_approval_email(' in app_src)
+check('Funcion _create_or_get_solicitud_token() existe',
+      'def _create_or_get_solicitud_token(' in app_src)
+check('_notify_next_approver dispara envio de correo',
+      '_send_solicitud_approval_email(solicitud, approver, token)' in app_src)
+check('Pagina publica /solicitudes-usuarios/decidir/<token>',
+      "@app.route('/solicitudes-usuarios/decidir/<token>', methods=['GET'])" in app_src)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -170,8 +185,8 @@ check('create.html tiene 3 tipos de solicitud',
       'INGRESO' in create_html and 'MODIFICACION' in create_html and 'TRASLADO' in create_html)
 check('create.html carga catálogo desde /api/controles',
       "fetch('/api/controles'" in create_html)
-check('create.html carga usuarios desde /api/templates/approvers',
-      "fetch('/api/templates/approvers'" in create_html)
+check('create.html carga aprobadores desde /api/inf-aprobadores-para-solicitud',
+      "fetch('/api/inf-aprobadores-para-solicitud'" in create_html)
 check('create.html muestra hint condicional según tipo',
       'TIPO_HINTS' in create_html)
 check('create.html oculta/muestra Card Ingreso según tipo',

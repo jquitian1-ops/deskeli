@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decidir solicitud - DeskEli</title>
+    <link rel="icon" type="image/png" href="/static/eli.png">
+    <link rel="shortcut icon" type="image/png" href="/static/eli.png">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Segoe UI',Tahoma,sans-serif; background:#f5f7fa; min-height:100vh; }
+        .header { background:linear-gradient(135deg,#7c3aed,#5b21b6); color:white; padding:16px 24px; display:flex; align-items:center; justify-content:space-between; }
+        .header h1 { font-size:20px; }
+        .container { max-width:920px; margin:24px auto; padding:0 20px; }
+        .card { background:white; padding:22px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.06); margin-bottom:18px; }
+        .callout { padding:12px 16px; border-left:4px solid #7c3aed; background:#faf5ff; border-radius:4px; margin-bottom:14px; font-size:14px; color:#5b21b6; }
+        .callout.err { border-left-color:#dc2626; background:#fee2e2; color:#991b1b; }
+        .callout.warn { border-left-color:#f59e0b; background:#fef3c7; color:#78350f; }
+        .callout.ok { border-left-color:#16a34a; background:#d1fae5; color:#065f46; }
+        .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px 22px; }
+        .field-ro { display:flex; flex-direction:column; }
+        .field-ro label { font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:0.3px; font-weight:700; margin-bottom:3px; }
+        .field-ro .val { font-size:14px; color:#111827; padding:6px 10px; background:#f9fafb; border-radius:4px; border:1px solid #e5e7eb; min-height:32px; }
+        .section-title { color:#1e3a8a; font-size:15px; font-weight:800; margin-bottom:12px; padding-bottom:6px; border-bottom:2px solid #ede9fe; }
+        table.controles { width:100%; border-collapse:collapse; font-size:13px; margin-top:8px; }
+        table.controles thead { background:#1e3a8a; color:white; }
+        table.controles th, table.controles td { padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:left; }
+        .actions { display:flex; gap:12px; flex-wrap:wrap; margin-top:20px; }
+        .btn { padding:14px 22px; border:none; border-radius:8px; font-weight:800; cursor:pointer; font-size:14px; flex:1; min-width:170px; text-align:center; transition:transform 0.15s, box-shadow 0.15s; }
+        .btn:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,0.15); }
+        .btn:disabled { opacity:0.5; cursor:not-allowed; }
+        .btn-approve { background:#16a34a; color:white; }
+        .btn-return { background:#f59e0b; color:white; }
+        .btn-reject { background:#dc2626; color:white; }
+        textarea { width:100%; padding:10px 12px; border:1px solid #d1d5db; border-radius:6px; font-family:inherit; font-size:14px; min-height:80px; resize:vertical; margin-top:10px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔐 Decidir Solicitud de Usuarios</h1>
+        {% if solicitud %}
+            <a href="/solicitudes-usuarios/{{ solicitud.id }}" style="color:white; text-decoration:none; padding:6px 12px; background:rgba(255,255,255,0.15); border-radius:6px; font-size:12px;">Ver ficha completa</a>
+        {% endif %}
+    </div>
+
+    <div class="container">
+        {% if error %}
+            <div class="card">
+                <div class="callout err">❌ {{ error }}</div>
+                <p style="margin-top:12px; color:#6b7280; font-size:13px;">
+                    Si creés que es un error, contactá al administrador o abrí la solicitud desde tu cuenta.
+                </p>
+            </div>
+        {% elif already_used %}
+            <div class="card">
+                <div class="callout warn">⚠ Este enlace ya fue usado.</div>
+                <p style="margin-top:12px; color:#6b7280;">
+                    Ya decidiste esta solicitud desde otro dispositivo o navegador. Podés ver el estado actualizado en la ficha completa arriba.
+                </p>
+            </div>
+        {% elif expected_state != current_state %}
+            <div class="card">
+                <div class="callout warn">⚠ El estado de la solicitud cambió.</div>
+                <p style="margin-top:12px; color:#6b7280;">
+                    Este link corresponde al estado <em>{{ expected_state }}</em>, pero la solicitud actualmente está en <strong>{{ current_state }}</strong>. Es posible que otro aprobador — o vos mismo desde la UI — ya la haya movido. Abrí la ficha para ver el estado real.
+                </p>
+            </div>
+        {% else %}
+
+        <div class="card">
+            <div class="callout">
+                Hola. Estás decidiendo la solicitud <strong>{{ solicitud.codigo }}</strong> como <strong>{{ approver_role_label }}</strong>.
+                Revisá los datos y elegí una acción abajo. Todas las acciones quedan registradas en el historial.
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+                <div>
+                    <div style="font-size:11px; color:#6b7280; text-transform:uppercase;">Código</div>
+                    <div style="font-size:22px; font-weight:800; color:#1e3a8a;">{{ solicitud.codigo }}</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:11px; color:#6b7280; text-transform:uppercase;">Tipo</div>
+                    <span style="display:inline-block; padding:4px 12px; background:#ede9fe; color:#5b21b6; border-radius:12px; font-weight:700; font-size:12px;">{{ solicitud.tipo_solicitud }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-title">👤 Empleado</div>
+            <div class="grid-2">
+                <div class="field-ro"><label>Documento</label><div class="val">{{ solicitud.documento }}</div></div>
+                <div class="field-ro"><label>Nombre</label><div class="val">{{ solicitud.nombre }}</div></div>
+                <div class="field-ro"><label>Cargo</label><div class="val">{{ solicitud.cargo or '—' }}</div></div>
+                <div class="field-ro"><label>Área / CC</label><div class="val">{{ solicitud.centro_costo or '—' }}</div></div>
+                <div class="field-ro"><label>Ubicación</label><div class="val">{{ solicitud.ubicacion or '—' }}</div></div>
+                <div class="field-ro"><label>Tipo de contrato</label><div class="val">{{ solicitud.tipo_contrato or '—' }}</div></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-title">📝 Justificación</div>
+            <div style="white-space:pre-wrap; padding:12px; background:#f9fafb; border-radius:6px; border-left:4px solid #7c3aed; font-size:14px;">{{ solicitud.justificacion }}</div>
+        </div>
+
+        <div class="card">
+            <div class="section-title">📦 Controles solicitados ({{ solicitud.controles|length }})</div>
+            <table class="controles">
+                <thead>
+                    <tr><th>#</th><th>Control</th><th>Detalle</th><th>Usuario Espejo</th></tr>
+                </thead>
+                <tbody>
+                    {% for c in solicitud.controles %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td><strong>{{ c.control_name }}</strong></td>
+                        <td>{{ c.descripcion_detalle or '—' }}</td>
+                        <td>{{ c.usuario_espejo or ('⚠ Falta' if c.needs_espejo else '—') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <div class="section-title">🎯 Tu decisión</div>
+            <label for="obs" style="display:block; font-size:13px; color:#374151; font-weight:600; margin-bottom:4px;">
+                Observación <span style="color:#dc2626;">(obligatoria para Devolver o Rechazar)</span>
+            </label>
+            <textarea id="obs" placeholder="Ej: falta detallar el usuario espejo del SAP; corregir por favor…"></textarea>
+            <div class="actions">
+                <button class="btn btn-approve" id="btnAprobar" onclick="decidir('aprobar')">✓ Aprobar</button>
+                <button class="btn btn-return" id="btnDevolver" onclick="decidir('devolver')">↩ Devolver</button>
+                <button class="btn btn-reject" id="btnRechazar" onclick="decidir('rechazar')">✕ Rechazar</button>
+            </div>
+            <div id="feedback" style="margin-top:14px;"></div>
+        </div>
+
+        <script>
+        const TOKEN = "{{ token }}";
+        const PREFILL = "{{ prefill_action or '' }}";
+
+        // Si el link del correo trae ?action=..., prellenar y hacer scroll
+        window.addEventListener('DOMContentLoaded', () => {
+            if (PREFILL) {
+                const map = {aprobar: 'btnAprobar', devolver: 'btnDevolver', rechazar: 'btnRechazar'};
+                const btn = document.getElementById(map[PREFILL]);
+                if (btn) {
+                    btn.style.boxShadow = '0 0 0 3px rgba(124,58,237,0.35)';
+                    btn.scrollIntoView({behavior:'smooth', block:'center'});
+                }
+            }
+        });
+
+        async function decidir(accion) {
+            const obs = document.getElementById('obs').value.trim();
+            if ((accion === 'devolver' || accion === 'rechazar') && !obs) {
+                alert('La observación es obligatoria para ' + accion + '.');
+                document.getElementById('obs').focus();
+                return;
+            }
+            const buttons = ['btnAprobar', 'btnDevolver', 'btnRechazar'].map(id => document.getElementById(id));
+            buttons.forEach(b => b.disabled = true);
+            const fb = document.getElementById('feedback');
+            fb.innerHTML = '<div class="callout">⏳ Procesando…</div>';
+
+            try {
+                const r = await fetch(`/api/solicitudes-usuarios/decidir/${TOKEN}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({accion, observacion: obs})
+                });
+                const data = await r.json();
+                if (!data.success) throw new Error(data.error || 'Error');
+                fb.innerHTML = `<div class="callout ok">✅ Listo. La solicitud pasó a estado: <strong>${data.estado_label}</strong></div>
+                                <p style="margin-top:10px; color:#6b7280; font-size:13px;">Podés cerrar esta ventana.</p>`;
+            } catch (e) {
+                fb.innerHTML = `<div class="callout err">❌ ${e.message}</div>`;
+                buttons.forEach(b => b.disabled = false);
+            }
+        }
+        </script>
+
+        {% endif %}
+    </div>
+</body>
+</html>

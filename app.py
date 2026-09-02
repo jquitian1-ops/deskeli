@@ -1269,9 +1269,11 @@ SOLICITUD_DEVUELTO_A_PENDIENTE = {
 
 # Aprobar → siguiente estado pendiente (o final si es el último)
 SOLICITUD_APROBAR_SIGUIENTE = {
-    SOLICITUD_ESTADO_PENDIENTE_JEFE: SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA,
-    SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA: SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI,
-    SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI: SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI,
+    # Flujo oficial (diagrama del negocio):
+    # Jefe Inmediato → Analista IT → Gerente Solicitante (Área) → Gerente TI → Aprobado
+    SOLICITUD_ESTADO_PENDIENTE_JEFE: SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI,
+    SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI: SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA,
+    SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA: SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI,
     SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI: SOLICITUD_ESTADO_APROBADO_GERENTE_TI,
 }
 
@@ -1453,6 +1455,32 @@ class SolicitudAdjunto(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     uploaded_by = db.relationship('User', foreign_keys=[uploaded_by_id])
+
+
+class SolicitudApprovalToken(db.Model):
+    """Token de un solo uso para que el aprobador decida desde un email.
+
+    Al pasar la solicitud a un estado PENDIENTE_*, el sistema genera un token
+    por aprobador con este record + link único, envía el correo, y espera
+    la decisión. Al procesar la decisión, se marca used=True para invalidar
+    el token.
+    """
+    __tablename__ = 'solicitudes_approval_tokens'
+    id = db.Column(db.Integer, primary_key=True)
+    solicitud_id = db.Column(db.Integer, db.ForeignKey('solicitudes_usuarios.id'), nullable=False, index=True)
+    token = db.Column(db.String(80), unique=True, nullable=False, index=True)
+    expected_state = db.Column(db.String(60), nullable=False)  # estado PENDIENTE_* que el token puede decidir
+    approver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    approver_role_label = db.Column(db.String(120))  # snapshot: "Jefe Inmediato", "Analista IT", etc.
+    used = db.Column(db.Boolean, default=False, index=True)
+    action = db.Column(db.String(20))  # aprobar|devolver|rechazar (registrado al procesar)
+    decided_at = db.Column(db.DateTime)
+    expires_at = db.Column(db.DateTime)  # 30 días desde creación
+    notified_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    solicitud = db.relationship('SolicitudUsuario', foreign_keys=[solicitud_id])
+    approver = db.relationship('User', foreign_keys=[approver_id])
 
 
 class InfAprobador(db.Model):
@@ -23569,10 +23597,137 @@ def admin_controles_page():
     return render_template('admin/controles.html')
 
 
+def _role_label_for_solicitud_state(estado):
+    """Etiqueta humana del rol para el estado actual (para snapshot en el token)."""
+    return {
+        SOLICITUD_ESTADO_PENDIENTE_JEFE: 'Jefe Inmediato',
+        SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI: 'Analista IT',
+        SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA: 'Gerente Solicitante',
+        SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI: 'Gerente IT',
+    }.get(estado, 'Aprobador')
+
+
+def _create_or_get_solicitud_token(solicitud, approver):
+    """Devuelve un SolicitudApprovalToken válido para (solicitud, estado_actual,
+    approver). Si ya existe uno vigente sin usar, lo reutiliza; si no, crea uno.
+    """
+    import secrets
+    from datetime import timedelta
+    # ¿Ya hay un token vigente para este mismo (solicitud, estado, approver)?
+    existing = SolicitudApprovalToken.query.filter_by(
+        solicitud_id=solicitud.id,
+        expected_state=solicitud.estado,
+        approver_id=approver.id,
+        used=False,
+    ).first()
+    if existing and (not existing.expires_at or existing.expires_at > datetime.now()):
+        return existing
+    tok = SolicitudApprovalToken(
+        solicitud_id=solicitud.id,
+        token=secrets.token_urlsafe(32),
+        expected_state=solicitud.estado,
+        approver_id=approver.id,
+        approver_role_label=_role_label_for_solicitud_state(solicitud.estado),
+        expires_at=datetime.now() + timedelta(days=30),
+    )
+    db.session.add(tok)
+    db.session.commit()
+    return tok
+
+
+def _send_solicitud_approval_email(solicitud, approver, token):
+    """Envía email al aprobador con 3 botones (Aprobar/Devolver/Rechazar).
+    Best-effort: silencia errores. Reusa send_email() con config SMTP de la
+    empresa (patrón idéntico al de aprobación de tickets)."""
+    try:
+        if not approver or not approver.email or not solicitud:
+            return False
+        # Preferir get_public_base_url() cuando esté configurado (para links en
+        # correo que apunten al dominio público, no al host interno).
+        try:
+            base_url = get_public_base_url() or (request.host_url.rstrip('/') if request else '')
+        except Exception:
+            base_url = request.host_url.rstrip('/') if request else ''
+        decide_url = f"{base_url}/solicitudes-usuarios/decidir/{token.token}"
+
+        # Resumen de controles marcados
+        controles_html = ''
+        for sc in solicitud.controles[:20]:  # cap 20 en el email
+            nombre = (sc.control.name if sc.control else '—')
+            detalle = (sc.descripcion_detalle or '')[:120]
+            controles_html += f'<li><strong>{nombre}</strong>{": " + detalle if detalle else ""}</li>'
+        if len(solicitud.controles) > 20:
+            controles_html += f'<li><em>… y {len(solicitud.controles) - 20} más</em></li>'
+        if not controles_html:
+            controles_html = '<li><em>Sin controles marcados</em></li>'
+
+        role_label = token.approver_role_label or _role_label_for_solicitud_state(solicitud.estado)
+        subject = f"[DeskEli] Aprobación requerida · Solicitud {solicitud.codigo}"
+
+        body = f"""
+        <html><body style="font-family:Segoe UI,sans-serif;color:#1f2937;background:#f5f7fa;padding:20px;">
+        <div style="max-width:640px;margin:0 auto;padding:26px;background:white;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+            <h2 style="color:#7c3aed;margin:0 0 12px;">🔐 Se requiere tu aprobación como {role_label}</h2>
+            <p>Hola <strong>{approver.name}</strong>,</p>
+            <p>La solicitud <strong>{solicitud.codigo}</strong> ({solicitud.tipo_solicitud}) requiere tu revisión.</p>
+
+            <div style="background:#f9fafb;padding:16px;border-radius:8px;margin:14px 0;border-left:4px solid #7c3aed;">
+                <p style="margin:6px 0;"><strong>Empleado:</strong> {solicitud.nombre} · Doc {solicitud.documento}</p>
+                <p style="margin:6px 0;"><strong>Cargo:</strong> {solicitud.cargo or '—'}</p>
+                <p style="margin:6px 0;"><strong>Área / Centro de costo:</strong> {solicitud.centro_costo or '—'}</p>
+                <p style="margin:6px 0;"><strong>Solicitante:</strong> {solicitud.creator.name if solicitud.creator else '—'}</p>
+                <p style="margin:6px 0;"><strong>Justificación:</strong></p>
+                <div style="background:white;padding:8px 10px;border-radius:4px;font-size:13px;color:#374151;">
+                    {(solicitud.justificacion or '')[:400]}{'...' if len(solicitud.justificacion or '') > 400 else ''}
+                </div>
+                <p style="margin:12px 0 6px;"><strong>Controles solicitados:</strong></p>
+                <ul style="margin:4px 0 0 20px;font-size:13px;">{controles_html}</ul>
+            </div>
+
+            <p style="margin-top:20px;">Decidí desde tu correo con un solo clic:</p>
+            <div style="text-align:center;margin:20px 0;">
+                <a href="{decide_url}?action=aprobar"
+                   style="display:inline-block;padding:12px 22px;background:#16a34a;color:white;text-decoration:none;border-radius:6px;font-weight:700;margin:4px;">
+                    ✓ Aprobar
+                </a>
+                <a href="{decide_url}?action=devolver"
+                   style="display:inline-block;padding:12px 22px;background:#f59e0b;color:white;text-decoration:none;border-radius:6px;font-weight:700;margin:4px;">
+                    ↩ Devolver
+                </a>
+                <a href="{decide_url}?action=rechazar"
+                   style="display:inline-block;padding:12px 22px;background:#dc2626;color:white;text-decoration:none;border-radius:6px;font-weight:700;margin:4px;">
+                    ✕ Rechazar
+                </a>
+            </div>
+            <p style="font-size:12px;color:#6b7280;margin-top:14px;">
+                Si preferís ver el detalle completo antes de decidir, hacé clic acá:
+                <a href="{decide_url}" style="color:#7c3aed;">Ver solicitud completa</a>
+            </p>
+            <p style="font-size:12px;color:#9ca3af;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:12px;">
+                Enviado automáticamente por DeskEli — no responder a este correo.<br>
+                Este link expira en 30 días o cuando decidas la solicitud.
+            </p>
+        </div>
+        </body></html>
+        """
+        ok = send_email(
+            to_email=approver.email,
+            subject=subject,
+            body=body,
+            company=solicitud.company,
+        )
+        if ok:
+            token.notified_at = datetime.now()
+            db.session.commit()
+        return bool(ok)
+    except Exception as e:
+        print(f'[solicitudes] Error enviando email de aprobación: {e}')
+        return False
+
+
 def _notify_next_approver(solicitud):
-    """Notifica al aprobador del estado actual. Best-effort: silencia errores.
-    Se emite por WebSocket (Socket.IO room = company) si está disponible,
-    y se registra en log_audit."""
+    """Notifica al aprobador del estado actual: WebSocket + email con token.
+    Best-effort: silencia errores (no rompe el flujo si SMTP falla)."""
     try:
         approver_id = solicitud.responsable_actual_id()
         if not approver_id:
@@ -23580,6 +23735,16 @@ def _notify_next_approver(solicitud):
         approver = User.query.get(approver_id)
         if not approver:
             return
+
+        # Solo emitimos email si el estado es PENDIENTE_* (los DEVUELTO_* van
+        # al solicitante, no a un aprobador; los finales no requieren aviso).
+        if solicitud.estado in SOLICITUD_NIVEL_POR_ESTADO:
+            try:
+                token = _create_or_get_solicitud_token(solicitud, approver)
+                _send_solicitud_approval_email(solicitud, approver, token)
+            except Exception as e:
+                print(f'[warn] token/email solicitud: {e}')
+
         log_audit(
             'solicitud_notificacion',
             approver_id,
@@ -23604,6 +23769,106 @@ def _notify_next_approver(solicitud):
             pass
     except Exception as e:
         print(f'[warn] _notify_next_approver: {e}')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Endpoints públicos: aprobar solicitud desde el link del correo
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/solicitudes-usuarios/decidir/<token>', methods=['GET'])
+def solicitudes_decidir_page(token):
+    """Renderiza la pantalla de decisión del aprobador. Requiere login para
+    validar la identidad; si no está logueado, redirect a /login?next=..."""
+    tok = SolicitudApprovalToken.query.filter_by(token=token).first()
+    if not tok:
+        return render_template('solicitudes/decide.html', error='Token inválido o inexistente.'), 404
+    if 'user_id' not in session:
+        # Guardar next en query string para que el login redirija de vuelta acá
+        return redirect(url_for('login') + f'?next=/solicitudes-usuarios/decidir/{token}')
+
+    user = User.query.get(session['user_id'])
+    if not user or (user.id != tok.approver_id and user.role != 'admin'):
+        return render_template('solicitudes/decide.html',
+                               error='No sos el aprobador de esta solicitud.'), 403
+
+    s = tok.solicitud
+    if not s:
+        return render_template('solicitudes/decide.html', error='Solicitud no encontrada.'), 404
+
+    prefill = (request.args.get('action') or '').strip().lower()
+    if prefill not in ('aprobar', 'devolver', 'rechazar'):
+        prefill = ''
+
+    return render_template(
+        'solicitudes/decide.html',
+        token=token,
+        solicitud=_serialize_solicitud_detail(s),
+        approver_role_label=tok.approver_role_label or _role_label_for_solicitud_state(s.estado),
+        already_used=bool(tok.used),
+        expected_state=tok.expected_state,
+        current_state=s.estado,
+        prefill_action=prefill,
+    )
+
+
+@app.route('/api/solicitudes-usuarios/decidir/<token>', methods=['POST'])
+def api_solicitudes_decidir(token):
+    """Procesa la decisión desde el link del correo. Requiere login (misma
+    identidad que el approver del token)."""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Sesión requerida'}), 401
+    tok = SolicitudApprovalToken.query.filter_by(token=token).first()
+    if not tok:
+        return jsonify({'success': False, 'error': 'Token inválido'}), 404
+    if tok.used:
+        return jsonify({'success': False, 'error': 'Este token ya fue usado.'}), 409
+    if tok.expires_at and tok.expires_at < datetime.now():
+        return jsonify({'success': False, 'error': 'Token expirado.'}), 410
+
+    user = User.query.get(session['user_id'])
+    if not user or (user.id != tok.approver_id and user.role != 'admin'):
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+
+    s = tok.solicitud
+    if not s:
+        return jsonify({'success': False, 'error': 'Solicitud no encontrada'}), 404
+
+    # Validar que la solicitud siga en el estado esperado (idempotencia por si
+    # otro aprobador — o el mismo desde la UI — ya la movió).
+    if s.estado != tok.expected_state:
+        return jsonify({
+            'success': False,
+            'error': f'El estado de la solicitud cambió a "{SOLICITUD_ESTADO_LABEL.get(s.estado, s.estado)}". Este link ya no aplica.'
+        }), 409
+
+    data = request.get_json() or {}
+    accion = (data.get('accion') or '').strip().lower()
+    if accion not in ('aprobar', 'devolver', 'rechazar'):
+        return jsonify({'success': False, 'error': 'Acción inválida'}), 400
+    obs = (data.get('observacion') or '').strip() or None
+
+    ok, error, next_estado = _apply_transition(s, user, accion, obs)
+    if not ok:
+        return jsonify({'success': False, 'error': error}), 400
+
+    # Quemar token
+    tok.used = True
+    tok.action = accion
+    tok.decided_at = datetime.now()
+    db.session.commit()
+
+    log_audit(f'solicitud_{accion}_by_email', user.id, 'solicitud', s.id,
+              f'{s.codigo}: {accion} desde link de correo → {next_estado}')
+
+    # Notificar al siguiente si hubo transición a otro estado pendiente
+    if accion == 'aprobar':
+        _notify_next_approver(s)
+
+    return jsonify({
+        'success': True,
+        'estado': next_estado,
+        'estado_label': SOLICITUD_ESTADO_LABEL.get(next_estado, next_estado),
+    })
 
 
 # ═════════════════════════════════════════════════════════════════════════════
