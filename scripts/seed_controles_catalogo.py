@@ -21,84 +21,122 @@ except ImportError:
 from app import app, db, Control
 
 
+# Catálogo oficial de 28 controles según el documento
+# "LISTA CONSOLIDADA DE CONTROLES" (controles.pdf). Las descripciones
+# reproducen el "Detalle del control" del PDF para que el solicitante vea
+# la misma guía operativa que usan hoy en T-APPS.
 CATALOGO = [
-    # ── Equipos y ofimática ──
+    # 1
     {'code': 'elementos_tecnologia', 'name': 'ELEMENTOS DE TECNOLOGIA',
-     'descripcion': 'Portátil, monitor, teclado, mouse, diadema, docking, etc. Especifique modelo y accesorios.',
+     'descripcion': 'Seleccione los elementos de tecnología que requiera solicitar. Esto está sujeto a posterior aprobación de las gerencias de área por costos.',
      'tipo': 'elemento', 'needs_espejo': False, 'costo_referencia': None},
+    # 2
     {'code': 'herramientas_ofimaticas', 'name': 'HERRAMIENTAS OFIMATICAS',
-     'descripcion': 'Microsoft 365, Office, licencias específicas.',
+     'descripcion': 'Herramientas ofimáticas (seleccione los aplicativos a los cuales requiere acceso y justificación).',
      'tipo': 'acceso', 'needs_espejo': False, 'costo_referencia': None},
-    # ── Red / correo / VPN / carpetas ──
+    # 3
     {'code': 'directorio_activo', 'name': 'DIRECTORIO ACTIVO',
-     'descripcion': 'Creación de usuario de red / dominio.',
+     'descripcion': 'Usuario para ingresar al equipo de cómputo.',
      'tipo': 'acceso', 'needs_espejo': False, 'costo_referencia': None},
+    # 4
     {'code': 'correo_corporativo', 'name': 'CORREO ELECTRONICO CORPORATIVO',
-     'descripcion': 'Alias, buzón, grupos de distribución.',
+     'descripcion': 'Dirección de correo electrónico corporativo (indicar el dominio, ejemplo: @tekstelas.com; @patprimo.com.co; @pash.com.co; @patprimo.co; etc.). Adicional indicar justificación y tipo de licencia (solo correo, básica o estándar).',
      'tipo': 'acceso', 'needs_espejo': False, 'costo_referencia': None},
+    # 5
     {'code': 'creacion_vpn', 'name': 'CREACION VPN',
-     'descripcion': 'Acceso remoto a la red corporativa.',
+     'descripcion': 'Se requiere para conexión a los aplicativos en modalidad teletrabajo.',
      'tipo': 'acceso', 'needs_espejo': False, 'costo_referencia': None},
+    # 6
     {'code': 'carpetas_compartidas', 'name': 'CARPETAS COMPARTIDAS',
-     'descripcion': 'Rutas de red (\\\\servidor\\carpeta) con permisos R/W.',
+     'descripcion': 'Carpetas compartidas (por favor indicar la ruta de la carpeta donde requiere el acceso).',
      'tipo': 'acceso', 'needs_espejo': False, 'costo_referencia': None},
-    # ── Permisos ──
+    # 7
     {'code': 'permiso_imprimir', 'name': 'PERMISO DE IMPRIMIR',
-     'descripcion': 'Colas de impresión departamentales o específicas.',
+     'descripcion': 'Permisos de impresión (BYN; para opción de color está sujeto a aprobación por Dirección de Operaciones e Infraestructura).',
      'tipo': 'acceso', 'needs_espejo': False, 'costo_referencia': None},
+    # 8
     {'code': 'permisos_internet', 'name': 'PERMISOS DE INTERNET',
-     'descripcion': 'Perfil de navegación en el proxy (básico, avanzado, sin restricción).',
+     'descripcion': 'Debe detallar las páginas a las cuales van a acceder y especificar la categoría que requiere: - AVANZADO (VIP): aplica si requiere redes sociales, permite un acceso más amplio con restricciones mínimas. - BÁSICO (STAFF): ofrece un nivel básico de acceso con filtros más restrictivos.',
      'tipo': 'acceso', 'needs_espejo': False, 'costo_referencia': None},
+    # 9
     {'code': 'puntos_electricos_red', 'name': 'PUNTOS ELECTRICOS O RED',
-     'descripcion': 'Habilitar tomas eléctricas o de red en la ubicación asignada.',
+     'descripcion': 'Describa si es revisión o nuevos; adicional las cantidades de puntos de red y/o eléctricos que se requiere si son puntos nuevos.',
      'tipo': 'elemento', 'needs_espejo': False, 'costo_referencia': None},
+    # 10
     {'code': 'sql_gerber', 'name': 'SQL GERBER',
-     'descripcion': 'Acceso a BD SQL / Gerber (moldes, patronaje).',
+     'descripcion': 'Permisos SQL Gerber; se debe informar el nombre de la carpeta y el tipo de permiso (lectura, escritura o lectura/escritura).',
      'tipo': 'acceso', 'needs_espejo': False, 'costo_referencia': None},
+    # 11
     {'code': 'puertos_usb', 'name': 'PUERTOS USB',
-     'descripcion': 'Habilitar puertos USB en el equipo (por defecto bloqueados por política).',
+     'descripcion': 'Habilitación de puertos USB (deben justificar por qué se requiere el acceso).',
      'tipo': 'acceso', 'needs_espejo': False, 'costo_referencia': None},
-    # ── Aplicativos textiles (con Usuario Espejo) ──
+    # 12
     {'code': 'externos_confeccion', 'name': 'EXTERNOS CONFECCION',
-     'descripcion': 'Módulo para satélites/talleres externos.',
+     'descripcion': 'Usuario para ingreso al aplicativo Externos Confección (deben indicar en su respectivo campo el Usuario Espejo, este debe estar activo en la compañía).',
      'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
+    # 13
     {'code': 'eliotconf', 'name': 'ELIOTCONF',
-     'descripcion': 'Sistema de confección Eliot.',
+     'descripcion': 'Usuario para ingreso al aplicativo Eliotconf (deben indicar en su respectivo campo el Usuario Espejo, este debe estar activo en la compañía).',
      'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
+    # 14
     {'code': 'eliotex', 'name': 'ELIOTEX',
-     'descripcion': 'Sistema Eliot Textil.',
+     'descripcion': 'Usuario para ingreso al aplicativo Eliotex (deben indicar en su respectivo campo el Usuario Espejo, este debe estar activo en la compañía).',
      'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
+    # 15
     {'code': 'acatex', 'name': 'ACATEX',
-     'descripcion': 'Sistema de acabados textiles.',
+     'descripcion': 'Usuario para ingreso al aplicativo Acatex (deben indicar en su respectivo campo el Usuario Espejo, este debe estar activo en la compañía).',
      'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
+    # 16
     {'code': 'costotex', 'name': 'COSTOTEX',
-     'descripcion': 'Sistema de costos textiles.',
+     'descripcion': 'Usuario para ingreso al aplicativo Costotex (deben indicar en su respectivo campo el Usuario Espejo, este debe estar activo en la compañía).',
      'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
+    # 17
     {'code': 'vertex', 'name': 'VERTEX',
-     'descripcion': 'Sistema Vertex (integración).',
+     'descripcion': 'Usuario para ingreso al aplicativo Vertex (deben indicar en su respectivo campo el Usuario Espejo, este debe estar activo en la compañía).',
      'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
+    # 18
     {'code': 'tejido_plano', 'name': 'TEJIDO PLANO',
-     'descripcion': 'Módulo tejido plano.',
+     'descripcion': 'Usuario para ingreso al aplicativo Tejido Plano (deben indicar en su respectivo campo el Usuario Espejo, este debe estar activo en la compañía).',
      'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
-    # ── Comercial / retail ──
+    # 19 (nuevo respecto al catálogo previo)
+    {'code': 'bodega_telas', 'name': 'BODEGA DE TELAS',
+     'descripcion': 'Usuario para ingreso al aplicativo Bodega de Telas (deben indicar en su respectivo campo el Usuario Espejo, este debe estar activo en la compañía).',
+     'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
+    # 20 (nuevo)
+    {'code': 'separacion_telas', 'name': 'SEPARACION DE TELAS',
+     'descripcion': 'Usuario para ingreso al aplicativo Separación de Telas (deben indicar en su respectivo campo el Usuario Espejo, este debe estar activo en la compañía).',
+     'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
+    # 21 (nuevo)
+    {'code': 'ventas_movil', 'name': 'VENTAS MOVIL',
+     'descripcion': 'Usuario para ingreso al aplicativo Ventas Móvil.',
+     'tipo': 'acceso', 'needs_espejo': False, 'costo_referencia': None},
+    # 22 (nuevo)
+    {'code': 'ultrasystem', 'name': 'ULTRASYSTEM',
+     'descripcion': 'Permisos en plataforma Ultrasystem; se debe indicar Usuario Espejo activo, para qué país y marcas requiere el acceso.',
+     'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
+    # 23
     {'code': 'retail', 'name': 'RETAIL',
-     'descripcion': 'Aplicativo POS / retail.',
+     'descripcion': 'Usuario para ingreso al aplicativo Retail (deben indicar en su respectivo campo el Usuario Espejo, este debe estar activo en la compañía). Especificar para qué país y marcas requiere los accesos.',
      'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
+    # 24
     {'code': 'skycm', 'name': 'SKYCM',
-     'descripcion': 'Aplicativo SKYCM.',
+     'descripcion': 'Solicitud al aplicativo SkyCM Market Place (asesores comerciales).',
      'tipo': 'acceso', 'needs_espejo': False, 'costo_referencia': None},
+    # 25
     {'code': 'biotime', 'name': 'BIOTIME',
-     'descripcion': 'Control de asistencia biométrico.',
+     'descripcion': 'BioTime; indicar el país y Usuario Espejo donde requiere el acceso.',
      'tipo': 'acceso', 'needs_espejo': False, 'costo_referencia': None},
-    # ── SAP y KACTUS ──
+    # 26
     {'code': 'kactus', 'name': 'KACTUS',
-     'descripcion': 'Nómina KACTUS. Especifique módulos y perfil.',
+     'descripcion': 'Plataforma de acceso a módulos de nómina y gestión humana a nivel de creación de usuarios, permisos, accesos a programas, roles y tipo de usuario.',
      'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
+    # 27 — SOLO aplica para tipo de solicitud MODIFICACION (filtrado en el frontend)
     {'code': 'sap_pash', 'name': 'SAP PASH',
-     'descripcion': 'Instancia SAP de Pash. Especifique ambiente (PRD/QAS/DEV), mandante y módulos.',
+     'descripcion': 'Solo seleccionar cuando sea tipo de solicitud MODIFICACIÓN y ya cuente con usuario en el aplicativo SAP PASH.',
      'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
+    # 28
     {'code': 'sap', 'name': 'SAP',
-     'descripcion': 'SAP genérico. Especifique ambiente, mandante, módulos, tcodes.',
+     'descripcion': 'En el campo descripción indicar si ya cuenta con usuario; adicional deben indicar el Usuario Espejo y el ambiente (Productivo, Preproductivo, Calidad, Desarrollo). Indicar versión (AFS, FMS PASH, FMS PAISES, EWM).',
      'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
 ]
 

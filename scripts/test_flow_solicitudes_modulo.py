@@ -212,7 +212,7 @@ check('seed_controles_catalogo.py importa Control desde app',
 
 # Contar cuántos controles hay en el CATALOGO
 matches = re.findall(r"\{'code':", seed_src)
-check(f'CATALOGO tiene 24 controles (encontrados: {len(matches)})', len(matches) == 24)
+check(f'CATALOGO tiene 28 controles (encontrados: {len(matches)})', len(matches) == 28)
 
 # Códigos clave del MD
 codigos_esperados = ['elementos_tecnologia', 'sap', 'kactus', 'directorio_activo',

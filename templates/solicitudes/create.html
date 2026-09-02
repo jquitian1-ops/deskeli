@@ -189,9 +189,15 @@
                 </div>
             </div>
 
-            <!-- Listado de controles -->
-            <div class="card">
+            <!-- Aviso cuando no se ha seleccionado tipo -->
+            <div class="card cond-hidden" id="cardControlesPlaceholder">
                 <div class="section-title">5. Listado de controles a solicitar</div>
+                <div class="callout info">👆 Primero seleccioná un <strong>Tipo de solicitud</strong> (arriba, sección 1) para ver los controles disponibles.</div>
+            </div>
+
+            <!-- Listado de controles (visible solo tras elegir tipo) -->
+            <div class="card cond-hidden" id="cardControles">
+                <div class="section-title">5. Listado de controles a solicitar <span id="cardControlesTipoTag" style="font-size:12px; font-weight:600; color:#5b21b6; margin-left:10px; padding:3px 10px; background:#ede9fe; border-radius:12px;"></span></div>
                 <div class="callout">Marcá los controles (elementos tecnológicos o accesos) que el empleado necesita. Cada control marcado obliga a completar su descripción. Los que tienen etiqueta <strong>Usuario Espejo</strong> requieren indicar el login de un usuario existente para replicar sus permisos.</div>
                 <div style="overflow-x:auto;">
                     <table class="controles-table">
@@ -267,6 +273,18 @@
         document.getElementById('tipoHint').style.display = t ? 'block' : 'none';
         document.getElementById('cardIngreso').classList.toggle('cond-hidden', t !== 'INGRESO');
         document.getElementById('cardModif').classList.toggle('cond-hidden', t !== 'MODIFICACION' && t !== 'TRASLADO');
+
+        // Sección 5 (controles) solo visible cuando hay tipo elegido
+        const hasType = !!t;
+        document.getElementById('cardControlesPlaceholder').classList.toggle('cond-hidden', hasType);
+        document.getElementById('cardControles').classList.toggle('cond-hidden', !hasType);
+        const tag = document.getElementById('cardControlesTipoTag');
+        if (tag) tag.textContent = hasType ? ('Tipo: ' + t) : '';
+
+        // Cambió el tipo → re-renderizar (aplica filtros como SAP PASH solo en MODIFICACION)
+        if (hasType && _controles.length > 0) {
+            renderControles();
+        }
     }
 
     function onReemplazoChange() {
@@ -293,7 +311,19 @@
                 '<tr><td colspan="5" style="text-align:center; color:#6b7280; padding:20px;">Sin controles en el catálogo. Un admin puede cargarlos en /admin/controles.</td></tr>';
             return;
         }
-        const rows = _controles.map(c => {
+        // Filtro por tipo de solicitud:
+        // - SAP PASH solo se muestra en MODIFICACION (regla del catálogo oficial).
+        const tipoSel = document.getElementById('tipo_solicitud').value;
+        const filtrados = _controles.filter(c => {
+            if (c.code === 'sap_pash' && tipoSel !== 'MODIFICACION') return false;
+            return true;
+        });
+        if (filtrados.length === 0) {
+            document.getElementById('controlesTbody').innerHTML =
+                '<tr><td colspan="5" style="text-align:center; color:#6b7280; padding:20px;">Sin controles disponibles para este tipo de solicitud.</td></tr>';
+            return;
+        }
+        const rows = filtrados.map(c => {
             const espejo = c.needs_espejo
                 ? `<div class="espejo-row"><label class="espejo-label">Usuario Espejo:</label>
                     <input type="text" data-espejo="${c.id}" disabled placeholder="Login activo a replicar"></div>`
