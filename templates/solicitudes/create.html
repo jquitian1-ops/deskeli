@@ -207,11 +207,10 @@
                                 <th style="width:180px;">Nombre del control</th>
                                 <th style="width:220px;">Descripción del catálogo</th>
                                 <th>Detalle / Usuario Espejo</th>
-                                <th style="width:100px;">Costo (opc.)</th>
                             </tr>
                         </thead>
                         <tbody id="controlesTbody">
-                            <tr><td colspan="5" style="text-align:center; padding:20px; color:#6b7280;">⏳ Cargando catálogo…</td></tr>
+                            <tr><td colspan="4" style="text-align:center; padding:20px; color:#6b7280;">⏳ Cargando catálogo…</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -320,7 +319,7 @@
         });
         if (filtrados.length === 0) {
             document.getElementById('controlesTbody').innerHTML =
-                '<tr><td colspan="5" style="text-align:center; color:#6b7280; padding:20px;">Sin controles disponibles para este tipo de solicitud.</td></tr>';
+                '<tr><td colspan="4" style="text-align:center; color:#6b7280; padding:20px;">Sin controles disponibles para este tipo de solicitud.</td></tr>';
             return;
         }
         const rows = filtrados.map(c => {
@@ -342,9 +341,6 @@
                         <textarea data-detalle="${c.id}" rows="2" disabled placeholder="Marcá el checkbox y completá…"></textarea>
                         ${espejo}
                     </td>
-                    <td>
-                        <input type="number" step="0.01" data-costo="${c.id}" disabled placeholder="0.00">
-                    </td>
                 </tr>`;
         }).join('');
         document.getElementById('controlesTbody').innerHTML = rows;
@@ -353,7 +349,7 @@
     function toggleRow(id) {
         const chk = document.querySelector(`input[data-check="${id}"]`);
         const enabled = chk.checked;
-        document.querySelectorAll(`[data-detalle="${id}"], [data-espejo="${id}"], [data-costo="${id}"]`).forEach(el => {
+        document.querySelectorAll(`[data-detalle="${id}"], [data-espejo="${id}"]`).forEach(el => {
             el.disabled = !enabled;
         });
     }
@@ -389,12 +385,10 @@
             const id = chk.getAttribute('data-check');
             const detalle = document.querySelector(`textarea[data-detalle="${id}"]`).value.trim();
             const espejoEl = document.querySelector(`input[data-espejo="${id}"]`);
-            const costoEl = document.querySelector(`input[data-costo="${id}"]`);
             controles.push({
                 control_id: parseInt(id),
                 descripcion_detalle: detalle,
                 usuario_espejo: espejoEl ? espejoEl.value.trim() : null,
-                costo: costoEl && costoEl.value ? parseFloat(costoEl.value) : null,
             });
         });
 
