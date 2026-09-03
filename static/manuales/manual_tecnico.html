@@ -490,6 +490,7 @@
         <a href="#reportes" onclick="showSection('reportes')">📈 Mi productividad</a>
         <a href="#kb" onclick="showSection('kb')">📚 Base de conocimiento</a>
         <a href="#aprobaciones" onclick="showSection('aprobaciones')">🔐 Aprobaciones pendientes</a>
+        <a href="#solicitudes-usr" onclick="showSection('solicitudes-usr')">🧾 Solicitudes de Usuarios <span style="background:#7c3aed;color:white;font-size:9px;padding:1px 5px;border-radius:6px;font-weight:700;">NUEVO</span></a>
         <a href="#trucos" onclick="showSection('trucos')">💡 Trucos y atajos</a>
         <a href="#faq" onclick="showSection('faq')">❓ FAQ</a>
         <a href="#quiz" onclick="showSection('quiz')">🎓 Pon a prueba</a>
@@ -1361,6 +1362,72 @@
 
             <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:14px 18px;border-radius:6px;margin:14px 0;">
                 <strong>⚠️ No podés decidir fuera de orden.</strong> Si el sistema dice "Aún hay aprobadores previos pendientes", quiere decir que otro aprobador de un paso anterior todavía no decidió. Esperá o cordinás con esa persona.
+            </div>
+        </section>
+
+        <!-- ─── SOLICITUDES DE USUARIOS ─── -->
+        <section class="section" id="sec-solicitudes-usr">
+            <h2 class="section-title"><span class="emoji">🧾</span>Solicitudes de Creación / Modificación de Usuarios</h2>
+            <p class="section-subtitle">Módulo nuevo — vos también podés diligenciarlas y aprobarlas</p>
+
+            <div class="callout callout-info">
+                <div class="callout-icon">✨</div>
+                <div class="callout-content">
+                    <div class="callout-title">Nuevo botón en tu dashboard</div>
+                    <p>Al lado de <strong>+ Crear Ticket</strong> ahora tenés <strong>👤 Creación o Modificación de Usuarios</strong>.
+                    Es un módulo específico para pedir accesos y elementos tecnológicos con flujo formal de 4 aprobaciones.
+                    Solo lo ven técnicos y admins.</p>
+                </div>
+            </div>
+
+            <h3>Cuándo usar este módulo (en lugar de un ticket normal)</h3>
+            <ul>
+                <li>Cuando un jefe te pide crear un usuario nuevo con múltiples accesos (AD, correo, SAP, aplicativos textiles, etc.)</li>
+                <li>Cuando hay que modificar accesos de un empleado existente</li>
+                <li>Cuando un empleado se traslada de área o de empresa</li>
+                <li>Si solo hay que resolver un problema puntual (VPN, contraseña, ticket de soporte estándar) → usá un ticket normal, no una solicitud.</li>
+            </ul>
+
+            <h3>Cómo diligenciar una solicitud paso a paso</h3>
+            <ol>
+                <li>Clic en <strong>👤 Creación o Modificación de Usuarios</strong> → listado → <strong>+ Diligenciar Solicitud</strong>.</li>
+                <li><strong>Sección 1 — Tipo</strong>: elegí INGRESO / MODIFICACION / TRASLADO. Los controles del paso 5 solo aparecen tras esta elección.</li>
+                <li><strong>Sección 2 — Empleado</strong>: documento, nombre, cargo. El campo <strong>Área</strong> se autocompleta cuando elegís al Jefe Inmediato.</li>
+                <li><strong>Sección 3 — Aprobadores</strong>: seleccioná el <strong>Jefe Inmediato</strong> del catálogo Inf. Aprobadores. El select <strong>Gerencia/Área</strong> se filtra automáticamente por la misma área del jefe. Analista IT y Gerente IT se resuelven solos.</li>
+                <li><strong>Sección 4 — Justificación</strong>: describí el motivo del pedido.</li>
+                <li><strong>Sección 5 — Listado de controles</strong>: marcá los 1-N controles necesarios. Cada uno pide detalle y algunos requieren <strong>Usuario Espejo</strong> (login activo de otro usuario para replicar permisos).</li>
+                <li><strong>Sección 6 — Soportes</strong> (opcional): asociá un ticket propio como respaldo (autocomplete) y adjuntá documentos. Los archivos se comprimen automáticamente.</li>
+                <li>Clic en <strong>✓ Registrar solicitud</strong> → el sistema envía correo al primer aprobador (Jefe Inmediato).</li>
+            </ol>
+
+            <h3>Cómo aprobar cuando te toca</h3>
+            <p>Como técnico podés estar en la cadena como <strong>Analista IT</strong> (2º nivel) o como <strong>Gerente IT</strong> (4º nivel) según la configuración de tu empresa. Cuando la solicitud llega a tu nivel, tenés <strong>2 canales para decidir</strong>:</p>
+
+            <h4>Canal 1 — Por correo (más rápido)</h4>
+            <p>Recibís un email con:</p>
+            <ul>
+                <li>Todos los datos del empleado + justificación</li>
+                <li>Lista de controles marcados (hasta 20 en el correo; el resto se ve en el link)</li>
+                <li><strong>3 botones grandes</strong>: ✓ Aprobar (verde) / ↩ Devolver (amarillo) / ✕ Rechazar (rojo)</li>
+                <li>Link a la ficha completa</li>
+            </ul>
+            <p>Clic en el botón → se abre la pantalla de decisión con la observación (obligatoria para devolver/rechazar). Confirmás y listo. El correo es <strong>de un solo uso</strong> y expira a los 30 días.</p>
+
+            <h4>Canal 2 — Desde la UI</h4>
+            <p>Abrí <code>/solicitudes-usuarios</code> → clic en la solicitud → botones ✓ Aprobar / ↩ Devolver / ✕ Rechazar. Mismos efectos que por correo.</p>
+
+            <h3>Diferencias entre Devolver y Rechazar</h3>
+            <ul>
+                <li><strong>Devolver</strong>: la solicitud queda con el solicitante con tu observación. Puede corregir y <strong>reenviar</strong>, vuelve al mismo nivel (vos). Sirve cuando falta info o hay que ajustar detalles.</li>
+                <li><strong>Rechazar</strong>: estado final. La solicitud muere. Si el solicitante quiere insistir, tiene que crear una nueva de cero.</li>
+            </ul>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">📄</div>
+                <div class="callout-content">
+                    <div class="callout-title">Auto-generación del Caso (próximamente)</div>
+                    <p>Cuando el Gerente IT aprueba, el sistema generará automáticamente un Ticket + subtareas por cada control marcado, asignadas a los especialistas según el guion vinculado. Cada tarea llevará adjunto un PDF con todos los datos de la solicitud. Fase 4 en implementación.</p>
+                </div>
             </div>
         </section>
 

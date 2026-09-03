@@ -430,6 +430,7 @@
         <a href="#asignacion" onclick="showSection('asignacion')">🎯 Asignación automática</a>
         <a href="#bot" onclick="showSection('bot')">🤖 Bot de autoservicio</a>
         <a href="#aprobaciones" onclick="showSection('aprobaciones')">🔐 Flujos de aprobación</a>
+        <a href="#solicitudes-mod" onclick="showSection('solicitudes-mod')">🧾 Módulo Solicitudes de Usuarios <span style="background:#7c3aed;color:white;font-size:9px;padding:1px 5px;border-radius:6px;font-weight:700;">NUEVO</span></a>
 
         <h3>Experiencia del usuario</h3>
         <a href="#kb-admin" onclick="showSection('kb-admin')">📚 Base de Conocimiento</a>
@@ -1351,6 +1352,101 @@
 
             <h3>Widget en el header del técnico</h3>
             <p>Si un técnico está en la cadena de un workflow, cuando tiene aprobaciones pendientes verá un botón <strong>🔐 Aprobaciones</strong> con badge rojo en el header del portal técnico. Al cliquear abre un modal con la lista de decisiones pendientes.</p>
+        </section>
+
+        <!-- MÓDULO SOLICITUDES DE USUARIOS -->
+        <section class="section" id="sec-solicitudes-mod">
+            <h2 class="section-title"><span class="emoji">🧾</span>Módulo Solicitudes de Creación / Modificación de Usuarios</h2>
+            <p class="section-subtitle">Módulo dedicado a solicitar accesos y elementos tecnológicos con flujo de aprobación de 4 niveles</p>
+
+            <div class="callout callout-info">
+                <div class="callout-icon">✨</div>
+                <div class="callout-content">
+                    <div class="callout-title">Qué agrega este módulo</div>
+                    <p>Además del sistema clásico de tickets, DeskEli incluye ahora un módulo <strong>específico</strong>
+                    para gestionar solicitudes formales de creación, modificación o traslado de usuarios. Solo
+                    <strong>técnicos y admins</strong> lo ven (los empleados usan el flujo tradicional de tickets).
+                    Reemplaza el flujo manual anterior por uno con máquina de estados propia, catálogo de 28 controles y
+                    aprobación por correo en 4 niveles.</p>
+                </div>
+            </div>
+
+            <h3>Cómo se accede</h3>
+            <ul>
+                <li>Dashboard del <strong>Admin</strong> → botón violeta <strong>👤 Creación o Modificación de Usuarios</strong> al lado de "+ Crear Ticket"</li>
+                <li>Dashboard del <strong>Técnico</strong> → mismo botón</li>
+                <li>URL directa: <code>/solicitudes-usuarios</code></li>
+            </ul>
+
+            <h3>1. Catálogo administrable de Controles</h3>
+            <p>URL: <code>/admin/controles</code></p>
+            <p>Los <strong>28 controles</strong> (elementos tecnológicos + accesos) se administran desde este panel:</p>
+            <ul>
+                <li><strong>CRUD completo</strong>: crear, editar, desactivar (soft delete). No hay hard delete para preservar historial.</li>
+                <li>Campos por control: <code>code</code> (identificador), <code>name</code> (visible), <code>descripción</code>, <code>tipo</code> (elemento/acceso), <code>needs_espejo</code> (bool), <code>costo_referencia</code>, <code>company</code> (NULL = global).</li>
+                <li>Filtro por empresa: los controles con <code>company=NULL</code> son visibles a las 3 empresas; los específicos solo a la suya.</li>
+                <li><strong>Auto-seed en bootstrap</strong>: si la tabla está vacía al iniciar el servidor, se cargan automáticamente los 28 controles oficiales desde <code>scripts/seed_controles_catalogo.py</code>.</li>
+                <li>Los 4 nuevos incorporados en 2026: <em>BODEGA DE TELAS, SEPARACIÓN DE TELAS, VENTAS MÓVIL, ULTRASYSTEM</em>. Actualización SAP: la lista de versiones incluye ahora <strong>RISE</strong> (además de AFS, FMS PASH, FMS PAISES, EWM).</li>
+                <li>Filtro dinámico: <em>SAP PASH</em> solo aparece cuando el tipo de solicitud es <strong>MODIFICACION</strong> (regla oficial).</li>
+            </ul>
+
+            <h3>2. Inf. Aprobadores — catálogo de Gerentes de Área</h3>
+            <p>URL: <code>/admin/config → Inf. Aprobadores</code></p>
+            <p>Nuevo panel en la configuración del admin. Sirve como <strong>fuente de verdad</strong> para poblar los
+            selects de Jefe Inmediato y Gerencia/Área en el formulario de solicitud.</p>
+            <ul>
+                <li>Campos: <em>Empresa, Gerente de Área, Centro de Costos, Área, Correo del Gerente</em>.</li>
+                <li>El <strong>correo debe coincidir con un usuario activo</strong> del sistema; si no coincide, la opción aparece deshabilitada en el formulario con badge ⚠ sin usuario.</li>
+                <li><strong>Importación masiva desde Excel</strong>: botón "Plantilla Excel" descarga <em>plantilla_inf_aprobadores.xlsx</em> con las 5 columnas y 2 filas de ejemplo. Botón "Importar Excel" procesa el archivo con feedback fila por fila (creados / actualizados / errores).</li>
+                <li>Idempotente: si ya existe la misma llave lógica (empresa + gerente + área + CC), se actualiza; si no, se crea.</li>
+                <li>Búsqueda instantánea + toggle "Ver inactivos".</li>
+            </ul>
+
+            <h3>3. Flujo de aprobación de 4 niveles</h3>
+            <div class="callout callout-warn">
+                <div class="callout-icon">🔄</div>
+                <div class="callout-content">
+                    <div class="callout-title">Cambio en el flujo (v2026-09)</div>
+                    <p>El orden oficial actualizado según el diagrama del negocio:
+                    <strong>Jefe Inmediato → Analista IT → Gerente Solicitante (Área) → Gerente IT</strong>.
+                    Al aprobar el Gerente IT se generará automáticamente el Caso + subtareas para Soporte
+                    (Fase 4, en implementación).</p>
+                </div>
+            </div>
+
+            <p>La solicitud tiene 16 estados posibles (4 pendientes × [aprobado/devuelto/rechazado] + estados finales). El helper <code>_apply_transition()</code> es la única fuente de verdad de las transiciones y valida:</p>
+            <ul>
+                <li>Que el usuario sea el aprobador esperado del estado actual</li>
+                <li>Que la observación esté presente en Devolver / Rechazar</li>
+                <li>Que el estado admita la acción (no se puede aprobar una solicitud CERRADA, por ejemplo)</li>
+            </ul>
+
+            <h3>4. Aprobación por correo con token</h3>
+            <p>Cada vez que la solicitud pasa a estado <code>PENDIENTE_*</code>, el aprobador recibe email con:</p>
+            <ul>
+                <li>Datos del empleado + justificación + tabla de controles</li>
+                <li><strong>3 botones grandes</strong>: ✓ Aprobar (verde) / ↩ Devolver (amarillo) / ✕ Rechazar (rojo)</li>
+                <li>Link a la ficha completa por si prefiere revisar antes de decidir</li>
+                <li>Token único de un solo uso; expira a los 30 días</li>
+            </ul>
+            <p>El endpoint público es <code>/solicitudes-usuarios/decidir/&lt;token&gt;</code>. Requiere login (por seguridad, mismo patrón que aprobación de tickets). Los aprobadores también pueden decidir desde <code>/solicitudes-usuarios/&lt;id&gt;</code> en la UI — canal dual. La configuración SMTP viene por empresa desde <code>/admin/config → Correo</code>.</p>
+
+            <h3>5. Configuración de aprobadores TI por empresa</h3>
+            <p>Analista IT y Gerente IT (niveles 2 y 4 del flujo) se resuelven automáticamente. En <code>app.py</code>
+            hay una constante <code>_TI_APPROVERS_BY_COMPANY</code> con los emails oficiales por empresa. Si el email no
+            coincide o queda vacío, cae al fallback: <strong>primer admin activo de la empresa</strong>. Recomendación:
+            editar esa constante (o migrarla a la tabla <code>inf_aprobadores</code> con un flag <em>tipo=analista_ti/gerente_ti</em>).</p>
+
+            <h3>Modelo de datos</h3>
+            <ul>
+                <li><code>controles_catalogo</code> — 28 registros base</li>
+                <li><code>inf_aprobadores</code> — Gerentes por Área/CC (nuevo)</li>
+                <li><code>solicitudes_usuarios</code> — cabecera con 14 campos + 4 FKs a aprobadores + estado</li>
+                <li><code>solicitudes_controles</code> — detalle N:M (control + descripción + usuario espejo)</li>
+                <li><code>solicitudes_historial</code> — trazabilidad de transiciones</li>
+                <li><code>solicitudes_adjuntos</code> — archivos con compresión automática</li>
+                <li><code>solicitudes_approval_tokens</code> — tokens de aprobación por correo (nuevo)</li>
+            </ul>
         </section>
 
         <!-- BASE DE CONOCIMIENTO FORMAL -->

@@ -482,7 +482,7 @@
         <a href="#aprobadores" onclick="showSection('aprobadores')">6️⃣ Aprobadores</a>
         <a href="#enviar" onclick="showSection('enviar')">7️⃣ Enviar</a>
 
-        <h3>Los 24 controles</h3>
+        <h3>Los 28 controles</h3>
         <a href="#controles-tecnologia" onclick="showSection('controles-tecnologia')">🖥 Equipos y ofimática</a>
         <a href="#controles-red" onclick="showSection('controles-red')">🌐 Red / correo / VPN</a>
         <a href="#controles-permisos" onclick="showSection('controles-permisos')">🔐 Permisos</a>
@@ -525,7 +525,7 @@
                 </div>
                 <div class="card">
                     <div class="card-icon">☑</div>
-                    <h4>Los 24 controles</h4>
+                    <h4>Los 28 controles</h4>
                     <p>Cuáles marcar según lo que la persona necesite y qué poner en cada descripción.</p>
                 </div>
                 <div class="card">
@@ -694,7 +694,7 @@
             </div>
 
             <h3>Controles a solicitar</h3>
-            <p>Vas a tener que decidir cuáles de los 24 controles marcar según lo que la persona necesite. Cada control tiene su descripción específica — mirá la sección <a href="#controles" onclick="showSection('controles')">"Lista de controles"</a> para el detalle completo.</p>
+            <p>Vas a tener que decidir cuáles de los 28 controles marcar según lo que la persona necesite. Cada control tiene su descripción específica — mirá la sección <a href="#controles" onclick="showSection('controles')">"Lista de controles"</a> para el detalle completo.</p>
 
             <h3>Documento adjunto (opcional)</h3>
             <ul style="padding-left:24px; margin:10px 0;">
@@ -960,7 +960,7 @@
             <h2 class="section-title"><span class="emoji">5️⃣</span>Lista de Controles — Vista general</h2>
             <p class="section-subtitle">Marca solo los controles que la persona necesite</p>
 
-            <p>La sección "Listado de Controles" es una <strong>tabla con 24 controles</strong> disponibles. Cada fila tiene: un <strong>checkbox</strong> para marcarlo, el <strong>nombre del control</strong>, una <strong>caja de descripción</strong> donde vos completás lo específico, y un <strong>detalle del control</strong> que es la explicación fija que da el sistema.</p>
+            <p>La sección "Listado de Controles" es una <strong>tabla con 28 controles</strong> disponibles. Cada fila tiene: un <strong>checkbox</strong> para marcarlo, el <strong>nombre del control</strong>, una <strong>caja de descripción</strong> donde vos completás lo específico, y un <strong>detalle del control</strong> que es la explicación fija que da el sistema.</p>
 
             <div class="mockup">
                 <div style="font-weight:700;font-size:12px;color:#1e3a8a;margin-bottom:10px;">Listado de Controles</div>
@@ -1006,7 +1006,7 @@
                 </div>
             </div>
 
-            <h3>Los 24 controles agrupados por tipo</h3>
+            <h3>Los 28 controles agrupados por tipo</h3>
             <div class="cards">
                 <div class="card" onclick="showSection('controles-tecnologia')" style="cursor:pointer;">
                     <div class="card-icon">🖥</div>
@@ -1271,7 +1271,7 @@
         <!-- CONTROLES: TEXTILES -->
         <section class="section" id="sec-controles-textiles">
             <h2 class="section-title"><span class="emoji">🧵</span>Controles: Aplicativos textiles</h2>
-            <p class="section-subtitle">Controles 12 al 18 · Todos requieren Usuario Espejo</p>
+            <p class="section-subtitle">Controles 12 al 22 · La mayoría requieren Usuario Espejo</p>
 
             <div class="callout callout-tip">
                 <div class="callout-icon">🪞</div>
@@ -1342,6 +1342,38 @@
                                 <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Ingreso al módulo de programación de telares. Perfil supervisor de planta." · <em>Usuario Espejo:</em> <code>jjimenez</code></p>
                             </td>
                             <td class="control-detalle">Usuario para ingreso al aplicativo Tejido Plano (deben indicar el usuario espejo, este debe estar activo en la compañía).</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">BODEGA DE TELAS</div><span class="control-espejo-badge">+ Usuario Espejo</span><br><span class="badge badge-new" style="font-size:10px;">Nuevo 2026</span></td>
+                            <td>
+                                <p style="margin:0;">Aplicativo de gestión de bodega de telas. Especificá el rol requerido.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Módulo de ingreso y salida. Perfil operador." · <em>Usuario Espejo:</em> <code>rgomez</code></p>
+                            </td>
+                            <td class="control-detalle">Usuario para ingreso al aplicativo Bodega de Telas (deben indicar el usuario espejo, este debe estar activo en la compañía).</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">SEPARACIÓN DE TELAS</div><span class="control-espejo-badge">+ Usuario Espejo</span><br><span class="badge badge-new" style="font-size:10px;">Nuevo 2026</span></td>
+                            <td>
+                                <p style="margin:0;">Módulo de separación de telas por orden de producción.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Perfil supervisor de separación." · <em>Usuario Espejo:</em> <code>alopez</code></p>
+                            </td>
+                            <td class="control-detalle">Usuario para ingreso al aplicativo Separación de Telas (deben indicar el usuario espejo, este debe estar activo en la compañía).</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">VENTAS MÓVIL</div><br><span class="badge badge-new" style="font-size:10px;">Nuevo 2026</span></td>
+                            <td>
+                                <p style="margin:0;">Aplicativo móvil para asesores comerciales en punto de venta.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Instalación app en el celular corporativo del asesor. Zona de ventas Norte."</p>
+                            </td>
+                            <td class="control-detalle">Usuario para ingreso al aplicativo Ventas Móvil.</td>
+                        </tr>
+                        <tr>
+                            <td class="control-cell"><div class="control-name">ULTRASYSTEM</div><span class="control-espejo-badge">+ Usuario Espejo</span><br><span class="badge badge-new" style="font-size:10px;">Nuevo 2026</span></td>
+                            <td>
+                                <p style="margin:0;">Plataforma Ultrasystem. Indicar país y marcas de acceso.</p>
+                                <p style="margin:6px 0 0;font-size:12.5px;"><em>Descripción:</em> "Colombia · Marcas Pat Primo y Ítalo · Perfil comercial." · <em>Usuario Espejo:</em> <code>cvargas</code></p>
+                            </td>
+                            <td class="control-detalle">Permisos en plataforma Ultrasystem; se debe indicar Usuario Espejo activo, para qué país y marcas requiere el acceso.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -1481,116 +1513,111 @@
         <!-- APROBADORES -->
         <section class="section" id="sec-aprobadores">
             <h2 class="section-title"><span class="emoji">6️⃣</span>Aprobadores</h2>
-            <p class="section-subtitle">2 o 3 niveles según lo que pidas</p>
+            <p class="section-subtitle">Flujo oficial: 4 niveles en cadena, aprobación por correo</p>
 
             <div class="callout callout-danger">
                 <div class="callout-icon">🔐</div>
                 <div class="callout-content">
-                    <div class="callout-title">La parte crítica del proceso</div>
-                    <p>Cada solicitud pasa por <strong>2 niveles de aprobación fijos</strong> (Jefe Inmediato + Responsable del Área) y — si marcaste el control <strong>ELEMENTOS DE TECNOLOGÍA</strong> — se agrega automáticamente un <strong>3er nivel: Gerencia de Tecnología</strong>. Cada aprobador recibe un correo con link para aprobar o rechazar. El ticket queda bloqueado hasta que todos los que apliquen aprueben.</p>
+                    <div class="callout-title">El flujo oficial (v2026-09)</div>
+                    <p>Toda solicitud pasa por <strong>4 niveles de aprobación secuenciales</strong>:
+                    <strong>Jefe Inmediato → Analista IT → Gerente Solicitante (Área) → Gerente IT</strong>.
+                    Cada aprobador recibe un correo con <strong>3 botones (Aprobar / Devolver / Rechazar)</strong>
+                    y también puede decidir desde el sistema. Al aprobar el último nivel se genera automáticamente
+                    el Caso y las tareas al equipo de Soporte para la entrega.</p>
                 </div>
             </div>
 
-            <h3>Los aprobadores</h3>
+            <h3>Los 4 aprobadores</h3>
             <div class="cards">
                 <div class="card">
                     <div class="card-icon">👔</div>
                     <h4>1. Jefe Inmediato</h4>
-                    <p><span class="badge badge-required">Siempre</span> Lo elegiste en el dropdown de la sección de datos generales. Primer nivel de aprobación. Recibe el email antes que nadie.</p>
+                    <p><span class="badge badge-required">Siempre</span> Lo elegiste en la sección 3 del formulario. Se toma del catálogo <strong>Inf. Aprobadores</strong> que administra el admin. Primer nivel — recibe el correo antes que nadie.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🖥</div>
+                    <h4>2. Analista IT</h4>
+                    <p><span class="badge badge-required">Automático</span> Se asigna por empresa. Valida viabilidad técnica, revisa que los controles marcados sean coherentes y ajusta detalles si hace falta. Recibe correo después que el Jefe apruebe.</p>
                 </div>
                 <div class="card">
                     <div class="card-icon">🏢</div>
-                    <h4>2. Responsable del Área</h4>
-                    <p><span class="badge badge-required">Siempre</span> Lo elegiste también en el form. Segundo nivel — recibe el email <strong>después</strong> de que el Jefe Inmediato apruebe.</p>
+                    <h4>3. Gerente Solicitante (Gerencia/Área)</h4>
+                    <p><span class="badge badge-required">Siempre</span> Lo elegiste del catálogo <strong>Inf. Aprobadores</strong>, filtrado por el área del Jefe. Aprueba el gasto y el impacto en el área. Recibe correo tras el visto bueno del Analista IT.</p>
                 </div>
                 <div class="card">
                     <div class="card-icon">💻</div>
-                    <h4>3. Gerencia de Tecnología</h4>
-                    <p><span class="badge badge-new">Solo si aplica</span> Se activa <strong>automáticamente si marcaste ELEMENTOS DE TECNOLOGÍA</strong> (portátil, monitor, teclado, etc). Es un aprobador fijo por empresa (no lo elegís vos — el sistema sabe quién es). Aprueba el gasto de equipos.</p>
+                    <h4>4. Gerente IT</h4>
+                    <p><span class="badge badge-required">Automático</span> Aprobador final. Se asigna por empresa (fallback: primer admin activo). Al aprobar, el sistema <strong>genera automáticamente el Caso</strong> y las tareas a Soporte.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">✉️</div>
+                <div class="callout-content">
+                    <div class="callout-title">Aprobación por correo — cómo funciona</div>
+                    <p>Cada vez que la solicitud llega a un nivel pendiente, el aprobador recibe un email con:</p>
+                    <ul style="margin:8px 0 0 20px;">
+                        <li>Datos completos del empleado y la solicitud</li>
+                        <li>Lista de controles marcados</li>
+                        <li><strong>3 botones grandes</strong>: ✓ Aprobar (verde) / ↩ Devolver (amarillo) / ✕ Rechazar (rojo)</li>
+                        <li>Link a la ficha completa por si prefiere revisar más</li>
+                    </ul>
+                    <p style="margin-top:8px;">Un solo clic decide. El link es <strong>de un solo uso</strong> y expira a los 30 días. Si preferís no usar el correo, también podés decidir desde el sistema en <em>/solicitudes-usuarios/&lt;id&gt;</em>.</p>
+                </div>
+            </div>
+
+            <h3>Timeline del flujo completo</h3>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4>1. Formulario enviado</h4>
+                    <p>La solicitud queda con código <code>SOL-{empresa}-{n}</code> en estado <strong>PENDIENTE APROBACIÓN JEFE INMEDIATO</strong>. El Jefe recibe correo.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>2. Jefe Inmediato aprueba</h4>
+                    <p>Pasa a <strong>PENDIENTE APROBACIÓN ANALISTA IT</strong>. El Analista IT recibe correo.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>3. Analista IT aprueba</h4>
+                    <p>Pasa a <strong>PENDIENTE APROBACIÓN GERENTE SOLICITANTE</strong>. Gerencia/Área recibe correo.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>4. Gerente Solicitante aprueba</h4>
+                    <p>Pasa a <strong>PENDIENTE APROBACIÓN GERENTE IT</strong>. El Gerente IT recibe correo.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>5. Gerente IT aprueba → APROBADO</h4>
+                    <p>Con las 4 aprobaciones, el sistema <strong>genera automáticamente el Caso</strong> (Ticket) y las <strong>subtareas a Soporte</strong> — una por cada control marcado, asignadas al especialista según el guion configurado.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4>6. Soporte ejecuta las tareas y entrega</h4>
+                    <p>Cada especialista ejecuta su subtarea (crear cuenta AD, correo, VPN, SAP, etc.). Al terminar todas, la solicitud pasa a estado <strong>CERRADO</strong>.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">↩</div>
+                <div class="callout-content">
+                    <div class="callout-title">Si un aprobador Devuelve</div>
+                    <p>La solicitud queda en estado <strong>DEVUELTO POR &lt;nivel&gt;</strong> con la observación del aprobador. El solicitante recibe notificación y puede corregir (agregar detalle, cambiar controles, etc.) y usar el botón <strong>"Reenviar tras corrección"</strong> en la ficha. La solicitud vuelve al mismo nivel que la devolvió y sigue el flujo.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-warn">
+                <div class="callout-icon">✕</div>
+                <div class="callout-content">
+                    <div class="callout-title">Si un aprobador Rechaza</div>
+                    <p>La solicitud queda en estado final <strong>RECHAZADO POR &lt;nivel&gt;</strong> con el motivo. No se puede reactivar (política de auditoría). Para volver a intentarlo, hay que <strong>crear una nueva solicitud</strong>. Vale para cualquiera de los 4 niveles.</p>
                 </div>
             </div>
 
             <div class="callout callout-tip">
                 <div class="callout-icon">💡</div>
                 <div class="callout-content">
-                    <div class="callout-title">¿Por qué el 3er nivel es automático?</div>
-                    <p>Los equipos de tecnología tienen impacto presupuestario alto. Por eso — si tu solicitud incluye pedido de hardware — pasa por la revisión del Gerente de TI de la empresa antes de llegar a operación. Es una regla del negocio: <strong>vos no elegís al Gerente de TI, el sistema lo hace por vos</strong> según la unidad de negocio. Solo llenás el formulario normal.</p>
-                </div>
-            </div>
-
-            <h3>Escenario A · Solicitud SIN Elementos de Tecnología (2 pasos)</h3>
-            <div class="timeline">
-                <div class="timeline-item">
-                    <h4>1. Ticket creado con estado "En espera de aprobación"</h4>
-                    <p>El ticket existe pero <strong>no llega al equipo TI todavía</strong>. Aparece en tu lista con el código de solicitud (ej: <code>SOL-2026-01245</code>).</p>
-                </div>
-                <div class="timeline-item">
-                    <h4>2. Email al Jefe Inmediato</h4>
-                    <p>El jefe recibe un correo con toda la info + un <strong>link único</strong> para aprobar o rechazar.</p>
-                </div>
-                <div class="timeline-item">
-                    <h4>3. Jefe aprueba → Email al Responsable del Área</h4>
-                    <p>Se marca la primera decisión. Automáticamente se dispara el email al segundo aprobador.</p>
-                </div>
-                <div class="timeline-item">
-                    <h4>4. Responsable del Área aprueba → Ticket pasa a "En proceso"</h4>
-                    <p>Con las 2 aprobaciones, el ticket entra a la cola de TI. El especialista lo toma y ejecuta los controles.</p>
-                </div>
-                <div class="timeline-item">
-                    <h4>5. TI ejecuta control por control</h4>
-                    <p>Cada control marcado se convierte en una subtarea: crear cuenta AD, correo, VPN, usuarios en aplicativos, SAP, etc.</p>
-                </div>
-            </div>
-
-            <h3>Escenario B · Solicitud CON Elementos de Tecnología (3 pasos)</h3>
-            <div class="timeline">
-                <div class="timeline-item">
-                    <h4>1. Ticket creado con estado "En espera de aprobación"</h4>
-                    <p>Igual que antes. El sistema detecta que marcaste el control ELEMENTOS DE TECNOLOGÍA y activa automáticamente el 3er aprobador.</p>
-                </div>
-                <div class="timeline-item">
-                    <h4>2. Email al Jefe Inmediato → aprueba</h4>
-                    <p>Mismo flujo que antes.</p>
-                </div>
-                <div class="timeline-item">
-                    <h4>3. Email al Responsable del Área → aprueba</h4>
-                    <p>Mismo flujo que antes.</p>
-                </div>
-                <div class="timeline-item">
-                    <h4>4. Email al Gerente de Tecnología</h4>
-                    <p>Nuevo paso. El Gerente TI revisa específicamente el equipo solicitado (portátil, monitor, etc.) y valida el gasto contra presupuesto del área. Puede aprobar todo, rechazar el ticket completo, o pedir modificaciones al pedido por chat.</p>
-                </div>
-                <div class="timeline-item">
-                    <h4>5. Gerente de TI aprueba → Ticket pasa a "En proceso"</h4>
-                    <p>Con los 3 aprobadores, el ticket entra a la cola de TI.</p>
-                </div>
-                <div class="timeline-item">
-                    <h4>6. TI ejecuta todos los controles + entrega equipos</h4>
-                    <p>Además de crear los usuarios y accesos, TI arma la orden de compra o entrega los equipos ya asignados.</p>
-                </div>
-            </div>
-
-            <div class="callout callout-warn">
-                <div class="callout-icon">⏱</div>
-                <div class="callout-content">
-                    <div class="callout-title">Impacto en tiempos</div>
-                    <p>El 3er aprobador puede sumar <strong>+1 a +3 días hábiles</strong> al proceso. Si la persona no necesita equipos nuevos (ej: va a usar un portátil que ya tiene la empresa), NO marques ELEMENTOS DE TECNOLOGÍA y evitás este paso. En ese caso, coordiná la asignación del equipo por otro canal.</p>
-                </div>
-            </div>
-
-            <div class="callout callout-warn">
-                <div class="callout-icon">⚠️</div>
-                <div class="callout-content">
-                    <div class="callout-title">Si un aprobador rechaza</div>
-                    <p>El ticket queda en estado <strong>"Rechazado"</strong> y vos recibís notificación con el motivo. Podés corregir lo que haga falta y crear una <strong>nueva solicitud</strong>. Un rechazo NO se puede "reaprobar" — hay que empezar de cero (política de auditoría). Esto vale para los 3 niveles: si el Gerente TI rechaza el pedido de equipos, se cae toda la solicitud, no solo esa parte.</p>
-                </div>
-            </div>
-
-            <div class="callout callout-tip">
-                <div class="callout-icon">💡</div>
-                <div class="callout-content">
-                    <div class="callout-title">Regla práctica</div>
-                    <p>Si el equipo lo vas a reciclar de otra persona (reemplazo) o ya está asignado, <strong>no marques ELEMENTOS DE TECNOLOGÍA</strong> y ahorrás una vuelta. Si es de verdad hardware nuevo del presupuesto, marcalo — el Gerente TI necesita validarlo.</p>
+                    <div class="callout-title">Aprobadores del catálogo Inf. Aprobadores</div>
+                    <p>El Jefe Inmediato y el Gerente Solicitante los elegís del catálogo administrable <strong>Inf. Aprobadores</strong>
+                    (lo administra el admin en <code>/admin/config → Inf. Aprobadores</code>). Cada entrada tiene:
+                    Gerente, Centro de costos, Área y Correo. Al elegir el Jefe, el sistema <strong>autocompleta el campo Área</strong>
+                    y filtra el select de Gerencia/Área para mostrar solo aprobadores de esa misma área.</p>
                 </div>
             </div>
 
