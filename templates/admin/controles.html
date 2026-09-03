@@ -107,6 +107,15 @@
                     <option value="primatela">Primatela</option>
                 </select>
             </div>
+            <div class="form-group" style="background:#faf5ff; padding:10px 12px; border-radius:6px; border-left:4px solid #7c3aed;">
+                <label>📜 Guion vinculado (opcional)</label>
+                <select id="f-guion">
+                    <option value="">— Sin guion (se creará subtask genérica) —</option>
+                </select>
+                <div style="font-size:11px; color:#6b7280; margin-top:4px;">
+                    Al aprobarse una Solicitud que incluya este control, el sistema clonará las subtasks del guion elegido y las asignará al ticket generado.
+                </div>
+            </div>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
                 <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
                 <button class="btn btn-primary" onclick="saveControl()">💾 Guardar</button>
@@ -157,7 +166,7 @@
                     <th>Nombre</th>
                     <th>Descripción</th>
                     <th>Tipo</th>
-                    <th>Costo</th>
+                    <th>Guion</th>
                     <th>Empresa</th>
                     <th>Estado</th>
                     <th>Acciones</th>
@@ -165,13 +174,16 @@
             </thead>
             <tbody>`;
         _controles.forEach(c => {
+            const guionCell = c.guion_id
+                ? `<span title="Al aprobarse, clonará subtasks del guion" style="font-size:11px; padding:2px 6px; background:#ede9fe; color:#5b21b6; border-radius:6px; font-weight:600;">📜 ${esc(c.guion_name || '—')}</span>`
+                : '<span style="color:#9ca3af; font-size:11px;">— sin guion —</span>';
             html += `
                 <tr>
                     <td><code style="background:#f3f4f6; padding:2px 6px; border-radius:3px; font-size:11px;">${esc(c.code)}</code></td>
                     <td><strong>${esc(c.name)}</strong>${c.needs_espejo ? ' <span class="badge badge-espejo">Espejo</span>' : ''}</td>
                     <td style="color:#6b7280; font-size:12px;">${esc((c.descripcion || '').substring(0, 80))}${(c.descripcion || '').length > 80 ? '…' : ''}</td>
                     <td><span class="badge badge-${c.tipo}">${esc(c.tipo)}</span></td>
-                    <td>${c.costo_referencia != null ? '$' + c.costo_referencia.toFixed(2) : '—'}</td>
+                    <td>${guionCell}</td>
                     <td>${esc(c.company || 'Global')}</td>
                     <td>${c.is_active ? '<span style="color:#16a34a;">● Activo</span>' : '<span class="badge badge-inactive">Inactivo</span>'}</td>
                     <td>
@@ -184,9 +196,27 @@
         document.getElementById('tableContainer').innerHTML = html;
     }
 
+    let _guiones = [];
+    async function loadGuiones() {
+        try {
+            const r = await fetch('/api/guiones-select');
+            const data = await r.json();
+            if (!data.success) return;
+            _guiones = data.guiones || [];
+            const sel = document.getElementById('f-guion');
+            const opts = _guiones.map(g => {
+                const scope = g.company ? g.company.toUpperCase() : 'Global';
+                return `<option value="${g.id}">${esc(g.name)} <small>(${scope})</small></option>`;
+            }).join('');
+            sel.innerHTML = '<option value="">— Sin guion (se creará subtask genérica) —</option>' + opts;
+        } catch (e) { /* silencioso */ }
+    }
+
     function openModal(editing=null) {
         _editingId = editing;
         document.getElementById('modalTitle').textContent = editing ? 'Editar control' : 'Nuevo control';
+        // Asegurar guiones cargados antes de abrir
+        if (_guiones.length === 0) loadGuiones();
         if (editing) {
             const c = _controles.find(x => x.id === editing);
             if (!c) return;
@@ -199,6 +229,7 @@
             document.getElementById('f-costo').value = c.costo_referencia || '';
             document.getElementById('f-company').value = c.company || '';
             document.getElementById('f-company').disabled = true;
+            document.getElementById('f-guion').value = c.guion_id || '';
         } else {
             document.getElementById('f-code').value = '';
             document.getElementById('f-code').disabled = false;
@@ -209,6 +240,7 @@
             document.getElementById('f-costo').value = '';
             document.getElementById('f-company').value = '';
             document.getElementById('f-company').disabled = false;
+            document.getElementById('f-guion').value = '';
         }
         document.getElementById('modal').style.display = 'flex';
     }
@@ -218,6 +250,7 @@
     function closeModal() { document.getElementById('modal').style.display = 'none'; _editingId = null; }
 
     async function saveControl() {
+        const guionSel = document.getElementById('f-guion').value;
         const payload = {
             code: document.getElementById('f-code').value.trim().toLowerCase(),
             name: document.getElementById('f-name').value.trim(),
@@ -226,6 +259,7 @@
             needs_espejo: document.getElementById('f-espejo').checked,
             costo_referencia: document.getElementById('f-costo').value ? parseFloat(document.getElementById('f-costo').value) : null,
             company: document.getElementById('f-company').value || null,
+            guion_id: guionSel ? parseInt(guionSel) : null,
             is_active: true,
         };
         if (!payload.code || !payload.name) { alert('code y nombre son obligatorios'); return; }
@@ -261,6 +295,7 @@
     }
 
     loadControles();
+    loadGuiones();
     </script>
 </body>
 </html>

@@ -66,7 +66,14 @@
 <body>
     <div class="header">
         <h1 id="hdrTitle">📋 Solicitud</h1>
-        <a href="/solicitudes-usuarios">← Volver al listado</a>
+        <div style="display:flex; gap:10px; align-items:center;">
+            <a href="/api/solicitudes-usuarios/{{ solicitud_id }}/pdf" download
+               style="color:white; text-decoration:none; padding:8px 14px; background:rgba(255,255,255,0.2); border-radius:6px; font-size:13px; font-weight:600;"
+               title="Descargar la solicitud como PDF">
+                📄 Descargar PDF
+            </a>
+            <a href="/solicitudes-usuarios" style="color:white; text-decoration:none; padding:8px 14px; background:rgba(255,255,255,0.15); border-radius:6px; font-size:13px;">← Volver</a>
+        </div>
     </div>
 
     <div class="container" id="loadingContainer">

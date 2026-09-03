@@ -126,6 +126,20 @@ check('_notify_next_approver dispara envio de correo',
 check('Pagina publica /solicitudes-usuarios/decidir/<token>',
       "@app.route('/solicitudes-usuarios/decidir/<token>', methods=['GET'])" in app_src)
 
+# Fase 3 y 4 (PDF + generacion automatica de Ticket + Subtasks)
+check('Fase 3: Funcion _generate_solicitud_pdf() existe',
+      'def _generate_solicitud_pdf(solicitud)' in app_src)
+check('Fase 3: Endpoint descarga PDF',
+      "@app.route('/api/solicitudes-usuarios/<int:solicitud_id>/pdf', methods=['GET'])" in app_src)
+check('Fase 4: Modelo Control tiene guion_id (FK a guiones)',
+      "guion_id = db.Column(db.Integer, db.ForeignKey('guiones.id')" in app_src)
+check('Fase 4: Endpoint /api/guiones-select',
+      "@app.route('/api/guiones-select', methods=['GET'])" in app_src)
+check('Fase 4: Funcion _generate_case_from_solicitud() existe',
+      'def _generate_case_from_solicitud(solicitud, actor_user)' in app_src)
+check('Fase 4: _apply_transition auto-dispara generacion al aprobar Gerente TI',
+      "if next_estado == SOLICITUD_ESTADO_APROBADO_GERENTE_TI and accion == 'aprobar':" in app_src)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 print('\n[4/8] Rutas de páginas HTML')

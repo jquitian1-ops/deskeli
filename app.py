@@ -1321,9 +1321,14 @@ class Control(db.Model):
     needs_espejo = db.Column(db.Boolean, default=False)  # si necesita usuario espejo
     costo_referencia = db.Column(db.Numeric(12, 2))  # opcional
     company = db.Column(db.String(20), index=True)  # NULL = global a las 3 empresas
+    # Guion vinculado: al aprobarse la solicitud (Fase 4), este guion define
+    # las subtasks a crear en el Ticket generado. NULL = subtask genérica de fallback.
+    guion_id = db.Column(db.Integer, db.ForeignKey('guiones.id'), index=True)
     is_active = db.Column(db.Boolean, default=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    guion = db.relationship('Guion', foreign_keys=[guion_id])
 
     __table_args__ = (
         db.Index('ix_controles_company_active', 'company', 'is_active'),
@@ -22548,6 +22553,8 @@ def _serialize_control(c):
         'needs_espejo': bool(c.needs_espejo),
         'costo_referencia': float(c.costo_referencia) if c.costo_referencia is not None else None,
         'company': c.company,
+        'guion_id': c.guion_id,
+        'guion_name': (c.guion.name if c.guion else None),
         'is_active': bool(c.is_active),
     }
 
@@ -22693,6 +22700,7 @@ def api_controles_create():
         needs_espejo=bool(data.get('needs_espejo')),
         costo_referencia=data.get('costo_referencia'),
         company=company,
+        guion_id=data.get('guion_id') or None,
         is_active=True,
     )
     db.session.add(c)
@@ -22718,6 +22726,9 @@ def api_controles_update(control_id):
         c.needs_espejo = bool(data['needs_espejo'])
     if 'costo_referencia' in data:
         c.costo_referencia = data['costo_referencia']
+    if 'guion_id' in data:
+        # guion_id puede venir como null explícito para desvincular
+        c.guion_id = data['guion_id'] or None
     if 'is_active' in data:
         c.is_active = bool(data['is_active'])
     db.session.commit()
@@ -22739,6 +22750,35 @@ def api_controles_delete(control_id):
     db.session.commit()
     log_audit('control_deactivated', user.id, 'control', c.id, f'Control "{c.name}" desactivado')
     return jsonify({'success': True, 'message': 'Control desactivado'})
+
+
+@app.route('/api/guiones-select', methods=['GET'])
+def api_guiones_select():
+    """Devuelve un listado compacto de guiones activos para poblar dropdowns.
+
+    Filtra por company del usuario (o admin_companies_scope si es admin).
+    Solo devuelve id + name para minimizar payload.
+    """
+    user, err = _current_user_or_401()
+    if err: return err
+    if user.role == 'admin':
+        scope = admin_companies_scope()
+        # También incluir guiones globales (sin company) si es master
+        q = Guion.query.filter(
+            db.or_(Guion.company.in_(scope), Guion.company.is_(None))
+        )
+    else:
+        q = Guion.query.filter(
+            db.or_(Guion.company == user.company, Guion.company.is_(None))
+        )
+    q = q.filter(Guion.is_active == True).order_by(Guion.name)
+    return jsonify({
+        'success': True,
+        'guiones': [
+            {'id': g.id, 'name': g.name, 'code': g.code, 'company': g.company}
+            for g in q.all()
+        ]
+    })
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -22940,6 +22980,240 @@ def api_solicitudes_detail(solicitud_id):
     return jsonify({'success': True, 'solicitud': _serialize_solicitud_detail(s)})
 
 
+def _generate_case_from_solicitud(solicitud, actor_user):
+    """Al aprobar el Gerente IT, genera automáticamente:
+      - 1 Ticket categoría Accesos con toda la info de la solicitud
+      - 1 Subtask por cada control marcado, clonando el guion vinculado
+        al control (round-robin desde UserGuion pool) o creando una
+        subtask genérica si el control no tiene guion asignado
+      - Adjunta el PDF de la solicitud al Ticket y a cada Subtask
+
+    Devuelve el Ticket generado. Levanta excepción si algo crítico falla.
+    """
+    from datetime import timedelta as _td
+    sla_map = {'low': 480, 'medium': 240, 'high': 120, 'critical': 60}
+    for p in ('low', 'medium', 'high', 'critical'):
+        cfg = Config.query.filter_by(key=f'sla_{p}').first()
+        if cfg:
+            try:
+                sla_map[p] = int(cfg.value)
+            except (ValueError, TypeError):
+                pass
+
+    priority = 'medium'
+    sla_min = sla_map.get(priority, 240)
+
+    # ── 1. Crear Ticket base ─────────────────────────────────────────────
+    controles_txt = '\n'.join(
+        f'  • {sc.control.name if sc.control else "—"}' +
+        (f' — Espejo: {sc.usuario_espejo}' if sc.usuario_espejo else '') +
+        (f' — {(sc.descripcion_detalle or "")[:80]}' if sc.descripcion_detalle else '')
+        for sc in solicitud.controles
+    )
+    description = (
+        f'Ejecución de solicitud aprobada.\n\n'
+        f'Solicitud: {solicitud.codigo}\n'
+        f'Empleado: {solicitud.nombre} (Doc {solicitud.documento})\n'
+        f'Cargo: {solicitud.cargo or "—"}\n'
+        f'Área / CC: {solicitud.centro_costo or "—"}\n'
+        f'Ubicación: {solicitud.ubicacion or "—"}\n'
+        f'Tipo de solicitud: {solicitud.tipo_solicitud}\n\n'
+        f'Justificación:\n{solicitud.justificacion}\n\n'
+        f'Controles solicitados ({len(solicitud.controles)}):\n{controles_txt}\n\n'
+        f'Documento PDF de la solicitud adjunto.'
+    )
+
+    ticket = Ticket(
+        ticket_number=get_next_ticket_number(solicitud.company),
+        title=f'Ejecución solicitud {solicitud.codigo} — {solicitud.nombre}',
+        description=description,
+        category='Accesos',
+        priority=priority,
+        status='open',
+        company=solicitud.company,
+        creator_id=solicitud.creator_id or (actor_user.id if actor_user else None),
+        assignee_id=None,  # cola sin asignar
+        sla_minutes=sla_min,
+        sla_deadline=datetime.now() + _td(minutes=sla_min),
+        user_area=solicitud.centro_costo,
+        user_location=solicitud.ubicacion,
+        user_phone=solicitud.numero_contacto,
+    )
+    db.session.add(ticket)
+    db.session.flush()  # id disponible para FKs
+
+    # ── 2. Generar el PDF una sola vez ───────────────────────────────────
+    try:
+        pdf_bytes = _generate_solicitud_pdf(solicitud)
+    except Exception as e:
+        print(f'[case-gen] No se pudo generar PDF: {e}')
+        pdf_bytes = None
+
+    # Adjuntar PDF al Ticket
+    if pdf_bytes:
+        try:
+            import uuid as _uuid
+            import os as _os
+            upload_dir = app.config.get('TICKET_UPLOAD_FOLDER') or _os.path.join(app.root_path, 'uploads_tickets')
+            _os.makedirs(upload_dir, exist_ok=True)
+            stored = f'{_uuid.uuid4().hex}.pdf'
+            with open(_os.path.join(upload_dir, stored), 'wb') as fh:
+                fh.write(pdf_bytes)
+            db.session.add(TicketAttachment(
+                ticket_id=ticket.id,
+                original_name=f'{solicitud.codigo}.pdf',
+                stored_name=stored,
+                mime_type='application/pdf',
+                size_bytes=len(pdf_bytes),
+                uploaded_by_id=actor_user.id if actor_user else None,
+            ))
+        except Exception as e:
+            print(f'[case-gen] No se pudo adjuntar PDF al ticket: {e}')
+
+    # ── 3. Subtasks por control (clonando del guion vinculado) ───────────
+    subtask_counter = 0
+    variables_ctx = {
+        'nombre_empleado': solicitud.nombre,
+        'documento': solicitud.documento,
+        'cargo': solicitud.cargo or '',
+        'area': solicitud.centro_costo or '',
+        'ubicacion': solicitud.ubicacion or '',
+        'tipo_solicitud': solicitud.tipo_solicitud,
+        'solicitud_codigo': solicitud.codigo,
+    }
+
+    def _interp(template):
+        """Reemplaza {var} en el template con el valor real."""
+        if not template:
+            return template
+        out = template
+        for k, v in variables_ctx.items():
+            out = out.replace('{' + k + '}', str(v))
+        return out
+
+    for sc in solicitud.controles:
+        ctrl = sc.control
+        control_name = ctrl.name if ctrl else 'Control desconocido'
+        control_detail = (
+            f'Detalle:\n{sc.descripcion_detalle or "—"}\n\n'
+            + (f'Usuario espejo: {sc.usuario_espejo}\n' if sc.usuario_espejo else '')
+        )
+
+        # Buscar guion vinculado al control
+        guion = ctrl.guion if ctrl and ctrl.guion else None
+        if guion and guion.is_active:
+            # Pool de usuarios asignados al guion
+            pool_ids = [ug.user_id for ug in UserGuion.query.filter_by(guion_id=guion.id).all()]
+            pool_users = User.query.filter(
+                User.id.in_(pool_ids),
+                User.company == solicitud.company,
+                User.is_active == True,
+                User.role.in_(['technician', 'admin']),
+            ).all() if pool_ids else []
+            pool_load = {u.id: Subtask.query.filter(
+                Subtask.assignee_id == u.id,
+                Subtask.status.in_(['open', 'in_progress'])
+            ).count() for u in pool_users}
+
+            def _pick():
+                if not pool_load:
+                    return None
+                least_id = min(pool_load, key=pool_load.get)
+                pool_load[least_id] += 1
+                return least_id
+
+            gs_list = GuionSubtask.query.filter_by(guion_id=guion.id).order_by(GuionSubtask.order_idx).all()
+            for gs in gs_list:
+                st_priority = (gs.priority or priority).lower()
+                if st_priority not in ('low', 'medium', 'high', 'critical'):
+                    st_priority = 'medium'
+                st_sla = sla_map.get(st_priority, 240)
+
+                # Assignee: 1º fijo válido, 2º del pool, 3º sin asignar
+                assignee = None
+                if gs.assignee_id:
+                    u = User.query.get(gs.assignee_id)
+                    if u and u.is_active and u.company == solicitud.company:
+                        assignee = u.id
+                if not assignee:
+                    assignee = _pick()
+
+                subtask_counter += 1
+                st = Subtask(
+                    ticket_id=ticket.id,
+                    subtask_number=f'{ticket.ticket_number}-S{subtask_counter:02d}',
+                    title=_interp(gs.title or f'{control_name}')[:255],
+                    description=(_interp(gs.description or '') + '\n\n' + control_detail).strip(),
+                    category=gs.category or 'Accesos',
+                    status='open',
+                    priority=st_priority,
+                    sla_minutes=st_sla,
+                    sla_deadline=datetime.now() + _td(minutes=st_sla),
+                    assignee_id=assignee,
+                    created_by_id=actor_user.id if actor_user else None,
+                    order_idx=subtask_counter,
+                )
+                db.session.add(st)
+                db.session.flush()
+                if pdf_bytes:
+                    try:
+                        db.session.add(SubtaskAttachment(
+                            subtask_id=st.id,
+                            original_name=f'{solicitud.codigo}.pdf',
+                            mime_type='application/pdf',
+                            size_bytes=len(pdf_bytes),
+                            file_data=pdf_bytes,
+                            uploaded_by_id=actor_user.id if actor_user else None,
+                        ))
+                    except Exception as e:
+                        print(f'[case-gen] Error adjuntando PDF a subtask {st.id}: {e}')
+        else:
+            # Sin guion vinculado → subtask genérica (fallback)
+            subtask_counter += 1
+            st = Subtask(
+                ticket_id=ticket.id,
+                subtask_number=f'{ticket.ticket_number}-S{subtask_counter:02d}',
+                title=f'{control_name} — {solicitud.nombre}'[:255],
+                description=(
+                    f'Ejecutar acceso/entrega para el control {control_name}.\n\n'
+                    + control_detail
+                    + '\n\n⚠ Este control no tiene guion vinculado. '
+                    'Coordiná manualmente los pasos con el equipo correspondiente.'
+                ),
+                category='Accesos',
+                status='open',
+                priority=priority,
+                sla_minutes=sla_min,
+                sla_deadline=datetime.now() + _td(minutes=sla_min),
+                assignee_id=None,
+                created_by_id=actor_user.id if actor_user else None,
+                order_idx=subtask_counter,
+            )
+            db.session.add(st)
+            db.session.flush()
+            if pdf_bytes:
+                try:
+                    db.session.add(SubtaskAttachment(
+                        subtask_id=st.id,
+                        original_name=f'{solicitud.codigo}.pdf',
+                        mime_type='application/pdf',
+                        size_bytes=len(pdf_bytes),
+                        file_data=pdf_bytes,
+                        uploaded_by_id=actor_user.id if actor_user else None,
+                    ))
+                except Exception as e:
+                    print(f'[case-gen] Error adjuntando PDF a subtask genérica {st.id}: {e}')
+
+    log_audit(
+        'solicitud_case_generado',
+        actor_user.id if actor_user else None,
+        'ticket',
+        ticket.id,
+        f'{solicitud.codigo}: Ticket {ticket.ticket_number} generado con {subtask_counter} subtasks'
+    )
+    return ticket
+
+
 def _apply_transition(s, user, accion, observacion):
     """Aplica una transición y registra en historial. Devuelve (ok, error, next_estado)."""
     estado_actual = s.estado
@@ -23012,6 +23286,31 @@ def _apply_transition(s, user, accion, observacion):
         accion=accion,
         observacion=observacion,
     ))
+
+    # ── Fase 4: al aprobar Gerente IT → auto-generar Ticket + Subtasks ───
+    if next_estado == SOLICITUD_ESTADO_APROBADO_GERENTE_TI and accion == 'aprobar':
+        try:
+            ticket = _generate_case_from_solicitud(s, user)
+            # Pasar solicitud a EN_TRAMITE y linkear con el ticket generado
+            s.estado = SOLICITUD_ESTADO_EN_TRAMITE
+            s.caso_externo = ticket.ticket_number
+            db.session.add(SolicitudHistorial(
+                solicitud_id=s.id,
+                estado_anterior=SOLICITUD_ESTADO_APROBADO_GERENTE_TI,
+                estado_nuevo=SOLICITUD_ESTADO_EN_TRAMITE,
+                aprobador_id=user.id,
+                accion='marcar_tramite',
+                observacion=f'Auto-generado tras aprobación final. Ticket: {ticket.ticket_number}',
+            ))
+            # Actualizar el estado devuelto para que el endpoint informe el final
+            next_estado = SOLICITUD_ESTADO_EN_TRAMITE
+        except Exception as e:
+            # No abortar la transición si falla la generación (queda en APROBADO
+            # y el admin puede correr la generación manualmente después).
+            print(f'[case-gen] Error auto-generando ticket para {s.codigo}: {e}')
+            log_audit('solicitud_case_gen_error', user.id, 'solicitud', s.id,
+                      f'{s.codigo}: fallo generar ticket auto: {e}')
+
     return True, None, next_estado
 
 
@@ -23239,6 +23538,295 @@ def api_solicitudes_mis_tickets_soporte():
             for t in tickets
         ]
     })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PDF de la solicitud (Fase 3): documento oficial con todos los datos.
+# Se adjunta al Ticket + a cada Subtask generados en la Fase 4.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _generate_solicitud_pdf(solicitud):
+    """Genera un PDF completo con todos los datos de la solicitud.
+
+    Retorna bytes. Usa reportlab (ya importado en la app).
+    Incluye:
+      - Header con código, empresa, tipo, fecha
+      - Datos del empleado (14 campos + condicionales)
+      - Cadena de aprobación (4 aprobadores)
+      - Justificación
+      - Tabla de controles marcados (nombre + detalle + usuario espejo)
+      - Adjuntos referenciados
+      - Historial de transiciones
+    """
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
+                                     Table, TableStyle, PageBreak, KeepTogether)
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        leftMargin=1.8*cm, rightMargin=1.8*cm,
+        topMargin=1.8*cm, bottomMargin=1.8*cm,
+        title=f'Solicitud {solicitud.codigo}',
+        author='DeskEli',
+    )
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle('Title', parent=styles['Title'],
+        fontSize=18, textColor=colors.HexColor('#1E3A8A'), spaceAfter=6, alignment=TA_LEFT)
+    subtitle_style = ParagraphStyle('Subtitle', parent=styles['Normal'],
+        fontSize=10, textColor=colors.HexColor('#6B7280'), spaceAfter=14)
+    section_style = ParagraphStyle('Section', parent=styles['Heading2'],
+        fontSize=13, textColor=colors.HexColor('#7C3AED'), spaceBefore=12, spaceAfter=6)
+    label_style = ParagraphStyle('Label', parent=styles['Normal'],
+        fontSize=9, textColor=colors.HexColor('#6B7280'), fontName='Helvetica-Bold')
+    value_style = ParagraphStyle('Value', parent=styles['Normal'],
+        fontSize=10, textColor=colors.HexColor('#111827'))
+    small_style = ParagraphStyle('Small', parent=styles['Normal'],
+        fontSize=8, textColor=colors.HexColor('#6B7280'))
+    body_style = ParagraphStyle('Body', parent=styles['Normal'],
+        fontSize=10, textColor=colors.HexColor('#374151'), leading=13)
+
+    def _esc(s):
+        return str(s or '—').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    def _kv_table(rows, col_widths=None):
+        data = []
+        for label, value in rows:
+            data.append([
+                Paragraph(_esc(label).upper(), label_style),
+                Paragraph(_esc(value), value_style),
+            ])
+        t = Table(data, colWidths=col_widths or [4*cm, 12.5*cm])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (0,-1), colors.HexColor('#F9FAFB')),
+            ('GRID', (0,0), (-1,-1), 0.3, colors.HexColor('#E5E7EB')),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('LEFTPADDING', (0,0), (-1,-1), 8),
+            ('RIGHTPADDING', (0,0), (-1,-1), 8),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ]))
+        return t
+
+    elements = []
+
+    # ─── HEADER ────────────────────────────────────────────────────────────
+    elements.append(Paragraph(f'Solicitud {solicitud.codigo}', title_style))
+    fecha = solicitud.created_at.strftime('%d/%m/%Y %H:%M') if solicitud.created_at else '—'
+    elements.append(Paragraph(
+        f'{solicitud.tipo_solicitud} · Empresa: {solicitud.company.upper()} · Registrada el {fecha}',
+        subtitle_style
+    ))
+
+    # Estado actual + banner
+    estado_label = SOLICITUD_ESTADO_LABEL.get(solicitud.estado, solicitud.estado)
+    estado_color = '#16A34A' if 'APROBADO' in solicitud.estado or solicitud.estado == 'CERRADO' else \
+                   '#DC2626' if 'RECHAZADO' in solicitud.estado or solicitud.estado == 'ANULADO' else \
+                   '#F59E0B' if 'DEVUELTO' in solicitud.estado else '#7C3AED'
+    banner = Table([[Paragraph(
+        f'<font color="white"><b>ESTADO ACTUAL:</b> {estado_label}</font>',
+        ParagraphStyle('B', parent=body_style, fontSize=11, textColor=colors.white)
+    )]], colWidths=[16.5*cm])
+    banner.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor(estado_color)),
+        ('LEFTPADDING', (0,0), (-1,-1), 10),
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+    ]))
+    elements.append(banner)
+    elements.append(Spacer(1, 12))
+
+    # ─── DATOS DEL EMPLEADO ────────────────────────────────────────────────
+    elements.append(Paragraph('👤 Datos del empleado', section_style))
+    empleado_rows = [
+        ('Documento', solicitud.documento),
+        ('Nombre completo', solicitud.nombre),
+        ('Cargo', solicitud.cargo or '—'),
+        ('Número de contacto', solicitud.numero_contacto or '—'),
+        ('Ubicación (sede)', solicitud.ubicacion or '—'),
+        ('Área / Centro de costos', solicitud.centro_costo or '—'),
+        ('Tipo de contrato', solicitud.tipo_contrato or '—'),
+        ('Unidad de negocio', solicitud.unidad_negocio or '—'),
+    ]
+    if solicitud.tipo_solicitud == 'INGRESO':
+        empleado_rows.append(('Fecha de ingreso',
+            solicitud.fecha_ingreso.strftime('%d/%m/%Y') if solicitud.fecha_ingreso else '—'))
+        empleado_rows.append(('¿Es reemplazo?',
+            'Sí' if solicitud.es_reemplazo else ('No' if solicitud.es_reemplazo is False else '—')))
+        if solicitud.es_reemplazo:
+            empleado_rows.append(('Nombre a reemplazar', solicitud.nombre_reemplazo or '—'))
+    else:
+        if solicitud.usuario_red:
+            empleado_rows.append(('Usuario de red', solicitud.usuario_red))
+    if solicitud.caso_externo:
+        empleado_rows.append(('Caso externo', solicitud.caso_externo))
+    elements.append(_kv_table(empleado_rows))
+    elements.append(Spacer(1, 12))
+
+    # ─── APROBADORES ───────────────────────────────────────────────────────
+    elements.append(Paragraph('✅ Cadena de aprobación (4 niveles)', section_style))
+    def _u(user):
+        if not user: return '—'
+        return f'{user.name} <font color="#6B7280">({user.email or "sin correo"})</font>'
+    aprob_rows = [
+        ('1. Jefe Inmediato', _u(solicitud.jefe_inmediato)),
+        ('2. Analista IT', _u(solicitud.analista_ti)),
+        ('3. Gerente Solicitante', _u(solicitud.gerente_area)),
+        ('4. Gerente IT', _u(solicitud.gerente_ti)),
+    ]
+    elements.append(_kv_table(aprob_rows))
+    elements.append(Spacer(1, 12))
+
+    # ─── JUSTIFICACIÓN ─────────────────────────────────────────────────────
+    elements.append(Paragraph('📝 Justificación', section_style))
+    justif_box = Table([[Paragraph(_esc(solicitud.justificacion), body_style)]],
+                       colWidths=[16.5*cm])
+    justif_box.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#FAF5FF')),
+        ('LINEBELOW', (0,0), (-1,-1), 2, colors.HexColor('#7C3AED')),
+        ('LEFTPADDING', (0,0), (-1,-1), 12),
+        ('RIGHTPADDING', (0,0), (-1,-1), 12),
+        ('TOPPADDING', (0,0), (-1,-1), 10),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+    ]))
+    elements.append(justif_box)
+    elements.append(Spacer(1, 12))
+
+    # ─── CONTROLES SOLICITADOS ─────────────────────────────────────────────
+    elements.append(Paragraph(
+        f'📦 Controles solicitados ({len(solicitud.controles)})', section_style))
+    if solicitud.controles:
+        header_row = ['#', 'Control', 'Detalle', 'Usuario Espejo']
+        rows = [header_row]
+        for i, sc in enumerate(solicitud.controles, start=1):
+            nombre = sc.control.name if sc.control else '—'
+            espejo_val = sc.usuario_espejo or ('⚠ Falta' if sc.control and sc.control.needs_espejo else '—')
+            rows.append([
+                str(i),
+                Paragraph(f'<b>{_esc(nombre)}</b>', body_style),
+                Paragraph(_esc((sc.descripcion_detalle or '—')[:400]), body_style),
+                Paragraph(_esc(espejo_val), body_style),
+            ])
+        t = Table(rows, colWidths=[0.9*cm, 4.5*cm, 8*cm, 3.1*cm], repeatRows=1)
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1E3A8A')),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,0), 9),
+            ('GRID', (0,0), (-1,-1), 0.3, colors.HexColor('#D1D5DB')),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#F9FAFB')]),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('LEFTPADDING', (0,0), (-1,-1), 5),
+            ('RIGHTPADDING', (0,0), (-1,-1), 5),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ]))
+        elements.append(t)
+    else:
+        elements.append(Paragraph('<i>Sin controles marcados.</i>', small_style))
+    elements.append(Spacer(1, 12))
+
+    # ─── ADJUNTOS ──────────────────────────────────────────────────────────
+    if solicitud.adjuntos:
+        elements.append(Paragraph(
+            f'📎 Documentos de soporte ({len(solicitud.adjuntos)})', section_style))
+        adj_data = [['Archivo', 'Tipo', 'Tamaño', 'Subido por']]
+        for a in solicitud.adjuntos:
+            sz = a.size_bytes or 0
+            if sz < 1024:
+                sz_str = f'{sz} B'
+            elif sz < 1024*1024:
+                sz_str = f'{sz/1024:.1f} KB'
+            else:
+                sz_str = f'{sz/1048576:.2f} MB'
+            adj_data.append([
+                Paragraph(_esc(a.original_name or a.filename), body_style),
+                Paragraph(_esc(a.mime_type or '—'), body_style),
+                Paragraph(sz_str, body_style),
+                Paragraph(_esc(a.uploaded_by.name if a.uploaded_by else '—'), body_style),
+            ])
+        t = Table(adj_data, colWidths=[7*cm, 4.5*cm, 2*cm, 3*cm], repeatRows=1)
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1E3A8A')),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,0), 9),
+            ('GRID', (0,0), (-1,-1), 0.3, colors.HexColor('#D1D5DB')),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ]))
+        elements.append(t)
+        elements.append(Spacer(1, 12))
+
+    # ─── HISTORIAL ─────────────────────────────────────────────────────────
+    if solicitud.historial:
+        elements.append(Paragraph(
+            f'📜 Historial de aprobaciones ({len(solicitud.historial)})', section_style))
+        hist_data = [['Fecha', 'Aprobador', 'Acción', 'Transición', 'Observación']]
+        for h in solicitud.historial:
+            fecha_h = h.created_at.strftime('%d/%m/%Y %H:%M') if h.created_at else '—'
+            aprob = h.aprobador.name if h.aprobador else '—'
+            transicion = f'{SOLICITUD_ESTADO_LABEL.get(h.estado_anterior, "—")} → {SOLICITUD_ESTADO_LABEL.get(h.estado_nuevo, h.estado_nuevo)}'
+            hist_data.append([
+                Paragraph(fecha_h, body_style),
+                Paragraph(_esc(aprob), body_style),
+                Paragraph(_esc(h.accion or '—'), body_style),
+                Paragraph(_esc(transicion), body_style),
+                Paragraph(_esc(h.observacion or '—'), body_style),
+            ])
+        t = Table(hist_data,
+                  colWidths=[2.5*cm, 3*cm, 1.8*cm, 5.5*cm, 3.7*cm], repeatRows=1)
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1E3A8A')),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,0), 9),
+            ('GRID', (0,0), (-1,-1), 0.3, colors.HexColor('#D1D5DB')),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('FONTSIZE', (0,1), (-1,-1), 8),
+        ]))
+        elements.append(t)
+        elements.append(Spacer(1, 12))
+
+    # ─── FOOTER ────────────────────────────────────────────────────────────
+    elements.append(Spacer(1, 12))
+    footer = ParagraphStyle('Footer', parent=styles['Normal'],
+        fontSize=8, textColor=colors.HexColor('#9CA3AF'), alignment=TA_CENTER)
+    from datetime import datetime as _dt
+    gen_time = _dt.now().strftime('%d/%m/%Y %H:%M:%S')
+    elements.append(Paragraph(
+        f'Documento generado automáticamente por DeskEli el {gen_time} · '
+        f'Solicitud {solicitud.codigo}', footer))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer.read()
+
+
+@app.route('/api/solicitudes-usuarios/<int:solicitud_id>/pdf', methods=['GET'])
+def api_solicitudes_download_pdf(solicitud_id):
+    """Descarga el PDF de la solicitud."""
+    user, err = _current_user_or_401()
+    if err: return err
+    s = SolicitudUsuario.query.get(solicitud_id)
+    if not s or not solicitud_can_view(user, s):
+        return jsonify({'success': False, 'error': 'Solicitud no encontrada'}), 404
+    try:
+        pdf_bytes = _generate_solicitud_pdf(s)
+    except Exception as e:
+        print(f'[solicitudes] Error generando PDF: {e}')
+        return jsonify({'success': False, 'error': f'No se pudo generar el PDF: {e}'}), 500
+    from flask import Response
+    return Response(
+        pdf_bytes,
+        mimetype='application/pdf',
+        headers={'Content-Disposition': f'attachment; filename="{s.codigo}.pdf"'}
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
