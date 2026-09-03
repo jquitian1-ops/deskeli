@@ -12565,7 +12565,11 @@ def api_resolve_ticket(ticket_id):
     ticket = Ticket.query.get(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket no encontrado'}), 404
-    if ticket.company not in admin_companies_scope():
+    # can_user_access_ticket() ya contempla el caso del técnico replicado en
+    # otras empresas (identidades espejo). No usar admin_companies_scope() acá
+    # porque bloquea al especialista que trabaja cross-empresa.
+    user_actor = User.query.get(session['user_id'])
+    if not can_user_access_ticket(user_actor, ticket):
         return jsonify({'success': False, 'error': f'No tienes acceso a tickets de la empresa "{ticket.company}".'}), 403
 
     data = request.json or {}
@@ -13544,7 +13548,10 @@ def api_escalate_priority(ticket_id):
     ticket = Ticket.query.get(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket no encontrado'}), 404
-    if ticket.company not in admin_companies_scope():
+    # can_user_access_ticket() contempla identidades espejo (técnico replicado
+    # en otras empresas). No usar admin_companies_scope() acá.
+    user_actor = User.query.get(session['user_id'])
+    if not can_user_access_ticket(user_actor, ticket):
         return jsonify({'success': False, 'error': f'No tienes acceso a tickets de la empresa "{ticket.company}".'}), 403
 
     # No permitir escalar tickets cerrados o resueltos
