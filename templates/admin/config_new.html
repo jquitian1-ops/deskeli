@@ -477,7 +477,7 @@
                 <a class="config-tab" data-tab="equipo"><span class="icon">👥</span>Equipo</a>
                 <a class="config-tab" data-tab="roles"><span class="icon">🎭</span>Roles Personalizados</a>
                 <a class="config-tab" data-tab="ia"><span class="icon">✦</span>IA Perfiles</a>
-                <a class="config-tab" data-tab="subroles"><span class="icon">🎖️</span>Subroles</a>
+                <a class="config-tab" data-tab="subroles"><span class="icon">🎖️</span>Grupos de Especialistas</a>
                 <a class="config-tab" data-tab="sla"><span class="icon">⏱</span>SLA</a>
                 <a class="config-tab" data-tab="business"><span class="icon">📅</span>Horario Laboral</a>
                 <a class="config-tab" data-tab="correo"><span class="icon">✉</span>Correo</a>
@@ -849,12 +849,28 @@
 
                 <!-- =========== SUBROLES =========== -->
                 <div class="panel-content" id="panel-subroles">
-                    <h2 class="config-panel-title">🎖️ Subroles / Especializaciones de Técnicos</h2>
-                    <p style="color:#6b7280;margin-bottom:18px;font-size:13px;">
-                        Define las áreas de especialización que pueden tener los técnicos
+                    <h2 class="config-panel-title">🎖️ Grupos de Especialistas</h2>
+                    <p style="color:#6b7280;margin-bottom:14px;font-size:13px;">
+                        Define los grupos de especialización de tus técnicos
                         (Infraestructura, módulos SAP, SAP ABAP, Seguridad, etc.). Después podés asignarlos a cada usuario
                         en <strong>Equipo</strong> o usarlos como filtros en la asignación automática de tickets.
                     </p>
+
+                    <div style="background:linear-gradient(135deg,#faf5ff,#f5f3ff); border:2px solid #c4b5fd; border-radius:10px; padding:14px 18px; margin-bottom:18px;">
+                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap;">
+                            <div style="flex:1; min-width:260px;">
+                                <div style="font-weight:800; color:#5b21b6; font-size:14px; margin-bottom:4px;">⭐ Grupo por defecto (balanceador)</div>
+                                <p style="margin:0; font-size:12.5px; color:#4c1d95; line-height:1.45;">
+                                    Marcá un grupo como <strong>grupo por defecto</strong> de tu empresa. A partir de ese momento, <strong>todos los tickets nuevos</strong>
+                                    (creados desde el portal del empleado, chat de Eli, panel admin o API) se asignarán automáticamente al miembro del grupo con
+                                    <strong>menor carga</strong> (round-robin). Si no marcás ninguno, la asignación sigue el flujo actual (IA orchestrator + fallback).
+                                </p>
+                            </div>
+                            <div id="srDefaultGroupStatus" style="min-width:180px; text-align:right; font-size:12px; color:#6b7280;">
+                                <em>— cargando —</em>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Botones de import/export -->
                     <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
@@ -2673,9 +2689,22 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                 return;
             }
             if (!data.subroles.length) {
-                tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">No hay subroles. Agrega uno arriba ⬆</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">No hay grupos. Agregá uno arriba ⬆</td></tr>';
                 return;
             }
+            // Actualizar badge del grupo por defecto en el callout de arriba
+            const defG = data.subroles.find(g => g.is_default_group);
+            const statusEl = document.getElementById('srDefaultGroupStatus');
+            if (statusEl) {
+                if (defG) {
+                    statusEl.innerHTML = `<div style="display:inline-block; padding:8px 14px; background:#7c3aed; color:white; border-radius:8px; font-weight:800; font-size:13px;">⭐ ${esc(defG.icon || '🔧')} ${esc(defG.name)}</div>
+                        <div style="margin-top:6px; font-size:11px;">grupo activo</div>`;
+                } else {
+                    statusEl.innerHTML = `<div style="padding:8px 14px; background:#f3f4f6; color:#6b7280; border-radius:8px; font-weight:700; font-size:13px;">— sin grupo por defecto —</div>
+                        <div style="margin-top:4px; font-size:11px;">usando IA / fallback</div>`;
+                }
+            }
+
             tbody.innerHTML = data.subroles.map(s => {
                 const sysTag = s.is_system
                     ? '<span style="background:#e0e7ff;color:#3730a3;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700;">🔒 Sistema</span>'
@@ -2688,19 +2717,51 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                 const delBtn = s.is_system
                     ? ''
                     : `<button onclick="srDelete(${s.id}, '${esc(s.name).replace(/'/g,'&#39;')}')" style="padding:5px 10px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">🗑</button>`;
+                // Botón grupo por defecto: solo grupos no-globales (con company específica)
+                let defBtn = '';
+                if (!s.is_global) {
+                    if (s.is_default_group) {
+                        defBtn = `<button onclick="srSetDefaultGroup(${s.id}, false)" style="padding:5px 10px;background:#7c3aed;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:4px;font-weight:600;" title="Quitar como grupo por defecto">⭐ Quitar default</button>`;
+                    } else {
+                        defBtn = `<button onclick="srSetDefaultGroup(${s.id}, true)" style="padding:5px 10px;background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd;border-radius:4px;cursor:pointer;font-size:11px;margin-right:4px;font-weight:600;" title="Al marcarlo, todos los tickets nuevos se asignan al miembro con menor carga de este grupo">☆ Marcar default</button>`;
+                    }
+                }
+                const highlight = s.is_default_group ? 'background:#faf5ff;' : '';
+                const nameCell = s.is_default_group
+                    ? `<span style="display:inline-block;padding:1px 7px;background:#7c3aed;color:white;border-radius:5px;font-size:9px;font-weight:800;margin-right:6px;vertical-align:middle;">DEFAULT</span>${esc(s.name)}`
+                    : esc(s.name);
                 return `
-                    <tr style="border-bottom:1px solid #f0f0f0;">
+                    <tr style="border-bottom:1px solid #f0f0f0;${highlight}">
                         <td style="padding:10px;text-align:center;font-size:22px;">${esc(s.icon)}</td>
-                        <td style="padding:10px;font-weight:600;color:#111827;">${esc(s.name)}</td>
+                        <td style="padding:10px;font-weight:600;color:#111827;">${nameCell}</td>
                         <td style="padding:10px;color:#6b7280;font-size:12px;">${esc(s.description || '—')}</td>
                         <td style="padding:10px;text-align:center;">${sysTag}</td>
                         <td style="padding:10px;text-align:center;">${stateTag}</td>
-                        <td style="padding:10px;text-align:center;white-space:nowrap;">${editBtn}${toggleBtn}${delBtn}</td>
+                        <td style="padding:10px;text-align:center;white-space:nowrap;">${defBtn}${editBtn}${toggleBtn}${delBtn}</td>
                     </tr>
                 `;
             }).join('');
         } catch (e) {
             tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#dc2626;">' + e.message + '</td></tr>';
+        }
+    }
+
+    async function srSetDefaultGroup(id, makeDefault) {
+        const msg = makeDefault
+            ? '¿Marcar este grupo como grupo por defecto de la empresa?\n\nA partir de ese momento, TODOS los tickets nuevos (portal empleado, chat Eli, admin, API) se asignarán automáticamente al miembro con menor carga.'
+            : '¿Quitar el flag de grupo por defecto? Los tickets nuevos volverán al flujo tradicional (IA + fallback).';
+        if (!confirm(msg)) return;
+        try {
+            const r = await fetch(`/api/admin/subroles/${id}/set-default-group`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({is_default_group: makeDefault})
+            });
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error || 'Error');
+            await srLoad();
+        } catch (e) {
+            alert('❌ ' + e.message);
         }
     }
 

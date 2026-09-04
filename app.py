@@ -819,7 +819,16 @@ class AgentAction(db.Model):
     ticket = db.relationship('Ticket', backref='agent_actions')
 
 class Subrole(db.Model):
-    """Catálogo de subroles/especializaciones técnicas (Infraestructura, SAP MM, etc.)."""
+    """Grupos de especialistas (antes llamados 'Subroles'). Ejemplos:
+    Infraestructura, SAP MM, Redes, Seguridad, etc.
+
+    Un grupo puede marcarse como 'default_group' por empresa: cuando eso ocurre,
+    todo ticket creado en cualquier interfaz (portal empleado, chat Eli, admin,
+    API externa) se auto-asigna al miembro con menor carga del grupo, con un
+    balanceador round-robin. Si ninguna empresa tiene default_group configurado,
+    la asignación sigue con el flujo original (IA orchestrator + fallback).
+    Máximo un default_group por empresa (constraint UNIQUE parcial).
+    """
     __tablename__ = 'subroles'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -827,6 +836,7 @@ class Subrole(db.Model):
     icon = db.Column(db.String(10), default='🔧')
     company = db.Column(db.String(20))  # NULL = global a todas las empresas
     is_system = db.Column(db.Boolean, default=False)  # los pre-seed no se pueden borrar
+    is_default_group = db.Column(db.Boolean, default=False, index=True)  # grupo por defecto de la empresa
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
     __table_args__ = (db.UniqueConstraint('name', 'company', name='_subrole_company_uc'),)
@@ -2902,10 +2912,20 @@ def employee_create():
             print(f'[employee_create] Error procesando adjuntos: {e}')
 
         # Hook del Agent Orchestrator — procesar ticket automáticamente.
+        # Prioridad: grupo por defecto de la empresa (override del orchestrator IA)
+        # Si no hay grupo por defecto configurado, sigue el flujo original.
+        default_group_assigned = False
+        try:
+            default_group_assigned = assign_to_default_group(ticket)
+            if default_group_assigned:
+                db.session.commit()
+        except Exception as e:
+            print(f'[default-group] Error: {e}')
+
         # Si el orchestrator no está disponible o falla, usar assign_ticket_auto como FALLBACK.
         orch = app.config.get('orchestrator')
-        orch_ran = False
-        if orch is not None:
+        orch_ran = default_group_assigned  # si default_group asignó, no llamamos al orchestrator
+        if not default_group_assigned and orch is not None:
             try:
                 orch.process_new_ticket(ticket)
                 orch_ran = True
@@ -3072,11 +3092,20 @@ def technician_create():
             print(f'[technician_create] Error procesando adjuntos: {e}')
 
         # Hook orchestrator (solo si NO se auto-asignó manualmente, para no sobrescribir)
+        # Prioridad: si hay grupo por defecto configurado, se usa ese antes del orchestrator.
         try:
             if not assignee_id:
-                orch = app.config.get('orchestrator')
-                if orch is not None:
-                    orch.process_new_ticket(ticket)
+                default_group_assigned = False
+                try:
+                    default_group_assigned = assign_to_default_group(ticket)
+                    if default_group_assigned:
+                        db.session.commit()
+                except Exception as e:
+                    print(f'[default-group] Error: {e}')
+                if not default_group_assigned:
+                    orch = app.config.get('orchestrator')
+                    if orch is not None:
+                        orch.process_new_ticket(ticket)
         except Exception as e:
             print(f'[Orchestrator Hook] {e}')
 
@@ -6730,24 +6759,58 @@ def api_bot_ticket_from_chat():
         assignee_name = None
 
         if not resolved:
-            # Buscar técnico con menor carga en esta empresa
-            from sqlalchemy import func
-            technicians = User.query.filter_by(company=company, role='technician', is_active=True).all()
-            if technicians:
-                # Contar tickets activos por técnico
-                best_tech = None
-                min_load = float('inf')
-                for t in technicians:
-                    load = Ticket.query.filter(
-                        Ticket.assignee_id == t.id,
-                        Ticket.status.in_(['open', 'in_progress'])
-                    ).count()
-                    if load < min_load:
-                        min_load = load
-                        best_tech = t
-                if best_tech:
-                    assignee_id = best_tech.id
-                    assignee_name = best_tech.name
+            # Prioridad: grupo por defecto de la empresa (Subrole.is_default_group)
+            # Si está configurado, sus miembros reciben todos los tickets del bot
+            # con balanceador round-robin por carga.
+            default_group_pick = None
+            try:
+                default_group = Subrole.query.filter(
+                    Subrole.company == company,
+                    Subrole.is_default_group == True,
+                    Subrole.is_active == True,
+                ).first()
+                if default_group:
+                    members = (
+                        db.session.query(User)
+                        .join(UserSubrole, UserSubrole.user_id == User.id)
+                        .filter(
+                            UserSubrole.subrole_id == default_group.id,
+                            User.is_active == True,
+                            User.company == company,
+                            User.role.in_(['technician', 'admin']),
+                        )
+                        .all()
+                    )
+                    if members:
+                        pick = min(members, key=lambda m: Ticket.query.filter(
+                            Ticket.assignee_id == m.id,
+                            Ticket.status.in_(['open', 'in_progress']),
+                            Ticket.company == company,
+                        ).count())
+                        default_group_pick = pick
+                        assignee_id = pick.id
+                        assignee_name = pick.name
+            except Exception as e:
+                print(f'[bot-chat default-group] {e}')
+
+            # Fallback tradicional: técnico con menor carga sin filtrar por grupo
+            if not default_group_pick:
+                from sqlalchemy import func
+                technicians = User.query.filter_by(company=company, role='technician', is_active=True).all()
+                if technicians:
+                    best_tech = None
+                    min_load = float('inf')
+                    for t in technicians:
+                        load = Ticket.query.filter(
+                            Ticket.assignee_id == t.id,
+                            Ticket.status.in_(['open', 'in_progress'])
+                        ).count()
+                        if load < min_load:
+                            min_load = load
+                            best_tech = t
+                    if best_tech:
+                        assignee_id = best_tech.id
+                        assignee_name = best_tech.name
 
         # SLA por prioridad
         sla_map = {'low': 1440, 'medium': 480, 'high': 240, 'critical': 60}
@@ -8233,15 +8296,94 @@ def ping_server(server_id):
         except Exception as e:
             log_audit('ping_error', None, 'server', server_id, f'Error ping (general): {str(e)}')
 
+def assign_to_default_group(ticket):
+    """Asigna el ticket al miembro con menor carga del 'Grupo por defecto'
+    de la empresa (Subrole con is_default_group=True).
+
+    Devuelve True si asignó, False si no hay grupo por defecto o si el grupo
+    no tiene miembros elegibles. En ambos casos el llamador debe caer al flujo
+    de asignación tradicional (orchestrator IA o assign_ticket_auto).
+
+    Reglas del balanceador:
+    - Elegibles: user activo, mismo company que el ticket, rol technician o admin.
+    - Se elige el user con menor carga = tickets abiertos+in_progress asignados.
+    - Empate: el user con menos tickets creados históricos (más "nuevo").
+    """
+    if ticket.assignee_id:
+        return False  # Ya asignado
+    if not ticket.company:
+        return False
+
+    default_group = Subrole.query.filter(
+        Subrole.company == ticket.company,
+        Subrole.is_default_group == True,
+        Subrole.is_active == True,
+    ).first()
+    if not default_group:
+        return False
+
+    # Miembros elegibles: user_subroles del grupo + user activo + technician/admin
+    members = (
+        db.session.query(User)
+        .join(UserSubrole, UserSubrole.user_id == User.id)
+        .filter(
+            UserSubrole.subrole_id == default_group.id,
+            User.is_active == True,
+            User.company == ticket.company,
+            User.role.in_(['technician', 'admin']),
+        )
+        .all()
+    )
+    if not members:
+        # Grupo por defecto configurado pero sin miembros → log y fallback
+        print(f'[default-group] Grupo "{default_group.name}" (empresa {ticket.company}) sin miembros elegibles; usando fallback')
+        return False
+
+    # Round-robin por carga
+    def _load(u):
+        active = Ticket.query.filter(
+            Ticket.assignee_id == u.id,
+            Ticket.status.in_(['open', 'in_progress']),
+            Ticket.company == ticket.company,
+        ).count()
+        # Desempate: menos tickets creados históricos = user más nuevo → prioridad
+        total_hist = Ticket.query.filter(
+            Ticket.assignee_id == u.id,
+            Ticket.company == ticket.company,
+        ).count()
+        return (active, total_hist)
+
+    picked = min(members, key=_load)
+    ticket.assignee_id = picked.id
+    ticket.status = 'in_progress' if ticket.status == 'open' else ticket.status
+    # log de auditoría (best-effort)
+    try:
+        log_audit(
+            'ticket_auto_assigned_default_group',
+            picked.id, 'ticket', ticket.id,
+            f'Ticket #{ticket.ticket_number} asignado a {picked.name} '
+            f'(grupo por defecto "{default_group.name}")'
+        )
+    except Exception:
+        pass
+    return True
+
+
 def assign_ticket_auto(ticket):
     """
     Asignación automática basada en carga y perfil (RF-03-06).
 
-    Asigna el ticket al técnico con menor carga de trabajo activo,
+    Prioridad: si la empresa del ticket tiene un "Grupo por defecto"
+    configurado (Subrole.is_default_group=True), asigna al miembro con
+    menor carga de ese grupo (balanceador round-robin). Si no hay grupo
+    por defecto, cae al fallback histórico: técnico con menor carga
     con bonus si su especialidad coincide con la categoría.
     """
     if ticket.assignee_id:
         return  # Ya asignado
+    # Prioridad: grupo por defecto de la empresa (override del fallback IA)
+    if assign_to_default_group(ticket):
+        return
 
     available_technicians = User.query.filter_by(
         role='technician',
@@ -11613,13 +11755,24 @@ def api_admin_create_ticket():
     db.session.add(ticket)
     db.session.commit()
 
-    # Hook del Agent Orchestrator
-    orch = app.config.get('orchestrator')
-    if orch is not None:
+    # Prioridad: grupo por defecto de la empresa (override del orchestrator IA)
+    default_group_assigned = False
+    if not ticket.assignee_id:
         try:
-            orch.process_new_ticket(ticket)
+            default_group_assigned = assign_to_default_group(ticket)
+            if default_group_assigned:
+                db.session.commit()
         except Exception as e:
-            print(f'[Orchestrator Hook admin_create] Fallo: {e}')
+            print(f'[default-group admin_create] Error: {e}')
+
+    # Hook del Agent Orchestrator (solo si no asignó el grupo por defecto)
+    if not default_group_assigned:
+        orch = app.config.get('orchestrator')
+        if orch is not None:
+            try:
+                orch.process_new_ticket(ticket)
+            except Exception as e:
+                print(f'[Orchestrator Hook admin_create] Fallo: {e}')
 
     # Fallback robusto: si el orchestrator no asignó (sin API, falló o no estaba) usar lógica clásica
     db.session.refresh(ticket)
@@ -16619,6 +16772,7 @@ def api_admin_subroles_list():
             'company': s.company,
             'is_system': bool(s.is_system),
             'is_active': bool(s.is_active),
+            'is_default_group': bool(getattr(s, 'is_default_group', False)),
             'is_global': s.company is None
         } for s in subroles]
     })
@@ -16681,6 +16835,51 @@ def api_admin_subroles_update(subrole_id):
     db.session.commit()
     log_audit('update_subrole', session['user_id'], 'subrole', s.id, f'Subrol "{s.name}" actualizado')
     return jsonify({'success': True, 'message': 'Subrol actualizado'})
+
+
+@app.route('/api/admin/subroles/<int:subrole_id>/set-default-group', methods=['POST'])
+def api_admin_subroles_set_default(subrole_id):
+    """Marca este grupo como el grupo por defecto de la empresa.
+
+    Body: {"is_default_group": true|false}
+
+    Reglas:
+    - Solo admin.
+    - Máximo un grupo default por empresa: si se marca True, se limpia el
+      flag de cualquier otro subrole con misma company.
+    - Los grupos globales (company=NULL) no pueden ser default: hay que
+      duplicar/adaptar el grupo a la empresa antes.
+    - El grupo debe tener al menos 1 miembro activo (validado también en
+      la función de asignación como salvaguarda).
+    """
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    s = Subrole.query.get_or_404(subrole_id)
+    if s.company is None:
+        return jsonify({'success': False, 'error': 'Un grupo global no puede ser default. Primero creá una copia específica de la empresa.'}), 400
+    if s.company != session.get('company') and not is_master_admin():
+        return jsonify({'success': False, 'error': 'Sin acceso a este grupo'}), 403
+
+    data = request.get_json() or {}
+    make_default = bool(data.get('is_default_group', True))
+
+    if make_default:
+        # Limpiar el flag de cualquier otro grupo de la misma empresa
+        Subrole.query.filter(
+            Subrole.company == s.company,
+            Subrole.id != s.id,
+            Subrole.is_default_group == True
+        ).update({'is_default_group': False}, synchronize_session=False)
+        s.is_default_group = True
+        action_txt = 'grupo por defecto establecido'
+    else:
+        s.is_default_group = False
+        action_txt = 'grupo por defecto desmarcado'
+
+    db.session.commit()
+    log_audit('subrole_set_default_group', session['user_id'], 'subrole', s.id,
+              f'{action_txt}: "{s.name}" (empresa {s.company})')
+    return jsonify({'success': True, 'is_default_group': s.is_default_group})
 
 
 @app.route('/api/admin/subroles/<int:subrole_id>', methods=['DELETE'])
