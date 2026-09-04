@@ -2007,11 +2007,22 @@
 
                     <div>
                         <label style="display:block;font-size:13px;color:#374151;font-weight:600;margin-bottom:4px;">Asignar a (opcional)</label>
-                        <select id="ctAssignee" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
-                            <option value="">— Auto-asignar por IA —</option>
-                        </select>
-                        <div style="font-size:11px;color:#6b7280;margin-top:4px;">
-                            Si lo dejas vacío, el sistema asigna automáticamente al técnico con mejor match de habilidades.
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px;">1. Grupo de Especialistas</label>
+                                <select id="ctGroup" onchange="ctOnGroupChange()" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+                                    <option value="">— Auto-asignar por IA —</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px;">2. Técnico del grupo</label>
+                                <select id="ctAssignee" disabled style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;background:#f9fafb;">
+                                    <option value="">— Elegí un grupo primero —</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="font-size:11px;color:#6b7280;margin-top:6px;">
+                            Elegí un grupo para ver sus miembros y asignar a alguien específico. Si dejás "Auto-asignar por IA", el sistema decide automáticamente según el <a href="/admin/config" style="color:#7c3aed;">grupo por defecto</a> (si está configurado) o el balanceador de habilidades.
                         </div>
                     </div>
 
@@ -2530,22 +2541,66 @@
             // Cargar plantillas
             loadAdminTemplates();
 
-            // Cargar técnicos disponibles
+            // Cargar grupos de especialistas + miembros para el dropdown en cascada
             try {
-                const r = await fetch('/api/admin/team');
+                const r = await fetch('/api/team-by-groups?include_self=1');
                 const data = await r.json();
-                const sel = document.getElementById('ctAssignee');
+                _ctGroupsCache = (data.success && data.groups) ? data.groups : [];
+                _ctNoGroupCache = (data.success && data.no_group) ? data.no_group : [];
+                const gsel = document.getElementById('ctGroup');
                 let html = '<option value="">— Auto-asignar por IA —</option>';
-                if (data.success && data.team) {
-                    data.team.filter(u => u.role === 'technician' || u.role === 'admin').forEach(u => {
-                        const icon = u.role === 'admin' ? '👑' : '🔧';
-                        html += `<option value="${u.id}">${icon} ${u.name} (${u.username})</option>`;
-                    });
+                _ctGroupsCache.forEach(g => {
+                    const defTag = g.is_default_group ? ' ⭐' : '';
+                    html += `<option value="group:${g.id}">${g.icon || '🔧'} ${g.name}${defTag} (${g.members.length})</option>`;
+                });
+                if (_ctNoGroupCache.length > 0) {
+                    html += `<option value="no_group">👥 Sin grupo asignado (${_ctNoGroupCache.length})</option>`;
                 }
-                sel.innerHTML = html;
+                gsel.innerHTML = html;
+                // Reset del segundo select
+                const asel = document.getElementById('ctAssignee');
+                asel.innerHTML = '<option value="">— Elegí un grupo primero —</option>';
+                asel.disabled = true;
+                asel.style.background = '#f9fafb';
             } catch (e) { console.error(e); }
 
             setTimeout(() => document.getElementById('ctTitle').focus(), 100);
+        }
+
+        let _ctGroupsCache = [];
+        let _ctNoGroupCache = [];
+
+        function ctOnGroupChange() {
+            const gVal = document.getElementById('ctGroup').value;
+            const asel = document.getElementById('ctAssignee');
+            if (!gVal) {
+                asel.innerHTML = '<option value="">— Auto-asignar por IA —</option>';
+                asel.disabled = true;
+                asel.style.background = '#f9fafb';
+                return;
+            }
+            let members = [];
+            if (gVal === 'no_group') {
+                members = _ctNoGroupCache;
+            } else if (gVal.startsWith('group:')) {
+                const gid = parseInt(gVal.split(':')[1]);
+                const g = _ctGroupsCache.find(x => x.id === gid);
+                members = g ? g.members : [];
+            }
+            if (members.length === 0) {
+                asel.innerHTML = '<option value="">— Grupo sin miembros elegibles —</option>';
+                asel.disabled = true;
+                asel.style.background = '#f9fafb';
+                return;
+            }
+            let html = `<option value="">— Cualquiera del grupo (balanceador) —</option>`;
+            members.forEach(u => {
+                const icon = u.role === 'admin' ? '👑' : '🔧';
+                html += `<option value="${u.id}">${icon} ${u.name} (${u.username})</option>`;
+            });
+            asel.innerHTML = html;
+            asel.disabled = false;
+            asel.style.background = 'white';
         }
 
         function closeAdminCreateTicket() {

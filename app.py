@@ -16752,6 +16752,85 @@ def api_admin_mailboxes_sync(mb_id):
 
 # ===== SUBROLES (catálogo de especializaciones técnicas) =====
 
+@app.route('/api/team-by-groups', methods=['GET'])
+def api_team_by_groups():
+    """Devuelve técnicos+admins agrupados por Subrole (Grupo de Especialistas).
+
+    Payload:
+        {
+          "success": true,
+          "groups": [
+            {"id": 1, "name": "Infraestructura", "icon": "🔧",
+             "is_default_group": true,
+             "members": [{"id": 5, "name": "Juan", "username": "jperez", "role": "technician"}, ...]},
+            ...
+          ],
+          "no_group": [{"id": 12, "name": "...", ...}]
+        }
+
+    Filtra por company del usuario logueado (o scope si es master admin).
+    Excluye al usuario logueado por defecto (?include_self=1 para incluirlo).
+    Query param opcional: exclude_user_id=<id> para excluir un id específico.
+    """
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    company = session.get('company')
+    include_self = request.args.get('include_self') == '1'
+    self_id = session.get('user_id')
+    exclude_id = request.args.get('exclude_user_id')
+    try:
+        exclude_id = int(exclude_id) if exclude_id else None
+    except (ValueError, TypeError):
+        exclude_id = None
+
+    # Técnicos + admins activos de la empresa
+    q = User.query.filter(
+        User.company == company,
+        User.is_active == True,
+        User.role.in_(['technician', 'admin']),
+    )
+    if not include_self and self_id:
+        q = q.filter(User.id != self_id)
+    if exclude_id:
+        q = q.filter(User.id != exclude_id)
+    users = q.order_by(User.name).all()
+    users_by_id = {u.id: u for u in users}
+
+    # Grupos visibles: globales + de la empresa, activos
+    groups = Subrole.query.filter(
+        db.or_(Subrole.company == None, Subrole.company == company),
+        Subrole.is_active == True,
+    ).order_by(Subrole.is_default_group.desc(), Subrole.name).all()
+
+    # Miembros por grupo (via UserSubrole)
+    groups_payload = []
+    assigned_user_ids = set()
+    for g in groups:
+        member_ids = [us.user_id for us in UserSubrole.query.filter_by(subrole_id=g.id).all()]
+        members = [u for uid in member_ids if (u := users_by_id.get(uid))]
+        if not members:
+            continue  # ocultar grupos vacíos
+        assigned_user_ids.update(m.id for m in members)
+        groups_payload.append({
+            'id': g.id,
+            'name': g.name,
+            'icon': g.icon or '🔧',
+            'is_default_group': bool(getattr(g, 'is_default_group', False)),
+            'is_global': g.company is None,
+            'members': [
+                {'id': u.id, 'name': u.name, 'username': u.username, 'role': u.role, 'email': u.email or ''}
+                for u in members
+            ],
+        })
+
+    # Usuarios sin ningún grupo
+    no_group = [
+        {'id': u.id, 'name': u.name, 'username': u.username, 'role': u.role, 'email': u.email or ''}
+        for u in users if u.id not in assigned_user_ids
+    ]
+    return jsonify({'success': True, 'groups': groups_payload, 'no_group': no_group})
+
+
 @app.route('/api/admin/subroles', methods=['GET'])
 def api_admin_subroles_list():
     """Listar subroles disponibles (sistema global + propios de la empresa)."""

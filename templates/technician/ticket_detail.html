@@ -886,13 +886,20 @@
 
     <!-- MODAL REASIGNAR -->
     <div id="reassignModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
-        <div style="background:white;padding:30px;border-radius:12px;width:90%;max-width:500px;">
+        <div style="background:white;padding:30px;border-radius:12px;width:90%;max-width:560px;">
             <h2 style="margin-bottom:15px;color:#f59e0b;">🔄 Reasignar Ticket</h2>
-            <p style="color:#666;margin-bottom:15px;font-size:14px;">Asigna este ticket a otro especialista del equipo.</p>
-            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">Nuevo asignado:</label>
-            <select id="reassignTo" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;margin-bottom:15px;">
-                <option value="">Cargando técnicos...</option>
+            <p style="color:#666;margin-bottom:15px;font-size:14px;">Elegí primero el Grupo de Especialistas y después el técnico dentro del grupo.</p>
+
+            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">1. Grupo de Especialistas:</label>
+            <select id="reassignGroup" onchange="reOnGroupChange()" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;margin-bottom:12px;">
+                <option value="">— Cargando grupos —</option>
             </select>
+
+            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">2. Técnico del grupo:</label>
+            <select id="reassignTo" disabled style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;margin-bottom:15px;background:#f9fafb;">
+                <option value="">— Elegí un grupo primero —</option>
+            </select>
+
             <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">Motivo:</label>
             <textarea id="reassignReason" rows="3" placeholder="Ej: Requiere especialista en SAP / No tengo experiencia en este tema..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-family:inherit;margin-bottom:15px;"></textarea>
             <div style="display:flex;gap:10px;justify-content:flex-end;">
@@ -1004,32 +1011,74 @@
         }
 
         // ========== REASIGNAR ==========
+        let _reGroupsCache = [];
+        let _reNoGroupCache = [];
+
         async function reassignTicket() {
-            const sel = document.getElementById('reassignTo');
-            sel.innerHTML = '<option value="">Cargando técnicos...</option>';
+            const gsel = document.getElementById('reassignGroup');
+            const asel = document.getElementById('reassignTo');
+            gsel.innerHTML = '<option value="">— Cargando grupos —</option>';
+            asel.innerHTML = '<option value="">— Elegí un grupo primero —</option>';
+            asel.disabled = true;
+            asel.style.background = '#f9fafb';
             document.getElementById('reassignReason').value = '';
             document.getElementById('reassignModal').style.display = 'flex';
 
             try {
-                const r = await fetch('/api/technicians?ticket_id=' + TICKET_ID);
+                // Excluir al usuario actual (el que reasigna) para no reasignarse a sí mismo
+                const r = await fetch('/api/team-by-groups');
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 const data = await r.json();
+                if (!data.success) throw new Error(data.error || 'Error');
+                _reGroupsCache = data.groups || [];
+                _reNoGroupCache = data.no_group || [];
 
-                if (data.success && data.technicians && data.technicians.length > 0) {
-                    sel.innerHTML = '<option value="">Selecciona un técnico...</option>';
-                    // Excluir al usuario actual de la lista
-                    data.technicians.forEach(t => {
-                        const icon = t.role === 'admin' ? '👑' : '🔧';
-                        const label = `${icon} ${t.name} (@${t.username})`;
-                        sel.innerHTML += `<option value="${t.id}">${label}</option>`;
-                    });
-                } else {
-                    sel.innerHTML = '<option value="">No hay otros técnicos disponibles</option>';
+                let html = '<option value="">— Elegí un grupo —</option>';
+                _reGroupsCache.forEach(g => {
+                    const defTag = g.is_default_group ? ' ⭐' : '';
+                    html += `<option value="group:${g.id}">${g.icon || '🔧'} ${g.name}${defTag} (${g.members.length})</option>`;
+                });
+                if (_reNoGroupCache.length > 0) {
+                    html += `<option value="no_group">👥 Sin grupo (${_reNoGroupCache.length})</option>`;
                 }
+                gsel.innerHTML = html;
             } catch (e) {
-                console.error('Error cargando técnicos:', e);
-                sel.innerHTML = '<option value="">Error: ' + e.message + '</option>';
+                console.error('Error cargando grupos:', e);
+                gsel.innerHTML = '<option value="">Error: ' + e.message + '</option>';
             }
+        }
+
+        function reOnGroupChange() {
+            const gVal = document.getElementById('reassignGroup').value;
+            const asel = document.getElementById('reassignTo');
+            if (!gVal) {
+                asel.innerHTML = '<option value="">— Elegí un grupo primero —</option>';
+                asel.disabled = true;
+                asel.style.background = '#f9fafb';
+                return;
+            }
+            let members = [];
+            if (gVal === 'no_group') {
+                members = _reNoGroupCache;
+            } else if (gVal.startsWith('group:')) {
+                const gid = parseInt(gVal.split(':')[1]);
+                const g = _reGroupsCache.find(x => x.id === gid);
+                members = g ? g.members : [];
+            }
+            if (members.length === 0) {
+                asel.innerHTML = '<option value="">— Grupo sin miembros disponibles —</option>';
+                asel.disabled = true;
+                asel.style.background = '#f9fafb';
+                return;
+            }
+            let html = '<option value="">— Elegí un técnico —</option>';
+            members.forEach(u => {
+                const icon = u.role === 'admin' ? '👑' : '🔧';
+                html += `<option value="${u.id}">${icon} ${u.name} (@${u.username})</option>`;
+            });
+            asel.innerHTML = html;
+            asel.disabled = false;
+            asel.style.background = 'white';
         }
 
         function closeReassign() {
