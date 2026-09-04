@@ -3163,7 +3163,7 @@ def technician_subtask_detail(subtask_id):
         return redirect(url_for('technician_dashboard'))
 
     # Validar acceso: misma empresa (o admin master via scope)
-    if parent_ticket.company not in admin_companies_scope():
+    if not can_user_access_ticket(User.query.get(session['user_id']), parent_ticket):
         return redirect(url_for('technician_dashboard'))
 
     # Resolver assignee y creador
@@ -12416,7 +12416,7 @@ def api_get_ticket_time(ticket_id):
         return jsonify({'success': False}), 401
 
     ticket = Ticket.query.get(ticket_id)
-    if not ticket or ticket.company not in admin_companies_scope():
+    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False}), 403
 
     return jsonify({
@@ -12432,7 +12432,7 @@ def api_get_ticket_history(ticket_id):
         return jsonify({'success': False}), 401
 
     ticket = Ticket.query.get(ticket_id)
-    if not ticket or ticket.company not in admin_companies_scope():
+    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False}), 403
 
     # Obtener audit logs del ticket
@@ -12682,7 +12682,7 @@ def api_save_ticket_rating(ticket_id):
         return jsonify({'success': False}), 401
 
     ticket = Ticket.query.get(ticket_id)
-    if not ticket or ticket.company not in admin_companies_scope():
+    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False}), 403
 
     data = request.json or {}
@@ -13132,7 +13132,7 @@ def api_ticket_request_info(ticket_id):
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
 
     ticket = Ticket.query.get_or_404(ticket_id)
-    if ticket.company not in admin_companies_scope():
+    if not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False, 'error': 'Sin acceso a esta empresa'}), 403
 
     data = request.get_json() or {}
@@ -13269,7 +13269,7 @@ def api_add_message(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
 
     # Validar acceso por empresa (admin master ve todas)
-    if ticket.company not in admin_companies_scope():
+    if not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         if wants_json:
             return jsonify({'success': False, 'error': f'No tienes acceso a tickets de "{ticket.company}".'}), 403
         # Volver al detalle del ticket, no a login
@@ -13614,7 +13614,7 @@ def api_update_ticket_status(ticket_id):
         ticket = Ticket.query.get(ticket_id)
         if not ticket:
             return jsonify({'success': False, 'error': 'Ticket no encontrado'}), 404
-        if ticket.company not in admin_companies_scope():
+        if not can_user_access_ticket(User.query.get(session['user_id']), ticket):
             return jsonify({'success': False, 'error': f'No tienes acceso a tickets de "{ticket.company}".'}), 403
 
         # VALIDACIÓN: no permitir pasar a resolved/closed si hay subtareas pendientes
@@ -13941,7 +13941,7 @@ def api_subtask_get(subtask_id):
         return jsonify({'success': False}), 401
     subtask = Subtask.query.get_or_404(subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id)
-    if not ticket or ticket.company not in admin_companies_scope():
+    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False}), 403
     return jsonify({'success': True, 'subtask': _serialize_subtask(subtask)})
 
@@ -13951,7 +13951,7 @@ def api_subtask_get(subtask_id):
 def api_subtask_update(subtask_id):
     subtask = Subtask.query.get_or_404(subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id)
-    if not ticket or ticket.company not in admin_companies_scope():
+    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False}), 403
 
     data = request.get_json() or {}
@@ -14045,7 +14045,7 @@ def api_subtask_update(subtask_id):
 def api_subtask_delete(subtask_id):
     subtask = Subtask.query.get_or_404(subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id)
-    if not ticket or ticket.company not in admin_companies_scope():
+    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False}), 403
 
     ticket_id = subtask.ticket_id
@@ -14090,7 +14090,7 @@ def api_subtask_messages_list(subtask_id):
         return jsonify({'success': False, 'error': 'No autenticado'}), 401
     subtask = Subtask.query.get_or_404(subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id)
-    if not ticket or ticket.company not in admin_companies_scope():
+    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
 
     messages = Message.query.filter_by(subtask_id=subtask_id).order_by(Message.created_at.asc()).all()
@@ -14115,7 +14115,7 @@ def api_subtask_messages_create(subtask_id):
         return jsonify({'success': False, 'error': 'No autenticado'}), 401
     subtask = Subtask.query.get_or_404(subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id)
-    if not ticket or ticket.company not in admin_companies_scope():
+    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
 
     data = request.get_json() or {}
@@ -14176,7 +14176,7 @@ def api_subtask_attachments_list(subtask_id):
         return jsonify({'success': False}), 401
     subtask = Subtask.query.get_or_404(subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id)
-    if not ticket or ticket.company not in admin_companies_scope():
+    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False}), 403
     attachments = SubtaskAttachment.query.filter_by(subtask_id=subtask_id).order_by(SubtaskAttachment.uploaded_at.desc()).all()
     return jsonify({
@@ -14191,7 +14191,7 @@ def api_subtask_attachments_upload(subtask_id):
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     subtask = Subtask.query.get_or_404(subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id)
-    if not ticket or ticket.company not in admin_companies_scope():
+    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False}), 403
 
     from werkzeug.utils import secure_filename
@@ -14257,7 +14257,7 @@ def api_subtask_attachment_download(att_id):
     att = SubtaskAttachment.query.get_or_404(att_id)
     subtask = Subtask.query.get(att.subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id) if subtask else None
-    if not ticket or ticket.company not in admin_companies_scope():
+    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False}), 403
     path = os.path.join(app.config['UPLOAD_FOLDER'], att.stored_name)
     if not os.path.exists(path):
@@ -14272,7 +14272,7 @@ def api_subtask_attachment_delete(att_id):
     att = SubtaskAttachment.query.get_or_404(att_id)
     subtask = Subtask.query.get(att.subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id) if subtask else None
-    if not ticket or ticket.company not in admin_companies_scope():
+    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False}), 403
 
     path = os.path.join(app.config['UPLOAD_FOLDER'], att.stored_name)
@@ -14380,7 +14380,7 @@ def api_ticket_attachment_download(att_id):
         return jsonify({'success': False}), 401
     att = TicketAttachment.query.get_or_404(att_id)
     ticket = Ticket.query.get(att.ticket_id)
-    if not ticket or ticket.company not in admin_companies_scope():
+    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False}), 403
     path = os.path.join(app.config['TICKET_UPLOAD_FOLDER'], att.stored_name)
     if not os.path.exists(path):
@@ -14394,7 +14394,7 @@ def api_ticket_attachment_delete(att_id):
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     att = TicketAttachment.query.get_or_404(att_id)
     ticket = Ticket.query.get(att.ticket_id)
-    if not ticket or ticket.company not in admin_companies_scope():
+    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False}), 403
 
     path = os.path.join(app.config['TICKET_UPLOAD_FOLDER'], att.stored_name)
