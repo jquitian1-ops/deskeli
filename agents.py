@@ -630,19 +630,15 @@ class AgentOrchestrator:
                     db.session.commit()
 
             elif agent_name == 'responder':
+                # NOTA: el responder sigue ejecutándose para registrar su
+                # análisis en AgentAction (métricas), pero YA NO inserta un
+                # Message [Bot] en el chat del ticket. Antes lo hacía para
+                # todos los tickets nuevos y aparecía como "conversación"
+                # falsa (bug reportado 2026-09). Los tickets creados desde
+                # el chat de Eli ya llevan la conversación real embebida en
+                # ticket.description. Los tickets normales quedan sin
+                # mensajes iniciales (comportamiento esperado).
                 result = agent.run(ticket, db.session)
-                if result.get('message'):
-                    sys_user = User.query.filter_by(
-                        role='admin', company=ticket.company
-                    ).first()
-                    if sys_user:
-                        msg = Message(
-                            ticket_id=ticket.id,
-                            user_id=sys_user.id,
-                            text=f"[Bot] {result['message']}"
-                        )
-                        db.session.add(msg)
-                        db.session.commit()
 
             action = AgentAction(
                 ticket_id=ticket.id,
