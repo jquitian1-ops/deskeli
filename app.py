@@ -13278,9 +13278,18 @@ def api_admin_time_summary():
 
 @app.route('/api/ticket/<int:ticket_id>/request-info', methods=['POST'])
 def api_ticket_request_info(ticket_id):
-    """Enviar email al creador solicitando información adicional.
-    TO: creador del ticket. CC: técnico asignado. También registra el mensaje
-    como comentario público en el chat del ticket."""
+    """Notificar al usuario del ticket con una nota pública + email.
+
+    Flujo:
+      1. Guarda una NOTA PÚBLICA en el chat del ticket (visible al usuario y
+         al equipo TI en el detalle).
+      2. Envía email al creador con el contenido íntegro de la nota + botón
+         'Acceder al portal' para que actualice el caso desde ahí.
+      3. Opcionalmente pausa el SLA cambiando estado a 'waiting_user'.
+
+    URL histórica (/request-info) se mantiene por retrocompatibilidad. El
+    endpoint ahora es una notificación general (no solo solicitud de info).
+    """
     if 'user_id' not in session or session.get('role') not in ('technician', 'admin'):
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
 
@@ -13305,18 +13314,18 @@ def api_ticket_request_info(ticket_id):
     assignee = User.query.get(ticket.assignee_id) if ticket.assignee_id else None
     current_user = User.query.get(session['user_id'])
 
-    # 1) Registrar como mensaje público en el chat del ticket
+    # 1) Registrar como NOTA PÚBLICA en el chat del ticket (visible al usuario)
     try:
         msg = Message(
             ticket_id=ticket.id,
             user_id=session['user_id'],
-            text=f'📧 Solicitud de información enviada por email:\n\n{safe_message}',
+            text=f'📩 Nota pública para el usuario (enviada también por email):\n\n{safe_message}',
         )
         db.session.add(msg)
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        print(f'[request-info] No pude guardar el mensaje: {e}')
+        print(f'[request-info] No pude guardar la nota: {e}')
 
     # 2) Cambiar estado a "waiting_user" opcionalmente (pausa SLA)
     change_status = bool(data.get('change_status', True))
@@ -13324,47 +13333,48 @@ def api_ticket_request_info(ticket_id):
         ticket.status = 'waiting_user'
         db.session.commit()
 
-    # 3) Enviar email
+    # 3) Enviar email con la nota + botón para acceder al portal
     base_url = get_public_base_url()
     ticket_url = f'{base_url}/employee/ticket/{ticket.id}'
 
-    subject = f'[DeskEli] Necesitamos más información · {ticket.ticket_number} · {ticket.title[:60]}'
+    subject = f'[DeskEli] Notificación sobre tu caso · {ticket.ticket_number} · {ticket.title[:60]}'
 
     # Formatear el mensaje conservando saltos de linea
     message_html = safe_message.replace('\n', '<br>')
 
     body = f"""
     <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-        <div style="background:#f59e0b;color:white;padding:18px;border-radius:8px 8px 0 0;">
-            <h2 style="margin:0;">📧 Solicitud de información</h2>
+        <div style="background:#2563eb;color:white;padding:18px;border-radius:8px 8px 0 0;">
+            <h2 style="margin:0;">📩 Tenés una notificación sobre tu caso</h2>
         </div>
         <div style="padding:22px;background:#f9fafb;border:1px solid #e5e7eb;border-top:none;">
             <p>Hola <strong>{creator.name or creator.username}</strong>,</p>
-            <p>Sobre el ticket <strong>{ticket.ticket_number}</strong> — <em>"{ticket.title}"</em>:</p>
+            <p>El equipo de soporte agregó una <strong>nota pública</strong> a tu caso
+            <strong>{ticket.ticket_number}</strong> — <em>"{ticket.title}"</em>:</p>
 
-            <div style="background:white;border-left:4px solid #f59e0b;padding:14px 18px;margin:16px 0;border-radius:4px;">
+            <div style="background:white;border-left:4px solid #2563eb;padding:14px 18px;margin:16px 0;border-radius:4px;">
                 {message_html}
             </div>
 
-            <p style="margin:16px 0;">Por favor respondé desde el ticket para agilizar la resolución.
-            El técnico asignado está en copia de este correo.</p>
+            <p style="margin:16px 0;">Podés actualizar tu caso, adjuntar información o responder al equipo
+            directamente desde el portal web.</p>
 
             <p style="text-align:center;margin:24px 0;">
-                <a href="{ticket_url}" style="display:inline-block;background:#2563eb;color:white;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:bold;">
-                    🎫 Responder en el ticket
+                <a href="{ticket_url}" style="display:inline-block;background:#2563eb;color:white;padding:14px 32px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:15px;">
+                    🌐 Acceder al portal
                 </a>
             </p>
 
             <div style="font-size:12px;color:#6b7280;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:12px;">
-                <strong>Detalles del ticket:</strong><br>
+                <strong>Detalles del caso:</strong><br>
                 Número: {ticket.ticket_number}<br>
                 Prioridad: {ticket.priority.upper()}<br>
-                Solicitó info: {current_user.name if current_user else 'Equipo TI'}<br>
+                Enviado por: {current_user.name if current_user else 'Equipo TI'}<br>
                 {f'Técnico asignado: {assignee.name}' if assignee else ''}
             </div>
 
             <p style="font-size:11px;color:#9ca3af;margin-top:14px;">
-                Este es un mensaje automático de DeskEli. Podés responder desde el ticket usando el botón de arriba.
+                Este es un mensaje automático de DeskEli. Todo lo que respondas queda registrado en el caso.
             </p>
         </div>
     </body></html>
@@ -13389,11 +13399,11 @@ def api_ticket_request_info(ticket_id):
         print(f'[request-info] Error enviando email: {e}')
 
     log_audit(
-        'request_info_from_user',
+        'notify_user',
         session['user_id'],
         'ticket',
         ticket.id,
-        f'Solicitud de info enviada por {current_user.email if current_user else "?"} '
+        f'Notificación al usuario enviada por {current_user.email if current_user else "?"} '
         f'a {creator.email} (CC: {", ".join(cc_list) or "—"}) para ticket {ticket.ticket_number}. '
         f'Email: {"OK" if email_ok else "FALLO"}'
     )
@@ -13404,8 +13414,8 @@ def api_ticket_request_info(ticket_id):
         'to': creator.email,
         'cc': cc_list,
         'ticket_status': ticket.status,
-        'message': ('✓ Solicitud enviada por email al usuario' if email_ok
-                    else '⚠ Mensaje guardado en el ticket pero el email no pudo enviarse (revisar config SMTP)')
+        'message': ('✓ Notificación enviada al usuario (nota + email)' if email_ok
+                    else '⚠ Nota guardada en el caso pero el email no pudo enviarse (revisar config SMTP)')
     })
 
 

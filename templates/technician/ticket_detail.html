@@ -834,7 +834,7 @@
                     </div>
                 {% else %}
                     <button class="btn btn-primary" onclick="resolveTicket()">✅ Marcar como Resuelto</button>
-                    <button class="btn" onclick="openRequestInfoModal()" style="background:#3b82f6;color:white;">📧 Solicitar info al usuario</button>
+                    <button class="btn" onclick="openRequestInfoModal()" style="background:#3b82f6;color:white;">📩 Notificar al usuario</button>
                     <button class="btn btn-warning" onclick="reassignTicket()" style="background:#f59e0b;color:white;">🔄 Reasignar</button>
                     <button class="btn btn-secondary" onclick="escalateTicket()" style="background:#dc2626;color:white;">📞 Escalar a Crítico</button>
                 {% endif %}
@@ -860,16 +860,16 @@
         </div>
     </div>
 
-    <!-- MODAL SOLICITAR INFO AL USUARIO -->
+    <!-- MODAL NOTIFICAR AL USUARIO -->
     <div id="requestInfoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
         <div style="background:white;padding:30px;border-radius:12px;width:90%;max-width:560px;">
-            <h2 style="margin-bottom:8px;color:#2563eb;">📧 Solicitar información al usuario</h2>
+            <h2 style="margin-bottom:8px;color:#2563eb;">📩 Notificar al usuario</h2>
             <p style="color:#666;margin-bottom:16px;font-size:13px;">
-                Se enviará un email al solicitante <strong>{% if ticket.creator %}{{ ticket.creator.email }}{% else %}(sin email){% endif %}</strong>
-                con copia a vos como técnico. El mensaje también queda registrado en el chat del ticket.
+                Se guardará una <strong>nota pública</strong> en el caso y se enviará un email a <strong>{% if ticket.creator %}{{ ticket.creator.email }}{% else %}(sin email){% endif %}</strong>
+                con el contenido de la nota y un botón para acceder al portal y actualizar el caso.
             </p>
-            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">¿Qué información necesitás?</label>
-            <textarea id="requestInfoMessage" rows="5" maxlength="3000" placeholder="Ej: Hola, para poder resolver tu solicitud necesitamos que nos indiques: 1) El sistema operativo de tu computador, 2) Si el error aparece siempre o solo en algunos casos, 3) Una captura de pantalla del mensaje de error..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-family:inherit;margin-bottom:8px;font-size:13px;resize:vertical;"></textarea>
+            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">¿Qué querés notificarle?</label>
+            <textarea id="requestInfoMessage" rows="5" maxlength="3000" placeholder="Ej: Hola, ya empezamos a revisar tu caso. Para agilizarlo, necesitamos que nos indiques: 1) El sistema operativo de tu computador, 2) Si el error aparece siempre o solo en algunos casos, 3) Una captura del mensaje de error. Podés responder desde el portal." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-family:inherit;margin-bottom:8px;font-size:13px;resize:vertical;"></textarea>
             <div style="font-size:11px;color:#9ca3af;margin-bottom:14px;text-align:right;"><span id="riCharCount">0</span> / 3000</div>
             <div style="background:#eff6ff;border-left:3px solid #3b82f6;padding:10px 14px;border-radius:4px;margin-bottom:14px;font-size:12px;color:#1e40af;">
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
@@ -879,7 +879,7 @@
             </div>
             <div style="display:flex;gap:10px;justify-content:flex-end;">
                 <button onclick="closeRequestInfo()" style="padding:10px 20px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;">Cancelar</button>
-                <button onclick="confirmRequestInfo()" id="riConfirmBtn" style="padding:10px 20px;background:#3b82f6;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">📧 Enviar solicitud</button>
+                <button onclick="confirmRequestInfo()" id="riConfirmBtn" style="padding:10px 20px;background:#3b82f6;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">📩 Enviar notificación</button>
             </div>
         </div>
     </div>
