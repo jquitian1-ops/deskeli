@@ -1553,8 +1553,13 @@ class SolicitudApprovalToken(db.Model):
     solicitud_id = db.Column(db.Integer, db.ForeignKey('solicitudes_usuarios.id'), nullable=False, index=True)
     token = db.Column(db.String(80), unique=True, nullable=False, index=True)
     expected_state = db.Column(db.String(60), nullable=False)  # estado PENDIENTE_* que el token puede decidir
-    approver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    # approver_id ahora es nullable: en flujo dinámico el aprobador puede ser un
+    # email externo que aún no tiene User en el sistema. El correo es la fuente
+    # de verdad para el envío; el user_id se usa solo para validar login.
+    approver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    approver_email = db.Column(db.String(200))  # destino real del email (fallback si approver_id es None)
     approver_role_label = db.Column(db.String(120))  # snapshot: "Jefe Inmediato", "Analista IT", etc.
+    step_index = db.Column(db.Integer)  # snapshot del current_step_index (flujo dinámico)
     used = db.Column(db.Boolean, default=False, index=True)
     action = db.Column(db.String(20))  # aprobar|devolver|rechazar (registrado al procesar)
     decided_at = db.Column(db.DateTime)
@@ -11070,6 +11075,40 @@ def migrate_subroles_default_group():
         print(f"[migrate_subroles] error agregando is_default_group: {e}")
 
 
+def migrate_solicitudes_approval_tokens_email():
+    """Agrega columnas approver_email + step_index a solicitudes_approval_tokens
+    y afloja NOT NULL en approver_id para permitir aprobadores del flujo
+    dinámico que aún no tienen User activo (identificados solo por email)."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'solicitudes_approval_tokens' not in inspector.get_table_names():
+        return
+    existing_cols = {c['name'] for c in inspector.get_columns('solicitudes_approval_tokens')}
+    additions = [
+        ('approver_email', 'VARCHAR(200)'),
+        ('step_index', 'INTEGER'),
+    ]
+    for col_name, col_type in additions:
+        if col_name in existing_cols:
+            continue
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE solicitudes_approval_tokens ADD COLUMN {col_name} {col_type}"))
+            print(f"[migrate_tokens] Columna {col_name} agregada")
+        except Exception as e:
+            print(f"[migrate_tokens] error agregando {col_name}: {e}")
+    is_postgres = db.engine.dialect.name == 'postgresql'
+    if is_postgres:
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE solicitudes_approval_tokens ALTER COLUMN approver_id DROP NOT NULL"
+                ))
+            print("[migrate_tokens] approver_id ahora nullable")
+        except Exception:
+            pass
+
+
 def migrate_solicitudes_flow_dinamico():
     """Agrega columnas del flujo dinámico configurable a solicitudes_usuarios y
     afloja NOT NULL en los 2 aprobadores legacy (jefe_inmediato_id, gerente_area_id)
@@ -11765,6 +11804,11 @@ def init_db():
             migrate_solicitudes_flow_dinamico()
         except Exception as _e:
             print(f"[migrate] solicitudes_flow_dinamico: {_e}")
+        # Tokens de aprobación: soportar email de aprobador (sin User previo)
+        try:
+            migrate_solicitudes_approval_tokens_email()
+        except Exception as _e:
+            print(f"[migrate] solicitudes_approval_tokens_email: {_e}")
         try:
             migrate_report_recipients_team()
         except Exception as _e:
@@ -23891,6 +23935,10 @@ def _apply_transition(s, user, accion, observacion):
         expected_id = s.responsable_actual_id()
         if user.role != 'admin' and user.id != expected_id:
             return False, 'No es el aprobador de este nivel', None
+        # REGLA: el creador NO puede aprobar su propia solicitud (conflicto de
+        # interés) aunque figure como aprobador. Admins pueden hacer override.
+        if user.role != 'admin' and user.id == s.creator_id:
+            return False, 'No podés aprobar/rechazar tu propia solicitud (sos el creador)', None
         if not dynamic and estado_actual not in SOLICITUD_APROBAR_SIGUIENTE:
             # Está en un DEVUELTO_*: no puede aprobar/rechazar directamente
             return False, f'La solicitud está en estado "{estado_actual}", no admite {accion}', None
@@ -25086,27 +25134,40 @@ def _role_label_for_solicitud_state(estado):
     }.get(estado, 'Aprobador')
 
 
-def _create_or_get_solicitud_token(solicitud, approver):
-    """Devuelve un SolicitudApprovalToken válido para (solicitud, estado_actual,
-    approver). Si ya existe uno vigente sin usar, lo reutiliza; si no, crea uno.
+def _create_or_get_solicitud_token(solicitud, approver_email, approver_user=None, approver_label=None):
+    """Devuelve un SolicitudApprovalToken válido. Idempotente por
+    (solicitud, expected_state, step_index, approver_email).
+
+    approver_email: email destino (fuente de verdad, obligatorio)
+    approver_user: User opcional (si existe en la BD)
+    approver_label: etiqueta humana del rol
     """
     import secrets
     from datetime import timedelta
-    # ¿Ya hay un token vigente para este mismo (solicitud, estado, approver)?
-    existing = SolicitudApprovalToken.query.filter_by(
+    email = (approver_email or '').lower().strip()
+    if not email:
+        return None
+    step_idx = solicitud.current_step_index if solicitud.uses_dynamic_flow() else None
+    # Buscar token vigente para (solicitud, estado, step, email)
+    q = SolicitudApprovalToken.query.filter_by(
         solicitud_id=solicitud.id,
         expected_state=solicitud.estado,
-        approver_id=approver.id,
+        approver_email=email,
         used=False,
-    ).first()
+    )
+    if step_idx is not None:
+        q = q.filter_by(step_index=step_idx)
+    existing = q.first()
     if existing and (not existing.expires_at or existing.expires_at > datetime.now()):
         return existing
     tok = SolicitudApprovalToken(
         solicitud_id=solicitud.id,
         token=secrets.token_urlsafe(32),
         expected_state=solicitud.estado,
-        approver_id=approver.id,
-        approver_role_label=_role_label_for_solicitud_state(solicitud.estado),
+        approver_id=(approver_user.id if approver_user else None),
+        approver_email=email,
+        approver_role_label=approver_label or _role_label_for_solicitud_state(solicitud.estado),
+        step_index=step_idx,
         expires_at=datetime.now() + timedelta(days=30),
     )
     db.session.add(tok)
@@ -25114,13 +25175,19 @@ def _create_or_get_solicitud_token(solicitud, approver):
     return tok
 
 
-def _send_solicitud_approval_email(solicitud, approver, token):
+def _send_solicitud_approval_email(solicitud, token, approver_user=None):
     """Envía email al aprobador con 3 botones (Aprobar/Devolver/Rechazar).
+
+    El destinatario sale de token.approver_email (fuente de verdad); si
+    approver_user está seteado se usa su nombre para el saludo, sino se
+    usa el email.
     Best-effort: silencia errores. Reusa send_email() con config SMTP de la
     empresa (patrón idéntico al de aprobación de tickets)."""
     try:
-        if not approver or not approver.email or not solicitud:
+        to_email = (token.approver_email or '').strip()
+        if not to_email or not solicitud:
             return False
+        display_name = approver_user.name if approver_user else to_email
         # Preferir get_public_base_url() cuando esté configurado (para links en
         # correo que apunten al dominio público, no al host interno).
         try:
@@ -25147,7 +25214,7 @@ def _send_solicitud_approval_email(solicitud, approver, token):
         <html><body style="font-family:Segoe UI,sans-serif;color:#1f2937;background:#f5f7fa;padding:20px;">
         <div style="max-width:640px;margin:0 auto;padding:26px;background:white;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
             <h2 style="color:#7c3aed;margin:0 0 12px;">🔐 Se requiere tu aprobación como {role_label}</h2>
-            <p>Hola <strong>{approver.name}</strong>,</p>
+            <p>Hola <strong>{display_name}</strong>,</p>
             <p>La solicitud <strong>{solicitud.codigo}</strong> ({solicitud.tipo_solicitud}) requiere tu revisión.</p>
 
             <div style="background:#f9fafb;padding:16px;border-radius:8px;margin:14px 0;border-left:4px solid #7c3aed;">
@@ -25190,7 +25257,7 @@ def _send_solicitud_approval_email(solicitud, approver, token):
         </body></html>
         """
         ok = send_email(
-            to_email=approver.email,
+            to_email=to_email,
             subject=subject,
             body=body,
             company=solicitud.company,
@@ -25206,30 +25273,69 @@ def _send_solicitud_approval_email(solicitud, approver, token):
 
 def _notify_next_approver(solicitud):
     """Notifica al aprobador del estado actual: WebSocket + email con token.
+
+    Soporta ambos modos:
+    - Flujo dinámico: el destinatario sale de flow_steps_json (email + label)
+      aunque no exista User activo con ese correo. El correo se envía igual.
+    - Flujo legacy: destinatario resuelto por User FK.
+
     Best-effort: silencia errores (no rompe el flujo si SMTP falla)."""
     try:
-        approver_id = solicitud.responsable_actual_id()
-        if not approver_id:
-            return
-        approver = User.query.get(approver_id)
-        if not approver:
+        # Solo emitir para estados PENDIENTE_* (devueltos y finales no notifican)
+        pendientes = {
+            SOLICITUD_ESTADO_PENDIENTE_JEFE,
+            SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI,
+            SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA,
+            SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI,
+        }
+        if solicitud.estado not in pendientes:
             return
 
-        # Solo emitimos email si el estado es PENDIENTE_* (los DEVUELTO_* van
-        # al solicitante, no a un aprobador; los finales no requieren aviso).
-        if solicitud.estado in SOLICITUD_NIVEL_POR_ESTADO:
-            try:
-                token = _create_or_get_solicitud_token(solicitud, approver)
-                _send_solicitud_approval_email(solicitud, approver, token)
-            except Exception as e:
-                print(f'[warn] token/email solicitud: {e}')
+        # Resolver destinatario según modo
+        approver_email = None
+        approver_label = None
+        approver_user = None
 
+        if solicitud.uses_dynamic_flow():
+            step = solicitud.current_flow_step()
+            if not step:
+                print(f'[notify] solicitud {solicitud.codigo}: flujo dinámico sin paso actual')
+                return
+            approver_email = (step.get('email') or '').strip().lower() or None
+            approver_label = step.get('label') or 'Aprobador'
+            if approver_email:
+                approver_user = User.query.filter(
+                    db.func.lower(User.email) == approver_email,
+                    User.company == solicitud.company,
+                    User.is_active == True,
+                ).first()
+        else:
+            uid = solicitud.responsable_actual_id()
+            if uid:
+                approver_user = User.query.get(uid)
+                if approver_user:
+                    approver_email = approver_user.email
+                    approver_label = _role_label_for_solicitud_state(solicitud.estado)
+
+        if not approver_email:
+            print(f'[notify] solicitud {solicitud.codigo}: sin email de aprobador')
+            return
+
+        # Token + email
+        try:
+            token = _create_or_get_solicitud_token(solicitud, approver_email, approver_user, approver_label)
+            if token:
+                _send_solicitud_approval_email(solicitud, token, approver_user)
+        except Exception as e:
+            print(f'[warn] token/email solicitud: {e}')
+
+        approver_name = approver_user.name if approver_user else approver_email
         log_audit(
             'solicitud_notificacion',
-            approver_id,
+            (approver_user.id if approver_user else None),
             'solicitud',
             solicitud.id,
-            f'{solicitud.codigo} está pendiente de aprobación por {approver.name} ({solicitud.estado})'
+            f'{solicitud.codigo} está pendiente de aprobación por {approver_name} ({approver_email}) — estado {solicitud.estado}'
         )
         # WebSocket (si existe socketio en el módulo)
         try:
@@ -25240,7 +25346,8 @@ def _notify_next_approver(solicitud):
                     'codigo': solicitud.codigo,
                     'estado': solicitud.estado,
                     'estado_label': SOLICITUD_ESTADO_LABEL.get(solicitud.estado, solicitud.estado),
-                    'approver_id': approver_id,
+                    'approver_id': (approver_user.id if approver_user else None),
+                    'approver_email': approver_email,
                 },
                 room=f'company_{solicitud.company}'
             )
@@ -25266,7 +25373,14 @@ def solicitudes_decidir_page(token):
         return redirect(url_for('login') + f'?next=/solicitudes-usuarios/decidir/{token}')
 
     user = User.query.get(session['user_id'])
-    if not user or (user.id != tok.approver_id and user.role != 'admin'):
+    # Autorizar: admin || approver_id match || email match (flujo dinámico donde
+    # el approver_id puede ser NULL pero el email es la fuente de verdad).
+    is_authorized = user and (
+        user.role == 'admin'
+        or (tok.approver_id and user.id == tok.approver_id)
+        or (tok.approver_email and (user.email or '').lower() == tok.approver_email.lower())
+    )
+    if not is_authorized:
         return render_template('solicitudes/decide.html',
                                error='No sos el aprobador de esta solicitud.'), 403
 
@@ -25305,7 +25419,12 @@ def api_solicitudes_decidir(token):
         return jsonify({'success': False, 'error': 'Token expirado.'}), 410
 
     user = User.query.get(session['user_id'])
-    if not user or (user.id != tok.approver_id and user.role != 'admin'):
+    is_authorized = user and (
+        user.role == 'admin'
+        or (tok.approver_id and user.id == tok.approver_id)
+        or (tok.approver_email and (user.email or '').lower() == tok.approver_email.lower())
+    )
+    if not is_authorized:
         return jsonify({'success': False, 'error': 'No autorizado'}), 403
 
     s = tok.solicitud

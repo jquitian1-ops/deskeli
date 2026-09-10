@@ -351,10 +351,18 @@
         }
 
         // Aprobador puede aprobar/devolver/rechazar cuando está PENDIENTE en su nivel
-        if (isPending && isResponsable) {
+        // REGLA ADICIONAL: si es el creador de la solicitud, NO puede aprobar
+        // aunque figure como aprobador (conflicto de interés). Se le muestra
+        // solo el estado. Los admins mantienen la capacidad de override.
+        if (isPending && isResponsable && !(isCreator && CURRENT_ROLE !== 'admin')) {
             buttons.push(`<button class="btn btn-approve" onclick="doAction('aprobar')">✓ Aprobar</button>`);
             buttons.push(`<button class="btn btn-return" onclick="askObs('devolver', 'Devolver al solicitante')">↩ Devolver</button>`);
             buttons.push(`<button class="btn btn-reject" onclick="askObs('rechazar', 'Rechazar solicitud')">✕ Rechazar</button>`);
+        } else if (isPending && isCreator && CURRENT_ROLE !== 'admin') {
+            // Aviso visible para el creador que también aparece como aprobador
+            buttons.push(`<div style="padding:10px 14px; background:#fef3c7; border-left:4px solid #f59e0b; border-radius:4px; font-size:12.5px; color:#78350f;">
+                ⚠ Sos el creador de esta solicitud, por eso no podés aprobarla vos mismo aunque figures en la cadena de aprobación. Esperá a que otro aprobador la mueva.
+            </div>`);
         }
         // Creador puede reenviar cuando está DEVUELTO
         if (isReturned && (isCreator || CURRENT_ROLE === 'admin')) {
