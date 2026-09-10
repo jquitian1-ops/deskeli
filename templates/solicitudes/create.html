@@ -703,7 +703,24 @@
             const data = await r.json();
             if (!data.success) throw new Error(data.error || 'Error');
             _flowAreas = data.areas || [];
-            let html = '<option value="">— Elegí un área —</option>';
+            let html;
+            if (_flowAreas.length === 0) {
+                // Sin áreas configuradas: preseleccionar "sin flujo" automáticamente
+                html = `<option value="__none__" selected>— Sin flujo configurado (usar aprobadores manuales) —</option>`;
+                sel.innerHTML = html;
+                onFlowAreaChange();
+                // Mostrar aviso arriba de los selects legacy
+                const legacy = document.getElementById('legacyApprovers');
+                if (legacy && !document.getElementById('flowEmptyWarn')) {
+                    const warn = document.createElement('div');
+                    warn.id = 'flowEmptyWarn';
+                    warn.style.cssText = 'padding:10px 14px; background:#fef3c7; border-left:4px solid #f59e0b; border-radius:4px; margin-bottom:12px; font-size:12px; color:#78350f;';
+                    warn.innerHTML = '⚠ <strong>No hay flujos de aprobación configurados.</strong> Pedile al admin que cree un flujo en <em>/admin/approval-flows</em> o corra <code>python scripts/seed_approval_flow_demo.py</code>.';
+                    legacy.insertBefore(warn, legacy.firstChild);
+                }
+                return;
+            }
+            html = '<option value="">— Elegí un área —</option>';
             _flowAreas.forEach(a => {
                 html += `<option value="${esc(a.area)}">${esc(a.area)} — ${a.steps_count} aprobadores</option>`;
             });
