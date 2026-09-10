@@ -10886,6 +10886,74 @@ def migrate_companies_smtp():
             print(f"[migrate_companies] error agregando {col_name}: {e}")
 
 
+def migrate_controles_catalogo_guion_id():
+    """Agrega columna guion_id (FK a guiones.id) a controles_catalogo si no existe.
+    Necesaria para la Fase 4 del módulo de solicitudes de usuarios: cuando el
+    Gerente IT aprueba la solicitud, cada control marcado clona las subtasks
+    del guion vinculado en el ticket generado."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'controles_catalogo' not in inspector.get_table_names():
+        return
+    existing_cols = {c['name'] for c in inspector.get_columns('controles_catalogo')}
+    if 'guion_id' in existing_cols:
+        return
+    try:
+        with db.engine.begin() as conn:
+            conn.execute(text("ALTER TABLE controles_catalogo ADD COLUMN guion_id INTEGER"))
+            # FK opcional; si guiones no existe (edge case) o falla, la columna
+            # sigue sirviendo como INT nullable sin constraint.
+            try:
+                conn.execute(text(
+                    "ALTER TABLE controles_catalogo ADD CONSTRAINT fk_controles_guion "
+                    "FOREIGN KEY (guion_id) REFERENCES guiones(id)"
+                ))
+            except Exception as e_fk:
+                print(f"[migrate_controles] FK guion_id no aplicada (no crítico): {e_fk}")
+            # Index para joins eficientes
+            try:
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_controles_catalogo_guion_id "
+                    "ON controles_catalogo(guion_id)"
+                ))
+            except Exception as e_ix:
+                print(f"[migrate_controles] index guion_id no creado: {e_ix}")
+        print("[migrate_controles] Columna guion_id agregada")
+    except Exception as e:
+        print(f"[migrate_controles] error agregando guion_id: {e}")
+
+
+def migrate_subroles_default_group():
+    """Agrega columna is_default_group (BOOLEAN) a subroles si no existe.
+    Necesaria para el balanceador de grupos: cuando un subrole es marcado como
+    grupo por defecto de la empresa, todos los tickets nuevos se asignan al
+    miembro con menor carga de ese grupo."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'subroles' not in inspector.get_table_names():
+        return
+    existing_cols = {c['name'] for c in inspector.get_columns('subroles')}
+    if 'is_default_group' in existing_cols:
+        return
+    is_postgres = db.engine.dialect.name == 'postgresql'
+    bool_default = 'FALSE' if is_postgres else '0'
+    try:
+        with db.engine.begin() as conn:
+            conn.execute(text(
+                f"ALTER TABLE subroles ADD COLUMN is_default_group BOOLEAN DEFAULT {bool_default}"
+            ))
+            try:
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_subroles_is_default_group "
+                    "ON subroles(is_default_group)"
+                ))
+            except Exception as e_ix:
+                print(f"[migrate_subroles] index is_default_group no creado: {e_ix}")
+        print("[migrate_subroles] Columna is_default_group agregada")
+    except Exception as e:
+        print(f"[migrate_subroles] error agregando is_default_group: {e}")
+
+
 def migrate_messages_schema():
     """Agrega subtask_id a la tabla messages si no existe."""
     from sqlalchemy import inspect, text
@@ -11515,6 +11583,16 @@ def init_db():
             migrate_messages_schema()
         except Exception as _e:
             print(f"[migrate] messages_schema: {_e}")
+        # Fase 4 modulo solicitudes: vinculo control -> guion
+        try:
+            migrate_controles_catalogo_guion_id()
+        except Exception as _e:
+            print(f"[migrate] controles_catalogo_guion_id: {_e}")
+        # Balanceador de grupos: flag default_group en subroles
+        try:
+            migrate_subroles_default_group()
+        except Exception as _e:
+            print(f"[migrate] subroles_default_group: {_e}")
         try:
             migrate_report_recipients_team()
         except Exception as _e:
