@@ -162,25 +162,41 @@
 
             <!-- Aprobadores -->
             <div class="card">
-                <div class="section-title">3. Aprobadores (jerárquicos)</div>
-                <div class="callout">
-                    Los Jefes Inmediatos y Gerentes de Área se cargan desde el catálogo
-                    <strong>Inf. Aprobadores</strong> configurado en <em>/admin/config</em>.
-                    Cada opción muestra <em>Nombre — Área · Centro de Costos</em>.
-                    Los aprobadores TI (Analista y Gerente TI) se asignan automáticamente por empresa.
+                <div class="section-title">3. Flujo de aprobación</div>
+
+                <!-- Selector de Área (activa el flujo dinámico si hay uno configurado) -->
+                <div class="field" style="margin-bottom:14px;">
+                    <label>Área del empleado <span class="req">*</span></label>
+                    <select id="flow_area" onchange="onFlowAreaChange()">
+                        <option value="">⏳ Cargando áreas configuradas…</option>
+                    </select>
+                    <small class="hint">Elegí el área para cargar automáticamente su flujo de aprobación configurado por el admin.</small>
                 </div>
-                <div class="grid-2">
-                    <div class="field">
-                        <label>Jefe Inmediato <span class="req">*</span></label>
-                        <select id="jefe_inmediato_id" required onchange="onJefeChange()">
-                            <option value="">⏳ Cargando…</option>
-                        </select>
+
+                <!-- Preview del flujo (visible cuando hay área elegida) -->
+                <div id="flowPreview" style="display:none; margin-bottom:14px; padding:12px 14px; background:#faf5ff; border:2px solid #c4b5fd; border-radius:8px;">
+                    <div style="font-weight:800; color:#5b21b6; font-size:13px; margin-bottom:8px;">🔄 Flujo secuencial de aprobación:</div>
+                    <div id="flowSteps" style="display:flex; flex-direction:column; gap:6px;"></div>
+                </div>
+
+                <!-- Aprobadores legacy (solo visibles si NO hay flujo configurado) -->
+                <div id="legacyApprovers" style="display:none;">
+                    <div class="callout">
+                        Esta área <strong>no tiene flujo configurado</strong>. Usá el modo tradicional: elegí Jefe Inmediato y Gerencia/Área del catálogo Inf. Aprobadores. Los aprobadores TI (Analista y Gerente TI) se asignan automáticamente.
                     </div>
-                    <div class="field">
-                        <label>Gerencia/Área <span class="req">*</span></label>
-                        <select id="gerente_area_id" required>
-                            <option value="">⏳ Cargando…</option>
-                        </select>
+                    <div class="grid-2">
+                        <div class="field">
+                            <label>Jefe Inmediato <span class="req">*</span></label>
+                            <select id="jefe_inmediato_id" onchange="onJefeChange()">
+                                <option value="">⏳ Cargando…</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label>Gerencia/Área <span class="req">*</span></label>
+                            <select id="gerente_area_id">
+                                <option value="">⏳ Cargando…</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -464,6 +480,10 @@
         }
 
         const tipo = document.getElementById('tipo_solicitud').value;
+        const flowAreaVal = document.getElementById('flow_area').value;
+        const useDynamicFlow = flowAreaVal && flowAreaVal !== '__none__';
+        const jefeEl = document.getElementById('jefe_inmediato_id');
+        const gerEl = document.getElementById('gerente_area_id');
         const payload = {
             tipo_solicitud: tipo,
             unidad_negocio: document.getElementById('unidad_negocio').value.trim(),
@@ -474,8 +494,11 @@
             ubicacion: document.getElementById('ubicacion').value.trim(),
             centro_costo: document.getElementById('centro_costo').value.trim(),
             tipo_contrato: document.getElementById('tipo_contrato').value,
-            jefe_inmediato_id: parseInt(document.getElementById('jefe_inmediato_id').value) || null,
-            gerente_area_id: parseInt(document.getElementById('gerente_area_id').value) || null,
+            // Modo dinámico: flow_area activa el flujo configurado del área
+            flow_area: useDynamicFlow ? flowAreaVal : null,
+            // Legacy: solo si no hay flujo dinámico
+            jefe_inmediato_id: useDynamicFlow ? null : (parseInt(jefeEl?.value) || null),
+            gerente_area_id: useDynamicFlow ? null : (parseInt(gerEl?.value) || null),
             justificacion: document.getElementById('justificacion').value.trim(),
             caso_externo: document.getElementById('caso_externo').value.trim(),
             controles: controles,
@@ -668,9 +691,66 @@
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // Flujos de aprobación por área (ApprovalFlow)
+    // ═══════════════════════════════════════════════════════════════════════
+    let _flowAreas = [];
+
+    async function loadFlowAreas() {
+        const sel = document.getElementById('flow_area');
+        try {
+            const r = await fetch('/api/approval-flows/areas');
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error || 'Error');
+            _flowAreas = data.areas || [];
+            let html = '<option value="">— Elegí un área —</option>';
+            _flowAreas.forEach(a => {
+                html += `<option value="${esc(a.area)}">${esc(a.area)} — ${a.steps_count} aprobadores</option>`;
+            });
+            html += '<option value="__none__">— Sin flujo (usar aprobadores manuales) —</option>';
+            sel.innerHTML = html;
+            onFlowAreaChange();  // aplicar estado inicial (mostrar legacy si no hay áreas)
+        } catch (e) {
+            sel.innerHTML = `<option value="">❌ ${esc(e.message)}</option>`;
+        }
+    }
+
+    function onFlowAreaChange() {
+        const val = document.getElementById('flow_area').value;
+        const preview = document.getElementById('flowPreview');
+        const legacy = document.getElementById('legacyApprovers');
+        const jefeSel = document.getElementById('jefe_inmediato_id');
+        const gerSel = document.getElementById('gerente_area_id');
+
+        if (val && val !== '__none__') {
+            // Modo dinámico: mostrar preview, ocultar legacy
+            const a = _flowAreas.find(x => x.area === val);
+            if (a) {
+                preview.style.display = 'block';
+                document.getElementById('flowSteps').innerHTML = a.steps_preview.map((label, i) =>
+                    `<div style="display:flex; align-items:center; gap:8px;">
+                        <span style="display:inline-block; width:22px; height:22px; background:#7c3aed; color:white; border-radius:50%; text-align:center; line-height:22px; font-size:11px; font-weight:800;">${i+1}</span>
+                        <span style="font-size:13px; color:#111827;">${esc(label)}</span>
+                    </div>`
+                ).join('');
+            }
+            legacy.style.display = 'none';
+            // Los selects legacy quedan opcionales (no required)
+            if (jefeSel) jefeSel.required = false;
+            if (gerSel) gerSel.required = false;
+        } else {
+            // Modo legacy: mostrar selects manuales, ocultar preview
+            preview.style.display = 'none';
+            legacy.style.display = 'block';
+            if (jefeSel) jefeSel.required = true;
+            if (gerSel) gerSel.required = true;
+        }
+    }
+
     loadCatalogo();
     loadUsuarios();
     loadEmpresas();
+    loadFlowAreas();
     </script>
 </body>
 </html>

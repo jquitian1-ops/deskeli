@@ -1367,12 +1367,22 @@ class SolicitudUsuario(db.Model):
     centro_costo = db.Column(db.String(160))
     tipo_contrato = db.Column(db.String(80))
 
-    # Aprobadores nivel 1 y 2: los elige el solicitante en el form
-    jefe_inmediato_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-    gerente_area_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-    # Aprobadores nivel 3 y 4: se resuelven automáticamente por empresa al crear
+    # Aprobadores legacy (sistema hardcodeado de 4 pasos). Ahora son nullables
+    # porque cuando se usa el nuevo ApprovalFlow dinámico, los aprobadores
+    # vienen de flow_steps_json en vez de estos campos.
+    jefe_inmediato_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
+    gerente_area_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
     analista_ti_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
     gerente_ti_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
+
+    # ── Flujo dinámico configurable (ApprovalFlow por área) ──
+    # Cuando se elige un área con flujo configurado, estos campos toman el mando
+    # y el flujo hardcodeado (los 4 anteriores) queda vacío.
+    approval_flow_id = db.Column(db.Integer, db.ForeignKey('approval_flows.id'), index=True)
+    flow_area = db.Column(db.String(120))  # snapshot del área al momento de crear
+    flow_steps_json = db.Column(db.Text)  # snapshot ordenado de los pasos [{email,label}]
+    current_step_index = db.Column(db.Integer, default=0)  # índice del paso pendiente (0-based)
+    flow_ticket_assignee_email = db.Column(db.String(200))  # snapshot: a quién ir el ticket padre
 
     justificacion = db.Column(db.Text, nullable=False)
 
@@ -1411,13 +1421,49 @@ class SolicitudUsuario(db.Model):
         db.Index('ix_solicitudes_company_creator', 'company', 'creator_id'),
     )
 
+    def uses_dynamic_flow(self):
+        """True si esta solicitud usa el nuevo ApprovalFlow (steps configurables)."""
+        return bool(self.approval_flow_id and self.flow_steps_json)
+
+    def current_flow_step(self):
+        """Devuelve el paso pendiente actual como dict {email,label} o None
+        si la solicitud usa el sistema legacy o si ya no hay pasos pendientes."""
+        if not self.uses_dynamic_flow():
+            return None
+        try:
+            steps = json.loads(self.flow_steps_json or '[]')
+        except Exception:
+            return None
+        idx = self.current_step_index or 0
+        if 0 <= idx < len(steps):
+            return steps[idx]
+        return None
+
     def responsable_actual_id(self):
-        """Devuelve el user_id del aprobador que debe actuar sobre el estado actual."""
+        """Devuelve el user_id del aprobador que debe actuar sobre el estado actual.
+        Soporta tanto el flujo legacy (jefe/analista/gerente_area/gerente_ti) como
+        el nuevo ApprovalFlow dinámico (busca User activo por correo del paso actual).
+        """
+        # Devuelto → volver al solicitante
+        if self.estado in SOLICITUD_DEVUELTO_A_PENDIENTE:
+            return self.creator_id
+        # Flujo dinámico: buscar user por email del paso actual
+        if self.uses_dynamic_flow():
+            step = self.current_flow_step()
+            if not step:
+                return None
+            email = (step.get('email') or '').lower()
+            if not email:
+                return None
+            u = User.query.filter(
+                db.func.lower(User.email) == email,
+                User.company == self.company,
+                User.is_active == True,
+            ).first()
+            return u.id if u else None
+        # Flujo legacy: mapping por nivel
         nivel = SOLICITUD_NIVEL_POR_ESTADO.get(self.estado)
         if not nivel:
-            # También cuando está devuelto: el solicitante es el responsable
-            if self.estado in SOLICITUD_DEVUELTO_A_PENDIENTE:
-                return self.creator_id
             return None
         return {
             'jefe_inmediato': self.jefe_inmediato_id,
@@ -1425,6 +1471,28 @@ class SolicitudUsuario(db.Model):
             'analista_ti': self.analista_ti_id,
             'gerente_ti': self.gerente_ti_id,
         }.get(nivel)
+
+    def current_approver_email(self):
+        """Devuelve el email del aprobador actual (para el flujo dinámico envía
+        correo aunque el User no exista en el sistema)."""
+        if self.uses_dynamic_flow():
+            step = self.current_flow_step()
+            if step:
+                return (step.get('email') or '').lower() or None
+        # Legacy: resolver del User
+        uid = self.responsable_actual_id()
+        if not uid:
+            return None
+        u = User.query.get(uid)
+        return u.email if u else None
+
+    def current_approver_label(self):
+        """Etiqueta humana del aprobador actual (para el email)."""
+        if self.uses_dynamic_flow():
+            step = self.current_flow_step()
+            if step:
+                return step.get('label') or 'Aprobador'
+        return _role_label_for_solicitud_state(self.estado) if '_role_label_for_solicitud_state' in globals() else 'Aprobador'
 
 
 class SolicitudControl(db.Model):
@@ -1521,6 +1589,54 @@ class InfAprobador(db.Model):
         db.Index('ix_inf_aprobadores_company_cc', 'company', 'centro_costos'),
         db.Index('ix_inf_aprobadores_company_area', 'company', 'area'),
     )
+
+
+class ApprovalFlow(db.Model):
+    """Flujo de aprobación configurable por Área + Empresa.
+
+    Reemplaza el sistema hardcodeado de 4 aprobadores (Jefe/Analista IT/
+    Gerente Área/Gerente IT) por una lista N-aria de pasos ordenados donde
+    cada paso es simplemente {email, label}. El correo de aprobación llega
+    secuencialmente en el orden definido.
+
+    Cuando el último aprobador aprueba, el sistema genera automáticamente el
+    Ticket padre + subtasks (usando guiones vinculados a los controles
+    marcados) y lo asigna al usuario indicado en ticket_assignee_email.
+
+    steps_json ejemplo:
+        [
+          {"email": "cat@patprimo.com.co", "label": "Analista IT"},
+          {"email": "clopez@patprimo.com.co", "label": "Jefe de área"},
+          {"email": "mesadeayuda@patprimo.com.co", "label": "Gerente de área"},
+          {"email": "nlucumi@patprimo.com.co", "label": "Gerente Servicios IT"}
+        ]
+
+    Administrable desde /admin/approval-flows.
+    """
+    __tablename__ = 'approval_flows'
+    id = db.Column(db.Integer, primary_key=True)
+    company = db.Column(db.String(20), nullable=False, index=True)
+    area = db.Column(db.String(120), nullable=False, index=True)  # ej "Sistemas"
+    description = db.Column(db.String(300))
+    steps_json = db.Column(db.Text, nullable=False)  # JSON list ordenada de {email,label}
+    ticket_assignee_email = db.Column(db.String(200))  # a quién se asigna el ticket generado
+    is_active = db.Column(db.Boolean, default=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    __table_args__ = (
+        db.UniqueConstraint('company', 'area', name='uq_approval_flows_company_area'),
+    )
+
+    def steps(self):
+        """Devuelve la lista parseada de steps."""
+        try:
+            data = json.loads(self.steps_json or '[]')
+            if isinstance(data, list):
+                return data
+        except Exception:
+            pass
+        return []
 
 
 def _next_solicitud_codigo(company):
@@ -10954,6 +11070,57 @@ def migrate_subroles_default_group():
         print(f"[migrate_subroles] error agregando is_default_group: {e}")
 
 
+def migrate_solicitudes_flow_dinamico():
+    """Agrega columnas del flujo dinámico configurable a solicitudes_usuarios y
+    afloja NOT NULL en los 2 aprobadores legacy (jefe_inmediato_id, gerente_area_id)
+    para permitir solicitudes 100% controladas por ApprovalFlow."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'solicitudes_usuarios' not in inspector.get_table_names():
+        return
+    existing_cols = {c['name'] for c in inspector.get_columns('solicitudes_usuarios')}
+    additions = [
+        ('approval_flow_id', 'INTEGER'),
+        ('flow_area', 'VARCHAR(120)'),
+        ('flow_steps_json', 'TEXT'),
+        ('current_step_index', 'INTEGER'),
+        ('flow_ticket_assignee_email', 'VARCHAR(200)'),
+    ]
+    for col_name, col_type in additions:
+        if col_name in existing_cols:
+            continue
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE solicitudes_usuarios ADD COLUMN {col_name} {col_type}"))
+            print(f"[migrate_solicitudes_flow] Columna {col_name} agregada")
+        except Exception as e:
+            print(f"[migrate_solicitudes_flow] error agregando {col_name}: {e}")
+
+    # Aflojar NOT NULL en jefe_inmediato_id + gerente_area_id (para flujo dinámico)
+    is_postgres = db.engine.dialect.name == 'postgresql'
+    if is_postgres:
+        for col_name in ('jefe_inmediato_id', 'gerente_area_id'):
+            try:
+                with db.engine.begin() as conn:
+                    conn.execute(text(
+                        f"ALTER TABLE solicitudes_usuarios ALTER COLUMN {col_name} DROP NOT NULL"
+                    ))
+                print(f"[migrate_solicitudes_flow] {col_name} ahora nullable")
+            except Exception as e:
+                # Silencioso: ya podría estar nullable, o no soportado
+                pass
+
+    # FK opcional al approval_flow
+    try:
+        with db.engine.begin() as conn:
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_solicitudes_flow_id "
+                "ON solicitudes_usuarios(approval_flow_id)"
+            ))
+    except Exception as e:
+        print(f"[migrate_solicitudes_flow] index approval_flow_id: {e}")
+
+
 def migrate_messages_schema():
     """Agrega subtask_id a la tabla messages si no existe."""
     from sqlalchemy import inspect, text
@@ -11593,6 +11760,11 @@ def init_db():
             migrate_subroles_default_group()
         except Exception as _e:
             print(f"[migrate] subroles_default_group: {_e}")
+        # Flujo dinámico configurable por área (ApprovalFlow)
+        try:
+            migrate_solicitudes_flow_dinamico()
+        except Exception as _e:
+            print(f"[migrate] solicitudes_flow_dinamico: {_e}")
         try:
             migrate_report_recipients_team()
         except Exception as _e:
@@ -23174,29 +23346,51 @@ def api_solicitudes_create():
     if tipo not in SOLICITUD_TIPOS:
         return jsonify({'success': False, 'error': f'tipo_solicitud debe ser uno de {SOLICITUD_TIPOS}'}), 400
 
-    required = ['documento', 'nombre', 'jefe_inmediato_id', 'gerente_area_id', 'justificacion']
-    for f in required:
-        if not data.get(f):
-            return jsonify({'success': False, 'error': f'Campo obligatorio faltante: {f}'}), 400
-
     # Al menos 1 control seleccionado
     controles_in = data.get('controles') or []
     if not isinstance(controles_in, list) or len(controles_in) == 0:
         return jsonify({'success': False, 'error': 'Debe seleccionar al menos un control'}), 400
 
-    # Validar aprobadores nivel 1 y 2 existen y son de la misma empresa
-    jefe = User.query.get(data['jefe_inmediato_id'])
-    gerente = User.query.get(data['gerente_area_id'])
-    if not jefe or jefe.company != user.company:
-        return jsonify({'success': False, 'error': 'Jefe Inmediato inválido'}), 400
-    if not gerente or gerente.company != user.company:
-        return jsonify({'success': False, 'error': 'Gerente de Área inválido'}), 400
+    # Documento, nombre y justificación siempre obligatorios
+    for f in ('documento', 'nombre', 'justificacion'):
+        if not data.get(f):
+            return jsonify({'success': False, 'error': f'Campo obligatorio faltante: {f}'}), 400
 
-    # Resolver aprobadores TI (analista + gerente)
-    analista_ti = _resolve_ti_approver(user.company, 'analista_ti')
-    gerente_ti = _resolve_ti_approver(user.company, 'gerente_ti')
-    if not analista_ti or not gerente_ti:
-        return jsonify({'success': False, 'error': 'No se pudieron resolver los aprobadores TI de la empresa'}), 500
+    # ── Modo de aprobación: dinámico (ApprovalFlow por área) o legacy (4 fijos) ──
+    flow_area = (data.get('flow_area') or '').strip()
+    approval_flow = _resolve_approval_flow_for_solicitud(user.company, flow_area) if flow_area else None
+
+    # Variables que se rellenan según el modo
+    jefe = gerente = analista_ti = gerente_ti = None
+    flow_steps_snapshot = None
+    flow_ticket_email = None
+
+    if approval_flow:
+        # Modo dinámico: los aprobadores vienen del flujo configurado
+        flow_steps_snapshot = approval_flow.steps()
+        if not flow_steps_snapshot:
+            return jsonify({'success': False, 'error': f'El flujo del área "{flow_area}" no tiene pasos configurados'}), 400
+        flow_ticket_email = approval_flow.ticket_assignee_email or None
+        # Los campos legacy quedan en NULL — el modelo lo permite ahora
+    else:
+        # Modo legacy: se exigen los 2 dropdowns del form + resolución automática TI
+        required_legacy = ['jefe_inmediato_id', 'gerente_area_id']
+        for f in required_legacy:
+            if not data.get(f):
+                return jsonify({
+                    'success': False,
+                    'error': f'Sin flujo configurado para el área. Campo obligatorio faltante: {f}'
+                }), 400
+        jefe = User.query.get(data['jefe_inmediato_id'])
+        gerente = User.query.get(data['gerente_area_id'])
+        if not jefe or jefe.company != user.company:
+            return jsonify({'success': False, 'error': 'Jefe Inmediato inválido'}), 400
+        if not gerente or gerente.company != user.company:
+            return jsonify({'success': False, 'error': 'Gerente de Área inválido'}), 400
+        analista_ti = _resolve_ti_approver(user.company, 'analista_ti')
+        gerente_ti = _resolve_ti_approver(user.company, 'gerente_ti')
+        if not analista_ti or not gerente_ti:
+            return jsonify({'success': False, 'error': 'No se pudieron resolver los aprobadores TI de la empresa'}), 500
 
     # Condicionales por tipo
     fecha_ingreso = None
@@ -23235,10 +23429,17 @@ def api_solicitudes_create():
         ubicacion=(data.get('ubicacion') or '').strip() or None,
         centro_costo=(data.get('centro_costo') or '').strip() or None,
         tipo_contrato=(data.get('tipo_contrato') or '').strip() or None,
-        jefe_inmediato_id=jefe.id,
-        gerente_area_id=gerente.id,
-        analista_ti_id=analista_ti.id,
-        gerente_ti_id=gerente_ti.id,
+        # Legacy approvers (solo se setean si NO hay flujo dinámico)
+        jefe_inmediato_id=(jefe.id if jefe else None),
+        gerente_area_id=(gerente.id if gerente else None),
+        analista_ti_id=(analista_ti.id if analista_ti else None),
+        gerente_ti_id=(gerente_ti.id if gerente_ti else None),
+        # Flujo dinámico (snapshot)
+        approval_flow_id=(approval_flow.id if approval_flow else None),
+        flow_area=(approval_flow.area if approval_flow else None),
+        flow_steps_json=(json.dumps(flow_steps_snapshot, ensure_ascii=False) if flow_steps_snapshot else None),
+        current_step_index=(0 if approval_flow else None),
+        flow_ticket_assignee_email=flow_ticket_email,
         justificacion=data['justificacion'].strip(),
         fecha_ingreso=fecha_ingreso,
         es_reemplazo=es_reemplazo,
@@ -23291,6 +23492,69 @@ def api_solicitudes_create():
     log_audit('solicitud_created', user.id, 'solicitud', s.id, f'Solicitud {s.codigo} creada')
     _notify_next_approver(s)  # notificar al siguiente
     return jsonify({'success': True, 'solicitud': _serialize_solicitud_detail(s)}), 201
+
+
+@app.route('/api/solicitudes-usuarios/mis-pendientes', methods=['GET'])
+def api_solicitudes_mis_pendientes():
+    """Devuelve las solicitudes donde el usuario logueado es el próximo aprobador
+    Y la solicitud está en un estado PENDIENTE_* (no devuelto/rechazado/final).
+
+    Cubre tanto flujo legacy como flujo dinámico:
+    - Legacy: la solicitud está PENDIENTE_JEFE y user.id == jefe_inmediato_id, etc.
+    - Dinámico: current_step_email == user.email (case-insensitive) y estado PENDIENTE_*
+    """
+    user, err = _current_user_or_401()
+    if err: return err
+    # Filtrar solo pendientes (no devueltos ni finales)
+    q = SolicitudUsuario.query.filter(
+        SolicitudUsuario.anulado == False,
+        SolicitudUsuario.company == user.company,
+        SolicitudUsuario.estado.in_([
+            SOLICITUD_ESTADO_PENDIENTE_JEFE,
+            SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI,
+            SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA,
+            SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI,
+        ]),
+    ).order_by(SolicitudUsuario.created_at.desc())
+    solicitudes = q.limit(200).all()
+    my_email = (user.email or '').lower()
+
+    result = []
+    for s in solicitudes:
+        # Chequeo eficiente: para flujo dinámico comparar email del paso actual;
+        # para legacy comparar el user_id del responsable
+        is_mine = False
+        approver_label = None
+        if s.uses_dynamic_flow():
+            step = s.current_flow_step()
+            if step:
+                step_email = (step.get('email') or '').lower()
+                if step_email and step_email == my_email:
+                    is_mine = True
+                    approver_label = step.get('label') or 'Aprobador'
+        else:
+            resp_id = s.responsable_actual_id()
+            if resp_id == user.id:
+                is_mine = True
+                approver_label = _role_label_for_solicitud_state(s.estado)
+        if not is_mine:
+            continue
+        result.append({
+            'id': s.id,
+            'codigo': s.codigo,
+            'tipo_solicitud': s.tipo_solicitud,
+            'nombre': s.nombre,
+            'documento': s.documento,
+            'cargo': s.cargo or '—',
+            'estado': s.estado,
+            'estado_label': SOLICITUD_ESTADO_LABEL.get(s.estado, s.estado),
+            'flow_area': s.flow_area,
+            'approver_label': approver_label,
+            'creator_name': s.creator.name if s.creator else '—',
+            'created_at': s.created_at.isoformat() if s.created_at else None,
+            'controles_count': len(s.controles),
+        })
+    return jsonify({'success': True, 'pendientes': result, 'count': len(result)})
 
 
 @app.route('/api/solicitudes-usuarios', methods=['GET'])
@@ -23396,16 +23660,33 @@ def _generate_case_from_solicitud(solicitud, actor_user):
         f'Documento PDF de la solicitud adjunto.'
     )
 
+    # Resolver assignee del ticket padre:
+    # 1) Si el flujo dinámico define flow_ticket_assignee_email, buscar ese User
+    # 2) Si no, cola sin asignar (assignee_id=None)
+    ticket_assignee_id = None
+    if solicitud.flow_ticket_assignee_email:
+        u = User.query.filter(
+            db.func.lower(User.email) == solicitud.flow_ticket_assignee_email.lower(),
+            User.company == solicitud.company,
+            User.is_active == True,
+        ).first()
+        if u:
+            ticket_assignee_id = u.id
+        else:
+            print(f'[case-gen] flow_ticket_assignee_email "{solicitud.flow_ticket_assignee_email}" '
+                  f'no matchea con un user activo de {solicitud.company}; ticket queda sin asignar')
+
+    initial_status = 'in_progress' if ticket_assignee_id else 'open'
     ticket = Ticket(
         ticket_number=get_next_ticket_number(solicitud.company),
         title=f'Ejecución solicitud {solicitud.codigo} — {solicitud.nombre}',
         description=description,
         category='Accesos',
         priority=priority,
-        status='open',
+        status=initial_status,
         company=solicitud.company,
         creator_id=solicitud.creator_id or (actor_user.id if actor_user else None),
-        assignee_id=None,  # cola sin asignar
+        assignee_id=ticket_assignee_id,
         sla_minutes=sla_min,
         sla_deadline=datetime.now() + _td(minutes=sla_min),
         user_area=solicitud.centro_costo,
@@ -23588,32 +23869,66 @@ def _generate_case_from_solicitud(solicitud, actor_user):
 
 
 def _apply_transition(s, user, accion, observacion):
-    """Aplica una transición y registra en historial. Devuelve (ok, error, next_estado)."""
+    """Aplica una transición y registra en historial. Devuelve (ok, error, next_estado).
+
+    Soporta 2 modos:
+    - Dinámico (s.uses_dynamic_flow()): usa current_step_index para avanzar
+      dentro de flow_steps_json. Los estados PENDIENTE_JEFE/ANALISTA_TI/etc.
+      se reutilizan como etiquetas visuales (siempre PENDIENTE_JEFE mientras
+      quede al menos 1 paso pendiente; APROBADO_GERENTE_TI al terminar).
+    - Legacy: los 4 pasos hardcodeados con mapping SOLICITUD_APROBAR_SIGUIENTE.
+    """
     estado_actual = s.estado
     if estado_actual in SOLICITUD_ESTADOS_FINALES:
         return False, f'Solicitud en estado final ({estado_actual}), no admite {accion}', None
     if s.anulado:
         return False, 'Solicitud anulada', None
 
-    # Validar que el user es el aprobador correcto del estado actual
+    dynamic = s.uses_dynamic_flow()
+
+    # Validar que el user es el aprobador correcto
     if accion in ('aprobar', 'devolver', 'rechazar'):
         expected_id = s.responsable_actual_id()
         if user.role != 'admin' and user.id != expected_id:
             return False, 'No es el aprobador de este nivel', None
-        if estado_actual not in SOLICITUD_APROBAR_SIGUIENTE:
+        if not dynamic and estado_actual not in SOLICITUD_APROBAR_SIGUIENTE:
             # Está en un DEVUELTO_*: no puede aprobar/rechazar directamente
             return False, f'La solicitud está en estado "{estado_actual}", no admite {accion}', None
+        if dynamic and estado_actual in SOLICITUD_DEVUELTO_A_PENDIENTE:
+            return False, f'La solicitud está devuelta, el creador debe reenviarla primero', None
 
+    # Calcular next_estado
     if accion == 'aprobar':
-        next_estado = SOLICITUD_APROBAR_SIGUIENTE[estado_actual]
+        if dynamic:
+            # Avanzar el índice del paso. Si es el último → APROBADO_GERENTE_TI
+            try:
+                steps = json.loads(s.flow_steps_json or '[]')
+            except Exception:
+                steps = []
+            total = len(steps)
+            new_idx = (s.current_step_index or 0) + 1
+            if new_idx >= total:
+                next_estado = SOLICITUD_ESTADO_APROBADO_GERENTE_TI  # marca "todos aprobaron"
+            else:
+                # Mantenemos el estado "pendiente" pero avanzamos el índice
+                s.current_step_index = new_idx
+                next_estado = SOLICITUD_ESTADO_PENDIENTE_JEFE  # reutilizamos como "pendiente próximo paso"
+        else:
+            next_estado = SOLICITUD_APROBAR_SIGUIENTE[estado_actual]
     elif accion == 'devolver':
         if not observacion:
             return False, 'La devolución requiere observación', None
-        next_estado = SOLICITUD_DEVOLVER_A[estado_actual]
+        if dynamic:
+            next_estado = SOLICITUD_ESTADO_DEVUELTO_JEFE  # etiqueta genérica "devuelto"
+        else:
+            next_estado = SOLICITUD_DEVOLVER_A[estado_actual]
     elif accion == 'rechazar':
         if not observacion:
             return False, 'El rechazo requiere observación', None
-        next_estado = SOLICITUD_RECHAZAR_A[estado_actual]
+        if dynamic:
+            next_estado = SOLICITUD_ESTADO_RECHAZADO_JEFE  # etiqueta genérica "rechazado"
+        else:
+            next_estado = SOLICITUD_RECHAZAR_A[estado_actual]
     elif accion == 'anular':
         # Solo creator o admin. No si está cerrado.
         if estado_actual == SOLICITUD_ESTADO_CERRADO:
@@ -23627,7 +23942,11 @@ def _apply_transition(s, user, accion, observacion):
             return False, 'Solo el creador puede reenviar', None
         if estado_actual not in SOLICITUD_DEVUELTO_A_PENDIENTE:
             return False, 'Solo se puede reenviar desde un estado DEVUELTO', None
-        next_estado = SOLICITUD_DEVUELTO_A_PENDIENTE[estado_actual]
+        if dynamic:
+            # Vuelve al mismo paso donde estaba antes del devolver (current_step_index no cambió)
+            next_estado = SOLICITUD_ESTADO_PENDIENTE_JEFE  # etiqueta genérica "pendiente"
+        else:
+            next_estado = SOLICITUD_DEVUELTO_A_PENDIENTE[estado_actual]
     elif accion == 'cerrar':
         # Solo admin/analista TI, sobre APROBADO_GERENTE_TI o EN_TRAMITE
         if user.role not in ('admin', 'technician'):
@@ -24351,6 +24670,197 @@ def api_inf_aprobadores_delete(aprobador_id):
     return jsonify({'success': True})
 
 
+# ═════════════════════════════════════════════════════════════════════════════
+# CRUD Flujos de Aprobación (ApprovalFlow) — flujos configurables por Área
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _serialize_approval_flow(f):
+    return {
+        'id': f.id,
+        'company': f.company,
+        'area': f.area,
+        'description': f.description or '',
+        'steps': f.steps(),
+        'ticket_assignee_email': f.ticket_assignee_email or '',
+        'is_active': bool(f.is_active),
+        'created_at': f.created_at.isoformat() if f.created_at else None,
+        'updated_at': f.updated_at.isoformat() if f.updated_at else None,
+    }
+
+
+def _validate_flow_payload(data):
+    """Devuelve (steps_list, ticket_email, error_msg). error_msg=None si OK."""
+    steps = data.get('steps') or []
+    if not isinstance(steps, list) or len(steps) < 1:
+        return None, None, 'Debe haber al menos un paso de aprobación'
+    if len(steps) > 20:
+        return None, None, 'Máximo 20 pasos por flujo'
+    clean_steps = []
+    for i, s in enumerate(steps, start=1):
+        if not isinstance(s, dict):
+            return None, None, f'Paso {i}: formato inválido'
+        email = (s.get('email') or '').strip().lower()
+        label = (s.get('label') or '').strip()
+        if not email or '@' not in email:
+            return None, None, f'Paso {i}: correo inválido "{email}"'
+        if not label:
+            return None, None, f'Paso {i}: falta el rol/label'
+        clean_steps.append({'email': email, 'label': label[:120]})
+    ticket_email = (data.get('ticket_assignee_email') or '').strip().lower()
+    if ticket_email and '@' not in ticket_email:
+        return None, None, 'ticket_assignee_email inválido'
+    return clean_steps, ticket_email, None
+
+
+@app.route('/api/admin/approval-flows', methods=['GET'])
+def api_approval_flows_list():
+    """Lista los flujos de aprobación. Admin ve los de su empresa (o los del
+    scope si es master)."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    include_inactive = request.args.get('include_inactive') == '1'
+    scope = admin_companies_scope()
+    q = ApprovalFlow.query.filter(ApprovalFlow.company.in_(scope))
+    if not include_inactive:
+        q = q.filter(ApprovalFlow.is_active == True)
+    flows = q.order_by(ApprovalFlow.company, ApprovalFlow.area).all()
+    return jsonify({'success': True, 'flows': [_serialize_approval_flow(f) for f in flows]})
+
+
+@app.route('/api/admin/approval-flows', methods=['POST'])
+def api_approval_flows_create():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    data = request.get_json() or {}
+    area = (data.get('area') or '').strip()
+    company = (data.get('company') or session.get('company') or '').strip()
+    description = (data.get('description') or '').strip()
+    if not area or not company:
+        return jsonify({'success': False, 'error': 'area y company son obligatorios'}), 400
+    if company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Empresa fuera de scope'}), 403
+    steps, ticket_email, err = _validate_flow_payload(data)
+    if err:
+        return jsonify({'success': False, 'error': err}), 400
+    # Unicidad company+area
+    if ApprovalFlow.query.filter_by(company=company, area=area).first():
+        return jsonify({'success': False, 'error': f'Ya existe un flujo para el área "{area}" en {company}'}), 409
+    f = ApprovalFlow(
+        company=company,
+        area=area[:120],
+        description=description[:300] or None,
+        steps_json=json.dumps(steps, ensure_ascii=False),
+        ticket_assignee_email=ticket_email or None,
+        is_active=True,
+    )
+    db.session.add(f)
+    db.session.commit()
+    log_audit('approval_flow_created', session['user_id'], 'approval_flow', f.id,
+              f'Flujo "{area}" ({company}, {len(steps)} pasos) creado')
+    return jsonify({'success': True, 'flow': _serialize_approval_flow(f)}), 201
+
+
+@app.route('/api/admin/approval-flows/<int:flow_id>', methods=['PUT'])
+def api_approval_flows_update(flow_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    f = ApprovalFlow.query.get(flow_id)
+    if not f or f.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Flujo no encontrado'}), 404
+    data = request.get_json() or {}
+    if 'area' in data:
+        new_area = (data['area'] or '').strip()
+        if not new_area:
+            return jsonify({'success': False, 'error': 'area no puede estar vacío'}), 400
+        # Verificar unicidad al renombrar
+        if new_area != f.area:
+            other = ApprovalFlow.query.filter_by(company=f.company, area=new_area).first()
+            if other and other.id != f.id:
+                return jsonify({'success': False, 'error': f'Ya existe un flujo con área "{new_area}"'}), 409
+        f.area = new_area[:120]
+    if 'description' in data:
+        f.description = (data['description'] or '').strip()[:300] or None
+    if 'steps' in data:
+        steps, _, err = _validate_flow_payload({'steps': data['steps']})
+        if err:
+            return jsonify({'success': False, 'error': err}), 400
+        f.steps_json = json.dumps(steps, ensure_ascii=False)
+    if 'ticket_assignee_email' in data:
+        te = (data['ticket_assignee_email'] or '').strip().lower()
+        if te and '@' not in te:
+            return jsonify({'success': False, 'error': 'ticket_assignee_email inválido'}), 400
+        f.ticket_assignee_email = te or None
+    if 'is_active' in data:
+        f.is_active = bool(data['is_active'])
+    db.session.commit()
+    log_audit('approval_flow_updated', session['user_id'], 'approval_flow', f.id,
+              f'Flujo "{f.area}" actualizado')
+    return jsonify({'success': True, 'flow': _serialize_approval_flow(f)})
+
+
+@app.route('/api/admin/approval-flows/<int:flow_id>', methods=['DELETE'])
+def api_approval_flows_delete(flow_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    f = ApprovalFlow.query.get(flow_id)
+    if not f or f.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Flujo no encontrado'}), 404
+    name = f.area
+    db.session.delete(f)
+    db.session.commit()
+    log_audit('approval_flow_deleted', session['user_id'], 'approval_flow', flow_id,
+              f'Flujo "{name}" eliminado')
+    return jsonify({'success': True})
+
+
+@app.route('/api/approval-flows/areas', methods=['GET'])
+def api_approval_flows_areas():
+    """Endpoint público (para el form de solicitud): devuelve las áreas con
+    flujo activo de la empresa del usuario. Payload compacto."""
+    user, err = _current_user_or_401()
+    if err: return err
+    flows = ApprovalFlow.query.filter(
+        ApprovalFlow.company == user.company,
+        ApprovalFlow.is_active == True,
+    ).order_by(ApprovalFlow.area).all()
+    return jsonify({
+        'success': True,
+        'areas': [
+            {
+                'id': f.id,
+                'area': f.area,
+                'description': f.description or '',
+                'steps_count': len(f.steps()),
+                'steps_preview': [s.get('label', '') for s in f.steps()],
+            }
+            for f in flows
+        ]
+    })
+
+
+def _resolve_approval_flow_for_solicitud(company, area):
+    """Devuelve el ApprovalFlow activo para (company, area) o None."""
+    if not company or not area:
+        return None
+    return ApprovalFlow.query.filter_by(
+        company=company, area=area, is_active=True
+    ).first()
+
+
+def _get_or_create_user_from_email(email, company):
+    """Busca un User activo por correo en la empresa. Si no existe, retorna
+    None (los emails externos al sistema no bloquean el flujo — el sistema
+    guarda el correo del token para que reciba el email, y cuando ese usuario
+    esté creado podrá loguearse y decidir desde la UI también)."""
+    if not email:
+        return None
+    return User.query.filter(
+        db.func.lower(User.email) == email.lower(),
+        User.company == company,
+        User.is_active == True,
+    ).first()
+
+
 @app.route('/api/admin/inf-aprobadores/template', methods=['GET'])
 def api_inf_aprobadores_template():
     """Descarga una plantilla Excel con las columnas + 2 filas de ejemplo."""
@@ -24556,6 +25066,14 @@ def admin_controles_page():
     if 'user_id' not in session or session.get('role') != 'admin':
         return redirect(url_for('login'))
     return render_template('admin/controles.html')
+
+
+@app.route('/admin/approval-flows', methods=['GET'])
+def admin_approval_flows_page():
+    """Panel de administración de flujos de aprobación por área."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return redirect(url_for('login'))
+    return render_template('admin/approval_flows.html')
 
 
 def _role_label_for_solicitud_state(estado):

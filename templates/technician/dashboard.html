@@ -306,8 +306,74 @@
                 <a href="#" id="approvalsPendingBtn" class="logout-btn" title="Aprobaciones pendientes de tu decisión" onclick="showMyApprovals(event)" style="display:none;position:relative;">
                     🔐 Aprobaciones <span id="approvalsBadge" style="position:absolute;top:-4px;right:-4px;background:#dc2626;color:white;font-size:10px;padding:2px 6px;border-radius:999px;font-weight:700;">0</span>
                 </a>
+                <a href="#" id="solicitudesPendingBtn" class="logout-btn" title="Solicitudes de usuarios pendientes de tu aprobación" onclick="showMySolicitudes(event)" style="display:none;position:relative;background:#ede9fe;color:#5b21b6;font-weight:700;">
+                    📋 Solicitudes <span id="solicitudesBadge" style="position:absolute;top:-4px;right:-4px;background:#dc2626;color:white;font-size:10px;padding:2px 6px;border-radius:999px;font-weight:700;">0</span>
+                </a>
                 <a href="/logout" class="logout-btn">Salir</a>
             </div>
+
+            <!-- Modal para solicitudes de usuarios pendientes de aprobación -->
+            <div id="solicitudesModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;padding:20px;overflow-y:auto;" onclick="if(event.target===this)this.style.display='none'">
+                <div style="max-width:800px;margin:40px auto;background:white;border-radius:12px;padding:24px 28px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                        <h2 style="color:#5b21b6;margin:0;">📋 Solicitudes por aprobar</h2>
+                        <a href="/solicitudes-usuarios" style="font-size:12px;color:#7c3aed;text-decoration:none;">Ver todas →</a>
+                    </div>
+                    <p style="color:#6b7280;font-size:13px;margin-bottom:14px;">Solicitudes de creación / modificación de usuarios que están esperando tu decisión.</p>
+                    <div id="solicitudesList"><div style="text-align:center;padding:20px;color:#9ca3af;">Cargando…</div></div>
+                    <button onclick="document.getElementById('solicitudesModal').style.display='none'" style="margin-top:14px;padding:8px 18px;background:#e5e7eb;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Cerrar</button>
+                </div>
+            </div>
+
+            <script>
+            async function _loadMySolicitudes() {
+                try {
+                    const r = await fetch('/api/solicitudes-usuarios/mis-pendientes');
+                    const data = await r.json();
+                    const btn = document.getElementById('solicitudesPendingBtn');
+                    const badge = document.getElementById('solicitudesBadge');
+                    if (data.success && data.count > 0) {
+                        btn.style.display = 'inline-block';
+                        badge.textContent = data.count;
+                        return data.pendientes || [];
+                    } else {
+                        btn.style.display = 'none';
+                        return [];
+                    }
+                } catch (e) { return []; }
+            }
+            function _escSol(s) { return s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+            async function showMySolicitudes(ev) {
+                if (ev) ev.preventDefault();
+                document.getElementById('solicitudesModal').style.display = 'block';
+                document.getElementById('solicitudesList').innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af;">Cargando…</div>';
+                const pendientes = await _loadMySolicitudes();
+                if (!pendientes.length) {
+                    document.getElementById('solicitudesList').innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af;">🎉 Sin solicitudes pendientes de tu aprobación</div>';
+                    return;
+                }
+                document.getElementById('solicitudesList').innerHTML = pendientes.map(s => `
+                    <div style="background:#faf5ff;border:1px solid #c4b5fd;border-radius:8px;padding:14px 16px;margin-bottom:10px;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:11px;color:#6b7280;text-transform:uppercase;font-weight:700;">${_escSol(s.codigo)} · ${_escSol(s.tipo_solicitud)}</div>
+                                <div style="font-size:15px;font-weight:700;color:#111827;margin-top:2px;">${_escSol(s.nombre)} <span style="font-weight:400;color:#6b7280;">(Doc ${_escSol(s.documento)})</span></div>
+                                <div style="font-size:12px;color:#4b5563;margin-top:4px;">${_escSol(s.cargo)} · ${s.controles_count} controles solicitados</div>
+                                <div style="margin-top:6px;">
+                                    <span style="display:inline-block;padding:2px 8px;background:#ede9fe;color:#5b21b6;border-radius:10px;font-size:11px;font-weight:700;">${_escSol(s.approver_label || 'Aprobador')}</span>
+                                    ${s.flow_area ? `<span style="display:inline-block;padding:2px 8px;background:#dbeafe;color:#1e40af;border-radius:10px;font-size:11px;font-weight:700;margin-left:4px;">${_escSol(s.flow_area)}</span>` : ''}
+                                </div>
+                            </div>
+                            <a href="/solicitudes-usuarios/${s.id}" style="padding:8px 16px;background:#7c3aed;color:white;text-decoration:none;border-radius:6px;font-size:13px;font-weight:700;white-space:nowrap;">Ver y decidir →</a>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            // Carga inicial al abrir el dashboard
+            document.addEventListener('DOMContentLoaded', _loadMySolicitudes);
+            // Refresh cada 60 segundos
+            setInterval(_loadMySolicitudes, 60000);
+            </script>
 
 <!-- Modal simple para aprobaciones pendientes -->
 <div id="approvalsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;padding:20px;overflow-y:auto;" onclick="if(event.target===this)this.style.display='none'">

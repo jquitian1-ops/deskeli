@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flujos de Aprobación - DeskEli Admin</title>
+    <link rel="icon" type="image/png" href="/static/eli.png">
+    <link rel="shortcut icon" type="image/png" href="/static/eli.png">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Segoe UI',Tahoma,sans-serif; background:#f5f7fa; }
+        .header { background:linear-gradient(135deg,#1e3a8a,#1e40af); color:white; padding:18px 24px; display:flex; align-items:center; justify-content:space-between; }
+        .header h1 { font-size:22px; }
+        .header a { color:white; text-decoration:none; padding:8px 14px; background:rgba(255,255,255,0.15); border-radius:6px; font-size:13px; }
+        .container { max-width:min(1400px,96vw); margin:20px auto; padding:0 20px; }
+        .card { background:white; padding:20px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.06); margin-bottom:18px; }
+        .toolbar { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+        .btn { padding:9px 16px; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:13px; text-decoration:none; display:inline-block; }
+        .btn-primary { background:#7c3aed; color:white; }
+        .btn-primary:hover { background:#5b21b6; }
+        .btn-secondary { background:#e5e7eb; color:#374151; }
+        .btn-danger { background:#dc2626; color:white; }
+        table { width:100%; background:white; border-collapse:collapse; }
+        thead { background:#1e3a8a; color:white; }
+        th, td { padding:10px 12px; text-align:left; border-bottom:1px solid #e5e7eb; font-size:13px; vertical-align:top; }
+        tbody tr:hover { background:#f9fafb; }
+        .step-chip { display:inline-block; padding:2px 8px; background:#ede9fe; color:#5b21b6; border-radius:10px; font-size:11px; font-weight:600; margin:2px; }
+        .badge-active { background:#d1fae5; color:#065f46; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
+        .badge-inactive { background:#f3f4f6; color:#6b7280; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
+        .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,0.5); display:none; align-items:center; justify-content:center; z-index:1000; }
+        .modal { background:white; padding:24px; border-radius:10px; width:90%; max-width:700px; max-height:92vh; overflow-y:auto; }
+        .modal h3 { margin-bottom:14px; color:#1e3a8a; }
+        .form-group { margin-bottom:14px; }
+        .form-group label { display:block; font-size:12px; color:#374151; font-weight:700; margin-bottom:5px; }
+        .form-group input, .form-group select, .form-group textarea { width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; font-family:inherit; }
+        .steps-editor { border:2px dashed #c4b5fd; border-radius:8px; padding:14px; background:#faf5ff; margin-bottom:12px; }
+        .step-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; padding:8px; background:white; border-radius:6px; border:1px solid #e5e7eb; }
+        .step-row .drag-handle { color:#9ca3af; cursor:grab; font-size:16px; padding:0 4px; }
+        .step-row .step-idx { display:inline-block; width:26px; height:26px; background:#7c3aed; color:white; border-radius:50%; text-align:center; line-height:26px; font-size:12px; font-weight:800; flex-shrink:0; }
+        .step-row input { flex:1; padding:6px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px; }
+        .step-row .step-actions { display:flex; gap:4px; flex-shrink:0; }
+        .step-btn { padding:3px 8px; border:none; border-radius:4px; cursor:pointer; font-size:12px; }
+        .step-btn.up { background:#dbeafe; color:#1e40af; }
+        .step-btn.down { background:#dbeafe; color:#1e40af; }
+        .step-btn.del { background:#fee2e2; color:#991b1b; }
+        .toast { position:fixed; top:20px; right:20px; padding:14px 20px; border-radius:8px; color:white; font-weight:700; z-index:2000; box-shadow:0 4px 12px rgba(0,0,0,0.2); }
+        .toast.ok { background:#16a34a; }
+        .toast.err { background:#dc2626; }
+        .empty { text-align:center; padding:40px 20px; color:#6b7280; }
+    </style>
+    <script src="/static/js/session_guard.js"></script>
+</head>
+<body>
+    <div class="header">
+        <h1>🔄 Flujos de Aprobación por Área</h1>
+        <div style="display:flex; gap:10px;">
+            <a href="/solicitudes-usuarios">📋 Solicitudes</a>
+            <a href="/admin/dashboard">← Admin</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <p style="color:#6b7280; font-size:13px; margin-bottom:12px;">
+                Definí flujos de aprobación específicos por <strong>área + empresa</strong>. Cada flujo tiene una lista ordenada de aprobadores (por correo).
+                Al crear una solicitud eligiendo esta área, el sistema envía correo <strong>secuencialmente</strong> al paso 1; cuando ese aprueba, va al paso 2, y así.
+                Al aprobar el último paso se genera automáticamente un <strong>Ticket padre + subtareas por control</strong> asignado al usuario indicado en "Ticket asignado a".
+            </p>
+            <div class="toolbar">
+                <div>
+                    <span style="color:#6b7280; font-size:13px;">Total activos: <strong id="totalCount">—</strong></span>
+                    <label style="margin-left:20px; font-size:13px; color:#374151;">
+                        <input type="checkbox" id="includeInactive" onchange="loadFlows()"> Ver inactivos
+                    </label>
+                </div>
+                <button class="btn btn-primary" onclick="openModal()">+ Nuevo flujo</button>
+            </div>
+
+            <div id="tableContainer">
+                <div class="empty">⏳ Cargando…</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-bg" id="modal">
+        <div class="modal">
+            <h3 id="modalTitle">Nuevo flujo de aprobación</h3>
+            <input type="hidden" id="f-id">
+
+            <div class="form-group">
+                <label>Empresa *</label>
+                <select id="f-company">
+                    <option value="eliot">Eliot</option>
+                    <option value="pash">Pash</option>
+                    <option value="primatela">Primatela</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Área *</label>
+                <input type="text" id="f-area" placeholder="Ej: Sistemas, Contabilidad, Comercial">
+            </div>
+
+            <div class="form-group">
+                <label>Descripción (opcional)</label>
+                <textarea id="f-description" rows="2" placeholder="Breve descripción del flujo"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Pasos de aprobación (orden secuencial) *</label>
+                <div class="steps-editor" id="stepsEditor">
+                    <!-- steps se renderizan aquí -->
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="addStep()" style="font-size:12px; padding:6px 12px;">+ Agregar paso</button>
+            </div>
+
+            <div class="form-group" style="background:#eff6ff; padding:10px 12px; border-radius:6px; border-left:4px solid #3b82f6;">
+                <label>🎫 Ticket padre asignado a (correo) *</label>
+                <input type="email" id="f-ticket-assignee" placeholder="Ej: cat@patprimo.com.co">
+                <div style="font-size:11px; color:#6b7280; margin-top:4px;">
+                    Al aprobar el último paso se genera un ticket automáticamente con la ejecución del caso.
+                    Este correo debe corresponder a un usuario activo del sistema.
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label><input type="checkbox" id="f-active" checked> Flujo activo</label>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveFlow()">💾 Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    let _flows = [];
+    let _editingId = null;
+    let _currentSteps = [];
+
+    function esc(s) { return s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function toast(msg, ok=true) {
+        const el = document.createElement('div');
+        el.className = 'toast ' + (ok ? 'ok' : 'err');
+        el.textContent = msg;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 3500);
+    }
+
+    async function loadFlows() {
+        const inc = document.getElementById('includeInactive').checked ? '?include_inactive=1' : '';
+        try {
+            const r = await fetch('/api/admin/approval-flows' + inc);
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error);
+            _flows = data.flows;
+            render();
+        } catch (e) {
+            document.getElementById('tableContainer').innerHTML =
+                `<div class="empty" style="color:#dc2626;">❌ ${esc(e.message)}</div>`;
+        }
+    }
+
+    function render() {
+        document.getElementById('totalCount').textContent = _flows.filter(f => f.is_active).length;
+        if (_flows.length === 0) {
+            document.getElementById('tableContainer').innerHTML =
+                '<div class="empty">Sin flujos configurados. Creá uno con el botón "+ Nuevo flujo" para que los técnicos puedan usarlo al diligenciar solicitudes.</div>';
+            return;
+        }
+        let html = `<table>
+            <thead>
+                <tr><th>Empresa</th><th>Área</th><th>Descripción</th><th>Pasos (orden)</th><th>Ticket asignado a</th><th>Estado</th><th>Acciones</th></tr>
+            </thead>
+            <tbody>`;
+        _flows.forEach(f => {
+            const stepChips = (f.steps || []).map((s, i) =>
+                `<span class="step-chip" title="${esc(s.email)}">${i+1}. ${esc(s.label)}</span>`
+            ).join('');
+            html += `<tr>
+                <td><strong>${esc(f.company)}</strong></td>
+                <td><strong>${esc(f.area)}</strong></td>
+                <td style="color:#6b7280; font-size:12px; max-width:220px;">${esc(f.description || '—')}</td>
+                <td>${stepChips || '—'}</td>
+                <td style="font-size:12px;"><code style="background:#f3f4f6; padding:2px 6px; border-radius:3px;">${esc(f.ticket_assignee_email || '—')}</code></td>
+                <td>${f.is_active ? '<span class="badge-active">Activo</span>' : '<span class="badge-inactive">Inactivo</span>'}</td>
+                <td style="white-space:nowrap;">
+                    <button class="btn btn-secondary" style="padding:5px 10px; font-size:11px;" onclick="editFlow(${f.id})">✏️</button>
+                    <button class="btn btn-danger" style="padding:5px 10px; font-size:11px;" onclick="deleteFlow(${f.id})">🗑</button>
+                </td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('tableContainer').innerHTML = html;
+    }
+
+    function openModal(editing=null) {
+        _editingId = editing;
+        document.getElementById('modalTitle').textContent = editing ? 'Editar flujo' : 'Nuevo flujo de aprobación';
+        if (editing) {
+            const f = _flows.find(x => x.id === editing);
+            if (!f) return;
+            document.getElementById('f-id').value = f.id;
+            document.getElementById('f-company').value = f.company;
+            document.getElementById('f-company').disabled = true;
+            document.getElementById('f-area').value = f.area;
+            document.getElementById('f-description').value = f.description || '';
+            document.getElementById('f-ticket-assignee').value = f.ticket_assignee_email || '';
+            document.getElementById('f-active').checked = f.is_active;
+            _currentSteps = JSON.parse(JSON.stringify(f.steps || []));
+        } else {
+            document.getElementById('f-id').value = '';
+            document.getElementById('f-company').value = 'pash';
+            document.getElementById('f-company').disabled = false;
+            document.getElementById('f-area').value = '';
+            document.getElementById('f-description').value = '';
+            document.getElementById('f-ticket-assignee').value = '';
+            document.getElementById('f-active').checked = true;
+            _currentSteps = [
+                {email: '', label: ''},
+            ];
+        }
+        renderSteps();
+        document.getElementById('modal').style.display = 'flex';
+    }
+
+    function editFlow(id) { openModal(id); }
+    function closeModal() { document.getElementById('modal').style.display = 'none'; _editingId = null; }
+
+    function renderSteps() {
+        const container = document.getElementById('stepsEditor');
+        if (_currentSteps.length === 0) {
+            container.innerHTML = '<div style="color:#6b7280; font-size:12px; text-align:center;">Sin pasos. Agregá al menos uno.</div>';
+            return;
+        }
+        container.innerHTML = _currentSteps.map((s, i) => `
+            <div class="step-row">
+                <span class="step-idx">${i+1}</span>
+                <input type="email" placeholder="correo@empresa.com" value="${esc(s.email)}" onchange="_currentSteps[${i}].email = this.value.trim().toLowerCase();">
+                <input type="text" placeholder="Rol (ej: Analista IT, Jefe de área)" value="${esc(s.label)}" onchange="_currentSteps[${i}].label = this.value.trim();">
+                <div class="step-actions">
+                    <button type="button" class="step-btn up" onclick="moveStep(${i}, -1)" ${i===0?'disabled':''}>↑</button>
+                    <button type="button" class="step-btn down" onclick="moveStep(${i}, 1)" ${i===_currentSteps.length-1?'disabled':''}>↓</button>
+                    <button type="button" class="step-btn del" onclick="removeStep(${i})">✕</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function addStep() {
+        _currentSteps.push({email: '', label: ''});
+        renderSteps();
+    }
+    function removeStep(i) {
+        if (!confirm('¿Quitar este paso?')) return;
+        _currentSteps.splice(i, 1);
+        renderSteps();
+    }
+    function moveStep(i, dir) {
+        const target = i + dir;
+        if (target < 0 || target >= _currentSteps.length) return;
+        [_currentSteps[i], _currentSteps[target]] = [_currentSteps[target], _currentSteps[i]];
+        renderSteps();
+    }
+
+    async function saveFlow() {
+        // Recolectar valores actuales de inputs (por si el onchange no disparó)
+        document.querySelectorAll('.step-row').forEach((row, i) => {
+            const inputs = row.querySelectorAll('input');
+            if (inputs.length >= 2) {
+                _currentSteps[i].email = inputs[0].value.trim().toLowerCase();
+                _currentSteps[i].label = inputs[1].value.trim();
+            }
+        });
+        const payload = {
+            company: document.getElementById('f-company').value,
+            area: document.getElementById('f-area').value.trim(),
+            description: document.getElementById('f-description').value.trim(),
+            steps: _currentSteps.filter(s => s.email || s.label),
+            ticket_assignee_email: document.getElementById('f-ticket-assignee').value.trim(),
+            is_active: document.getElementById('f-active').checked,
+        };
+        if (!payload.area) { alert('El área es obligatoria'); return; }
+        if (payload.steps.length === 0) { alert('Al menos un paso es obligatorio'); return; }
+        if (!payload.ticket_assignee_email) {
+            if (!confirm('Sin "Ticket asignado a" el ticket generado quedará sin asignar. ¿Continuar así?')) return;
+        }
+        try {
+            const url = _editingId ? `/api/admin/approval-flows/${_editingId}` : '/api/admin/approval-flows';
+            const method = _editingId ? 'PUT' : 'POST';
+            const r = await fetch(url, {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error);
+            toast('✓ Guardado', true);
+            closeModal();
+            await loadFlows();
+        } catch (e) {
+            toast('❌ ' + e.message, false);
+        }
+    }
+
+    async function deleteFlow(id) {
+        const f = _flows.find(x => x.id === id);
+        if (!f) return;
+        if (!confirm(`¿Eliminar el flujo "${f.area}" (${f.company})? Las solicitudes ya creadas mantienen su snapshot y no se ven afectadas.`)) return;
+        try {
+            const r = await fetch(`/api/admin/approval-flows/${id}`, {method: 'DELETE'});
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error);
+            toast('✓ Eliminado', true);
+            await loadFlows();
+        } catch (e) {
+            toast('❌ ' + e.message, false);
+        }
+    }
+
+    loadFlows();
+    </script>
+</body>
+</html>
