@@ -34,15 +34,20 @@
         .form-group label { display:block; font-size:12px; color:#374151; font-weight:700; margin-bottom:5px; }
         .form-group input, .form-group select, .form-group textarea { width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; font-family:inherit; }
         .steps-editor { border:2px dashed #c4b5fd; border-radius:8px; padding:14px; background:#faf5ff; margin-bottom:12px; }
-        .step-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; padding:8px; background:white; border-radius:6px; border:1px solid #e5e7eb; }
-        .step-row .drag-handle { color:#9ca3af; cursor:grab; font-size:16px; padding:0 4px; }
-        .step-row .step-idx { display:inline-block; width:26px; height:26px; background:#7c3aed; color:white; border-radius:50%; text-align:center; line-height:26px; font-size:12px; font-weight:800; flex-shrink:0; }
-        .step-row input { flex:1; padding:6px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px; }
-        .step-row .step-actions { display:flex; gap:4px; flex-shrink:0; }
+        .step-card { margin-bottom:10px; padding:10px; background:white; border-radius:6px; border:1px solid #e5e7eb; }
+        .step-card-header { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+        .step-card-header .step-idx { display:inline-block; width:26px; height:26px; background:#7c3aed; color:white; border-radius:50%; text-align:center; line-height:26px; font-size:12px; font-weight:800; flex-shrink:0; }
+        .step-card-header input { flex:1; padding:6px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px; font-weight:700; }
+        .step-card-header .step-actions { display:flex; gap:4px; flex-shrink:0; }
+        .step-approvers { margin-left:34px; padding-left:10px; border-left:2px solid #ede9fe; }
+        .approver-row { display:flex; gap:6px; align-items:center; margin-bottom:6px; }
+        .approver-row input { flex:1; padding:5px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px; }
+        .add-approver { background:#ede9fe; color:#5b21b6; border:1px dashed #a78bfa; border-radius:4px; padding:4px 10px; font-size:11px; font-weight:700; cursor:pointer; }
         .step-btn { padding:3px 8px; border:none; border-radius:4px; cursor:pointer; font-size:12px; }
         .step-btn.up { background:#dbeafe; color:#1e40af; }
         .step-btn.down { background:#dbeafe; color:#1e40af; }
         .step-btn.del { background:#fee2e2; color:#991b1b; }
+        .step-btn:disabled { opacity:0.4; cursor:not-allowed; }
         .toast { position:fixed; top:20px; right:20px; padding:14px 20px; border-radius:8px; color:white; font-weight:700; z-index:2000; box-shadow:0 4px 12px rgba(0,0,0,0.2); }
         .toast.ok { background:#16a34a; }
         .toast.err { background:#dc2626; }
@@ -72,8 +77,9 @@
     <div class="container">
         <div class="card">
             <p style="color:#6b7280; font-size:13px; margin-bottom:12px;">
-                Definí flujos de aprobación específicos por <strong>área + empresa</strong>. Cada flujo tiene una lista ordenada de aprobadores (por correo).
-                Al crear una solicitud eligiendo esta área, el sistema envía correo <strong>secuencialmente</strong> al paso 1; cuando ese aprueba, va al paso 2, y así.
+                Definí flujos de aprobación específicos por <strong>área + empresa</strong>. Cada flujo tiene una lista ordenada de pasos, y cada paso puede tener
+                <strong>uno o varios aprobadores</strong> (con que cualquiera de ellos apruebe, el paso queda listo — lógica OR; si cualquiera rechaza, se rechaza toda la solicitud).
+                Al crear una solicitud eligiendo esta área, el sistema envía correo <strong>secuencialmente</strong> al paso 1; cuando ese paso queda aprobado, va al paso 2, y así.
                 Al aprobar el último paso se genera automáticamente un <strong>Ticket padre + subtareas por control</strong> asignado al usuario indicado en "Ticket asignado a".
             </p>
             <div class="toolbar">
@@ -177,6 +183,11 @@
     let _importFile = null;
 
     function esc(s) { return s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    // Soporta pasos legacy {email,label} y el formato nuevo {emails:[...],label}
+    function stepEmails(s) {
+        if (Array.isArray(s.emails) && s.emails.length) return s.emails.filter(e => e);
+        return s.email ? [s.email] : [];
+    }
     function toast(msg, ok=true) {
         const el = document.createElement('div');
         el.className = 'toast ' + (ok ? 'ok' : 'err');
@@ -215,9 +226,11 @@
             </thead>
             <tbody>`;
         _flows.forEach(f => {
-            const stepChips = (f.steps || []).map((s, i) =>
-                `<span class="step-chip" title="${esc(s.email)}">${i+1}. ${esc(s.label)}</span>`
-            ).join('');
+            const stepChips = (f.steps || []).map((s, i) => {
+                const emails = stepEmails(s);
+                const suffix = emails.length > 1 ? ` (${emails.length} aprobadores)` : '';
+                return `<span class="step-chip" title="${esc(emails.join(', '))}">${i+1}. ${esc(s.label)}${suffix}</span>`;
+            }).join('');
             html += `<tr>
                 <td><input type="checkbox" class="flow-check" value="${f.id}"></td>
                 <td><strong>${esc(f.company)}</strong></td>
@@ -257,7 +270,10 @@
             document.getElementById('f-description').value = f.description || '';
             document.getElementById('f-ticket-assignee').value = f.ticket_assignee_email || '';
             document.getElementById('f-active').checked = f.is_active;
-            _currentSteps = JSON.parse(JSON.stringify(f.steps || []));
+            _currentSteps = (f.steps || []).map(s => ({
+                label: s.label || '',
+                emails: stepEmails(s).length ? stepEmails(s).slice() : [''],
+            }));
         } else {
             document.getElementById('f-id').value = '';
             document.getElementById('f-company').value = 'pash';
@@ -267,7 +283,7 @@
             document.getElementById('f-ticket-assignee').value = '';
             document.getElementById('f-active').checked = true;
             _currentSteps = [
-                {email: '', label: ''},
+                {label: '', emails: ['']},
             ];
         }
         renderSteps();
@@ -284,26 +300,45 @@
             return;
         }
         container.innerHTML = _currentSteps.map((s, i) => `
-            <div class="step-row">
-                <span class="step-idx">${i+1}</span>
-                <input type="email" placeholder="correo@empresa.com" value="${esc(s.email)}" onchange="_currentSteps[${i}].email = this.value.trim().toLowerCase();">
-                <input type="text" placeholder="Rol (ej: Analista IT, Jefe de área)" value="${esc(s.label)}" onchange="_currentSteps[${i}].label = this.value.trim();">
-                <div class="step-actions">
-                    <button type="button" class="step-btn up" onclick="moveStep(${i}, -1)" ${i===0?'disabled':''}>↑</button>
-                    <button type="button" class="step-btn down" onclick="moveStep(${i}, 1)" ${i===_currentSteps.length-1?'disabled':''}>↓</button>
-                    <button type="button" class="step-btn del" onclick="removeStep(${i})">✕</button>
+            <div class="step-card">
+                <div class="step-card-header">
+                    <span class="step-idx">${i+1}</span>
+                    <input type="text" placeholder="Rol del paso (ej: Analista IT, Jefe de área)" value="${esc(s.label)}" onchange="_currentSteps[${i}].label = this.value.trim();">
+                    <div class="step-actions">
+                        <button type="button" class="step-btn up" onclick="moveStep(${i}, -1)" ${i===0?'disabled':''}>↑</button>
+                        <button type="button" class="step-btn down" onclick="moveStep(${i}, 1)" ${i===_currentSteps.length-1?'disabled':''}>↓</button>
+                        <button type="button" class="step-btn del" onclick="removeStep(${i})">✕ Paso</button>
+                    </div>
+                </div>
+                <div class="step-approvers">
+                    ${s.emails.map((email, j) => `
+                        <div class="approver-row">
+                            <input type="email" placeholder="correo@empresa.com" value="${esc(email)}" onchange="_currentSteps[${i}].emails[${j}] = this.value.trim().toLowerCase();">
+                            <button type="button" class="step-btn del" onclick="removeApprover(${i}, ${j})" ${s.emails.length<=1?'disabled':''}>✕</button>
+                        </div>
+                    `).join('')}
+                    <button type="button" class="add-approver" onclick="addApprover(${i})">+ Agregar aprobador a este paso (cualquiera puede aprobar)</button>
                 </div>
             </div>
         `).join('');
     }
 
     function addStep() {
-        _currentSteps.push({email: '', label: ''});
+        _currentSteps.push({label: '', emails: ['']});
         renderSteps();
     }
     function removeStep(i) {
         if (!confirm('¿Quitar este paso?')) return;
         _currentSteps.splice(i, 1);
+        renderSteps();
+    }
+    function addApprover(i) {
+        _currentSteps[i].emails.push('');
+        renderSteps();
+    }
+    function removeApprover(i, j) {
+        if (_currentSteps[i].emails.length <= 1) return;
+        _currentSteps[i].emails.splice(j, 1);
         renderSteps();
     }
     function moveStep(i, dir) {
@@ -315,23 +350,25 @@
 
     async function saveFlow() {
         // Recolectar valores actuales de inputs (por si el onchange no disparó)
-        document.querySelectorAll('.step-row').forEach((row, i) => {
-            const inputs = row.querySelectorAll('input');
-            if (inputs.length >= 2) {
-                _currentSteps[i].email = inputs[0].value.trim().toLowerCase();
-                _currentSteps[i].label = inputs[1].value.trim();
-            }
+        document.querySelectorAll('.step-card').forEach((card, i) => {
+            const labelInput = card.querySelector('.step-card-header input');
+            if (labelInput) _currentSteps[i].label = labelInput.value.trim();
+            const emailInputs = card.querySelectorAll('.approver-row input');
+            _currentSteps[i].emails = Array.from(emailInputs).map(inp => inp.value.trim().toLowerCase());
         });
         const payload = {
             company: document.getElementById('f-company').value,
             area: document.getElementById('f-area').value.trim(),
             description: document.getElementById('f-description').value.trim(),
-            steps: _currentSteps.filter(s => s.email || s.label),
+            steps: _currentSteps
+                .map(s => ({label: s.label, emails: s.emails.filter(e => e)}))
+                .filter(s => s.label || s.emails.length > 0),
             ticket_assignee_email: document.getElementById('f-ticket-assignee').value.trim(),
             is_active: document.getElementById('f-active').checked,
         };
         if (!payload.area) { alert('El área es obligatoria'); return; }
         if (payload.steps.length === 0) { alert('Al menos un paso es obligatorio'); return; }
+        if (payload.steps.some(s => s.emails.length === 0)) { alert('Cada paso necesita al menos un aprobador con correo'); return; }
         if (!payload.ticket_assignee_email) {
             if (!confirm('Sin "Ticket asignado a" el ticket generado quedará sin asignar. ¿Continuar así?')) return;
         }

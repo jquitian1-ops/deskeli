@@ -338,7 +338,7 @@
         const bar = document.getElementById('actionBar');
         const buttons = [];
 
-        const isResponsable = s.responsable_actual_id === CURRENT_USER_ID || CURRENT_ROLE === 'admin';
+        const isResponsable = s.es_aprobador_actual || CURRENT_ROLE === 'admin';
         const isCreator = s.creator && s.creator.id === CURRENT_USER_ID;
         const isFinal = ['CERRADO', 'ANULADO', 'RECHAZADO_POR_JEFE_INMEDIATO', 'RECHAZADO_POR_GERENTE_DE_AREA',
                          'RECHAZADO_POR_ANALISTA_TI', 'RECHAZADO_POR_GERENTE_DE_TI'].includes(s.estado);

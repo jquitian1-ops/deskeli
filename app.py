@@ -1346,6 +1346,21 @@ class Control(db.Model):
     )
 
 
+def _step_emails(step):
+    """Normaliza un paso de ApprovalFlow a su lista de emails (lowercase).
+    Soporta el formato nuevo multi-aprobador {"label":..., "emails":[...]}
+    y el formato legacy de un solo aprobador {"label":..., "email": "..."}."""
+    if not isinstance(step, dict):
+        return []
+    emails = step.get('emails')
+    if isinstance(emails, list) and emails:
+        cleaned = [(e or '').strip().lower() for e in emails if (e or '').strip()]
+        if cleaned:
+            return cleaned
+    single = (step.get('email') or '').strip().lower()
+    return [single] if single else []
+
+
 class SolicitudUsuario(db.Model):
     """Solicitud de creación/modificación/traslado de usuario.
 
@@ -1426,8 +1441,9 @@ class SolicitudUsuario(db.Model):
         return bool(self.approval_flow_id and self.flow_steps_json)
 
     def current_flow_step(self):
-        """Devuelve el paso pendiente actual como dict {email,label} o None
-        si la solicitud usa el sistema legacy o si ya no hay pasos pendientes."""
+        """Devuelve el paso pendiente actual como dict {label, emails:[...]} (o
+        el formato legacy {label, email} de flujos viejos) o None si la
+        solicitud usa el sistema legacy o si ya no hay pasos pendientes."""
         if not self.uses_dynamic_flow():
             return None
         try:
@@ -1439,24 +1455,46 @@ class SolicitudUsuario(db.Model):
             return steps[idx]
         return None
 
-    def responsable_actual_id(self):
-        """Devuelve el user_id del aprobador que debe actuar sobre el estado actual.
-        Soporta tanto el flujo legacy (jefe/analista/gerente_area/gerente_ti) como
-        el nuevo ApprovalFlow dinámico (busca User activo por correo del paso actual).
+    def current_flow_step_emails(self):
+        """Lista de emails (lowercase) autorizados a decidir el paso actual.
+        Soporta pasos con 1 o varios aprobadores (cualquiera de ellos puede
+        aprobar/devolver/rechazar — lógica OR)."""
+        return _step_emails(self.current_flow_step())
+
+    def is_current_approver(self, user):
+        """True si `user` puede actuar (aprobar/devolver/rechazar) sobre el
+        estado actual de esta solicitud. Soporta:
+        - Devuelto: solo el creador puede reenviar.
+        - Flujo dinámico: cualquiera cuyo email esté en la lista de
+          aprobadores del paso actual (multi-aprobador, lógica OR).
+        - Flujo legacy: el User mapeado 1:1 al nivel actual.
         """
+        if not user:
+            return False
+        if self.estado in SOLICITUD_DEVUELTO_A_PENDIENTE:
+            return user.id == self.creator_id
+        if self.uses_dynamic_flow():
+            emails = self.current_flow_step_emails()
+            return bool(emails) and (user.email or '').strip().lower() in emails
+        return user.id == self.responsable_actual_id()
+
+    def responsable_actual_id(self):
+        """Devuelve el user_id de UN aprobador que puede actuar sobre el estado
+        actual (uso informativo/legacy). Soporta el flujo legacy (jefe/analista/
+        gerente_area/gerente_ti) y, para el ApprovalFlow dinámico, resuelve el
+        primer User activo que matchee alguno de los emails del paso actual.
+        Con multi-aprobador puede haber más de un responsable válido: para
+        autorizar decisiones usar is_current_approver(user), no este método."""
         # Devuelto → volver al solicitante
         if self.estado in SOLICITUD_DEVUELTO_A_PENDIENTE:
             return self.creator_id
-        # Flujo dinámico: buscar user por email del paso actual
+        # Flujo dinámico: buscar user por alguno de los emails del paso actual
         if self.uses_dynamic_flow():
-            step = self.current_flow_step()
-            if not step:
-                return None
-            email = (step.get('email') or '').lower()
-            if not email:
+            emails = self.current_flow_step_emails()
+            if not emails:
                 return None
             u = User.query.filter(
-                db.func.lower(User.email) == email,
+                db.func.lower(User.email).in_(emails),
                 User.company == self.company,
                 User.is_active == True,
             ).first()
@@ -1473,12 +1511,12 @@ class SolicitudUsuario(db.Model):
         }.get(nivel)
 
     def current_approver_email(self):
-        """Devuelve el email del aprobador actual (para el flujo dinámico envía
-        correo aunque el User no exista en el sistema)."""
+        """Devuelve el primer email de aprobador del paso actual (para el
+        flujo dinámico envía correo aunque el User no exista en el sistema)."""
         if self.uses_dynamic_flow():
-            step = self.current_flow_step()
-            if step:
-                return (step.get('email') or '').lower() or None
+            emails = self.current_flow_step_emails()
+            if emails:
+                return emails[0]
         # Legacy: resolver del User
         uid = self.responsable_actual_id()
         if not uid:
@@ -23170,14 +23208,19 @@ def _serialize_solicitud_row(s):
     }
 
 
-def _serialize_solicitud_detail(s):
-    """Serialización completa para la vista de detalle."""
+def _serialize_solicitud_detail(s, viewer=None):
+    """Serialización completa para la vista de detalle.
+    `viewer`: User logueado que pide el detalle (opcional). Si se pasa, se
+    calcula server-side si puede aprobar/devolver/rechazar el paso actual
+    (soporta multi-aprobador por paso, lógica OR) — el frontend debe usar
+    este campo en vez de comparar IDs por su cuenta."""
     def _u(u):
         return {'id': u.id, 'name': u.name, 'email': u.email} if u else None
 
     return {
         'id': s.id,
         'codigo': s.codigo,
+        'es_aprobador_actual': bool(viewer and s.is_current_approver(viewer)),
         'company': s.company,
         'tipo_solicitud': s.tipo_solicitud,
         'unidad_negocio': s.unidad_negocio,
@@ -23535,7 +23578,7 @@ def api_solicitudes_create():
     db.session.commit()
     log_audit('solicitud_created', user.id, 'solicitud', s.id, f'Solicitud {s.codigo} creada')
     _notify_next_approver(s)  # notificar al siguiente
-    return jsonify({'success': True, 'solicitud': _serialize_solicitud_detail(s)}), 201
+    return jsonify({'success': True, 'solicitud': _serialize_solicitud_detail(s, viewer=user)}), 201
 
 
 @app.route('/api/solicitudes-usuarios/mis-pendientes', methods=['GET'])
@@ -23571,11 +23614,9 @@ def api_solicitudes_mis_pendientes():
         approver_label = None
         if s.uses_dynamic_flow():
             step = s.current_flow_step()
-            if step:
-                step_email = (step.get('email') or '').lower()
-                if step_email and step_email == my_email:
-                    is_mine = True
-                    approver_label = step.get('label') or 'Aprobador'
+            if step and my_email in _step_emails(step):
+                is_mine = True
+                approver_label = step.get('label') or 'Aprobador'
         else:
             resp_id = s.responsable_actual_id()
             if resp_id == user.id:
@@ -23658,7 +23699,7 @@ def api_solicitudes_detail(solicitud_id):
     s = SolicitudUsuario.query.get(solicitud_id)
     if not s or not solicitud_can_view(user, s):
         return jsonify({'success': False, 'error': 'Solicitud no encontrada'}), 404
-    return jsonify({'success': True, 'solicitud': _serialize_solicitud_detail(s)})
+    return jsonify({'success': True, 'solicitud': _serialize_solicitud_detail(s, viewer=user)})
 
 
 def _generate_case_from_solicitud(solicitud, actor_user):
@@ -23930,10 +23971,10 @@ def _apply_transition(s, user, accion, observacion):
 
     dynamic = s.uses_dynamic_flow()
 
-    # Validar que el user es el aprobador correcto
+    # Validar que el user es el aprobador correcto (soporta multi-aprobador
+    # por paso: cualquiera de los emails configurados puede decidir — OR)
     if accion in ('aprobar', 'devolver', 'rechazar'):
-        expected_id = s.responsable_actual_id()
-        if user.role != 'admin' and user.id != expected_id:
+        if user.role != 'admin' and not s.is_current_approver(user):
             return False, 'No es el aprobador de este nivel', None
         # REGLA: el creador NO puede aprobar su propia solicitud (conflicto de
         # interés) aunque figure como aprobador. Admins pueden hacer override.
@@ -24737,7 +24778,10 @@ def _serialize_approval_flow(f):
 
 
 def _validate_flow_payload(data):
-    """Devuelve (steps_list, ticket_email, error_msg). error_msg=None si OK."""
+    """Devuelve (steps_list, ticket_email, error_msg). error_msg=None si OK.
+    Cada paso admite 1 o varios aprobadores (emails): cualquiera de ellos
+    puede decidir ese paso (lógica OR). Acepta tanto el formato nuevo
+    {"label":..., "emails":[...]} como el legacy {"label":..., "email":...}."""
     steps = data.get('steps') or []
     if not isinstance(steps, list) or len(steps) < 1:
         return None, None, 'Debe haber al menos un paso de aprobación'
@@ -24747,13 +24791,29 @@ def _validate_flow_payload(data):
     for i, s in enumerate(steps, start=1):
         if not isinstance(s, dict):
             return None, None, f'Paso {i}: formato inválido'
-        email = (s.get('email') or '').strip().lower()
         label = (s.get('label') or '').strip()
-        if not email or '@' not in email:
-            return None, None, f'Paso {i}: correo inválido "{email}"'
+        raw_emails = s.get('emails')
+        if not isinstance(raw_emails, list) or not raw_emails:
+            single = s.get('email')
+            raw_emails = [single] if single else []
+        emails = []
+        seen = set()
+        for e in raw_emails:
+            email = (e or '').strip().lower()
+            if not email:
+                continue
+            if '@' not in email:
+                return None, None, f'Paso {i}: correo inválido "{email}"'
+            if email not in seen:
+                seen.add(email)
+                emails.append(email)
+        if not emails:
+            return None, None, f'Paso {i}: debe tener al menos un aprobador con correo'
+        if len(emails) > 10:
+            return None, None, f'Paso {i}: máximo 10 aprobadores por paso'
         if not label:
             return None, None, f'Paso {i}: falta el rol/label'
-        clean_steps.append({'email': email, 'label': label[:120]})
+        clean_steps.append({'emails': emails, 'label': label[:120]})
     ticket_email = (data.get('ticket_assignee_email') or '').strip().lower()
     if ticket_email and '@' not in ticket_email:
         return None, None, 'ticket_assignee_email inválido'
@@ -24862,7 +24922,10 @@ def api_approval_flows_delete(flow_id):
 
 
 def _flow_export_rows(flows):
-    """Aplana flujos a filas (una por paso) para la hoja de Excel."""
+    """Aplana flujos a filas para la hoja de Excel: una fila por aprobador.
+    Si un paso tiene varios aprobadores, se repite el mismo "Orden Paso" en
+    varias filas (una por cada email) — así se reimporta como un solo paso
+    con varios aprobadores (lógica OR: cualquiera de ellos puede decidir)."""
     rows = []
     for f in flows:
         steps = f.steps() or []
@@ -24874,12 +24937,14 @@ def _flow_export_rows(flows):
                 'is_active': 'Si' if f.is_active else 'No',
             })
         for i, s in enumerate(steps, start=1):
-            rows.append({
-                'company': f.company, 'area': f.area, 'description': f.description or '',
-                'step_order': i, 'step_email': s.get('email', ''), 'step_label': s.get('label', ''),
-                'ticket_assignee_email': f.ticket_assignee_email or '',
-                'is_active': 'Si' if f.is_active else 'No',
-            })
+            emails = _step_emails(s) or ['']
+            for email in emails:
+                rows.append({
+                    'company': f.company, 'area': f.area, 'description': f.description or '',
+                    'step_order': i, 'step_email': email, 'step_label': s.get('label', ''),
+                    'ticket_assignee_email': f.ticket_assignee_email or '',
+                    'is_active': 'Si' if f.is_active else 'No',
+                })
     return rows
 
 
@@ -24919,17 +24984,19 @@ def _build_flows_workbook(rows):
         ('Empresa', 'eliot, pash o primatela'),
         ('Area', 'Nombre del área (ej: Sistemas, Contabilidad). Junto con Empresa identifica el flujo'),
         ('Descripcion', '(Opcional) breve descripción del flujo'),
-        ('Orden Paso', 'Número de orden del aprobador dentro del flujo (1, 2, 3...)'),
-        ('Email Aprobador', 'Correo del aprobador de ese paso'),
+        ('Orden Paso', 'Número de orden del paso dentro del flujo (1, 2, 3...)'),
+        ('Email Aprobador', 'Correo de UN aprobador de ese paso'),
         ('Rol / Cargo del Paso', 'Ej: Analista IT, Jefe de área, Gerente de área'),
         ('Ticket Asignado A', 'Correo al que se le asigna el ticket padre cuando se aprueba el último paso'),
         ('Activo', 'Si / No'),
         ('', ''),
         ('Reglas', ''),
-        ('• Cada FLUJO ocupa varias filas: una fila por paso de aprobación.', ''),
+        ('• Cada FLUJO ocupa varias filas: una fila por aprobador.', ''),
         ('• Repetí Empresa, Area, Descripcion, Ticket Asignado A y Activo en cada fila del mismo flujo.', ''),
         ('• Un flujo se identifica por la combinación Empresa + Area (si ya existe, se actualiza).', ''),
-        ('• Debe haber al menos 1 paso por flujo, máximo 20.', ''),
+        ('• Para que un PASO tenga varios aprobadores (cualquiera de ellos puede', ''),
+        ('  decidir), repetí el mismo "Orden Paso" en varias filas, una por email.', ''),
+        ('• Debe haber al menos 1 paso por flujo, máximo 20; máximo 10 aprobadores por paso.', ''),
     ]
     for i, (a, b) in enumerate(instructions, 1):
         c1 = ws2.cell(row=i, column=1, value=a)
@@ -25075,7 +25142,7 @@ def _parse_flows_excel(file_storage, ext):
                 'description': row.get('description') or '',
                 'ticket_assignee_email': row.get('ticket_assignee_email') or '',
                 'is_active': row.get('is_active') or 'Si',
-                'steps': [],
+                'steps_by_order': {},  # step_order -> {order, emails:[...], label}
             }
             order.append(key)
         g = groups[key]
@@ -25088,18 +25155,28 @@ def _parse_flows_excel(file_storage, ext):
             g['is_active'] = row['is_active']
         email = (row.get('step_email') or '').strip().lower()
         label = (row.get('step_label') or '').strip()
-        if email or label:
-            try:
-                step_order = int(float(row.get('step_order'))) if row.get('step_order') else len(g['steps']) + 1
-            except (ValueError, TypeError):
-                step_order = len(g['steps']) + 1
-            g['steps'].append({'order': step_order, 'email': email, 'label': label})
+        if not email and not label:
+            continue
+        try:
+            step_order = int(float(row.get('step_order'))) if row.get('step_order') else None
+        except (ValueError, TypeError):
+            step_order = None
+        if step_order is None:
+            # Sin "Orden Paso": tratarlo como un paso nuevo (no colisiona con
+            # ordenes explícitos 1-20), en el orden de aparición de las filas.
+            step_order = 1000 + len(g['steps_by_order'])
+        step = g['steps_by_order'].setdefault(step_order, {'order': step_order, 'emails': [], 'label': ''})
+        if email and email not in step['emails']:
+            step['emails'].append(email)
+        if label and not step['label']:
+            step['label'] = label
 
     flows = []
     for key in order:
         g = groups[key]
-        g['steps'].sort(key=lambda s: s['order'])
-        g['steps'] = [{'email': s['email'], 'label': s['label']} for s in g['steps']]
+        steps_sorted = sorted(g['steps_by_order'].values(), key=lambda s: s['order'])
+        g['steps'] = [{'emails': s['emails'], 'label': s['label']} for s in steps_sorted]
+        del g['steps_by_order']
         active_val = (g['is_active'] or '').strip().lower()
         g['is_active'] = active_val not in ('no', 'false', '0', 'inactivo', 'inactive')
         flows.append(g)
@@ -25633,12 +25710,15 @@ def _send_solicitud_approval_email(solicitud, token, approver_user=None):
 
 
 def _notify_next_approver(solicitud):
-    """Notifica al aprobador del estado actual: WebSocket + email con token.
+    """Notifica a TODOS los aprobadores del estado/paso actual: WebSocket +
+    un email con token individual por cada uno. Con multi-aprobador, cualquiera
+    de ellos puede decidir el paso (lógica OR) con su propio link de correo.
 
     Soporta ambos modos:
-    - Flujo dinámico: el destinatario sale de flow_steps_json (email + label)
-      aunque no exista User activo con ese correo. El correo se envía igual.
-    - Flujo legacy: destinatario resuelto por User FK.
+    - Flujo dinámico: los destinatarios salen de flow_steps_json (emails +
+      label) aunque no exista User activo con esos correos. El correo se
+      envía igual a cada uno.
+    - Flujo legacy: destinatario único resuelto por User FK.
 
     Best-effort: silencia errores (no rompe el flujo si SMTP falla)."""
     try:
@@ -25652,53 +25732,58 @@ def _notify_next_approver(solicitud):
         if solicitud.estado not in pendientes:
             return
 
-        # Resolver destinatario según modo
-        approver_email = None
+        # Resolver destinatarios según modo: lista de (email, approver_user|None)
+        recipients = []
         approver_label = None
-        approver_user = None
 
         if solicitud.uses_dynamic_flow():
             step = solicitud.current_flow_step()
             if not step:
                 print(f'[notify] solicitud {solicitud.codigo}: flujo dinámico sin paso actual')
                 return
-            approver_email = (step.get('email') or '').strip().lower() or None
             approver_label = step.get('label') or 'Aprobador'
-            if approver_email:
-                approver_user = User.query.filter(
-                    db.func.lower(User.email) == approver_email,
+            emails = _step_emails(step)
+            if not emails:
+                print(f'[notify] solicitud {solicitud.codigo}: paso sin emails de aprobador')
+                return
+            for email in emails:
+                u = User.query.filter(
+                    db.func.lower(User.email) == email,
                     User.company == solicitud.company,
                     User.is_active == True,
                 ).first()
+                recipients.append((email, u))
         else:
             uid = solicitud.responsable_actual_id()
             if uid:
                 approver_user = User.query.get(uid)
                 if approver_user:
-                    approver_email = approver_user.email
                     approver_label = _role_label_for_solicitud_state(solicitud.estado)
+                    recipients.append((approver_user.email, approver_user))
 
-        if not approver_email:
+        if not recipients:
             print(f'[notify] solicitud {solicitud.codigo}: sin email de aprobador')
             return
 
-        # Token + email
-        try:
-            token = _create_or_get_solicitud_token(solicitud, approver_email, approver_user, approver_label)
-            if token:
-                _send_solicitud_approval_email(solicitud, token, approver_user)
-        except Exception as e:
-            print(f'[warn] token/email solicitud: {e}')
+        for approver_email, approver_user in recipients:
+            # Token + email por cada aprobador del paso
+            try:
+                token = _create_or_get_solicitud_token(solicitud, approver_email, approver_user, approver_label)
+                if token:
+                    _send_solicitud_approval_email(solicitud, token, approver_user)
+            except Exception as e:
+                print(f'[warn] token/email solicitud ({approver_email}): {e}')
 
-        approver_name = approver_user.name if approver_user else approver_email
-        log_audit(
-            'solicitud_notificacion',
-            (approver_user.id if approver_user else None),
-            'solicitud',
-            solicitud.id,
-            f'{solicitud.codigo} está pendiente de aprobación por {approver_name} ({approver_email}) — estado {solicitud.estado}'
-        )
-        # WebSocket (si existe socketio en el módulo)
+            approver_name = approver_user.name if approver_user else approver_email
+            log_audit(
+                'solicitud_notificacion',
+                (approver_user.id if approver_user else None),
+                'solicitud',
+                solicitud.id,
+                f'{solicitud.codigo} está pendiente de aprobación por {approver_name} ({approver_email}) — estado {solicitud.estado}'
+            )
+
+        # WebSocket (si existe socketio en el módulo) — un solo evento con la lista completa
         try:
             socketio.emit(
                 'solicitud_notification',
@@ -25707,8 +25792,7 @@ def _notify_next_approver(solicitud):
                     'codigo': solicitud.codigo,
                     'estado': solicitud.estado,
                     'estado_label': SOLICITUD_ESTADO_LABEL.get(solicitud.estado, solicitud.estado),
-                    'approver_id': (approver_user.id if approver_user else None),
-                    'approver_email': approver_email,
+                    'approver_emails': [r[0] for r in recipients],
                 },
                 room=f'company_{solicitud.company}'
             )
@@ -25756,7 +25840,7 @@ def solicitudes_decidir_page(token):
     return render_template(
         'solicitudes/decide.html',
         token=token,
-        solicitud=_serialize_solicitud_detail(s),
+        solicitud=_serialize_solicitud_detail(s, viewer=user),
         approver_role_label=tok.approver_role_label or _role_label_for_solicitud_state(s.estado),
         already_used=bool(tok.used),
         expected_state=tok.expected_state,
