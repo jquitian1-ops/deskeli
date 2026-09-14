@@ -84,9 +84,9 @@
                     </label>
                 </div>
                 <div style="display:flex; gap:8px;">
-                    <button class="btn btn-secondary" onclick="exportFlows()">⬇ Exportar</button>
-                    <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">⬆ Importar</button>
-                    <input type="file" id="importFile" accept="application/json,.json" style="display:none;" onchange="handleImportFile(this)">
+                    <button class="btn btn-secondary" onclick="exportFlows()">⬇ Exportar a Excel</button>
+                    <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">⬆ Importar desde Excel</button>
+                    <input type="file" id="importFile" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none;" onchange="handleImportFile(this)">
                     <button class="btn btn-primary" onclick="openModal()">+ Nuevo flujo</button>
                 </div>
             </div>
@@ -151,7 +151,7 @@
 
     <div class="modal-bg" id="importModal">
         <div class="modal">
-            <h3>⬆ Importar flujos</h3>
+            <h3>⬆ Importar flujos desde Excel</h3>
             <div id="importSummary" style="font-size:13px; color:#374151; margin-bottom:14px;"></div>
             <div class="form-group">
                 <label>Modo de importación</label>
@@ -174,7 +174,7 @@
     let _flows = [];
     let _editingId = null;
     let _currentSteps = [];
-    let _importPayload = null;
+    let _importFile = null;
 
     function esc(s) { return s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function toast(msg, ok=true) {
@@ -382,45 +382,39 @@
     function handleImportFile(input) {
         const file = input.files[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const parsed = JSON.parse(e.target.result);
-                const flows = Array.isArray(parsed) ? parsed : (parsed.flows || []);
-                if (!Array.isArray(flows) || flows.length === 0) {
-                    toast('❌ El archivo no contiene flujos válidos', false);
-                    return;
-                }
-                _importPayload = flows;
-                document.getElementById('importSummary').textContent =
-                    `Archivo "${file.name}" con ${flows.length} flujo(s) detectado(s). Elegí el modo y previsualizá antes de importar.`;
-                document.getElementById('importErrors').innerHTML = '';
-                document.getElementById('importModal').style.display = 'flex';
-            } catch (err) {
-                toast('❌ JSON inválido: ' + err.message, false);
-            } finally {
-                input.value = '';
-            }
-        };
-        reader.readAsText(file);
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        if (!['xlsx', 'xls', 'csv'].includes(ext)) {
+            toast('❌ Formato no soportado. Usá un archivo .xlsx, .xls o .csv', false);
+            input.value = '';
+            return;
+        }
+        _importFile = file;
+        document.getElementById('importSummary').textContent =
+            `Archivo "${file.name}" listo para importar. Elegí el modo y previsualizá antes de aplicar los cambios.`;
+        document.getElementById('importErrors').innerHTML = '';
+        document.getElementById('importModal').style.display = 'flex';
+        input.value = '';
     }
 
     function closeImportModal() {
         document.getElementById('importModal').style.display = 'none';
-        _importPayload = null;
+        _importFile = null;
     }
 
     async function runImport(dryRun) {
-        if (!_importPayload) return;
+        if (!_importFile) return;
         const mode = document.getElementById('import-mode').value;
         if (!dryRun && mode === 'replace_all_in_scope') {
             if (!confirm('⚠ Esto BORRARÁ todos los flujos existentes de tu(s) empresa(s) y los reemplazará por los del archivo. ¿Continuar?')) return;
         }
         try {
+            const formData = new FormData();
+            formData.append('file', _importFile);
+            formData.append('mode', mode);
+            formData.append('dry_run', dryRun ? '1' : '0');
             const r = await fetch('/api/admin/approval-flows/import', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({flows: _importPayload, mode: mode, dry_run: dryRun, continue_on_error: true})
+                body: formData
             });
             const data = await r.json();
             if (!data.success) {

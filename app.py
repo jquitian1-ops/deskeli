@@ -24861,9 +24861,103 @@ def api_approval_flows_delete(flow_id):
     return jsonify({'success': True})
 
 
+def _flow_export_rows(flows):
+    """Aplana flujos a filas (una por paso) para la hoja de Excel."""
+    rows = []
+    for f in flows:
+        steps = f.steps() or []
+        if not steps:
+            rows.append({
+                'company': f.company, 'area': f.area, 'description': f.description or '',
+                'step_order': '', 'step_email': '', 'step_label': '',
+                'ticket_assignee_email': f.ticket_assignee_email or '',
+                'is_active': 'Si' if f.is_active else 'No',
+            })
+        for i, s in enumerate(steps, start=1):
+            rows.append({
+                'company': f.company, 'area': f.area, 'description': f.description or '',
+                'step_order': i, 'step_email': s.get('email', ''), 'step_label': s.get('label', ''),
+                'ticket_assignee_email': f.ticket_assignee_email or '',
+                'is_active': 'Si' if f.is_active else 'No',
+            })
+    return rows
+
+
+_FLOW_EXCEL_HEADERS = [
+    ('company', 'Empresa'),
+    ('area', 'Area'),
+    ('description', 'Descripcion'),
+    ('step_order', 'Orden Paso'),
+    ('step_email', 'Email Aprobador'),
+    ('step_label', 'Rol / Cargo del Paso'),
+    ('ticket_assignee_email', 'Ticket Asignado A'),
+    ('is_active', 'Activo'),
+]
+
+
+def _build_flows_workbook(rows):
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from io import BytesIO
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Flujos'
+    for col, (_, label) in enumerate(_FLOW_EXCEL_HEADERS, 1):
+        cell = ws.cell(row=1, column=col, value=label)
+        cell.font = Font(bold=True, color='FFFFFF', size=12)
+        cell.fill = PatternFill('solid', fgColor='7C3AED')
+        cell.alignment = Alignment(horizontal='center')
+        ws.column_dimensions[cell.column_letter].width = 22
+    for r, row in enumerate(rows, start=2):
+        for col, (key, _) in enumerate(_FLOW_EXCEL_HEADERS, 1):
+            ws.cell(row=r, column=col, value=row.get(key, ''))
+
+    ws2 = wb.create_sheet('Instrucciones')
+    instructions = [
+        ('📋 Instrucciones de importación de Flujos de Aprobación', ''),
+        ('', ''),
+        ('Columna', 'Descripción'),
+        ('Empresa', 'eliot, pash o primatela'),
+        ('Area', 'Nombre del área (ej: Sistemas, Contabilidad). Junto con Empresa identifica el flujo'),
+        ('Descripcion', '(Opcional) breve descripción del flujo'),
+        ('Orden Paso', 'Número de orden del aprobador dentro del flujo (1, 2, 3...)'),
+        ('Email Aprobador', 'Correo del aprobador de ese paso'),
+        ('Rol / Cargo del Paso', 'Ej: Analista IT, Jefe de área, Gerente de área'),
+        ('Ticket Asignado A', 'Correo al que se le asigna el ticket padre cuando se aprueba el último paso'),
+        ('Activo', 'Si / No'),
+        ('', ''),
+        ('Reglas', ''),
+        ('• Cada FLUJO ocupa varias filas: una fila por paso de aprobación.', ''),
+        ('• Repetí Empresa, Area, Descripcion, Ticket Asignado A y Activo en cada fila del mismo flujo.', ''),
+        ('• Un flujo se identifica por la combinación Empresa + Area (si ya existe, se actualiza).', ''),
+        ('• Debe haber al menos 1 paso por flujo, máximo 20.', ''),
+    ]
+    for i, (a, b) in enumerate(instructions, 1):
+        c1 = ws2.cell(row=i, column=1, value=a)
+        c2 = ws2.cell(row=i, column=2, value=b)
+        if i == 1:
+            c1.font = Font(bold=True, size=16, color='7C3AED')
+            ws2.merge_cells('A1:B1')
+        elif i == 3:
+            c1.font = Font(bold=True, color='FFFFFF')
+            c2.font = Font(bold=True, color='FFFFFF')
+            c1.fill = PatternFill('solid', fgColor='7C3AED')
+            c2.fill = PatternFill('solid', fgColor='7C3AED')
+        elif i == 13:
+            c1.font = Font(bold=True, size=14, color='7C3AED')
+    ws2.column_dimensions['A'].width = 45
+    ws2.column_dimensions['B'].width = 65
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
 @app.route('/api/admin/approval-flows/export', methods=['GET'])
 def api_approval_flows_export():
-    """Exporta los flujos de aprobación como JSON descargable.
+    """Exporta los flujos de aprobación como archivo Excel (.xlsx) descargable.
+    Una fila por paso de aprobación; hoja "Instrucciones" con el formato esperado
+    para reimportar. Sirve también como plantilla (se puede editar y re-subir).
     Parámetros:
       - ids=1,2,3  -> exporta solo esos IDs (si están en scope)
       - include_inactive=1 -> incluye inactivos (default: todos)
@@ -24880,70 +24974,180 @@ def api_approval_flows_export():
         except ValueError:
             return jsonify({'success': False, 'error': 'ids inválidos'}), 400
     flows = q.order_by(ApprovalFlow.company, ApprovalFlow.area).all()
-    payload = {
-        'export_version': 1,
-        'exported_at': datetime.utcnow().isoformat() + 'Z',
-        'exported_by': session.get('username') or session.get('user_id'),
-        'total': len(flows),
-        'flows': [
-            {
-                'company': f.company,
-                'area': f.area,
-                'description': f.description or '',
-                'steps': f.steps(),
-                'ticket_assignee_email': f.ticket_assignee_email or '',
-                'is_active': bool(f.is_active),
-            }
-            for f in flows
-        ],
-    }
+    rows = _flow_export_rows(flows)
+    if not rows:
+        rows = [{
+            'company': 'pash', 'area': 'Sistemas', 'description': 'Ejemplo - reemplazá o borrá esta fila',
+            'step_order': 1, 'step_email': 'analista@empresa.com', 'step_label': 'Analista IT',
+            'ticket_assignee_email': 'analista@empresa.com', 'is_active': 'Si',
+        }]
+    buffer = _build_flows_workbook(rows)
     log_audit('approval_flows_exported', session['user_id'], 'approval_flow', None,
               f'Exportados {len(flows)} flujos (scope: {",".join(scope)})')
-    body = json.dumps(payload, ensure_ascii=False, indent=2)
-    fname = f'approval_flows_{datetime.utcnow().strftime("%Y%m%d_%H%M%S")}.json'
-    resp = make_response(body)
-    resp.headers['Content-Type'] = 'application/json; charset=utf-8'
-    resp.headers['Content-Disposition'] = f'attachment; filename="{fname}"'
-    return resp
+    fname = f'flujos_aprobacion_{datetime.utcnow().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    return send_file(buffer,
+                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                      as_attachment=True,
+                      download_name=fname)
+
+
+def _normalize_flow_header(s):
+    s = unicodedata.normalize('NFKD', str(s or '')).encode('ascii', 'ignore').decode('ascii')
+    return s.strip().lower().replace('  ', ' ').replace(' / ', ' ').replace('/', ' ').strip()
+
+
+_FLOW_HEADER_ALIASES = {
+    'company': {'empresa', 'company'},
+    'area': {'area'},
+    'description': {'descripcion', 'description'},
+    'step_order': {'orden paso', 'orden', 'paso', 'step_order', 'step order'},
+    'step_email': {'email aprobador', 'correo aprobador', 'email', 'correo'},
+    'step_label': {'rol cargo del paso', 'rol', 'cargo', 'rol cargo', 'label'},
+    'ticket_assignee_email': {'ticket asignado a', 'ticket asignado', 'correo ticket', 'ticket_assignee_email'},
+    'is_active': {'activo', 'estado', 'is_active'},
+}
+
+
+def _parse_flows_excel(file_storage, ext):
+    """Lee el archivo (.xlsx/.xls/.csv) y devuelve lista de flujos agrupados
+    por (company, area), con sus pasos en orden. Lanza ValueError con mensaje
+    legible si el formato no es reconocible."""
+    raw_rows = []
+    if ext in ('xlsx', 'xls'):
+        wb = openpyxl.load_workbook(file_storage, read_only=True, data_only=True)
+        ws = wb.active
+        header_map = None
+        for r in ws.iter_rows(values_only=True):
+            if header_map is None:
+                header_map = {}
+                for i, h in enumerate(r):
+                    norm = _normalize_flow_header(h)
+                    for field, aliases in _FLOW_HEADER_ALIASES.items():
+                        if norm in aliases:
+                            header_map[field] = i
+                            break
+                continue
+            if r is None or all(c is None or str(c).strip() == '' for c in r):
+                continue
+            raw_rows.append({
+                field: (str(r[idx]).strip() if idx < len(r) and r[idx] is not None else '')
+                for field, idx in header_map.items()
+            })
+    elif ext == 'csv':
+        import csv as _csv
+        from io import TextIOWrapper
+        wrapper = TextIOWrapper(file_storage.stream, encoding='utf-8-sig')
+        reader = _csv.reader(wrapper)
+        header_map = None
+        for r in reader:
+            if header_map is None:
+                header_map = {}
+                for i, h in enumerate(r):
+                    norm = _normalize_flow_header(h)
+                    for field, aliases in _FLOW_HEADER_ALIASES.items():
+                        if norm in aliases:
+                            header_map[field] = i
+                            break
+                continue
+            if not r or all((c or '').strip() == '' for c in r):
+                continue
+            raw_rows.append({
+                field: (r[idx].strip() if idx < len(r) else '')
+                for field, idx in header_map.items()
+            })
+    else:
+        raise ValueError('Formato no soportado. Usá .xlsx, .xls o .csv')
+
+    if not header_map or 'company' not in header_map or 'area' not in header_map:
+        raise ValueError('El archivo no tiene las columnas esperadas (Empresa, Area, ...). Descargá la plantilla con "Exportar" primero.')
+
+    groups = {}
+    order = []
+    for row in raw_rows:
+        company = (row.get('company') or '').strip().lower()
+        area = (row.get('area') or '').strip()
+        if not company or not area:
+            continue
+        key = (company, area)
+        if key not in groups:
+            groups[key] = {
+                'company': company, 'area': area,
+                'description': row.get('description') or '',
+                'ticket_assignee_email': row.get('ticket_assignee_email') or '',
+                'is_active': row.get('is_active') or 'Si',
+                'steps': [],
+            }
+            order.append(key)
+        g = groups[key]
+        # Repetir valores no vacíos por si vienen solo en la primera fila del grupo
+        if row.get('description'):
+            g['description'] = row['description']
+        if row.get('ticket_assignee_email'):
+            g['ticket_assignee_email'] = row['ticket_assignee_email']
+        if row.get('is_active'):
+            g['is_active'] = row['is_active']
+        email = (row.get('step_email') or '').strip().lower()
+        label = (row.get('step_label') or '').strip()
+        if email or label:
+            try:
+                step_order = int(float(row.get('step_order'))) if row.get('step_order') else len(g['steps']) + 1
+            except (ValueError, TypeError):
+                step_order = len(g['steps']) + 1
+            g['steps'].append({'order': step_order, 'email': email, 'label': label})
+
+    flows = []
+    for key in order:
+        g = groups[key]
+        g['steps'].sort(key=lambda s: s['order'])
+        g['steps'] = [{'email': s['email'], 'label': s['label']} for s in g['steps']]
+        active_val = (g['is_active'] or '').strip().lower()
+        g['is_active'] = active_val not in ('no', 'false', '0', 'inactivo', 'inactive')
+        flows.append(g)
+    return flows
 
 
 @app.route('/api/admin/approval-flows/import', methods=['POST'])
 def api_approval_flows_import():
-    """Importa flujos desde un JSON exportado previamente.
+    """Importa flujos desde un archivo Excel (.xlsx/.xls) o CSV.
+    Formato: una fila por paso de aprobación, agrupadas por Empresa+Area
+    (ver plantilla generada por /api/admin/approval-flows/export).
     Estrategia: upsert por (company, area). Si existe se actualiza, si no se crea.
-    Parámetros JSON:
-      - flows: [...] (obligatorio)
+    Form-data:
+      - file: archivo (obligatorio)
       - mode: 'upsert' (default) | 'skip_existing' | 'replace_all_in_scope'
-      - dry_run: true -> solo valida y reporta, no persiste
+      - dry_run: '1' -> solo valida y reporta, no persiste
     """
     if 'user_id' not in session or session.get('role') != 'admin':
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
-    data = request.get_json(silent=True) or {}
-    # Soportar payload directo o wrapper { flows: [...] }
-    raw_flows = data.get('flows')
-    if raw_flows is None and isinstance(data, list):
-        raw_flows = data
-    if not isinstance(raw_flows, list) or not raw_flows:
-        return jsonify({'success': False, 'error': 'Payload debe incluir "flows": [ ... ] con al menos un flujo'}), 400
-    mode = (data.get('mode') or 'upsert').strip().lower()
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No se recibió archivo'}), 400
+    f = request.files['file']
+    if not f or not f.filename:
+        return jsonify({'success': False, 'error': 'Archivo vacío'}), 400
+    ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else ''
+    mode = (request.form.get('mode') or 'upsert').strip().lower()
     if mode not in ('upsert', 'skip_existing', 'replace_all_in_scope'):
         return jsonify({'success': False, 'error': 'mode inválido'}), 400
-    dry_run = bool(data.get('dry_run'))
+    dry_run = request.form.get('dry_run') in ('1', 'true', 'True')
     scope = admin_companies_scope()
+
+    try:
+        raw_flows = _parse_flows_excel(f, ext)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Error leyendo archivo: {str(e)[:200]}'}), 400
+
+    if not raw_flows:
+        return jsonify({'success': False, 'error': 'El archivo no tiene filas válidas (revisá Empresa/Area)'}), 400
 
     results = {'created': 0, 'updated': 0, 'skipped': 0, 'errors': [], 'details': []}
 
     # Pre-validación de todos los flujos
     prepared = []
     for idx, item in enumerate(raw_flows, start=1):
-        if not isinstance(item, dict):
-            results['errors'].append(f'Flujo #{idx}: formato inválido')
-            continue
-        company = (item.get('company') or '').strip().lower()
-        area = (item.get('area') or '').strip()
-        if not company or not area:
-            results['errors'].append(f'Flujo #{idx}: company y area obligatorios')
-            continue
+        company = item['company']
+        area = item['area']
         if company not in scope:
             results['errors'].append(f'Flujo #{idx} ({company}/{area}): fuera de scope de tu admin')
             continue
@@ -24963,7 +25167,7 @@ def api_approval_flows_import():
             'is_active': bool(item.get('is_active', True)),
         })
 
-    if results['errors'] and not data.get('continue_on_error'):
+    if results['errors'] and not dry_run:
         return jsonify({'success': False, 'error': 'Errores de validación', 'results': results}), 400
 
     if dry_run:
