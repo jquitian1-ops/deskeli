@@ -438,7 +438,8 @@
             <a href="/admin/config" class="sidebar-item active">
                 <span><span class="icon">⚙</span>Configuración</span>
             </a>
-            <a href="/admin/approval-flows" class="sidebar-item">
+            <a href="/admin/approval-flows" class="sidebar-item"
+               onclick="if (window.top !== window.self) { window.top.switchTab(16); return false; }">
                 <span><span class="icon">🔄</span>Flujos de Aprobación</span>
             </a>
             <a href="/admin/controles" class="sidebar-item">

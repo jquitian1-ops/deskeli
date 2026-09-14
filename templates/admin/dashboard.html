@@ -647,7 +647,7 @@
                 <a class="sidebar-link" data-tab="14" onclick="switchTab(14)">
                     <span><span class="sl-icon">🔐</span>Flujos de Aprobación</span>
                 </a>
-                <a class="sidebar-link" href="/admin/approval-flows" target="_self">
+                <a class="sidebar-link" data-tab="16" onclick="switchTab(16)">
                     <span><span class="sl-icon">🔄</span>Flujos de Solicitudes (por Área)</span>
                 </a>
                 <a class="sidebar-link" href="/admin/controles" target="_self">
@@ -1944,6 +1944,11 @@
             <iframe id="iframe-time" data-src="/admin/time-tracking?embed=1" style="width:100%; height:85vh; border:none; border-radius:8px; background:white;"></iframe>
         </div>
 
+        <!-- TAB 16: FLUJOS DE SOLICITUDES POR ÁREA (iframe lazy) -->
+        <div class="tab-content">
+            <iframe id="iframe-solicitud-flows" data-src="/admin/approval-flows?embed=1" style="width:100%; height:85vh; border:none; border-radius:8px; background:white;"></iframe>
+        </div>
+
         <!-- MODAL CREAR TICKET (ADMIN) -->
         <div id="createTicketModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
             <div style="background:white;border-radius:10px;padding:24px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
@@ -3017,6 +3022,7 @@
             if (index === 13) loadIframeOnce('iframe-kb');
             if (index === 14) loadIframeOnce('iframe-approvals');
             if (index === 15) loadIframeOnce('iframe-time');
+            if (index === 16) loadIframeOnce('iframe-solicitud-flows');
         };
 
         function loadIframeOnce(id) {
