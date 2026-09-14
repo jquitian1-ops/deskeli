@@ -24861,6 +24861,163 @@ def api_approval_flows_delete(flow_id):
     return jsonify({'success': True})
 
 
+@app.route('/api/admin/approval-flows/export', methods=['GET'])
+def api_approval_flows_export():
+    """Exporta los flujos de aprobación como JSON descargable.
+    Parámetros:
+      - ids=1,2,3  -> exporta solo esos IDs (si están en scope)
+      - include_inactive=1 -> incluye inactivos (default: todos)
+    """
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    scope = admin_companies_scope()
+    q = ApprovalFlow.query.filter(ApprovalFlow.company.in_(scope))
+    ids_param = (request.args.get('ids') or '').strip()
+    if ids_param:
+        try:
+            id_list = [int(x) for x in ids_param.split(',') if x.strip()]
+            q = q.filter(ApprovalFlow.id.in_(id_list))
+        except ValueError:
+            return jsonify({'success': False, 'error': 'ids inválidos'}), 400
+    flows = q.order_by(ApprovalFlow.company, ApprovalFlow.area).all()
+    payload = {
+        'export_version': 1,
+        'exported_at': datetime.utcnow().isoformat() + 'Z',
+        'exported_by': session.get('username') or session.get('user_id'),
+        'total': len(flows),
+        'flows': [
+            {
+                'company': f.company,
+                'area': f.area,
+                'description': f.description or '',
+                'steps': f.steps(),
+                'ticket_assignee_email': f.ticket_assignee_email or '',
+                'is_active': bool(f.is_active),
+            }
+            for f in flows
+        ],
+    }
+    log_audit('approval_flows_exported', session['user_id'], 'approval_flow', None,
+              f'Exportados {len(flows)} flujos (scope: {",".join(scope)})')
+    body = json.dumps(payload, ensure_ascii=False, indent=2)
+    fname = f'approval_flows_{datetime.utcnow().strftime("%Y%m%d_%H%M%S")}.json'
+    resp = make_response(body)
+    resp.headers['Content-Type'] = 'application/json; charset=utf-8'
+    resp.headers['Content-Disposition'] = f'attachment; filename="{fname}"'
+    return resp
+
+
+@app.route('/api/admin/approval-flows/import', methods=['POST'])
+def api_approval_flows_import():
+    """Importa flujos desde un JSON exportado previamente.
+    Estrategia: upsert por (company, area). Si existe se actualiza, si no se crea.
+    Parámetros JSON:
+      - flows: [...] (obligatorio)
+      - mode: 'upsert' (default) | 'skip_existing' | 'replace_all_in_scope'
+      - dry_run: true -> solo valida y reporta, no persiste
+    """
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    data = request.get_json(silent=True) or {}
+    # Soportar payload directo o wrapper { flows: [...] }
+    raw_flows = data.get('flows')
+    if raw_flows is None and isinstance(data, list):
+        raw_flows = data
+    if not isinstance(raw_flows, list) or not raw_flows:
+        return jsonify({'success': False, 'error': 'Payload debe incluir "flows": [ ... ] con al menos un flujo'}), 400
+    mode = (data.get('mode') or 'upsert').strip().lower()
+    if mode not in ('upsert', 'skip_existing', 'replace_all_in_scope'):
+        return jsonify({'success': False, 'error': 'mode inválido'}), 400
+    dry_run = bool(data.get('dry_run'))
+    scope = admin_companies_scope()
+
+    results = {'created': 0, 'updated': 0, 'skipped': 0, 'errors': [], 'details': []}
+
+    # Pre-validación de todos los flujos
+    prepared = []
+    for idx, item in enumerate(raw_flows, start=1):
+        if not isinstance(item, dict):
+            results['errors'].append(f'Flujo #{idx}: formato inválido')
+            continue
+        company = (item.get('company') or '').strip().lower()
+        area = (item.get('area') or '').strip()
+        if not company or not area:
+            results['errors'].append(f'Flujo #{idx}: company y area obligatorios')
+            continue
+        if company not in scope:
+            results['errors'].append(f'Flujo #{idx} ({company}/{area}): fuera de scope de tu admin')
+            continue
+        steps, ticket_email, err = _validate_flow_payload({
+            'steps': item.get('steps') or [],
+            'ticket_assignee_email': item.get('ticket_assignee_email') or '',
+        })
+        if err:
+            results['errors'].append(f'Flujo #{idx} ({company}/{area}): {err}')
+            continue
+        prepared.append({
+            'company': company,
+            'area': area[:120],
+            'description': (item.get('description') or '').strip()[:300] or None,
+            'steps': steps,
+            'ticket_assignee_email': ticket_email or None,
+            'is_active': bool(item.get('is_active', True)),
+        })
+
+    if results['errors'] and not data.get('continue_on_error'):
+        return jsonify({'success': False, 'error': 'Errores de validación', 'results': results}), 400
+
+    if dry_run:
+        # Simular acciones sin persistir
+        for f in prepared:
+            existing = ApprovalFlow.query.filter_by(company=f['company'], area=f['area']).first()
+            if existing:
+                if mode == 'skip_existing':
+                    results['skipped'] += 1
+                    results['details'].append(f"{f['company']}/{f['area']}: existe, se omitiría")
+                else:
+                    results['updated'] += 1
+                    results['details'].append(f"{f['company']}/{f['area']}: existe, se actualizaría")
+            else:
+                results['created'] += 1
+                results['details'].append(f"{f['company']}/{f['area']}: se crearía")
+        return jsonify({'success': True, 'dry_run': True, 'results': results})
+
+    # Modo replace_all_in_scope: primero borrar todos los flujos del scope
+    if mode == 'replace_all_in_scope':
+        to_delete = ApprovalFlow.query.filter(ApprovalFlow.company.in_(scope)).all()
+        for f in to_delete:
+            db.session.delete(f)
+        db.session.flush()
+
+    for f in prepared:
+        existing = ApprovalFlow.query.filter_by(company=f['company'], area=f['area']).first()
+        if existing:
+            if mode == 'skip_existing':
+                results['skipped'] += 1
+                continue
+            existing.description = f['description']
+            existing.steps_json = json.dumps(f['steps'], ensure_ascii=False)
+            existing.ticket_assignee_email = f['ticket_assignee_email']
+            existing.is_active = f['is_active']
+            results['updated'] += 1
+        else:
+            new_f = ApprovalFlow(
+                company=f['company'],
+                area=f['area'],
+                description=f['description'],
+                steps_json=json.dumps(f['steps'], ensure_ascii=False),
+                ticket_assignee_email=f['ticket_assignee_email'],
+                is_active=f['is_active'],
+            )
+            db.session.add(new_f)
+            results['created'] += 1
+
+    db.session.commit()
+    log_audit('approval_flows_imported', session['user_id'], 'approval_flow', None,
+              f"Import mode={mode}: {results['created']} creados, {results['updated']} actualizados, {results['skipped']} omitidos")
+    return jsonify({'success': True, 'results': results})
+
+
 @app.route('/api/approval-flows/areas', methods=['GET'])
 def api_approval_flows_areas():
     """Endpoint público (para el form de solicitud): devuelve las áreas con

@@ -73,7 +73,12 @@
                         <input type="checkbox" id="includeInactive" onchange="loadFlows()"> Ver inactivos
                     </label>
                 </div>
-                <button class="btn btn-primary" onclick="openModal()">+ Nuevo flujo</button>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-secondary" onclick="exportFlows()">⬇ Exportar</button>
+                    <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">⬆ Importar</button>
+                    <input type="file" id="importFile" accept="application/json,.json" style="display:none;" onchange="handleImportFile(this)">
+                    <button class="btn btn-primary" onclick="openModal()">+ Nuevo flujo</button>
+                </div>
             </div>
 
             <div id="tableContainer">
@@ -134,10 +139,32 @@
         </div>
     </div>
 
+    <div class="modal-bg" id="importModal">
+        <div class="modal">
+            <h3>⬆ Importar flujos</h3>
+            <div id="importSummary" style="font-size:13px; color:#374151; margin-bottom:14px;"></div>
+            <div class="form-group">
+                <label>Modo de importación</label>
+                <select id="import-mode">
+                    <option value="upsert">Actualizar existentes + crear nuevos (upsert)</option>
+                    <option value="skip_existing">Omitir los que ya existen (solo crear nuevos)</option>
+                    <option value="replace_all_in_scope">Reemplazar TODOS los flujos de tu(s) empresa(s)</option>
+                </select>
+            </div>
+            <div id="importErrors" style="color:#991b1b; font-size:12px; margin-bottom:10px;"></div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+                <button class="btn btn-secondary" onclick="closeImportModal()">Cancelar</button>
+                <button class="btn btn-secondary" onclick="runImport(true)">👁 Vista previa (dry-run)</button>
+                <button class="btn btn-primary" onclick="runImport(false)">💾 Importar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
     let _flows = [];
     let _editingId = null;
     let _currentSteps = [];
+    let _importPayload = null;
 
     function esc(s) { return s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function toast(msg, ok=true) {
@@ -171,7 +198,10 @@
         }
         let html = `<table>
             <thead>
-                <tr><th>Empresa</th><th>Área</th><th>Descripción</th><th>Pasos (orden)</th><th>Ticket asignado a</th><th>Estado</th><th>Acciones</th></tr>
+                <tr>
+                    <th style="width:28px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th>
+                    <th>Empresa</th><th>Área</th><th>Descripción</th><th>Pasos (orden)</th><th>Ticket asignado a</th><th>Estado</th><th>Acciones</th>
+                </tr>
             </thead>
             <tbody>`;
         _flows.forEach(f => {
@@ -179,6 +209,7 @@
                 `<span class="step-chip" title="${esc(s.email)}">${i+1}. ${esc(s.label)}</span>`
             ).join('');
             html += `<tr>
+                <td><input type="checkbox" class="flow-check" value="${f.id}"></td>
                 <td><strong>${esc(f.company)}</strong></td>
                 <td><strong>${esc(f.area)}</strong></td>
                 <td style="color:#6b7280; font-size:12px; max-width:220px;">${esc(f.description || '—')}</td>
@@ -193,6 +224,14 @@
         });
         html += '</tbody></table>';
         document.getElementById('tableContainer').innerHTML = html;
+    }
+
+    function toggleSelectAll(cb) {
+        document.querySelectorAll('.flow-check').forEach(c => c.checked = cb.checked);
+    }
+
+    function getSelectedIds() {
+        return Array.from(document.querySelectorAll('.flow-check:checked')).map(c => c.value);
     }
 
     function openModal(editing=null) {
@@ -314,6 +353,85 @@
             if (!data.success) throw new Error(data.error);
             toast('✓ Eliminado', true);
             await loadFlows();
+        } catch (e) {
+            toast('❌ ' + e.message, false);
+        }
+    }
+
+    function exportFlows() {
+        const ids = getSelectedIds();
+        const inc = document.getElementById('includeInactive').checked ? '1' : '';
+        let url = '/api/admin/approval-flows/export';
+        const params = [];
+        if (ids.length > 0) params.push('ids=' + ids.join(','));
+        if (inc) params.push('include_inactive=1');
+        if (params.length) url += '?' + params.join('&');
+        window.location.href = url;
+    }
+
+    function handleImportFile(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const parsed = JSON.parse(e.target.result);
+                const flows = Array.isArray(parsed) ? parsed : (parsed.flows || []);
+                if (!Array.isArray(flows) || flows.length === 0) {
+                    toast('❌ El archivo no contiene flujos válidos', false);
+                    return;
+                }
+                _importPayload = flows;
+                document.getElementById('importSummary').textContent =
+                    `Archivo "${file.name}" con ${flows.length} flujo(s) detectado(s). Elegí el modo y previsualizá antes de importar.`;
+                document.getElementById('importErrors').innerHTML = '';
+                document.getElementById('importModal').style.display = 'flex';
+            } catch (err) {
+                toast('❌ JSON inválido: ' + err.message, false);
+            } finally {
+                input.value = '';
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function closeImportModal() {
+        document.getElementById('importModal').style.display = 'none';
+        _importPayload = null;
+    }
+
+    async function runImport(dryRun) {
+        if (!_importPayload) return;
+        const mode = document.getElementById('import-mode').value;
+        if (!dryRun && mode === 'replace_all_in_scope') {
+            if (!confirm('⚠ Esto BORRARÁ todos los flujos existentes de tu(s) empresa(s) y los reemplazará por los del archivo. ¿Continuar?')) return;
+        }
+        try {
+            const r = await fetch('/api/admin/approval-flows/import', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({flows: _importPayload, mode: mode, dry_run: dryRun, continue_on_error: true})
+            });
+            const data = await r.json();
+            if (!data.success) {
+                document.getElementById('importErrors').innerHTML =
+                    '❌ ' + esc(data.error || 'Error') +
+                    (data.results && data.results.errors ? '<br>' + data.results.errors.map(esc).join('<br>') : '');
+                return;
+            }
+            const res = data.results;
+            const errHtml = (res.errors && res.errors.length)
+                ? '<div style="color:#991b1b; margin-top:8px;">' + res.errors.map(esc).join('<br>') + '</div>' : '';
+            if (dryRun) {
+                document.getElementById('importErrors').innerHTML =
+                    `<div style="color:#065f46; background:#d1fae5; padding:8px 10px; border-radius:6px;">
+                        Vista previa: ${res.created} se crearían, ${res.updated} se actualizarían, ${res.skipped} se omitirían.
+                    </div>${errHtml}`;
+            } else {
+                toast(`✓ Importado: ${res.created} creados, ${res.updated} actualizados, ${res.skipped} omitidos`, true);
+                closeImportModal();
+                await loadFlows();
+            }
         } catch (e) {
             toast('❌ ' + e.message, false);
         }
