@@ -1279,10 +1279,11 @@ SOLICITUD_DEVUELTO_A_PENDIENTE = {
 
 # Aprobar → siguiente estado pendiente (o final si es el último)
 SOLICITUD_APROBAR_SIGUIENTE = {
-    # Flujo oficial (diagrama del negocio):
-    # Jefe Inmediato → Analista IT → Gerente Solicitante (Área) → Gerente TI → Aprobado
+    # Flujo tradicional vigente (paso de Gerente de Área eliminado):
+    # Jefe Inmediato (manual) → Analista IT → Gerente TI → Aprobado.
     SOLICITUD_ESTADO_PENDIENTE_JEFE: SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI,
-    SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI: SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA,
+    SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI: SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI,
+    # Se mantiene solo para solicitudes viejas que ya estén en este estado.
     SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA: SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI,
     SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI: SOLICITUD_ESTADO_APROBADO_GERENTE_TI,
 }
@@ -1385,7 +1386,16 @@ class SolicitudUsuario(db.Model):
     # Aprobadores legacy (sistema hardcodeado de 4 pasos). Ahora son nullables
     # porque cuando se usa el nuevo ApprovalFlow dinámico, los aprobadores
     # vienen de flow_steps_json en vez de estos campos.
+    # Jefe Inmediato: en el modo legacy se ingresa MANUALMENTE (nombre+correo,
+    # no se elige de un catálogo). jefe_inmediato_id se resuelve best-effort
+    # si el correo matchea un User activo (para que pueda decidir desde el
+    # panel); el correo/nombre son la fuente de verdad y siempre se guardan.
     jefe_inmediato_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
+    jefe_inmediato_nombre = db.Column(db.String(200))
+    jefe_inmediato_email = db.Column(db.String(200))
+    # gerente_area_id: se mantiene solo para solicitudes viejas en curso; el
+    # paso de Gerente de Área ya no se pide en el flujo tradicional (se
+    # eliminó del formulario) y las solicitudes nuevas no lo completan.
     gerente_area_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
     analista_ti_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
     gerente_ti_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
@@ -1467,7 +1477,9 @@ class SolicitudUsuario(db.Model):
         - Devuelto: solo el creador puede reenviar.
         - Flujo dinámico: cualquiera cuyo email esté en la lista de
           aprobadores del paso actual (multi-aprobador, lógica OR).
-        - Flujo legacy: el User mapeado 1:1 al nivel actual.
+        - Flujo legacy, nivel jefe_inmediato: el correo ingresado manualmente
+          es la fuente de verdad (puede no tener User asociado).
+        - Flujo legacy, otros niveles: el User mapeado 1:1 al nivel actual.
         """
         if not user:
             return False
@@ -1476,6 +1488,10 @@ class SolicitudUsuario(db.Model):
         if self.uses_dynamic_flow():
             emails = self.current_flow_step_emails()
             return bool(emails) and (user.email or '').strip().lower() in emails
+        nivel = SOLICITUD_NIVEL_POR_ESTADO.get(self.estado)
+        if nivel == 'jefe_inmediato' and self.jefe_inmediato_email:
+            if (user.email or '').strip().lower() == self.jefe_inmediato_email.strip().lower():
+                return True
         return user.id == self.responsable_actual_id()
 
     def responsable_actual_id(self):
@@ -1517,6 +1533,9 @@ class SolicitudUsuario(db.Model):
             emails = self.current_flow_step_emails()
             if emails:
                 return emails[0]
+        nivel = SOLICITUD_NIVEL_POR_ESTADO.get(self.estado)
+        if nivel == 'jefe_inmediato' and self.jefe_inmediato_email:
+            return self.jefe_inmediato_email.strip().lower()
         # Legacy: resolver del User
         uid = self.responsable_actual_id()
         if not uid:
@@ -1739,6 +1758,11 @@ def solicitud_can_view(user, solicitud):
         return True
     if user.id in (solicitud.jefe_inmediato_id, solicitud.gerente_area_id,
                    solicitud.analista_ti_id, solicitud.gerente_ti_id):
+        return True
+    # Jefe Inmediato manual: el correo puede no tener User asociado al
+    # crearse la solicitud; si luego el usuario se creó con ese correo,
+    # igual debe poder ver la solicitud.
+    if solicitud.jefe_inmediato_email and (user.email or '').strip().lower() == solicitud.jefe_inmediato_email.strip().lower():
         return True
     return False
 
@@ -11198,6 +11222,31 @@ def migrate_solicitudes_flow_dinamico():
         print(f"[migrate_solicitudes_flow] index approval_flow_id: {e}")
 
 
+def migrate_solicitudes_jefe_manual():
+    """Agrega jefe_inmediato_nombre + jefe_inmediato_email a solicitudes_usuarios.
+    El flujo tradicional ahora pide el Jefe Inmediato manualmente (nombre y
+    correo) en vez de elegirlo de un catálogo; el correo es la fuente de
+    verdad para notificar/autorizar aunque no exista un User con ese email."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'solicitudes_usuarios' not in inspector.get_table_names():
+        return
+    existing_cols = {c['name'] for c in inspector.get_columns('solicitudes_usuarios')}
+    additions = [
+        ('jefe_inmediato_nombre', 'VARCHAR(200)'),
+        ('jefe_inmediato_email', 'VARCHAR(200)'),
+    ]
+    for col_name, col_type in additions:
+        if col_name in existing_cols:
+            continue
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE solicitudes_usuarios ADD COLUMN {col_name} {col_type}"))
+            print(f"[migrate_jefe_manual] Columna {col_name} agregada")
+        except Exception as e:
+            print(f"[migrate_jefe_manual] error agregando {col_name}: {e}")
+
+
 def migrate_messages_schema():
     """Agrega subtask_id a la tabla messages si no existe."""
     from sqlalchemy import inspect, text
@@ -11847,6 +11896,11 @@ def init_db():
             migrate_solicitudes_approval_tokens_email()
         except Exception as _e:
             print(f"[migrate] solicitudes_approval_tokens_email: {_e}")
+        # Jefe Inmediato manual (nombre+correo) en el flujo tradicional
+        try:
+            migrate_solicitudes_jefe_manual()
+        except Exception as _e:
+            print(f"[migrate] solicitudes_jefe_manual: {_e}")
         try:
             migrate_report_recipients_team()
         except Exception as _e:
@@ -23231,7 +23285,12 @@ def _serialize_solicitud_detail(s, viewer=None):
         'ubicacion': s.ubicacion,
         'centro_costo': s.centro_costo,
         'tipo_contrato': s.tipo_contrato,
+        # jefe_inmediato: si matcheó un User existente viaja como objeto (_u);
+        # siempre se incluyen además nombre/correo tal como se ingresaron
+        # manualmente (fuente de verdad, puede no tener User asociado).
         'jefe_inmediato': _u(s.jefe_inmediato),
+        'jefe_inmediato_nombre': s.jefe_inmediato_nombre,
+        'jefe_inmediato_email': s.jefe_inmediato_email,
         'gerente_area': _u(s.gerente_area),
         'analista_ti': _u(s.analista_ti),
         'gerente_ti': _u(s.gerente_ti),
@@ -23448,7 +23507,8 @@ def api_solicitudes_create():
     approval_flow = _resolve_approval_flow_for_solicitud(user.company, flow_area) if flow_area else None
 
     # Variables que se rellenan según el modo
-    jefe = gerente = analista_ti = gerente_ti = None
+    jefe = analista_ti = gerente_ti = None
+    jefe_nombre = jefe_email = None
     flow_steps_snapshot = None
     flow_ticket_email = None
 
@@ -23460,20 +23520,27 @@ def api_solicitudes_create():
         flow_ticket_email = approval_flow.ticket_assignee_email or None
         # Los campos legacy quedan en NULL — el modelo lo permite ahora
     else:
-        # Modo legacy: se exigen los 2 dropdowns del form + resolución automática TI
-        required_legacy = ['jefe_inmediato_id', 'gerente_area_id']
-        for f in required_legacy:
-            if not data.get(f):
-                return jsonify({
-                    'success': False,
-                    'error': f'Sin flujo configurado para el área. Campo obligatorio faltante: {f}'
-                }), 400
-        jefe = User.query.get(data['jefe_inmediato_id'])
-        gerente = User.query.get(data['gerente_area_id'])
-        if not jefe or jefe.company != user.company:
-            return jsonify({'success': False, 'error': 'Jefe Inmediato inválido'}), 400
-        if not gerente or gerente.company != user.company:
-            return jsonify({'success': False, 'error': 'Gerente de Área inválido'}), 400
+        # Modo legacy: Jefe Inmediato se ingresa MANUALMENTE (nombre + correo,
+        # ya no se elige de un catálogo). El paso de Gerente de Área fue
+        # eliminado del flujo tradicional. Los aprobadores TI se resuelven
+        # automáticamente.
+        jefe_nombre = (data.get('jefe_inmediato_nombre') or '').strip()
+        jefe_email = (data.get('jefe_inmediato_email') or '').strip().lower()
+        if not jefe_nombre or not jefe_email:
+            return jsonify({
+                'success': False,
+                'error': 'Sin flujo configurado para el área. Jefe Inmediato (nombre y correo) es obligatorio'
+            }), 400
+        if '@' not in jefe_email:
+            return jsonify({'success': False, 'error': 'Correo del Jefe Inmediato inválido'}), 400
+        # Resolución best-effort: si el correo matchea un User activo de la
+        # empresa, se linkea el FK (para que pueda decidir desde el panel);
+        # si no existe, la solicitud sigue funcionando por correo igual.
+        jefe = User.query.filter(
+            db.func.lower(User.email) == jefe_email,
+            User.company == user.company,
+            User.is_active == True,
+        ).first()
         analista_ti = _resolve_ti_approver(user.company, 'analista_ti')
         gerente_ti = _resolve_ti_approver(user.company, 'gerente_ti')
         if not analista_ti or not gerente_ti:
@@ -23516,9 +23583,12 @@ def api_solicitudes_create():
         ubicacion=(data.get('ubicacion') or '').strip() or None,
         centro_costo=(data.get('centro_costo') or '').strip() or None,
         tipo_contrato=(data.get('tipo_contrato') or '').strip() or None,
-        # Legacy approvers (solo se setean si NO hay flujo dinámico)
+        # Legacy approvers (solo se setean si NO hay flujo dinámico). Jefe
+        # Inmediato: nombre/correo manuales son la fuente de verdad; el FK
+        # queda seteado solo si matcheó un User existente (best-effort).
         jefe_inmediato_id=(jefe.id if jefe else None),
-        gerente_area_id=(gerente.id if gerente else None),
+        jefe_inmediato_nombre=jefe_nombre,
+        jefe_inmediato_email=jefe_email,
         analista_ti_id=(analista_ti.id if analista_ti else None),
         gerente_ti_id=(gerente_ti.id if gerente_ti else None),
         # Flujo dinámico (snapshot)
@@ -23666,7 +23736,8 @@ def api_solicitudes_list():
             (SolicitudUsuario.jefe_inmediato_id == user.id) |
             (SolicitudUsuario.gerente_area_id == user.id) |
             (SolicitudUsuario.analista_ti_id == user.id) |
-            (SolicitudUsuario.gerente_ti_id == user.id)
+            (SolicitudUsuario.gerente_ti_id == user.id) |
+            (db.func.lower(SolicitudUsuario.jefe_inmediato_email) == (user.email or '').strip().lower())
         )
     else:
         # Admin: por defecto su empresa; si visualiza_todo, todas las de su scope
@@ -25625,7 +25696,15 @@ def _send_solicitud_approval_email(solicitud, token, approver_user=None):
         to_email = (token.approver_email or '').strip()
         if not to_email or not solicitud:
             return False
-        display_name = approver_user.name if approver_user else to_email
+        jefe_manual_match = (
+            not approver_user
+            and solicitud.jefe_inmediato_nombre
+            and solicitud.jefe_inmediato_email
+            and solicitud.jefe_inmediato_email.strip().lower() == to_email.lower()
+        )
+        display_name = approver_user.name if approver_user else (
+            solicitud.jefe_inmediato_nombre if jefe_manual_match else to_email
+        )
         # Preferir get_public_base_url() cuando esté configurado (para links en
         # correo que apunten al dominio público, no al host interno).
         try:
@@ -25754,12 +25833,24 @@ def _notify_next_approver(solicitud):
                 ).first()
                 recipients.append((email, u))
         else:
-            uid = solicitud.responsable_actual_id()
-            if uid:
-                approver_user = User.query.get(uid)
-                if approver_user:
-                    approver_label = _role_label_for_solicitud_state(solicitud.estado)
-                    recipients.append((approver_user.email, approver_user))
+            nivel = SOLICITUD_NIVEL_POR_ESTADO.get(solicitud.estado)
+            approver_label = _role_label_for_solicitud_state(solicitud.estado)
+            if nivel == 'jefe_inmediato' and solicitud.jefe_inmediato_email:
+                # Jefe Inmediato manual: el correo es la fuente de verdad,
+                # se envía aunque no exista un User activo con ese email.
+                email = solicitud.jefe_inmediato_email.strip().lower()
+                u = User.query.filter(
+                    db.func.lower(User.email) == email,
+                    User.company == solicitud.company,
+                    User.is_active == True,
+                ).first()
+                recipients.append((email, u))
+            else:
+                uid = solicitud.responsable_actual_id()
+                if uid:
+                    approver_user = User.query.get(uid)
+                    if approver_user:
+                        recipients.append((approver_user.email, approver_user))
 
         if not recipients:
             print(f'[notify] solicitud {solicitud.codigo}: sin email de aprobador')

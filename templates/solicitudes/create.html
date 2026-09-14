@@ -109,7 +109,7 @@
                     </div>
                     <div class="field">
                         <label>Área</label>
-                        <input type="text" id="centro_costo" readonly placeholder="Se completa automáticamente al elegir el Jefe Inmediato" style="background:#f9fafb;">
+                        <input type="text" id="centro_costo" placeholder="Ej: Sistemas, Contabilidad">
                     </div>
                     <div class="field">
                         <label>Tipo de contrato</label>
@@ -182,20 +182,16 @@
                 <!-- Aprobadores legacy (solo visibles si NO hay flujo configurado) -->
                 <div id="legacyApprovers" style="display:none;">
                     <div class="callout">
-                        Esta área <strong>no tiene flujo configurado</strong>. Usá el modo tradicional: elegí Jefe Inmediato y Gerencia/Área del catálogo Inf. Aprobadores. Los aprobadores TI (Analista y Gerente TI) se asignan automáticamente.
+                        Esta área <strong>no tiene flujo configurado</strong>. Usá el modo tradicional: ingresá manualmente el Jefe Inmediato (nombre y correo). Los aprobadores TI (Analista y Gerente TI) se asignan automáticamente.
                     </div>
                     <div class="grid-2">
                         <div class="field">
                             <label>Jefe Inmediato <span class="req">*</span></label>
-                            <select id="jefe_inmediato_id" onchange="onJefeChange()">
-                                <option value="">⏳ Cargando…</option>
-                            </select>
+                            <input type="text" id="jefe_inmediato_nombre" placeholder="Nombre completo del jefe">
                         </div>
                         <div class="field">
-                            <label>Gerencia/Área <span class="req">*</span></label>
-                            <select id="gerente_area_id">
-                                <option value="">⏳ Cargando…</option>
-                            </select>
+                            <label>Correo del Jefe Inmediato <span class="req">*</span></label>
+                            <input type="email" id="jefe_inmediato_email" placeholder="correo@empresa.com">
                         </div>
                     </div>
                 </div>
@@ -283,7 +279,6 @@
     };
 
     let _controles = [];
-    let _usuarios = [];
 
     function esc(s) { return s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -312,48 +307,6 @@
         document.getElementById('fldReemplazo').classList.toggle('cond-hidden', v !== 'true');
     }
 
-    // Al elegir Jefe Inmediato:
-    //   1) Autocompletar el campo "Área" con el area del catálogo Inf. Aprobadores.
-    //   2) Filtrar el select "Gerencia/Área" para mostrar solo los aprobadores
-    //      cuya area coincida con la del jefe seleccionado.
-    function onJefeChange() {
-        const sel = document.getElementById('jefe_inmediato_id');
-        const uid = parseInt(sel.value) || 0;
-        const areaInput = document.getElementById('centro_costo');
-        const gerSel = document.getElementById('gerente_area_id');
-
-        if (!uid || !_usuarios || _usuarios.length === 0) {
-            if (areaInput) areaInput.value = '';
-            if (gerSel) gerSel.innerHTML = '<option value="">— Primero elegí un Jefe Inmediato —</option>';
-            return;
-        }
-
-        // _usuarios viene del endpoint /api/inf-aprobadores-para-solicitud
-        // y contiene area/centro_costos para cada aprobador (matcheado por user_id).
-        const aprob = _usuarios.find(a => a.user_id === uid);
-        const areaJefe = aprob ? (aprob.area || '') : '';
-
-        if (areaInput) areaInput.value = areaJefe;
-
-        // Filtrar Gerencia/Área por la misma area del jefe (case-insensitive)
-        if (gerSel) {
-            const normAreaJefe = areaJefe.trim().toLowerCase();
-            const filtrados = _usuarios.filter(a =>
-                (a.area || '').trim().toLowerCase() === normAreaJefe
-            );
-            if (filtrados.length === 0) {
-                gerSel.innerHTML = `<option value="">⚠ Sin Gerencia/Área configurada para "${esc(areaJefe)}"</option>`;
-                return;
-            }
-            const opts = filtrados.map(a => {
-                if (a.user_id) {
-                    return `<option value="${a.user_id}" title="${esc(a.correo)}">${esc(a.label)}</option>`;
-                }
-                return `<option value="" disabled title="${esc(a.correo)} no matchea con un usuario activo del sistema">${esc(a.label)} — ⚠ sin usuario</option>`;
-            }).join('');
-            gerSel.innerHTML = `<option value="">— Seleccionar Gerencia/Área (${esc(areaJefe)}) —</option>` + opts;
-        }
-    }
 
     async function loadCatalogo() {
         try {
@@ -418,41 +371,6 @@
         });
     }
 
-    async function loadUsuarios() {
-        // Pobla el select de Jefe Inmediato desde el catálogo Inf. Aprobadores.
-        // El select de Gerencia/Área se rellena en onJefeChange() según el area
-        // del jefe elegido (para que solo aparezcan aprobadores de la misma area).
-        try {
-            const r = await fetch('/api/inf-aprobadores-para-solicitud');
-            const data = await r.json();
-            if (!data.success) throw new Error(data.error || 'error');
-            _usuarios = data.aprobadores || [];
-
-            const jefeSel = document.getElementById('jefe_inmediato_id');
-            const gerSel = document.getElementById('gerente_area_id');
-
-            if (_usuarios.length === 0) {
-                jefeSel.innerHTML = `<option value="">— Sin aprobadores configurados. Contactá al admin. —</option>`;
-                gerSel.innerHTML = `<option value="">— Sin aprobadores configurados —</option>`;
-                return;
-            }
-
-            const opts = _usuarios.map(a => {
-                if (a.user_id) {
-                    return `<option value="${a.user_id}" title="${esc(a.correo)}">${esc(a.label)}</option>`;
-                }
-                return `<option value="" disabled title="${esc(a.correo)} no matchea con un usuario activo del sistema">${esc(a.label)} — ⚠ sin usuario</option>`;
-            }).join('');
-            jefeSel.innerHTML = `<option value="">— Seleccionar Jefe Inmediato —</option>` + opts;
-
-            // Gerencia/Área queda vacío hasta que se elija Jefe
-            gerSel.innerHTML = `<option value="">— Primero elegí un Jefe Inmediato —</option>`;
-        } catch (e) {
-            document.getElementById('jefe_inmediato_id').innerHTML = `<option value="">❌ ${esc(e.message)}</option>`;
-            document.getElementById('gerente_area_id').innerHTML = `<option value="">❌ ${esc(e.message)}</option>`;
-        }
-    }
-
     async function submitSolicitud(evt) {
         evt.preventDefault();
         const btn = document.getElementById('btnSubmit');
@@ -482,8 +400,8 @@
         const tipo = document.getElementById('tipo_solicitud').value;
         const flowAreaVal = document.getElementById('flow_area').value;
         const useDynamicFlow = flowAreaVal && flowAreaVal !== '__none__';
-        const jefeEl = document.getElementById('jefe_inmediato_id');
-        const gerEl = document.getElementById('gerente_area_id');
+        const jefeNombreEl = document.getElementById('jefe_inmediato_nombre');
+        const jefeEmailEl = document.getElementById('jefe_inmediato_email');
         const payload = {
             tipo_solicitud: tipo,
             unidad_negocio: document.getElementById('unidad_negocio').value.trim(),
@@ -496,9 +414,9 @@
             tipo_contrato: document.getElementById('tipo_contrato').value,
             // Modo dinámico: flow_area activa el flujo configurado del área
             flow_area: useDynamicFlow ? flowAreaVal : null,
-            // Legacy: solo si no hay flujo dinámico
-            jefe_inmediato_id: useDynamicFlow ? null : (parseInt(jefeEl?.value) || null),
-            gerente_area_id: useDynamicFlow ? null : (parseInt(gerEl?.value) || null),
+            // Legacy: Jefe Inmediato manual (nombre+correo), solo si no hay flujo dinámico
+            jefe_inmediato_nombre: useDynamicFlow ? null : (jefeNombreEl?.value.trim() || null),
+            jefe_inmediato_email: useDynamicFlow ? null : (jefeEmailEl?.value.trim().toLowerCase() || null),
             justificacion: document.getElementById('justificacion').value.trim(),
             caso_externo: document.getElementById('caso_externo').value.trim(),
             controles: controles,
@@ -736,8 +654,8 @@
         const val = document.getElementById('flow_area').value;
         const preview = document.getElementById('flowPreview');
         const legacy = document.getElementById('legacyApprovers');
-        const jefeSel = document.getElementById('jefe_inmediato_id');
-        const gerSel = document.getElementById('gerente_area_id');
+        const jefeNombre = document.getElementById('jefe_inmediato_nombre');
+        const jefeEmail = document.getElementById('jefe_inmediato_email');
 
         if (val && val !== '__none__') {
             // Modo dinámico: mostrar preview, ocultar legacy
@@ -752,20 +670,19 @@
                 ).join('');
             }
             legacy.style.display = 'none';
-            // Los selects legacy quedan opcionales (no required)
-            if (jefeSel) jefeSel.required = false;
-            if (gerSel) gerSel.required = false;
+            // Los campos manuales legacy quedan opcionales (no required)
+            if (jefeNombre) jefeNombre.required = false;
+            if (jefeEmail) jefeEmail.required = false;
         } else {
-            // Modo legacy: mostrar selects manuales, ocultar preview
+            // Modo legacy: mostrar campos manuales, ocultar preview
             preview.style.display = 'none';
             legacy.style.display = 'block';
-            if (jefeSel) jefeSel.required = true;
-            if (gerSel) gerSel.required = true;
+            if (jefeNombre) jefeNombre.required = true;
+            if (jefeEmail) jefeEmail.required = true;
         }
     }
 
     loadCatalogo();
-    loadUsuarios();
     loadEmpresas();
     loadFlowAreas();
     </script>
