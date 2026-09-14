@@ -43,6 +43,16 @@
         .auto-refresh { font-size: 11px; color: #9ca3af; }
     </style>
     <script src="/static/js/polling.js"></script>
+    <script>
+        if (window.self !== window.top) {
+            document.documentElement.classList.add('embed-mode');
+        }
+    </script>
+    <style>
+        html.embed-mode .header .back { display: none; }
+        html.embed-mode .container { padding-top: 12px; }
+        html.embed-mode body { background: transparent; }
+    </style>
 </head>
 <body>
 <div class="container">
