@@ -225,6 +225,7 @@
     .badge-open { background: #dbeafe; color: #1e40af; }
     .badge-prog { background: #fef3c7; color: #92400e; }
     .badge-resolved { background: #d1fae5; color: #065f46; }
+    .badge-warn { background: #ffedd5; color: #9a3412; }
 
     /* QUIZ */
     .quiz-q {
@@ -325,6 +326,7 @@
         <a href="#crear" onclick="showSection('crear')">➕ Crear un ticket</a>
         <a href="#prioridad" onclick="showSection('prioridad')">🎯 Elegir prioridad</a>
         <a href="#adjuntos" onclick="showSection('adjuntos')">📎 Adjuntar archivos</a>
+        <a href="#aprobaciones" onclick="showSection('aprobaciones')">🔐 Casos que necesitan aprobación</a>
 
         <h3>Eli (Asistente IA)</h3>
         <a href="#bot" onclick="showSection('bot')">🤖 Chatear con Eli</a>
@@ -678,7 +680,65 @@
 
             <div class="nav-arrows">
                 <button onclick="showSection('prioridad')">← Prioridad</button>
-                <button onclick="showSection('bot')">Siguiente → 🤖 Eli (IA)</button>
+                <button onclick="showSection('aprobaciones')">Siguiente → 🔐 Casos con aprobación</button>
+            </div>
+        </section>
+
+        <!-- CASOS QUE NECESITAN APROBACIÓN -->
+        <section id="aprobaciones">
+            <h2>🔐 Casos que Necesitan Aprobación</h2>
+            <p class="lead">Algunos tickets no van directo a la cola de técnicos: primero necesitan el visto bueno de uno o más responsables. Acá te explicamos cómo funciona desde tu lado.</p>
+
+            <h3>¿Cuándo pasa esto?</h3>
+            <p>El admin configura de antemano qué <strong>categorías o plantillas</strong> requieren aprobación — normalmente casos con impacto en seguridad, costos o accesos sensibles. Ejemplos típicos:</p>
+            <ul style="margin: 6px 0 6px 22px;">
+                <li>Solicitudes de acceso a SAP</li>
+                <li>Compras o gastos elevados</li>
+                <li>Creación, modificación o traslado de usuarios (accesos, permisos, elementos tecnológicos)</li>
+                <li>Cambios de nivel de permiso</li>
+            </ul>
+
+            <div class="card tip">
+                <div class="card-title">💡 No hacés nada distinto para crearlo</div>
+                <p>Completás el formulario exactamente igual que un ticket normal (categoría, plantilla si aplica, título, descripción). El sistema detecta solo si esa combinación necesita aprobación — no hay un botón especial para "pedir aprobación".</p>
+            </div>
+
+            <h3>Qué pasa después de crearlo</h3>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-title">El ticket queda en espera</div>
+                    <div class="step-desc">En vez de pasar directo a "Abierto", queda pendiente de aprobación. <strong>No aparece todavía en la cola de los técnicos</strong> — nadie va a empezar a trabajarlo hasta que se resuelva esta etapa.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Se notifica automáticamente a cada aprobador</div>
+                    <div class="step-desc">Puede ser tu jefe inmediato, un gerente de área, o el responsable que el admin haya configurado para ese tipo de caso — a veces son varios pasos en cadena, uno después del otro.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Si todos aprueban → sigue el flujo normal</div>
+                    <div class="step-desc">El ticket pasa a "Abierto" como cualquier otro y un técnico lo toma.</div>
+                </div>
+                <div class="step">
+                    <div class="step-title">Si alguien rechaza → te avisan por qué</div>
+                    <div class="step-desc">El aprobador está obligado a escribir un motivo — no puede rechazar en blanco. Te llega un correo con la explicación.</div>
+                </div>
+            </div>
+
+            <div class="card warn">
+                <div class="card-title">⏰ ¿Tarda mucho la aprobación?</div>
+                <p>Depende de la disponibilidad de esa persona. Si pasan varios días sin novedad, contactala directamente o escalá por el canal de Teams del equipo de TI.</p>
+            </div>
+
+            <div class="callout callout-info">
+                <div class="callout-icon">👤</div>
+                <div class="callout-content">
+                    <div class="callout-title">Caso especial: Creación/Modificación de Usuarios</div>
+                    <p>Si necesitás dar de alta, modificar o trasladar un usuario (con sus accesos y permisos), ese es un módulo aparte con su propio formulario y cadena de aprobación de varios niveles. Solo lo pueden crear especialistas o administradores. Mirá el <a href="/static/manuales/manual_solicitud_usuario.html" target="_blank">manual específico de Solicitudes de Usuario</a> para el detalle completo.</p>
+                </div>
+            </div>
+
+            <div class="nav-arrows">
+                <button onclick="showSection('adjuntos')">← Adjuntos</button>
+                <button onclick="showSection('bot')">Siguiente → 🤖 Chatear con Eli</button>
             </div>
         </section>
 
@@ -728,7 +788,7 @@
             </div>
 
             <div class="nav-arrows">
-                <button onclick="showSection('adjuntos')">← Adjuntos</button>
+                <button onclick="showSection('aprobaciones')">← Casos con aprobación</button>
                 <button onclick="showSection('ver-tickets')">Siguiente → 📂 Ver mis tickets</button>
             </div>
         </section>
@@ -815,8 +875,13 @@
             <table>
                 <tr><th>Estado</th><th>Qué pasa</th><th>Quién actúa</th></tr>
                 <tr>
+                    <td><span class="badge badge-warn">⏳ Pendiente de aprobación</span></td>
+                    <td>Solo aplica a ciertas categorías/plantillas (ver <a href="#" onclick="event.preventDefault();showSection('aprobaciones');">Casos que necesitan aprobación</a>). No aparece en la cola de técnicos hasta que se resuelva.</td>
+                    <td>Aprobador(es) configurado(s)</td>
+                </tr>
+                <tr>
                     <td><span class="badge badge-open">📂 Abierto</span></td>
-                    <td>El ticket recién se creó. Está esperando que un técnico lo tome.</td>
+                    <td>El ticket recién se creó (o ya fue aprobado). Está esperando que un técnico lo tome.</td>
                     <td>Sistema (auto-asignación)</td>
                 </tr>
                 <tr>
@@ -1057,7 +1122,7 @@
         <!-- QUIZ -->
         <section id="quiz">
             <h2>🎓 Pon a Prueba lo Aprendido</h2>
-            <p class="lead">5 preguntas rápidas. Click en la respuesta correcta. ¡Sin truco!</p>
+            <p class="lead">6 preguntas rápidas. Click en la respuesta correcta. ¡Sin truco!</p>
 
             <div class="quiz-q">
                 <div style="font-weight:700;">1. Mi WiFi no anda en la oficina. ¿Qué categoría elijo?</div>
@@ -1109,6 +1174,16 @@
                 <div class="quiz-feedback" id="qfb5"></div>
             </div>
 
+            <div class="quiz-q">
+                <div style="font-weight:700;">6. Creaste un ticket de acceso a SAP y quedó "Pendiente de aprobación". ¿Qué significa?</div>
+                <div class="quiz-options">
+                    <button onclick="quizAnswer(this, false, 6)">Que el sistema tuvo un error y hay que crearlo de nuevo</button>
+                    <button onclick="quizAnswer(this, true, 6)">Que un responsable (jefe, gerente, etc.) tiene que aprobarlo antes de que un técnico lo tome</button>
+                    <button onclick="quizAnswer(this, false, 6)">Que ya fue resuelto automáticamente</button>
+                </div>
+                <div class="quiz-feedback" id="qfb6"></div>
+            </div>
+
             <div id="quizResult" style="display:none;margin-top:24px;padding:18px;border-radius:10px;text-align:center;font-size:18px;font-weight:700;"></div>
 
             <div class="nav-arrows">
@@ -1121,7 +1196,7 @@
 </div>
 
 <script>
-    const sections = ['bienvenida','login','dashboard','crear','prioridad','adjuntos','bot','ver-tickets','detalle','estados','trucos','faq','quiz'];
+    const sections = ['bienvenida','login','dashboard','crear','prioridad','adjuntos','aprobaciones','bot','ver-tickets','detalle','estados','trucos','faq','quiz'];
 
     // Modo print/all: si la URL tiene ?print=1 o ?all=1, mostrar TODAS las secciones (para PDF)
     if (window.location.search.match(/[?&](print|all)=1/)) {
@@ -1187,18 +1262,18 @@
             feedback.className = 'quiz-feedback show nope';
         }
         // If all answered, show score
-        if (quizAnswered.size === 5) {
+        if (quizAnswered.size === 6) {
             const result = document.getElementById('quizResult');
             result.style.display = 'block';
-            if (quizScore === 5) {
+            if (quizScore === 6) {
                 result.style.background = '#d1fae5'; result.style.color = '#065f46';
-                result.innerHTML = `🏆 ¡PERFECTO! ${quizScore}/5 — Dominás el portal completamente.`;
-            } else if (quizScore >= 3) {
+                result.innerHTML = `🏆 ¡PERFECTO! ${quizScore}/6 — Dominás el portal completamente.`;
+            } else if (quizScore >= 4) {
                 result.style.background = '#fef3c7'; result.style.color = '#92400e';
-                result.innerHTML = `👍 Muy bien — ${quizScore}/5. Repasá las secciones de las preguntas que fallaste.`;
+                result.innerHTML = `👍 Muy bien — ${quizScore}/6. Repasá las secciones de las preguntas que fallaste.`;
             } else {
                 result.style.background = '#fee2e2'; result.style.color = '#991b1b';
-                result.innerHTML = `📚 ${quizScore}/5 — Te recomiendo releer el manual desde el inicio.`;
+                result.innerHTML = `📚 ${quizScore}/6 — Te recomiendo releer el manual desde el inicio.`;
             }
         }
     }
