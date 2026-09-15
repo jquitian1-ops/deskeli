@@ -781,6 +781,14 @@
 
             <p>Andá directo a <code>/admin/sessions</code> (o desde el sidebar → <strong>👥 Sesiones Activas</strong>).</p>
 
+            <div class="callout callout-tip">
+                <div class="callout-icon">🧩</div>
+                <div class="callout-content">
+                    <div class="callout-title">Ahora se abre embebido en el dashboard</div>
+                    <p>Al hacer clic en <strong>👥 Sesiones Activas</strong> desde el sidebar, la pantalla ya no navega afuera del panel de administración: se carga <strong>embebida dentro del mismo dashboard</strong> (en un iframe), manteniendo siempre visibles el sidebar y el header del admin. La URL directa <code>/admin/sessions</code> sigue funcionando igual como pantalla completa si la abrís sola.</p>
+                </div>
+            </div>
+
             <ul>
                 <li><strong>4 KPIs superiores:</strong> total registrados, activos ahora, inactivos (&gt;15 min), expulsados.</li>
                 <li><strong>Filtros:</strong> por estado (activo/inactivo/expulsado) y por rol (admin/técnico/empleado).</li>
@@ -1357,7 +1365,7 @@
         <!-- MÓDULO SOLICITUDES DE USUARIOS -->
         <section class="section" id="sec-solicitudes-mod">
             <h2 class="section-title"><span class="emoji">🧾</span>Módulo Solicitudes de Creación / Modificación de Usuarios</h2>
-            <p class="section-subtitle">Módulo dedicado a solicitar accesos y elementos tecnológicos con flujo de aprobación de 4 niveles</p>
+            <p class="section-subtitle">Módulo dedicado a solicitar accesos y elementos tecnológicos con flujo de aprobación de 3 niveles (o flujo dinámico configurable por área)</p>
 
             <div class="callout callout-info">
                 <div class="callout-icon">✨</div>
@@ -1367,7 +1375,8 @@
                     para gestionar solicitudes formales de creación, modificación o traslado de usuarios. Solo
                     <strong>técnicos y admins</strong> lo ven (los empleados usan el flujo tradicional de tickets).
                     Reemplaza el flujo manual anterior por uno con máquina de estados propia, catálogo de 28 controles y
-                    aprobación por correo en 4 niveles.</p>
+                    aprobación por correo en 3 niveles (tradicional) o en el flujo dinámico configurado por Empresa+Área
+                    (ver sección "Flujos de Solicitudes (por Área)" más abajo).</p>
                 </div>
             </div>
 
@@ -1379,7 +1388,7 @@
             </ul>
 
             <h3>1. Catálogo administrable de Controles</h3>
-            <p>URL: <code>/admin/controles</code></p>
+            <p>URL: <code>/admin/controles</code> (o desde el sidebar del dashboard admin → <strong>Sistema → 🗂 Catálogo Controles</strong>, donde se abre <strong>embebido dentro del mismo panel</strong> — sidebar y header del admin siempre visibles — en vez de navegar a una pantalla aparte).</p>
             <p>Los <strong>28 controles</strong> (elementos tecnológicos + accesos) se administran desde este panel:</p>
             <ul>
                 <li><strong>CRUD completo</strong>: crear, editar, desactivar (soft delete). No hay hard delete para preservar historial.</li>
@@ -1392,37 +1401,122 @@
 
             <h3>2. Inf. Aprobadores — catálogo de Gerentes de Área</h3>
             <p>URL: <code>/admin/config → Inf. Aprobadores</code></p>
-            <p>Nuevo panel en la configuración del admin. Sirve como <strong>fuente de verdad</strong> para poblar los
-            selects de Jefe Inmediato y Gerencia/Área en el formulario de solicitud.</p>
+            <p>Panel en la configuración del admin que mantiene un catálogo administrable de Gerentes de Área por
+            Empresa/Centro de Costos.</p>
+            <div class="callout callout-warn">
+                <div class="callout-icon">⚠</div>
+                <div class="callout-content">
+                    <div class="callout-title">Ya no resuelve Jefe Inmediato ni Gerente de Área en las solicitudes (v2026-09)</div>
+                    <p>Este catálogo <strong>sigue existiendo y es administrable</strong>, pero quedó <strong>desconectado</strong> del
+                    formulario de Creación/Modificación de Usuarios: ya no alimenta ningún select de Jefe Inmediato ni de
+                    Gerencia/Área. Ahora el especialista que crea la solicitud <strong>escribe manualmente</strong> el nombre y
+                    correo del Jefe Inmediato en el formulario (campos <code>jefe_inmediato_nombre</code> /
+                    <code>jefe_inmediato_email</code>), y el paso de Gerente de Área fue eliminado de la cadena tradicional
+                    (ver "3. Flujo de aprobación de 3 niveles" abajo). Si el área elegida tiene un
+                    <strong>flujo dinámico configurado</strong> (sección "Flujos de Solicitudes (por Área)"), se usa ese en
+                    cambio de la cadena tradicional.</p>
+                </div>
+            </div>
             <ul>
                 <li>Campos: <em>Empresa, Gerente de Área, Centro de Costos, Área, Correo del Gerente</em>.</li>
-                <li>El <strong>correo debe coincidir con un usuario activo</strong> del sistema; si no coincide, la opción aparece deshabilitada en el formulario con badge ⚠ sin usuario.</li>
+                <li>El <strong>correo debe coincidir con un usuario activo</strong> del sistema; si no coincide, la opción aparece deshabilitada con badge ⚠ sin usuario.</li>
                 <li><strong>Importación masiva desde Excel</strong>: botón "Plantilla Excel" descarga <em>plantilla_inf_aprobadores.xlsx</em> con las 5 columnas y 2 filas de ejemplo. Botón "Importar Excel" procesa el archivo con feedback fila por fila (creados / actualizados / errores).</li>
                 <li>Idempotente: si ya existe la misma llave lógica (empresa + gerente + área + CC), se actualiza; si no, se crea.</li>
                 <li>Búsqueda instantánea + toggle "Ver inactivos".</li>
             </ul>
 
-            <h3>3. Flujo de aprobación de 4 niveles</h3>
+            <h3>3. Flujo de aprobación de 3 niveles (tradicional)</h3>
             <div class="callout callout-warn">
                 <div class="callout-icon">🔄</div>
                 <div class="callout-content">
-                    <div class="callout-title">Cambio en el flujo (v2026-09)</div>
-                    <p>El orden oficial actualizado según el diagrama del negocio:
-                    <strong>Jefe Inmediato → Analista IT → Gerente Solicitante (Área) → Gerente IT</strong>.
-                    Al aprobar el Gerente IT se generará automáticamente el Caso + subtareas para Soporte
-                    (Fase 4, en implementación).</p>
+                    <div class="callout-title">Cambio en el flujo (v2026-09): de 4 a 3 niveles</div>
+                    <p>Se eliminó el paso de <strong>Gerente Solicitante (Área)</strong>. La cadena tradicional oficial ahora es de
+                    <strong>3 niveles: Jefe Inmediato → Analista IT → Gerente IT</strong>. El <strong>Jefe Inmediato ya no se elige
+                    de un catálogo/dropdown</strong>: el especialista que crea la solicitud lo escribe manualmente (nombre +
+                    correo) en el formulario. Esta cadena de 3 niveles aplica <strong>solo cuando el área elegida NO tiene un
+                    flujo dinámico configurado</strong> (ver sección "Flujos de Solicitudes (por Área)" más abajo); si lo tiene,
+                    se usa ese flujo en cambio. Al aprobar el Gerente IT (o el último paso del flujo dinámico) se genera
+                    automáticamente el Ticket padre + subtareas para Soporte.</p>
                 </div>
             </div>
 
-            <p>La solicitud tiene 16 estados posibles (4 pendientes × [aprobado/devuelto/rechazado] + estados finales). El helper <code>_apply_transition()</code> es la única fuente de verdad de las transiciones y valida:</p>
+            <p>La solicitud tiene 16 estados posibles en el modelo (incluye 3 estados legacy de "Gerente de Área" que
+            quedan solo para solicitudes viejas ya creadas bajo el flujo anterior — las nuevas solicitudes con cadena
+            tradicional ya no pasan por ese nivel). El helper <code>_apply_transition()</code> es la única fuente de
+            verdad de las transiciones y valida:</p>
             <ul>
                 <li>Que el usuario sea el aprobador esperado del estado actual</li>
                 <li>Que la observación esté presente en Devolver / Rechazar</li>
                 <li>Que el estado admita la acción (no se puede aprobar una solicitud CERRADA, por ejemplo)</li>
             </ul>
 
-            <h3>4. Aprobación por correo con token</h3>
-            <p>Cada vez que la solicitud pasa a estado <code>PENDIENTE_*</code>, el aprobador recibe email con:</p>
+            <h3>4. Flujos de Solicitudes (por Área) — flujo dinámico configurable</h3>
+            <p>URL: <code>/admin/approval-flows</code> (o desde el sidebar del dashboard admin → <strong>Sistema → 🔄 Flujos de Solicitudes (por Área)</strong>, donde se abre <strong>embebido dentro del mismo panel</strong> — sidebar y header del admin siempre visibles — en vez de navegar a una pantalla aparte).</p>
+
+            <div class="callout callout-info">
+                <div class="callout-icon">🔀</div>
+                <div class="callout-content">
+                    <div class="callout-title">No confundir con "🔐 Flujos de Aprobación"</div>
+                    <p>Este módulo es <strong>distinto</strong> del módulo "🔐 Flujos de Aprobación" (workflows de aprobación para
+                    <strong>tickets</strong> normales, documentado más arriba en esta sección). "Flujos de Solicitudes (por Área)"
+                    aplica específicamente al módulo de <strong>Creación/Modificación de Usuarios</strong>.</p>
+                </div>
+            </div>
+
+            <p>Es un catálogo administrable de flujos de aprobación por <strong>Empresa + Área</strong> (ej: "Sistemas" en
+            Pash). Cuando un especialista crea una solicitud y elige esa área en el formulario, el sistema usa el flujo
+            configurado <strong>en vez de</strong> la cadena tradicional de 3 niveles.</p>
+
+            <ul>
+                <li>Cada flujo tiene una lista <strong>ordenada de pasos</strong>. Cada paso tiene un <strong>rol/label</strong>
+                (ej: "Analista IT", "Jefe de área") y <strong>uno o varios aprobadores</strong> (correos).</li>
+                <li><strong>Lógica OR dentro del paso:</strong> con que <strong>cualquiera</strong> de los aprobadores de un paso
+                apruebe, el paso queda listo y el flujo avanza al siguiente; si <strong>cualquiera rechaza</strong>, se rechaza
+                toda la solicitud. Todos los aprobadores de un paso reciben el correo de aprobación en simultáneo.</li>
+                <li>Al aprobar el <strong>último paso</strong>, se genera automáticamente un <strong>Ticket padre + subtareas
+                por cada control marcado</strong> (clonando guiones), asignado al correo indicado en el campo
+                <strong>"Ticket padre asignado a"</strong> del flujo.</li>
+            </ul>
+
+            <h4>CRUD desde /admin/approval-flows</h4>
+            <p>Botón <strong>"+ Nuevo flujo"</strong> abre un modal con:</p>
+            <ul>
+                <li>Empresa, Área, Descripción</li>
+                <li>Editor de pasos: agregar/quitar pasos, reordenar con ↑↓</li>
+                <li>Dentro de cada paso, botón <strong>"+ Agregar aprobador a este paso"</strong> para sumar más de un aprobador (cualquiera puede aprobar)</li>
+                <li>Campo <strong>"Ticket padre asignado a"</strong></li>
+                <li>Checkbox <strong>"Flujo activo"</strong></li>
+            </ul>
+
+            <h4>Exportar / Importar vía Excel</h4>
+            <p>Barra de herramientas con botones <strong>"⬇ Exportar a Excel"</strong> y <strong>"⬆ Importar desde Excel"</strong>:</p>
+            <ul>
+                <li>Se pueden tildar filas específicas de la tabla para exportar solo esos flujos, o exportar todo sin tildar nada.</li>
+                <li>El Excel generado tiene una hoja <strong>"Flujos"</strong> con columnas <strong>Empresa, Area, Descripcion,
+                Orden Paso, Email Aprobador, Rol/Cargo del Paso, Ticket Asignado A, Activo</strong> — una fila por cada
+                aprobador (si un paso tiene varios aprobadores, se repite el mismo "Orden Paso" en varias filas, una por
+                cada correo) — y una hoja <strong>"Instrucciones"</strong> con el detalle del formato.</li>
+                <li>Al importar se elige el modo:
+                    <ul>
+                        <li><strong>"Actualizar existentes + crear nuevos"</strong> (upsert, default)</li>
+                        <li><strong>"Omitir los que ya existen"</strong> (skip_existing)</li>
+                        <li><strong>"Reemplazar TODOS los flujos"</strong> (replace_all_in_scope) — borra y reemplaza; pide confirmación</li>
+                    </ul>
+                </li>
+                <li>Botón <strong>"👁 Vista previa (dry-run)"</strong> muestra cuántos flujos se crearían/actualizarían/omitirían <strong>antes</strong> de aplicar los cambios de verdad.</li>
+            </ul>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">💡</div>
+                <div class="callout-content">
+                    <div class="callout-title">Para qué sirve</div>
+                    <p>Sirve para clonar rápido un flujo de una área/empresa a otra, o como respaldo antes de editar en
+                    producción.</p>
+                </div>
+            </div>
+
+            <h3>5. Aprobación por correo con token</h3>
+            <p>Cada vez que la solicitud pasa a estado <code>PENDIENTE_*</code> (tradicional) o a un paso del flujo dinámico, el/los aprobador(es) reciben email con:</p>
             <ul>
                 <li>Datos del empleado + justificación + tabla de controles</li>
                 <li><strong>3 botones grandes</strong>: ✓ Aprobar (verde) / ↩ Devolver (amarillo) / ✕ Rechazar (rojo)</li>
@@ -1431,8 +1525,8 @@
             </ul>
             <p>El endpoint público es <code>/solicitudes-usuarios/decidir/&lt;token&gt;</code>. Requiere login (por seguridad, mismo patrón que aprobación de tickets). Los aprobadores también pueden decidir desde <code>/solicitudes-usuarios/&lt;id&gt;</code> en la UI — canal dual. La configuración SMTP viene por empresa desde <code>/admin/config → Correo</code>.</p>
 
-            <h3>5. Configuración de aprobadores TI por empresa</h3>
-            <p>Analista IT y Gerente IT (niveles 2 y 4 del flujo) se resuelven automáticamente. En <code>app.py</code>
+            <h3>6. Configuración de aprobadores TI por empresa</h3>
+            <p>Analista IT y Gerente IT (niveles 2 y 3 de la cadena tradicional) se resuelven automáticamente. En <code>app.py</code>
             hay una constante <code>_TI_APPROVERS_BY_COMPANY</code> con los emails oficiales por empresa. Si el email no
             coincide o queda vacío, cae al fallback: <strong>primer admin activo de la empresa</strong>. Recomendación:
             editar esa constante (o migrarla a la tabla <code>inf_aprobadores</code> con un flag <em>tipo=analista_ti/gerente_ti</em>).</p>
@@ -1440,8 +1534,9 @@
             <h3>Modelo de datos</h3>
             <ul>
                 <li><code>controles_catalogo</code> — 28 registros base</li>
-                <li><code>inf_aprobadores</code> — Gerentes por Área/CC (nuevo)</li>
-                <li><code>solicitudes_usuarios</code> — cabecera con 14 campos + 4 FKs a aprobadores + estado</li>
+                <li><code>inf_aprobadores</code> — Gerentes por Área/CC (catálogo administrable, ya no usado para resolver Jefe Inmediato/Gerente de Área de las solicitudes)</li>
+                <li><code>approval_flows</code> — flujos dinámicos por Empresa+Área (pasos ordenados en <code>steps_json</code>, correo de ticket padre, activo/inactivo)</li>
+                <li><code>solicitudes_usuarios</code> — cabecera con 14 campos + FKs/campos de aprobadores + estado + <code>approval_flow_id</code>/<code>flow_steps_json</code> (snapshot del flujo dinámico usado, si aplica)</li>
                 <li><code>solicitudes_controles</code> — detalle N:M (control + descripción + usuario espejo)</li>
                 <li><code>solicitudes_historial</code> — trazabilidad de transiciones</li>
                 <li><code>solicitudes_adjuntos</code> — archivos con compresión automática</li>

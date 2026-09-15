@@ -668,12 +668,17 @@
                 </div>
                 <div class="field-row">
                     <div class="field-name">Jefe Inmediato</div>
-                    <div class="field-desc">Se elige del dropdown de usuarios activos. Es quien va a aprobar la solicitud.</div>
+                    <div class="field-desc">Nombre completo de tu jefe directo. Campo de texto libre — ya no se elige de un catálogo, lo escribís vos mismo. Es el primer aprobador de la cadena.</div>
                     <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
                 </div>
                 <div class="field-row">
-                    <div class="field-name">Gerencia / Área</div>
-                    <div class="field-desc">Comercial, Financiera, Operaciones, TI, etc.</div>
+                    <div class="field-name">Correo del Jefe Inmediato</div>
+                    <div class="field-desc">Email de tu jefe directo. Campo de texto libre. A esa dirección le llega el correo de aprobación — es la fuente de verdad, aunque esa persona no tenga cuenta creada en DeskEli.</div>
+                    <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
+                </div>
+                <div class="field-row">
+                    <div class="field-name">Área</div>
+                    <div class="field-desc">Comercial, Financiera, Operaciones, TI, etc. Campo de texto libre — ya no se autocompleta, lo escribís vos. Si el área que ingresás tiene un flujo de aprobación dinámico configurado por el admin, la solicitud sigue ese flujo en vez del tradicional de 3 niveles (ver <a href="#" onclick="showSection('aprobadores')">sección Aprobadores</a>).</div>
                     <div class="field-req"><span class="badge badge-required">Obligatorio</span></div>
                 </div>
                 <div class="field-row">
@@ -813,9 +818,9 @@
         <!-- PASO 3: DATOS GENERALES -->
         <section class="section" id="sec-datos">
             <h2 class="section-title"><span class="emoji">3️⃣</span>Datos generales</h2>
-            <p class="section-subtitle">Los 14 campos de la sección "Registrar Solicitud de Control"</p>
+            <p class="section-subtitle">Los 15 campos de la sección "Registrar Solicitud de Control"</p>
 
-            <p>Todos los campos con asterisco rojo <span style="color:#dc2626;">*</span> son obligatorios. Los campos <em>Ubicación, División/Centro de Costo, Jefe Inmediato, Gerencia/Área, Tipo de Contrato</em> y <em>Reemplazo</em> son dropdowns — cliqueá para desplegar y elegir.</p>
+            <p>Todos los campos con asterisco rojo <span style="color:#dc2626;">*</span> son obligatorios. Los campos <em>Ubicación, División/Centro de Costo, Tipo de Contrato</em> y <em>Reemplazo</em> son dropdowns — cliqueá para desplegar y elegir. <em>Jefe Inmediato, Correo del Jefe Inmediato</em> y <em>Área</em> son de texto libre — los escribís vos mismo.</p>
 
             <div class="mockup">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
@@ -857,11 +862,15 @@
                     </div>
                     <div class="mockup-field">
                         <label>* Jefe Inmediato</label>
-                        <div class="mockup-input mockup-select">GRACIELA FLÓREZ CORDERO</div>
+                        <div class="mockup-input">GRACIELA FLÓREZ CORDERO</div>
                     </div>
                     <div class="mockup-field">
-                        <label>* Gerencia / Área</label>
-                        <div class="mockup-input mockup-select">COMERCIAL</div>
+                        <label>* Correo del Jefe Inmediato</label>
+                        <div class="mockup-input">gflorez@primatela.com</div>
+                    </div>
+                    <div class="mockup-field">
+                        <label>* Área</label>
+                        <div class="mockup-input">COMERCIAL</div>
                     </div>
                     <div class="mockup-field">
                         <label>* Tipo de Contrato</label>
@@ -884,7 +893,8 @@
                 <li><strong>Nombre:</strong> como figura en la cédula. En mayúsculas para consistencia con el resto del sistema.</li>
                 <li><strong>Fecha Ingreso:</strong> formato <code>dd/mm/aaaa</code>. Tenés un ícono de calendario al final para seleccionar visualmente.</li>
                 <li><strong>División/Centro de Costo:</strong> es un código largo. Si no lo tenés, preguntá a Finanzas.</li>
-                <li><strong>Jefe Inmediato:</strong> dropdown con los usuarios activos de la unidad de negocio elegida. Escribí las primeras letras para filtrar.</li>
+                <li><strong>Jefe Inmediato / Correo del Jefe Inmediato:</strong> texto libre, ya no se elige de un catálogo. Escribí el nombre completo y el correo correcto — el correo es lo que el sistema usa para mandar la aprobación, así que un error ahí hace que la solicitud no le llegue a nadie.</li>
+                <li><strong>Área:</strong> también es texto libre. Si coincide con un área que tiene flujo de aprobación configurado por el admin, la solicitud sigue ese flujo dinámico en vez del tradicional.</li>
                 <li><strong>Justificación:</strong> escribí específicamente para qué se necesitan los accesos. Mientras más claro, más rápido aprueba el jefe.</li>
             </ul>
 
@@ -1513,26 +1523,26 @@
         <!-- APROBADORES -->
         <section class="section" id="sec-aprobadores">
             <h2 class="section-title"><span class="emoji">6️⃣</span>Aprobadores</h2>
-            <p class="section-subtitle">Flujo oficial: 4 niveles en cadena, aprobación por correo</p>
+            <p class="section-subtitle">Flujo tradicional: 3 niveles en cadena, o flujo dinámico por área — aprobación por correo</p>
 
             <div class="callout callout-danger">
                 <div class="callout-icon">🔐</div>
                 <div class="callout-content">
                     <div class="callout-title">El flujo oficial (v2026-09)</div>
-                    <p>Toda solicitud pasa por <strong>4 niveles de aprobación secuenciales</strong>:
-                    <strong>Jefe Inmediato → Analista IT → Gerente Solicitante (Área) → Gerente IT</strong>.
+                    <p>Cuando el <strong>Área</strong> que escribiste en la sección 3 <u>no</u> tiene un flujo dinámico configurado por el admin, toda solicitud pasa por <strong>3 niveles de aprobación secuenciales</strong>:
+                    <strong>Jefe Inmediato → Analista IT → Gerente IT</strong>.
                     Cada aprobador recibe un correo con <strong>3 botones (Aprobar / Devolver / Rechazar)</strong>
                     y también puede decidir desde el sistema. Al aprobar el último nivel se genera automáticamente
-                    el Caso y las tareas al equipo de Soporte para la entrega.</p>
+                    el Caso y las tareas al equipo de Soporte para la entrega. Si el Área sí tiene un flujo configurado, se usa ese en su lugar — ver el callout <strong>"Flujo dinámico por Área"</strong> más abajo.</p>
                 </div>
             </div>
 
-            <h3>Los 4 aprobadores</h3>
+            <h3>Los 3 aprobadores del flujo tradicional</h3>
             <div class="cards">
                 <div class="card">
                     <div class="card-icon">👔</div>
                     <h4>1. Jefe Inmediato</h4>
-                    <p><span class="badge badge-required">Siempre</span> Lo elegiste en la sección 3 del formulario. Se toma del catálogo <strong>Inf. Aprobadores</strong> que administra el admin. Primer nivel — recibe el correo antes que nadie.</p>
+                    <p><span class="badge badge-required">Siempre</span> Lo ingresaste manualmente (nombre y correo) en la sección 3 del formulario. Ya no se elige de un catálogo — el correo que escribiste es la fuente de verdad, y ahí le llega la aprobación aunque esa persona no tenga cuenta creada en DeskEli. Primer nivel — recibe el correo antes que nadie.</p>
                 </div>
                 <div class="card">
                     <div class="card-icon">🖥</div>
@@ -1540,14 +1550,18 @@
                     <p><span class="badge badge-required">Automático</span> Se asigna por empresa. Valida viabilidad técnica, revisa que los controles marcados sean coherentes y ajusta detalles si hace falta. Recibe correo después que el Jefe apruebe.</p>
                 </div>
                 <div class="card">
-                    <div class="card-icon">🏢</div>
-                    <h4>3. Gerente Solicitante (Gerencia/Área)</h4>
-                    <p><span class="badge badge-required">Siempre</span> Lo elegiste del catálogo <strong>Inf. Aprobadores</strong>, filtrado por el área del Jefe. Aprueba el gasto y el impacto en el área. Recibe correo tras el visto bueno del Analista IT.</p>
-                </div>
-                <div class="card">
                     <div class="card-icon">💻</div>
-                    <h4>4. Gerente IT</h4>
+                    <h4>3. Gerente IT</h4>
                     <p><span class="badge badge-required">Automático</span> Aprobador final. Se asigna por empresa (fallback: primer admin activo). Al aprobar, el sistema <strong>genera automáticamente el Caso</strong> y las tareas a Soporte.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-tip">
+                <div class="callout-icon">🔀</div>
+                <div class="callout-content">
+                    <div class="callout-title">Flujo dinámico por Área</div>
+                    <p>Si el admin configuró un flujo de aprobación específico para el <strong>Área</strong> que escribiste en la sección 3, la solicitud NO sigue el flujo tradicional de 3 niveles — sigue los pasos que el admin definió para esa área, que pueden ser más, menos o distintos niveles.</p>
+                    <p style="margin-top:8px;">Desde esta versión, <strong>cada paso del flujo dinámico puede tener uno o varios aprobadores</strong>. Cuando un paso tiene varios, alcanza con que <strong>cualquiera de ellos apruebe</strong> (lógica OR) para que el paso quede aprobado y la solicitud avance al siguiente; si <strong>cualquiera de ellos rechaza</strong>, se rechaza toda la solicitud. Todos los aprobadores de ese paso reciben el correo de aprobación al mismo tiempo, cada uno con su propio link.</p>
                 </div>
             </div>
 
@@ -1566,6 +1580,14 @@
                 </div>
             </div>
 
+            <div class="callout callout-warn">
+                <div class="callout-icon">🚫</div>
+                <div class="callout-content">
+                    <div class="callout-title">El creador de la solicitud no puede aprobarla él mismo</div>
+                    <p>Si vos creaste la solicitud y además figurás como aprobador en algún paso de la cadena (por ejemplo, porque tu correo coincide con un aprobador configurado en el flujo dinámico), el sistema no te muestra los botones Aprobar/Devolver/Rechazar — en su lugar ves un aviso indicando que no podés aprobar tu propia solicitud y que hay que esperar a que otro aprobador la mueva. Un admin sí puede hacer una excepción y decidir igual.</p>
+                </div>
+            </div>
+
             <h3>Timeline del flujo completo</h3>
             <div class="timeline">
                 <div class="timeline-item">
@@ -1578,21 +1600,18 @@
                 </div>
                 <div class="timeline-item">
                     <h4>3. Analista IT aprueba</h4>
-                    <p>Pasa a <strong>PENDIENTE APROBACIÓN GERENTE SOLICITANTE</strong>. Gerencia/Área recibe correo.</p>
-                </div>
-                <div class="timeline-item">
-                    <h4>4. Gerente Solicitante aprueba</h4>
                     <p>Pasa a <strong>PENDIENTE APROBACIÓN GERENTE IT</strong>. El Gerente IT recibe correo.</p>
                 </div>
                 <div class="timeline-item">
-                    <h4>5. Gerente IT aprueba → APROBADO</h4>
-                    <p>Con las 4 aprobaciones, el sistema <strong>genera automáticamente el Caso</strong> (Ticket) y las <strong>subtareas a Soporte</strong> — una por cada control marcado, asignadas al especialista según el guion configurado.</p>
+                    <h4>4. Gerente IT aprueba → APROBADO</h4>
+                    <p>Con las 3 aprobaciones, el sistema <strong>genera automáticamente el Caso</strong> (Ticket) y las <strong>subtareas a Soporte</strong> — una por cada control marcado, asignadas al especialista según el guion configurado.</p>
                 </div>
                 <div class="timeline-item">
-                    <h4>6. Soporte ejecuta las tareas y entrega</h4>
+                    <h4>5. Soporte ejecuta las tareas y entrega</h4>
                     <p>Cada especialista ejecuta su subtarea (crear cuenta AD, correo, VPN, SAP, etc.). Al terminar todas, la solicitud pasa a estado <strong>CERRADO</strong>.</p>
                 </div>
             </div>
+            <p style="margin-top:10px;font-size:12.5px;color:#64748b;">Nota: si el Área tiene un flujo dinámico configurado, este timeline cambia — sigue los pasos definidos por el admin para esa área en vez de los 3 niveles tradicionales (ver "Flujo dinámico por Área" más arriba).</p>
 
             <div class="callout callout-warn">
                 <div class="callout-icon">↩</div>
@@ -1606,18 +1625,16 @@
                 <div class="callout-icon">✕</div>
                 <div class="callout-content">
                     <div class="callout-title">Si un aprobador Rechaza</div>
-                    <p>La solicitud queda en estado final <strong>RECHAZADO POR &lt;nivel&gt;</strong> con el motivo. No se puede reactivar (política de auditoría). Para volver a intentarlo, hay que <strong>crear una nueva solicitud</strong>. Vale para cualquiera de los 4 niveles.</p>
+                    <p>La solicitud queda en estado final <strong>RECHAZADO POR &lt;nivel&gt;</strong> con el motivo. No se puede reactivar (política de auditoría). Para volver a intentarlo, hay que <strong>crear una nueva solicitud</strong>. Vale para cualquiera de los 3 niveles (o cualquier paso, si es un flujo dinámico) — y si un paso dinámico tiene varios aprobadores, con que uno solo rechace ya se rechaza toda la solicitud.</p>
                 </div>
             </div>
 
             <div class="callout callout-tip">
                 <div class="callout-icon">💡</div>
                 <div class="callout-content">
-                    <div class="callout-title">Aprobadores del catálogo Inf. Aprobadores</div>
-                    <p>El Jefe Inmediato y el Gerente Solicitante los elegís del catálogo administrable <strong>Inf. Aprobadores</strong>
-                    (lo administra el admin en <code>/admin/config → Inf. Aprobadores</code>). Cada entrada tiene:
-                    Gerente, Centro de costos, Área y Correo. Al elegir el Jefe, el sistema <strong>autocompleta el campo Área</strong>
-                    y filtra el select de Gerencia/Área para mostrar solo aprobadores de esa misma área.</p>
+                    <div class="callout-title">El Jefe Inmediato ya no sale del catálogo Inf. Aprobadores</div>
+                    <p>Antes el Jefe Inmediato se elegía de un dropdown alimentado por el catálogo administrable <strong>Inf. Aprobadores</strong>. Ahora lo escribís vos mismo como texto libre en la sección 3: <strong>nombre completo</strong> y <strong>correo</strong>. El catálogo <strong>Inf. Aprobadores</strong> dejó de usarse para este dato — no hace falta que el admin dé de alta al Jefe ahí para que la solicitud pueda avanzar.</p>
+                    <p style="margin-top:8px;">El correo que escribís es la <strong>fuente de verdad</strong>: el sistema le manda el correo de aprobación a esa dirección aunque la persona no tenga una cuenta creada en DeskEli. Si ese correo coincide con el de un usuario activo del sistema, esa persona además puede decidir desde el panel del especialista, no solo con el link del correo.</p>
                 </div>
             </div>
 
@@ -1643,8 +1660,8 @@
                     <div class="step-desc">Formato dd/mm/aaaa. TI no procesa solicitudes con fecha pasada.</div>
                 </div>
                 <div class="step">
-                    <div class="step-title">Jefe Inmediato y Gerencia/Área están bien elegidos</div>
-                    <div class="step-desc">Sin las 2 aprobaciones correctas, el ticket no avanza.</div>
+                    <div class="step-title">Jefe Inmediato, Correo del Jefe Inmediato y Área están bien escritos</div>
+                    <div class="step-desc">Son campos de texto libre — un correo mal escrito significa que la aprobación no le llega a nadie y el ticket no avanza.</div>
                 </div>
                 <div class="step">
                     <div class="step-title">Todos los controles necesarios están marcados</div>
@@ -1697,7 +1714,8 @@
                 </thead>
                 <tbody>
                     <tr><td>Aprobación del Jefe Inmediato</td><td>2-24 horas hábiles</td><td>Disponibilidad del jefe</td></tr>
-                    <tr><td>Aprobación del Responsable del Área</td><td>4-48 horas hábiles</td><td>Disponibilidad del responsable</td></tr>
+                    <tr><td>Aprobación del Analista IT</td><td>2-24 horas hábiles</td><td>Carga de trabajo del analista</td></tr>
+                    <tr><td>Aprobación del Gerente IT</td><td>4-48 horas hábiles</td><td>Disponibilidad del Gerente IT</td></tr>
                     <tr><td>Aprobación del Gerente de Tecnología <span class="badge badge-new">condicional</span></td><td>+1 a +3 días hábiles</td><td>Solo si marcaste ELEMENTOS DE TECNOLOGÍA</td></tr>
                     <tr><td>Asignación en TI</td><td>Menos de 1 hora</td><td>Asignación automática</td></tr>
                     <tr><td>Ejecución de controles (según cantidad)</td><td>1-3 días hábiles</td><td>Cantidad de controles + SAP + validaciones</td></tr>
@@ -1710,7 +1728,7 @@
             <div class="cards">
                 <div class="card">
                     <h4>🟡 En espera de aprobación</h4>
-                    <p>Esperando aprobación del Jefe Inmediato, del Responsable del Área o del Gerente de Tecnología (si marcaste elementos tecnológicos).</p>
+                    <p>Esperando aprobación del Jefe Inmediato, del Analista IT, del Gerente IT o del Gerente de Tecnología (si marcaste elementos tecnológicos). Si el Área tiene flujo dinámico, esperando al paso correspondiente de ese flujo.</p>
                 </div>
                 <div class="card">
                     <h4>🟢 En proceso</h4>
@@ -1813,7 +1831,7 @@
                 <div class="callout-icon">❓</div>
                 <div class="callout-content">
                     <div class="callout-title">¿Qué pasa si mi jefe está de vacaciones?</div>
-                    <p>Antes de crear la solicitud, coordiná con tu jefe quién es el delegado durante su ausencia y elegí a esa persona como aprobador. Si igual seleccionás al jefe de vacaciones, la solicitud queda parada hasta que vuelva.</p>
+                    <p>Antes de crear la solicitud, coordiná con tu jefe quién es el delegado durante su ausencia y escribí el nombre y correo de esa persona en los campos <strong>Jefe Inmediato</strong> y <strong>Correo del Jefe Inmediato</strong>. Si igual ponés al jefe de vacaciones, la solicitud queda parada hasta que vuelva.</p>
                 </div>
             </div>
 
