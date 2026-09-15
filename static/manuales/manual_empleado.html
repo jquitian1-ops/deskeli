@@ -519,24 +519,39 @@
             </div>
 
             <div class="card" style="border-left: 4px solid #2563eb;">
-                <div class="card-title">2️⃣ Subcategoría / Plantilla específica</div>
-                <p>Una vez elegida la categoría, se habilita el segundo dropdown <strong>con plantillas pre-armadas</strong>. Por ejemplo si elegís "SAP" ves: SAP lentitud, SAP autorización, SAP ABAP, etc.</p>
-                <p><strong>Es opcional:</strong> si no encontrás una plantilla que aplique, dejala vacía y completá manualmente.</p>
+                <div class="card-title">2️⃣ Subcategoría / Plantilla específica (opcional)</div>
+                <p>Una vez elegida la categoría, se habilita el segundo dropdown <strong>con plantillas pre-armadas</strong>. Por ejemplo si elegís "SAP" ves: SAP lentitud, SAP autorización, SAP ABAP, etc. Acá elegís entre dos caminos:</p>
+
+                <div class="card" style="margin-top:10px;border-left: 4px solid #6b7280;">
+                    <div class="card-title">📝 Opción A — Ticket normal (sin plantilla)</div>
+                    <p>Dejá el dropdown en <strong>"— Sin plantilla (escribir manualmente) —"</strong>. El formulario sigue igual que siempre: vos escribís el <strong>Título</strong> y la <strong>Descripción</strong> con tus propias palabras (pasos 3️⃣ y 4️⃣ de abajo). Usalo cuando tu problema no encaja en ninguna plantilla disponible, o si en tu categoría todavía no hay ninguna cargada.</p>
+                </div>
+
+                <div class="card" style="margin-top:10px;border-left: 4px solid #f59e0b;">
+                    <div class="card-title">📋 Opción B — Ticket por plantilla</div>
+                    <p>Elegí una plantilla específica de la lista. Al instante aparece un recuadro amarillo <strong>"📝 Completa los campos de esta plantilla"</strong> con un <strong>formulario armado a medida</strong> para ese tipo de problema (por ejemplo: versión del software, mensaje de error exacto, sistema afectado). Algunos campos son de texto y otros son listas para tildar. Completá esos campos en vez de escribir todo de cero.</p>
+                    <ul style="margin: 6px 0 6px 22px;">
+                        <li>El <strong>Título</strong> (paso 3️⃣) se autocompleta solo con el nombre de la plantilla — podés editarlo si querés.</li>
+                        <li>La <strong>Descripción</strong> (paso 4️⃣) queda <strong>opcional</strong>: los campos de la plantilla ya le dan al técnico la info clave. Escribí ahí solo si tenés algo extra para agregar.</li>
+                        <li>Algunas plantillas también preseleccionan la <strong>prioridad</strong> sugerida (podés cambiarla igual).</li>
+                        <li>Si la plantilla tiene muchos campos, el formulario se agranda para que se vea todo más cómodo.</li>
+                    </ul>
+                </div>
                 <div class="card tip" style="margin-top:10px;">
                     <strong>¿Para qué sirven las plantillas?</strong>
-                    <p>Te muestran un formulario con campos específicos para que no se te olvide ningún dato importante (versión del software, mensaje de error, etc.).</p>
+                    <p>Te aseguran que no se te olvide ningún dato importante que el técnico necesita para resolver más rápido. Si te arrepentís, volvé a poner "Sin plantilla" en el dropdown y el formulario dinámico desaparece.</p>
                 </div>
             </div>
 
             <div class="card" style="border-left: 4px solid #ea580c;">
                 <div class="card-title">3️⃣ Título del problema</div>
-                <p>Breve, máximo 200 caracteres. Ejemplo: <em>"WiFi no conecta en oficina 5to piso"</em>.</p>
+                <p>Breve, máximo 200 caracteres. Ejemplo: <em>"WiFi no conecta en oficina 5to piso"</em>. Si elegiste una plantilla (Opción B), ya viene completado — podés dejarlo o editarlo.</p>
                 <p style="color:#dc2626;font-size:13px;">⚠ Es <strong>obligatorio</strong> y mínimo 5 caracteres.</p>
             </div>
 
             <div class="card" style="border-left: 4px solid #7c3aed;">
                 <div class="card-title">4️⃣ Descripción / Notas adicionales</div>
-                <p>Detalles del problema. Cuanta más información, mejor. Por ejemplo:</p>
+                <p>Detalles del problema. <strong>Obligatoria si creaste el ticket sin plantilla</strong> (Opción A); <strong>opcional si usaste una plantilla</strong> (Opción B), ya que sus campos específicos cubren la info principal. Cuanta más información, mejor. Por ejemplo:</p>
                 <ul style="margin: 6px 0 6px 22px;">
                     <li>¿Qué estabas haciendo cuando ocurrió?</li>
                     <li>¿Cuál es el mensaje de error exacto?</li>
@@ -592,6 +607,11 @@
             <div class="card danger">
                 <div class="card-title">⚠ Importante: NO uses CRÍTICA si no aplica</div>
                 <p>Si marcás todo como crítico cuando no lo es, el equipo de TI no puede priorizar bien las emergencias reales. <strong>El uso indebido puede ser auditado.</strong></p>
+            </div>
+
+            <div class="card" style="border-left: 4px solid #f59e0b;">
+                <div class="card-title">📝 Si elegís ALTA o CRÍTICA, te va a pedir un motivo</div>
+                <p>Al hacer clic en la tarjeta de <strong>ALTA</strong> o <strong>CRÍTICA</strong> se abre una ventana pidiéndote que expliques brevemente el impacto (ej: <em>"El servidor SAP no responde y bloquea 20 personas del área de contabilidad"</em>). Es obligatorio completarlo para confirmar esa prioridad — el técnico lo ve junto al ticket. Si después querés cambiar el motivo, hay un link <strong>"✏️ Editar motivo"</strong> debajo de la prioridad elegida. Si bajás a Media o Baja, el motivo se borra solo (ya no aplica).</p>
             </div>
 
             <div class="card tip">
