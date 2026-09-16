@@ -209,6 +209,9 @@
                         <option value="Seguridad">🛡️ Seguridad</option>
                         <option value="Servidores">🖧 Servidores</option>
                         <option value="Office">📄 Office</option>
+                        {% if user and user.company == 'pash' %}
+                        <option value="Mesa de Ayuda">🎧 Mesa de Ayuda</option>
+                        {% endif %}
                     </select>
                     <p class="help-text" style="color:#065f46;">Primero elegí la categoría general. Luego abajo aparecerán las plantillas disponibles para esa categoría.</p>
                 </div>

@@ -892,6 +892,9 @@
                                 <option value="Seguridad">Seguridad</option>
                                 <option value="Telefonía">Telefonía</option>
                                 <option value="General" selected>General</option>
+                                {% if session.get('company') == 'pash' %}
+                                <option value="Mesa de Ayuda">Mesa de Ayuda</option>
+                                {% endif %}
                             </select>
                             <select id="tpl-priority" style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
                                 <option value="low">Baja</option>
