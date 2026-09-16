@@ -17376,9 +17376,30 @@ def api_admin_subroles_delete(subrole_id):
     return jsonify({'success': True, 'message': f'Subrol "{name}" eliminado'})
 
 
+_SUBROLE_EXCEL_HEADERS = [
+    ('icon', 'Icono'),
+    ('name', 'Nombre'),
+    ('description', 'Descripcion'),
+    ('is_active', 'Activo'),
+]
+
+
+def _normalize_subrole_header(s):
+    s = unicodedata.normalize('NFKD', str(s or '')).encode('ascii', 'ignore').decode('ascii')
+    return s.strip().lower()
+
+
+_SUBROLE_HEADER_ALIASES = {
+    'icon': {'icono', 'icon'},
+    'name': {'nombre', 'name'},
+    'description': {'descripcion', 'description'},
+    'is_active': {'activo', 'estado', 'is_active'},
+}
+
+
 @app.route('/api/admin/subroles/export', methods=['GET'])
 def api_admin_subroles_export():
-    """Exporta todos los subroles (globales + de la empresa) a JSON descargable."""
+    """Exporta todos los subroles (globales + de la empresa) a Excel (.xlsx)."""
     if 'user_id' not in session or session['role'] != 'admin':
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     company = session.get('company')
@@ -17386,61 +17407,141 @@ def api_admin_subroles_export():
         (Subrole.company == None) | (Subrole.company == company)
     ).order_by(Subrole.is_system.desc(), Subrole.name).all()
 
-    payload = {
-        '_meta': {
-            'exported_at': datetime.now().isoformat(timespec='seconds'),
-            'source_company': company,
-            'format_version': '1',
-            'total': len(subroles),
-        },
-        'subroles': [{
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from io import BytesIO
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Grupos de Especialistas'
+    for col, (_, label) in enumerate(_SUBROLE_EXCEL_HEADERS, 1):
+        cell = ws.cell(row=1, column=col, value=label)
+        cell.font = Font(bold=True, color='FFFFFF', size=12)
+        cell.fill = PatternFill('solid', fgColor='7C3AED')
+        cell.alignment = Alignment(horizontal='center')
+        ws.column_dimensions[cell.column_letter].width = 22
+    for r, s in enumerate(subroles, start=2):
+        row = {
+            'icon': s.icon or '🔧',
             'name': s.name,
             'description': s.description or '',
-            'icon': s.icon or '🔧',
-            'is_global': s.company is None,
-            'is_system': bool(s.is_system),
-            'is_active': bool(s.is_active),
-        } for s in subroles]
-    }
+            'is_active': 'Si' if s.is_active else 'No',
+        }
+        for col, (key, _) in enumerate(_SUBROLE_EXCEL_HEADERS, 1):
+            ws.cell(row=r, column=col, value=row.get(key, ''))
+
+    ws2 = wb.create_sheet('Instrucciones')
+    instructions = [
+        ('📋 Instrucciones de importación de Grupos de Especialistas', ''),
+        ('', ''),
+        ('Columna', 'Descripción'),
+        ('Icono', 'Un emoji para el grupo (ej: 🔧, 🖥️, 🔐). Opcional, por defecto 🔧'),
+        ('Nombre', 'Nombre del grupo (ej: Infraestructura, SAP MM, Redes). Obligatorio'),
+        ('Descripcion', '(Opcional) breve descripción del grupo'),
+        ('Activo', 'Si / No'),
+        ('', ''),
+        ('Reglas', ''),
+        ('• Si el nombre ya existe en tu empresa (o como grupo global), esa fila se OMITE.', ''),
+        ('• Los grupos importados quedan siempre como propios de tu empresa (nunca como "de sistema").', ''),
+        ('• Máximo 200 grupos por archivo importado.', ''),
+    ]
+    for i, (a, b) in enumerate(instructions, 1):
+        c1 = ws2.cell(row=i, column=1, value=a)
+        c2 = ws2.cell(row=i, column=2, value=b)
+        if i == 1:
+            c1.font = Font(bold=True, size=16, color='7C3AED')
+            ws2.merge_cells('A1:B1')
+        elif i == 3:
+            c1.font = Font(bold=True, color='FFFFFF')
+            c2.font = Font(bold=True, color='FFFFFF')
+            c1.fill = PatternFill('solid', fgColor='7C3AED')
+            c2.fill = PatternFill('solid', fgColor='7C3AED')
+        elif i == 9:
+            c1.font = Font(bold=True, size=14, color='7C3AED')
+    ws2.column_dimensions['A'].width = 45
+    ws2.column_dimensions['B'].width = 65
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
 
     log_audit('subroles_export', session['user_id'], 'subrole', None,
               f'Exportó {len(subroles)} subroles para empresa {company}')
 
-    from flask import Response
-    import json as _json
-    filename = f'subroles_{company}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
-    return Response(
-        _json.dumps(payload, ensure_ascii=False, indent=2),
-        mimetype='application/json',
-        headers={'Content-Disposition': f'attachment; filename="{filename}"'}
-    )
+    filename = f'grupos_especialistas_{company}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    return send_file(buffer,
+                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                      as_attachment=True,
+                      download_name=filename)
 
 
 @app.route('/api/admin/subroles/import', methods=['POST'])
 def api_admin_subroles_import():
-    """Importa subroles desde un JSON (compatible con el exportado por /export).
+    """Importa subroles desde un archivo Excel (.xlsx/.xls) o CSV.
     Modo merge: salta los que ya existen por nombre en la empresa."""
     if 'user_id' not in session or session['role'] != 'admin':
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     company = session.get('company')
 
-    # Acepta JSON en body o archivo subido en form-data
-    data = None
-    if request.is_json:
-        data = request.get_json(silent=True)
-    elif 'file' in request.files:
-        try:
-            import json as _json
-            data = _json.loads(request.files['file'].read().decode('utf-8'))
-        except Exception as e:
-            return jsonify({'success': False, 'error': f'JSON inválido: {e}'}), 400
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No se recibió archivo'}), 400
+    f = request.files['file']
+    if not f or not f.filename:
+        return jsonify({'success': False, 'error': 'Archivo vacío'}), 400
+    ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else ''
 
-    if not data or 'subroles' not in data:
-        return jsonify({'success': False, 'error': 'Formato inválido: falta la clave "subroles"'}), 400
+    raw_rows = []
+    try:
+        if ext in ('xlsx', 'xls'):
+            wb = openpyxl.load_workbook(f, read_only=True, data_only=True)
+            ws = wb.active
+            header_map = None
+            for r in ws.iter_rows(values_only=True):
+                if header_map is None:
+                    header_map = {}
+                    for i, h in enumerate(r):
+                        norm = _normalize_subrole_header(h)
+                        for field, aliases in _SUBROLE_HEADER_ALIASES.items():
+                            if norm in aliases:
+                                header_map[field] = i
+                                break
+                    continue
+                if r is None or all(c is None or str(c).strip() == '' for c in r):
+                    continue
+                raw_rows.append({
+                    field: (str(r[idx]).strip() if idx < len(r) and r[idx] is not None else '')
+                    for field, idx in header_map.items()
+                })
+        elif ext == 'csv':
+            import csv as _csv
+            from io import TextIOWrapper
+            wrapper = TextIOWrapper(f.stream, encoding='utf-8-sig')
+            reader = _csv.reader(wrapper)
+            header_map = None
+            for r in reader:
+                if header_map is None:
+                    header_map = {}
+                    for i, h in enumerate(r):
+                        norm = _normalize_subrole_header(h)
+                        for field, aliases in _SUBROLE_HEADER_ALIASES.items():
+                            if norm in aliases:
+                                header_map[field] = i
+                                break
+                    continue
+                if not r or all((c or '').strip() == '' for c in r):
+                    continue
+                raw_rows.append({
+                    field: (r[idx].strip() if idx < len(r) else '')
+                    for field, idx in header_map.items()
+                })
+        else:
+            return jsonify({'success': False, 'error': 'Formato no soportado. Usá .xlsx, .xls o .csv'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Error leyendo archivo: {str(e)[:200]}'}), 400
 
-    incoming = data['subroles']
-    if not isinstance(incoming, list):
-        return jsonify({'success': False, 'error': '"subroles" debe ser una lista'}), 400
+    if not header_map or 'name' not in header_map:
+        return jsonify({'success': False, 'error': 'El archivo no tiene las columnas esperadas (Nombre, ...). Descargá la plantilla con "Descargar" primero.'}), 400
+
+    if not raw_rows:
+        return jsonify({'success': False, 'error': 'El archivo no tiene filas válidas'}), 400
 
     created = 0
     skipped = 0
@@ -17453,22 +17554,23 @@ def api_admin_subroles_import():
         ).all()
     }
 
-    for item in incoming[:200]:  # Límite de 200 por request
+    for item in raw_rows[:200]:  # Límite de 200 por request
         try:
             name = (item.get('name') or '').strip()[:100]
             if not name or len(name) < 2:
-                errors.append(f'Nombre inválido: {item}')
+                errors.append(f'Nombre inválido: "{name}"')
                 continue
             if name.lower() in existing_names:
                 skipped += 1
                 continue
+            active_val = (item.get('is_active') or 'Si').strip().lower()
             s = Subrole(
                 name=name,
                 description=(item.get('description') or '').strip()[:500] or None,
                 icon=(item.get('icon') or '🔧').strip()[:10],
                 company=company,  # Siempre se importan como propios de la empresa
                 is_system=False,  # Nunca importar como sistema
-                is_active=bool(item.get('is_active', True)),
+                is_active=active_val not in ('no', 'false', '0', 'inactivo', 'inactive'),
             )
             db.session.add(s)
             existing_names.add(name.lower())
