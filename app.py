@@ -3328,6 +3328,34 @@ def technician_create():
         except Exception as e:
             print(f'[Orchestrator Hook] {e}')
 
+        # Si después del orchestrator (o sin él) el ticket sigue sin asignar, intentar
+        # fallback igual que en employee_create — esto es lo que dispara el email de
+        # asignación cuando nadie más asignó (ej: técnico crea "a nombre de" otro
+        # usuario sin marcar auto-asignarse).
+        if not assignee_id:
+            try:
+                db.session.refresh(ticket)
+                if not ticket.assignee_id:
+                    print(f'[technician_create][fallback-assign] Ticket {ticket.ticket_number} sin asignar, usando assign_ticket_auto')
+                    assign_ticket_auto(ticket)
+                    if ticket.assignee_id:
+                        if ticket.status == 'open':
+                            ticket.status = 'in_progress'
+                        db.session.commit()
+                        try:
+                            new_tech = User.query.get(ticket.assignee_id)
+                            if new_tech:
+                                notify_ticket_assigned(
+                                    ticket=ticket,
+                                    new_assignee=new_tech,
+                                    assigned_by_name=f'Ticket registrado por {tech.name}' + (f' en nombre de {behalf_user.name}' if behalf_user else ''),
+                                    reason='Orchestrator no disponible o sin asignar, usado balanceo por carga'
+                                )
+                        except Exception as e_email:
+                            print(f'[technician_create][fallback-assign] email error: {e_email}')
+            except Exception as e_fb:
+                print(f'[technician_create][fallback-assign] Error general: {e_fb}')
+
         creator_note = f' en nombre de {behalf_user.username}' if behalf_user else ''
         assign_note = ' (auto-asignado al técnico)' if assignee_id else ''
         log_audit('create_ticket', tech.id, 'ticket', ticket.id,
