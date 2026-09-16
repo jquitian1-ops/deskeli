@@ -746,6 +746,29 @@ class UserSession(db.Model):
     last_activity = db.Column(db.DateTime, default=datetime.now)
     user = db.relationship('User', backref='sessions')
 
+class Category(db.Model):
+    """Categorías de tickets, administrables desde /admin/config → Categorías.
+    Reemplaza las listas fijas que antes estaban hardcodeadas en 3 lugares
+    distintos (formulario de crear ticket del empleado, modal de crear ticket
+    del admin, y el selector de categoría al crear una plantilla) — ahora los
+    3 leen de esta misma tabla vía GET /api/categories.
+
+    company=NULL = categoría global (visible para las 3 empresas). Las
+    categorías pre-cargadas (is_system=True) no se pueden borrar; las que
+    crea un admin quedan siempre ligadas a su propia empresa.
+    """
+    __tablename__ = 'categories'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    icon = db.Column(db.String(10), default='📌')
+    company = db.Column(db.String(20))  # NULL = global a todas las empresas
+    is_system = db.Column(db.Boolean, default=False)  # las pre-seed no se pueden borrar
+    is_active = db.Column(db.Boolean, default=True, index=True)
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    __table_args__ = (db.UniqueConstraint('name', 'company', name='_category_company_uc'),)
+
+
 class Tag(db.Model):
     __tablename__ = 'tags'
     id = db.Column(db.Integer, primary_key=True)
@@ -11747,6 +11770,45 @@ def seed_default_subroles():
         print(f"[init_db] {created} subroles del sistema creados")
 
 
+def seed_default_categories():
+    """Pre-carga el catálogo de categorías de ticket del sistema (idempotente).
+    Son las mismas 12 que antes estaban hardcodeadas en el HTML de los 3
+    formularios; quedan como globales (company=None) para no romper tickets
+    o plantillas ya existentes que usan estos nombres exactos."""
+    defaults = [
+        ('General', '📌'),
+        ('Hardware', '🖥️'),
+        ('Software', '💻'),
+        ('Red', '🌐'),
+        ('Email', '📧'),
+        ('Impresoras', '🖨️'),
+        ('SAP', '📊'),
+        ('Telefonía', '📞'),
+        ('Accesos', '🔑'),
+        ('Seguridad', '🛡️'),
+        ('Servidores', '🖧'),
+        ('Office', '📄'),
+    ]
+    created = 0
+    for order, (name, icon) in enumerate(defaults):
+        if not Category.query.filter_by(name=name, company=None).first():
+            db.session.add(Category(
+                name=name, icon=icon, company=None,
+                is_system=True, is_active=True, sort_order=order,
+            ))
+            created += 1
+    # Categoría específica de Pash que ya existía hardcodeada para esa empresa
+    if not Category.query.filter_by(name='Mesa de Ayuda', company='pash').first():
+        db.session.add(Category(
+            name='Mesa de Ayuda', icon='🎧', company='pash',
+            is_system=False, is_active=True, sort_order=99,
+        ))
+        created += 1
+    if created > 0:
+        db.session.commit()
+        print(f"[init_db] {created} categorías del sistema creadas")
+
+
 def migrate_tickets_resolution_note():
     """Agrega columnas resolution_note y resolved_by_id a tickets si no existen."""
     from sqlalchemy import inspect, text
@@ -11920,6 +11982,7 @@ def init_db():
         except Exception as _e:
             print(f'[migrate] performance_indexes: {_e}')
         seed_default_subroles()
+        seed_default_categories()
         seed_default_templates()
         convert_legacy_templates_to_forms()
 
@@ -17374,6 +17437,117 @@ def api_admin_subroles_delete(subrole_id):
     db.session.commit()
     log_audit('delete_subrole', session['user_id'], 'subrole', subrole_id, f'Subrol "{name}" eliminado')
     return jsonify({'success': True, 'message': f'Subrol "{name}" eliminado'})
+
+
+@app.route('/api/categories', methods=['GET'])
+def api_categories_list_public():
+    """Lista las categorías activas visibles para el usuario logueado (globales
+    + propias de su empresa). La usan los 3 formularios que antes tenían la
+    lista hardcodeada: crear ticket (empleado y admin) y crear plantilla."""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    company = session.get('company')
+    categories = Category.query.filter(
+        (Category.company == None) | (Category.company == company),
+        Category.is_active == True,
+    ).order_by(Category.sort_order, Category.name).all()
+    return jsonify({
+        'success': True,
+        'categories': [{'name': c.name, 'icon': c.icon or '📌'} for c in categories]
+    })
+
+
+@app.route('/api/admin/categories', methods=['GET'])
+def api_admin_categories_list():
+    """Listar categorías (sistema global + propias de la empresa), incluye inactivas."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    company = session.get('company')
+    categories = Category.query.filter(
+        (Category.company == None) | (Category.company == company)
+    ).order_by(Category.is_system.desc(), Category.sort_order, Category.name).all()
+    return jsonify({
+        'success': True,
+        'categories': [{
+            'id': c.id,
+            'name': c.name,
+            'icon': c.icon or '📌',
+            'company': c.company,
+            'is_system': bool(c.is_system),
+            'is_active': bool(c.is_active),
+            'is_global': c.company is None,
+        } for c in categories]
+    })
+
+
+@app.route('/api/admin/categories', methods=['POST'])
+def api_admin_categories_create():
+    """Crear categoría personalizada para la empresa actual."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    if not name or len(name) < 2:
+        return jsonify({'success': False, 'error': 'El nombre es requerido (mínimo 2 caracteres)'}), 400
+    company = session.get('company')
+    existing = Category.query.filter(
+        Category.name == name,
+        (Category.company == None) | (Category.company == company)
+    ).first()
+    if existing:
+        return jsonify({'success': False, 'error': f'Ya existe una categoría "{name}".'}), 400
+    c = Category(
+        name=name[:100],
+        icon=(data.get('icon') or '📌').strip()[:10],
+        company=company,
+        is_system=False,
+        is_active=True,
+        sort_order=100,
+    )
+    db.session.add(c)
+    db.session.commit()
+    log_audit('create_category', session['user_id'], 'category', c.id, f'Categoría "{name}" creada')
+    return jsonify({'success': True, 'id': c.id, 'message': f'Categoría "{name}" creada'})
+
+
+@app.route('/api/admin/categories/<int:category_id>', methods=['PUT'])
+def api_admin_categories_update(category_id):
+    """Actualizar categoría (sistema solo permite cambiar icon/is_active; custom permite todo)."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    c = Category.query.get_or_404(category_id)
+    data = request.get_json() or {}
+    if c.is_system:
+        if 'icon' in data: c.icon = (data['icon'] or '📌').strip()[:10]
+        if 'is_active' in data: c.is_active = bool(data['is_active'])
+    else:
+        if 'name' in data:
+            new_name = (data['name'] or '').strip()
+            if new_name and new_name != c.name:
+                existing = Category.query.filter(Category.name == new_name, Category.id != c.id).first()
+                if existing:
+                    return jsonify({'success': False, 'error': 'Ya existe una categoría con ese nombre'}), 400
+                c.name = new_name[:100]
+        if 'icon' in data: c.icon = (data['icon'] or '📌').strip()[:10]
+        if 'is_active' in data: c.is_active = bool(data['is_active'])
+    db.session.commit()
+    log_audit('update_category', session['user_id'], 'category', c.id, f'Categoría "{c.name}" actualizada')
+    return jsonify({'success': True, 'message': 'Categoría actualizada'})
+
+
+@app.route('/api/admin/categories/<int:category_id>', methods=['DELETE'])
+def api_admin_categories_delete(category_id):
+    """Eliminar categoría. Las is_system no se pueden borrar, solo desactivar."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    c = Category.query.get_or_404(category_id)
+    if c.is_system:
+        return jsonify({'success': False, 'error': 'No se puede eliminar una categoría del sistema. Desactívala en su lugar.'}), 400
+    name = c.name
+    db.session.delete(c)
+    db.session.commit()
+    log_audit('delete_category', session['user_id'], 'category', category_id, f'Categoría "{name}" eliminada')
+    return jsonify({'success': True, 'message': f'Categoría "{name}" eliminada'})
 
 
 _SUBROLE_EXCEL_HEADERS = [

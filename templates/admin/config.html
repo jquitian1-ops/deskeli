@@ -883,18 +883,7 @@
                         <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; margin-bottom: 10px;">
                             <input type="text" id="tpl-name" placeholder="Nombre (ej: Problema de WiFi)" style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
                             <select id="tpl-category" style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
-                                <option value="Hardware">Hardware</option>
-                                <option value="Software">Software</option>
-                                <option value="Red">Red</option>
-                                <option value="Email">Email</option>
-                                <option value="Accesos">Accesos</option>
-                                <option value="SAP">SAP</option>
-                                <option value="Seguridad">Seguridad</option>
-                                <option value="Telefonía">Telefonía</option>
-                                <option value="General" selected>General</option>
-                                {% if session.get('company') == 'pash' %}
-                                <option value="Mesa de Ayuda">Mesa de Ayuda</option>
-                                {% endif %}
+                                <option value="General" selected>⏳ Cargando…</option>
                             </select>
                             <select id="tpl-priority" style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
                                 <option value="low">Baja</option>
@@ -2705,6 +2694,25 @@
         }
 
         // ====== PLANTILLAS DE TICKETS ======
+        async function loadTplCategories() {
+            const sel = document.getElementById('tpl-category');
+            if (!sel) return;
+            try {
+                const r = await fetch('/api/categories');
+                const data = await r.json();
+                if (!data.success || !data.categories || data.categories.length === 0) {
+                    sel.innerHTML = '<option value="General">General</option>';
+                    return;
+                }
+                sel.innerHTML = data.categories.map(c =>
+                    `<option value="${c.name}"${c.name === 'General' ? ' selected' : ''}>${c.icon} ${c.name}</option>`
+                ).join('');
+            } catch (e) {
+                console.error('loadTplCategories:', e);
+                sel.innerHTML = '<option value="General">General</option>';
+            }
+        }
+
         async function loadTemplates() {
             const tbody = document.getElementById('templates-tbody');
             const filterCat = document.getElementById('tpl-filter-category').value;
@@ -3781,6 +3789,7 @@
             loadTeam();
             loadAvailableTechnicians();
             loadSpecialistsList();
+            loadTplCategories();
             loadTemplates();
             loadBotKB();
             loadTags();

@@ -2002,17 +2002,7 @@
                         <div>
                             <label style="display:block;font-size:13px;color:#374151;font-weight:600;margin-bottom:4px;">Categoría</label>
                             <select id="ctCategory" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
-                                <option value="General">General</option>
-                                <option value="Hardware">🖥️ Hardware</option>
-                                <option value="Software">💻 Software</option>
-                                <option value="Red">🌐 Red</option>
-                                <option value="Email">📧 Email</option>
-                                <option value="SAP">📊 SAP</option>
-                                <option value="Impresoras">🖨️ Impresoras</option>
-                                <option value="Telefonía">📞 Telefonía</option>
-                                <option value="Seguridad">🛡️ Seguridad</option>
-                                <option value="Servidores">🖧 Servidores</option>
-                                <option value="Accesos">🔑 Accesos</option>
+                                <option value="General">⏳ Cargando…</option>
                             </select>
                         </div>
                         <div>
@@ -2546,11 +2536,31 @@
             document.getElementById('ctStatus').innerHTML = '<span style="color:#1e40af;">📋 Plantilla "' + t.name + '" aplicada. Podés editar antes de crear.</span>';
         }
 
+        async function loadCtCategories() {
+            const sel = document.getElementById('ctCategory');
+            if (!sel) return;
+            try {
+                const r = await fetch('/api/categories');
+                const data = await r.json();
+                if (!data.success || !data.categories || data.categories.length === 0) {
+                    sel.innerHTML = '<option value="General">General</option>';
+                    return;
+                }
+                sel.innerHTML = data.categories.map(c =>
+                    `<option value="${c.name}">${c.icon} ${c.name}</option>`
+                ).join('');
+            } catch (e) {
+                console.error('loadCtCategories:', e);
+                sel.innerHTML = '<option value="General">General</option>';
+            }
+        }
+
         async function openAdminCreateTicket() {
             document.getElementById('createTicketModal').style.display = 'flex';
             document.getElementById('ctTemplate').value = '';
             document.getElementById('ctTitle').value = '';
             document.getElementById('ctDescription').value = '';
+            await loadCtCategories();
             document.getElementById('ctCategory').value = 'General';
             document.getElementById('ctPriority').value = 'medium';
             document.getElementById('ctFiles').value = '';

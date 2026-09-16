@@ -196,22 +196,7 @@
                 <div class="form-group" style="background:#ecfdf5;border:1px solid #a7f3d0;padding:12px;border-radius:8px;">
                     <label for="category" style="color:#065f46;font-weight:700;">1️⃣ 📁 Categoría del problema <span style="color:#dc2626;">*</span></label>
                     <select id="category" name="category" onchange="filterTemplatesByCategory()" style="width:100%;padding:10px;border:1px solid #6ee7b7;border-radius:6px;font-size:14px;background:white;">
-                        <option value="" selected>— Selecciona la categoría —</option>
-                        <option value="General">📌 General</option>
-                        <option value="Hardware">🖥️ Hardware</option>
-                        <option value="Software">💻 Software</option>
-                        <option value="Red">🌐 Red / Conectividad</option>
-                        <option value="Email">📧 Email / Outlook</option>
-                        <option value="Impresoras">🖨️ Impresoras</option>
-                        <option value="SAP">📊 SAP</option>
-                        <option value="Telefonía">📞 Telefonía</option>
-                        <option value="Accesos">🔑 Accesos / Contraseñas</option>
-                        <option value="Seguridad">🛡️ Seguridad</option>
-                        <option value="Servidores">🖧 Servidores</option>
-                        <option value="Office">📄 Office</option>
-                        {% if user and user.company == 'pash' %}
-                        <option value="Mesa de Ayuda">🎧 Mesa de Ayuda</option>
-                        {% endif %}
+                        <option value="" selected>⏳ Cargando categorías…</option>
                     </select>
                     <p class="help-text" style="color:#065f46;">Primero elegí la categoría general. Luego abajo aparecerán las plantillas disponibles para esa categoría.</p>
                 </div>
@@ -428,6 +413,27 @@
 
 <script>
 let _empTemplates = [];
+
+async function loadCategories() {
+    const sel = document.getElementById('category');
+    if (!sel) return;
+    try {
+        const r = await fetch('/api/categories');
+        const data = await r.json();
+        if (!data.success || !data.categories || data.categories.length === 0) {
+            sel.innerHTML = '<option value="">— Selecciona la categoría —</option>';
+            return;
+        }
+        let html = '<option value="" selected>— Selecciona la categoría —</option>';
+        data.categories.forEach(c => {
+            html += `<option value="${escapeHtml(c.name)}">${escapeHtml(c.icon)} ${escapeHtml(c.name)}</option>`;
+        });
+        sel.innerHTML = html;
+    } catch (e) {
+        console.error('loadCategories:', e);
+        sel.innerHTML = '<option value="">— Selecciona la categoría —</option>';
+    }
+}
 
 async function loadEmpTemplates() {
     try {
@@ -976,7 +982,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-document.addEventListener('DOMContentLoaded', loadEmpTemplates);
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadCategories();
+    loadEmpTemplates();
+});
 </script>
 
 <script src="{{ url_for('static', filename='js/devtools_blocker.js') }}"></script>
