@@ -579,6 +579,7 @@ class Ticket(db.Model):
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=False)
     category = db.Column(db.String(100), default='General', index=True)
+    subcategory = db.Column(db.String(100))  # opcional, subcategoría de `category` (ver modelo Category)
     status = db.Column(db.String(20), default='open', index=True)  # open, in_progress, resolved
     priority = db.Column(db.String(20), default='medium', index=True)  # low, medium, high, critical
     company = db.Column(db.String(20), nullable=False, index=True)
@@ -695,6 +696,7 @@ class Template(db.Model):
     title_template = db.Column(db.String(200), nullable=False)
     description_template = db.Column(db.Text)
     category = db.Column(db.String(100))
+    subcategory = db.Column(db.String(100))  # opcional, subcategoría de `category` (ver modelo Category)
     priority = db.Column(db.String(20), default='medium')
     company = db.Column(db.String(20), nullable=False)
     is_system = db.Column(db.Boolean, default=False)
@@ -747,26 +749,35 @@ class UserSession(db.Model):
     user = db.relationship('User', backref='sessions')
 
 class Category(db.Model):
-    """Categorías de tickets, administrables desde /admin/config → Categorías.
-    Reemplaza las listas fijas que antes estaban hardcodeadas en 3 lugares
-    distintos (formulario de crear ticket del empleado, modal de crear ticket
-    del admin, y el selector de categoría al crear una plantilla) — ahora los
-    3 leen de esta misma tabla vía GET /api/categories.
+    """Categorías (y subcategorías) de tickets, administrables desde
+    /admin/config → Categorías. Reemplaza las listas fijas que antes estaban
+    hardcodeadas en 3 lugares distintos (formulario de crear ticket del
+    empleado, modal de crear ticket del admin, y el selector de categoría al
+    crear una plantilla) — ahora los 3 leen de esta misma tabla vía
+    GET /api/categories.
 
     company=NULL = categoría global (visible para las 3 empresas). Las
     categorías pre-cargadas (is_system=True) no se pueden borrar; las que
     crea un admin quedan siempre ligadas a su propia empresa.
+
+    parent_id=NULL → es una categoría de nivel superior.
+    parent_id=<id> → es una subcategoría de esa categoría (jerarquía de
+    máximo 2 niveles: una subcategoría no puede a su vez tener parent_id
+    apuntando a otra subcategoría).
     """
     __tablename__ = 'categories'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     icon = db.Column(db.String(10), default='📌')
     company = db.Column(db.String(20))  # NULL = global a todas las empresas
+    parent_id = db.Column(db.Integer, db.ForeignKey('categories.id'), index=True)
     is_system = db.Column(db.Boolean, default=False)  # las pre-seed no se pueden borrar
     is_active = db.Column(db.Boolean, default=True, index=True)
     sort_order = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.now)
-    __table_args__ = (db.UniqueConstraint('name', 'company', name='_category_company_uc'),)
+    __table_args__ = (db.UniqueConstraint('name', 'company', 'parent_id', name='_category_company_parent_uc'),)
+
+    parent = db.relationship('Category', remote_side=[id], backref='subcategories')
 
 
 class Tag(db.Model):
@@ -2968,6 +2979,7 @@ def employee_create():
         title = request.form.get('title', '').strip()
         description = request.form.get('description', '').strip()
         category = request.form.get('category', 'General').strip()
+        subcategory = (request.form.get('subcategory') or '').strip() or None
         priority = request.form.get('priority', 'medium').strip()
         priority_reason = (request.form.get('priority_reason') or '').strip()
         user_area = (request.form.get('user_area') or '').strip()
@@ -3028,6 +3040,7 @@ def employee_create():
             title=title,
             description=description,
             category=category,
+            subcategory=subcategory,
             priority=priority,
             creator_id=user.id,
             company=user.company,
@@ -11270,6 +11283,42 @@ def migrate_solicitudes_jefe_manual():
             print(f"[migrate_jefe_manual] error agregando {col_name}: {e}")
 
 
+def migrate_categories_parent_id():
+    """Agrega parent_id a categories (jerarquía Categoría → Subcategoría) y
+    subcategory a templates (opcional, para ligar una plantilla a una
+    subcategoría además de su categoría)."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'categories' in inspector.get_table_names():
+        existing_cols = {c['name'] for c in inspector.get_columns('categories')}
+        if 'parent_id' not in existing_cols:
+            try:
+                with db.engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE categories ADD COLUMN parent_id INTEGER REFERENCES categories(id)"))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_categories_parent_id ON categories(parent_id)"))
+                print("[migrate_categories] Columna parent_id agregada")
+            except Exception as e:
+                print(f"[migrate_categories] error agregando parent_id: {e}")
+    if 'templates' in inspector.get_table_names():
+        existing_cols = {c['name'] for c in inspector.get_columns('templates')}
+        if 'subcategory' not in existing_cols:
+            try:
+                with db.engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE templates ADD COLUMN subcategory VARCHAR(100)"))
+                print("[migrate_categories] Columna templates.subcategory agregada")
+            except Exception as e:
+                print(f"[migrate_categories] error agregando templates.subcategory: {e}")
+    if 'tickets' in inspector.get_table_names():
+        existing_cols = {c['name'] for c in inspector.get_columns('tickets')}
+        if 'subcategory' not in existing_cols:
+            try:
+                with db.engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE tickets ADD COLUMN subcategory VARCHAR(100)"))
+                print("[migrate_categories] Columna tickets.subcategory agregada")
+            except Exception as e:
+                print(f"[migrate_categories] error agregando tickets.subcategory: {e}")
+
+
 def migrate_messages_schema():
     """Agrega subtask_id a la tabla messages si no existe."""
     from sqlalchemy import inspect, text
@@ -11963,6 +12012,11 @@ def init_db():
             migrate_solicitudes_jefe_manual()
         except Exception as _e:
             print(f"[migrate] solicitudes_jefe_manual: {_e}")
+        # Jerarquía Categoría -> Subcategoría
+        try:
+            migrate_categories_parent_id()
+        except Exception as _e:
+            print(f"[migrate] categories_parent_id: {_e}")
         try:
             migrate_report_recipients_team()
         except Exception as _e:
@@ -12191,6 +12245,7 @@ def api_admin_create_ticket():
         title=data.get('title'),
         description=data.get('description'),
         category=data.get('category', 'General'),
+        subcategory=(data.get('subcategory') or '').strip() or None,
         priority=data.get('priority', 'medium'),
         creator_id=session['user_id'],
         company=user.company,
@@ -16465,6 +16520,7 @@ def api_admin_templates_list():
             'title_template': t.title_template,
             'description_template': t.description_template or '',
             'category': t.category or 'General',
+            'subcategory': t.subcategory or '',
             'priority': t.priority or 'medium',
             'is_system': bool(t.is_system),
             'form_fields': form_fields
@@ -16505,6 +16561,7 @@ def api_admin_templates_create():
             title_template=title_template,
             description_template=(data.get('description_template') or '').strip(),
             category=(data.get('category') or 'General').strip(),
+            subcategory=(data.get('subcategory') or '').strip() or None,
             priority=(data.get('priority') or 'medium').strip(),
             company=session['company'],
             is_system=False
@@ -16536,6 +16593,7 @@ def api_admin_templates_update(template_id):
         if 'title_template' in data: t.title_template = data['title_template'].strip()
         if 'description_template' in data: t.description_template = data['description_template'].strip()
         if 'category' in data: t.category = data['category'].strip()
+        if 'subcategory' in data: t.subcategory = (data['subcategory'] or '').strip() or None
         if 'priority' in data: t.priority = data['priority'].strip()
         db.session.commit()
 
@@ -17442,30 +17500,47 @@ def api_admin_subroles_delete(subrole_id):
 @app.route('/api/categories', methods=['GET'])
 def api_categories_list_public():
     """Lista las categorías activas visibles para el usuario logueado (globales
-    + propias de su empresa). La usan los 3 formularios que antes tenían la
-    lista hardcodeada: crear ticket (empleado y admin) y crear plantilla."""
+    + propias de su empresa), anidadas: cada categoría de nivel superior trae
+    su lista de subcategorías activas. La usan los 3 formularios que antes
+    tenían la lista hardcodeada: crear ticket (empleado y admin) y crear
+    plantilla."""
     if 'user_id' not in session:
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     company = session.get('company')
-    categories = Category.query.filter(
+    all_cats = Category.query.filter(
         (Category.company == None) | (Category.company == company),
         Category.is_active == True,
     ).order_by(Category.sort_order, Category.name).all()
+    children_by_parent = {}
+    for c in all_cats:
+        if c.parent_id:
+            children_by_parent.setdefault(c.parent_id, []).append(c)
+    top_level = [c for c in all_cats if not c.parent_id]
     return jsonify({
         'success': True,
-        'categories': [{'name': c.name, 'icon': c.icon or '📌'} for c in categories]
+        'categories': [{
+            'name': c.name,
+            'icon': c.icon or '📌',
+            'subcategories': [
+                {'name': sc.name, 'icon': sc.icon or '📌'}
+                for sc in children_by_parent.get(c.id, [])
+            ],
+        } for c in top_level]
     })
 
 
 @app.route('/api/admin/categories', methods=['GET'])
 def api_admin_categories_list():
-    """Listar categorías (sistema global + propias de la empresa), incluye inactivas."""
+    """Listar categorías (sistema global + propias de la empresa), incluye
+    inactivas. Lista plana; cada fila indica su parent_id/parent_name si es
+    una subcategoría."""
     if 'user_id' not in session or session['role'] != 'admin':
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     company = session.get('company')
     categories = Category.query.filter(
         (Category.company == None) | (Category.company == company)
     ).order_by(Category.is_system.desc(), Category.sort_order, Category.name).all()
+    names_by_id = {c.id: c.name for c in categories}
     return jsonify({
         'success': True,
         'categories': [{
@@ -17476,13 +17551,15 @@ def api_admin_categories_list():
             'is_system': bool(c.is_system),
             'is_active': bool(c.is_active),
             'is_global': c.company is None,
+            'parent_id': c.parent_id,
+            'parent_name': names_by_id.get(c.parent_id),
         } for c in categories]
     })
 
 
 @app.route('/api/admin/categories', methods=['POST'])
 def api_admin_categories_create():
-    """Crear categoría personalizada para la empresa actual."""
+    """Crear categoría (o subcategoría, si se pasa parent_id) para la empresa actual."""
     if 'user_id' not in session or session['role'] != 'admin':
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     data = request.get_json() or {}
@@ -17490,24 +17567,39 @@ def api_admin_categories_create():
     if not name or len(name) < 2:
         return jsonify({'success': False, 'error': 'El nombre es requerido (mínimo 2 caracteres)'}), 400
     company = session.get('company')
+
+    parent_id = data.get('parent_id')
+    parent = None
+    if parent_id:
+        parent = Category.query.get(parent_id)
+        if not parent or (parent.company is not None and parent.company != company):
+            return jsonify({'success': False, 'error': 'Categoría padre inválida'}), 400
+        if parent.parent_id:
+            return jsonify({'success': False, 'error': 'No se pueden anidar más de 2 niveles (una subcategoría no puede tener sub-subcategorías)'}), 400
+
     existing = Category.query.filter(
         Category.name == name,
-        (Category.company == None) | (Category.company == company)
+        (Category.company == None) | (Category.company == company),
+        Category.parent_id == parent_id if parent_id else Category.parent_id.is_(None),
     ).first()
     if existing:
-        return jsonify({'success': False, 'error': f'Ya existe una categoría "{name}".'}), 400
+        kind = 'subcategoría' if parent_id else 'categoría'
+        return jsonify({'success': False, 'error': f'Ya existe una {kind} "{name}" en ese nivel.'}), 400
+
     c = Category(
         name=name[:100],
         icon=(data.get('icon') or '📌').strip()[:10],
         company=company,
+        parent_id=parent.id if parent else None,
         is_system=False,
         is_active=True,
         sort_order=100,
     )
     db.session.add(c)
     db.session.commit()
-    log_audit('create_category', session['user_id'], 'category', c.id, f'Categoría "{name}" creada')
-    return jsonify({'success': True, 'id': c.id, 'message': f'Categoría "{name}" creada'})
+    kind_label = f'subcategoría de "{parent.name}"' if parent else 'categoría'
+    log_audit('create_category', session['user_id'], 'category', c.id, f'{kind_label.capitalize()} "{name}" creada')
+    return jsonify({'success': True, 'id': c.id, 'message': f'{"Subcategoría" if parent else "Categoría"} "{name}" creada'})
 
 
 @app.route('/api/admin/categories/<int:category_id>', methods=['PUT'])
@@ -17517,16 +17609,33 @@ def api_admin_categories_update(category_id):
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     c = Category.query.get_or_404(category_id)
     data = request.get_json() or {}
+    company = session.get('company')
     if c.is_system:
         if 'icon' in data: c.icon = (data['icon'] or '📌').strip()[:10]
         if 'is_active' in data: c.is_active = bool(data['is_active'])
     else:
+        if 'parent_id' in data:
+            new_parent_id = data['parent_id']
+            if new_parent_id:
+                if Category.query.filter_by(parent_id=c.id).first():
+                    return jsonify({'success': False, 'error': 'Esta categoría tiene subcategorías; no puede convertirse en subcategoría ella misma'}), 400
+                parent = Category.query.get(new_parent_id)
+                if not parent or parent.id == c.id or (parent.company is not None and parent.company != company):
+                    return jsonify({'success': False, 'error': 'Categoría padre inválida'}), 400
+                if parent.parent_id:
+                    return jsonify({'success': False, 'error': 'No se pueden anidar más de 2 niveles'}), 400
+                c.parent_id = parent.id
+            else:
+                c.parent_id = None
         if 'name' in data:
             new_name = (data['name'] or '').strip()
             if new_name and new_name != c.name:
-                existing = Category.query.filter(Category.name == new_name, Category.id != c.id).first()
+                existing = Category.query.filter(
+                    Category.name == new_name, Category.id != c.id,
+                    Category.parent_id == c.parent_id if c.parent_id else Category.parent_id.is_(None),
+                ).first()
                 if existing:
-                    return jsonify({'success': False, 'error': 'Ya existe una categoría con ese nombre'}), 400
+                    return jsonify({'success': False, 'error': 'Ya existe una categoría con ese nombre en ese nivel'}), 400
                 c.name = new_name[:100]
         if 'icon' in data: c.icon = (data['icon'] or '📌').strip()[:10]
         if 'is_active' in data: c.is_active = bool(data['is_active'])
@@ -17537,12 +17646,16 @@ def api_admin_categories_update(category_id):
 
 @app.route('/api/admin/categories/<int:category_id>', methods=['DELETE'])
 def api_admin_categories_delete(category_id):
-    """Eliminar categoría. Las is_system no se pueden borrar, solo desactivar."""
+    """Eliminar categoría. Las is_system no se pueden borrar, solo desactivar.
+    Tampoco se puede borrar una categoría que todavía tiene subcategorías."""
     if 'user_id' not in session or session['role'] != 'admin':
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     c = Category.query.get_or_404(category_id)
     if c.is_system:
         return jsonify({'success': False, 'error': 'No se puede eliminar una categoría del sistema. Desactívala en su lugar.'}), 400
+    sub_count = Category.query.filter_by(parent_id=c.id).count()
+    if sub_count > 0:
+        return jsonify({'success': False, 'error': f'Esta categoría tiene {sub_count} subcategoría(s). Eliminalas primero.'}), 400
     name = c.name
     db.session.delete(c)
     db.session.commit()
@@ -17553,6 +17666,7 @@ def api_admin_categories_delete(category_id):
 _CATEGORY_EXCEL_HEADERS = [
     ('icon', 'Icono'),
     ('name', 'Nombre'),
+    ('parent_name', 'Categoria Padre'),
     ('is_active', 'Activo'),
 ]
 
@@ -17565,6 +17679,7 @@ def _normalize_category_header(s):
 _CATEGORY_HEADER_ALIASES = {
     'icon': {'icono', 'icon'},
     'name': {'nombre', 'name'},
+    'parent_name': {'categoria padre', 'categoria', 'padre', 'parent', 'parent_name'},
     'is_active': {'activo', 'estado', 'is_active'},
 }
 
@@ -17590,10 +17705,26 @@ def api_admin_categories_export():
         cell.fill = PatternFill('solid', fgColor='7C3AED')
         cell.alignment = Alignment(horizontal='center')
         ws.column_dimensions[cell.column_letter].width = 22
-    for r, c in enumerate(categories, start=2):
+    names_by_id = {c.id: c.name for c in categories}
+    # Ordenar para que cada subcategoría quede justo debajo de su padre
+    top = [c for c in categories if not c.parent_id]
+    by_parent = {}
+    for c in categories:
+        if c.parent_id:
+            by_parent.setdefault(c.parent_id, []).append(c)
+    ordered = []
+    for t in top:
+        ordered.append(t)
+        ordered.extend(by_parent.get(t.id, []))
+    # Huérfanas (por si el padre no está en el scope visible) al final
+    ordered_ids = {c.id for c in ordered}
+    ordered.extend(c for c in categories if c.id not in ordered_ids)
+
+    for r, c in enumerate(ordered, start=2):
         row = {
             'icon': c.icon or '📌',
             'name': c.name,
+            'parent_name': names_by_id.get(c.parent_id, ''),
             'is_active': 'Si' if c.is_active else 'No',
         }
         for col, (key, _) in enumerate(_CATEGORY_EXCEL_HEADERS, 1):
@@ -17605,13 +17736,16 @@ def api_admin_categories_export():
         ('', ''),
         ('Columna', 'Descripción'),
         ('Icono', 'Un emoji para la categoría (ej: 🖥️, 💻, 🌐). Opcional, por defecto 📌'),
-        ('Nombre', 'Nombre de la categoría (ej: Hardware, Mesa de Ayuda). Obligatorio'),
+        ('Nombre', 'Nombre de la categoría o subcategoría (ej: Hardware, Impresoras). Obligatorio'),
+        ('Categoria Padre', '(Opcional) si esta fila es una SUBCATEGORÍA, poné acá el nombre exacto de su categoría padre. Dejalo vacío si es una categoría de nivel superior.'),
         ('Activo', 'Si / No'),
         ('', ''),
         ('Reglas', ''),
-        ('• Si el nombre ya existe en tu empresa (o como categoría global), esa fila se OMITE.', ''),
+        ('• Si el nombre ya existe en tu empresa en ese mismo nivel, esa fila se OMITE.', ''),
         ('• Las categorías importadas quedan siempre como propias de tu empresa (nunca como "de sistema").', ''),
-        ('• Máximo 200 categorías por archivo importado.', ''),
+        ('• Una subcategoría no puede a su vez tener sub-subcategorías (máximo 2 niveles).', ''),
+        ('• La "Categoria Padre" debe existir ya en el sistema, o venir en OTRA fila de este mismo archivo sin su propia Categoria Padre.', ''),
+        ('• Máximo 200 filas por archivo importado.', ''),
     ]
     for i, (a, b) in enumerate(instructions, 1):
         c1 = ws2.cell(row=i, column=1, value=a)
@@ -17624,7 +17758,7 @@ def api_admin_categories_export():
             c2.font = Font(bold=True, color='FFFFFF')
             c1.fill = PatternFill('solid', fgColor='7C3AED')
             c2.fill = PatternFill('solid', fgColor='7C3AED')
-        elif i == 8:
+        elif i == 10:
             c1.font = Font(bold=True, size=14, color='7C3AED')
     ws2.column_dimensions['A'].width = 45
     ws2.column_dimensions['B'].width = 65
@@ -17717,19 +17851,27 @@ def api_admin_categories_import():
     skipped = 0
     errors = []
 
-    existing_names = {
-        c.name.lower() for c in Category.query.filter(
-            (Category.company == None) | (Category.company == company)
-        ).all()
-    }
+    visible = Category.query.filter(
+        (Category.company == None) | (Category.company == company)
+    ).all()
+    # id_by_name_toplevel: nombre (lower) -> id, solo para categorías de nivel superior
+    # (una subcategoría no puede ser padre de otra)
+    id_by_name_toplevel = {c.name.lower(): c.id for c in visible if not c.parent_id}
+    existing_pairs = {(c.name.lower(), c.parent_id) for c in visible}
 
-    for item in raw_rows[:200]:  # Límite de 200 por request
+    rows = raw_rows[:200]  # Límite de 200 por request
+
+    # Pasada 1: categorías de nivel superior (sin "Categoria Padre")
+    for item in rows:
+        parent_name = (item.get('parent_name') or '').strip()
+        if parent_name:
+            continue  # se procesa en la pasada 2
         try:
             name = (item.get('name') or '').strip()[:100]
             if not name or len(name) < 2:
                 errors.append(f'Nombre inválido: "{name}"')
                 continue
-            if name.lower() in existing_names:
+            if (name.lower(), None) in existing_pairs:
                 skipped += 1
                 continue
             active_val = (item.get('is_active') or 'Si').strip().lower()
@@ -17737,12 +17879,48 @@ def api_admin_categories_import():
                 name=name,
                 icon=(item.get('icon') or '📌').strip()[:10],
                 company=company,  # Siempre se importan como propias de la empresa
+                parent_id=None,
                 is_system=False,  # Nunca importar como sistema
                 is_active=active_val not in ('no', 'false', '0', 'inactivo', 'inactive'),
                 sort_order=100,
             )
             db.session.add(c)
-            existing_names.add(name.lower())
+            db.session.flush()  # necesita id para que la pasada 2 la use como padre
+            existing_pairs.add((name.lower(), None))
+            id_by_name_toplevel[name.lower()] = c.id
+            created += 1
+        except Exception as e:
+            errors.append(f'Error en {item.get("name","?")}: {e}')
+
+    # Pasada 2: subcategorías (con "Categoria Padre")
+    for item in rows:
+        parent_name = (item.get('parent_name') or '').strip()
+        if not parent_name:
+            continue
+        try:
+            name = (item.get('name') or '').strip()[:100]
+            if not name or len(name) < 2:
+                errors.append(f'Nombre inválido: "{name}"')
+                continue
+            parent_id = id_by_name_toplevel.get(parent_name.lower())
+            if not parent_id:
+                errors.append(f'"{name}": no se encontró la categoría padre "{parent_name}"')
+                continue
+            if (name.lower(), parent_id) in existing_pairs:
+                skipped += 1
+                continue
+            active_val = (item.get('is_active') or 'Si').strip().lower()
+            c = Category(
+                name=name,
+                icon=(item.get('icon') or '📌').strip()[:10],
+                company=company,
+                parent_id=parent_id,
+                is_system=False,
+                is_active=active_val not in ('no', 'false', '0', 'inactivo', 'inactive'),
+                sort_order=100,
+            )
+            db.session.add(c)
+            existing_pairs.add((name.lower(), parent_id))
             created += 1
         except Exception as e:
             errors.append(f'Error en {item.get("name","?")}: {e}')

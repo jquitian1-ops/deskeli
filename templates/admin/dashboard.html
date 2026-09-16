@@ -1998,10 +1998,17 @@
                                   style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
                     </div>
 
+                    <div id="ctSubcategoryWrap" style="display:none;margin-bottom:12px;">
+                        <label style="display:block;font-size:13px;color:#374151;font-weight:600;margin-bottom:4px;">Subcategoría (opcional)</label>
+                        <select id="ctSubcategory" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+                            <option value="">— Sin subcategoría —</option>
+                        </select>
+                    </div>
+
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                         <div>
                             <label style="display:block;font-size:13px;color:#374151;font-weight:600;margin-bottom:4px;">Categoría</label>
-                            <select id="ctCategory" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+                            <select id="ctCategory" onchange="onCtCategoryChange()" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
                                 <option value="General">⏳ Cargando…</option>
                             </select>
                         </div>
@@ -2536,6 +2543,8 @@
             document.getElementById('ctStatus').innerHTML = '<span style="color:#1e40af;">📋 Plantilla "' + t.name + '" aplicada. Podés editar antes de crear.</span>';
         }
 
+        let _ctCategoriesTree = [];
+
         async function loadCtCategories() {
             const sel = document.getElementById('ctCategory');
             if (!sel) return;
@@ -2546,12 +2555,29 @@
                     sel.innerHTML = '<option value="General">General</option>';
                     return;
                 }
-                sel.innerHTML = data.categories.map(c =>
+                _ctCategoriesTree = data.categories;
+                sel.innerHTML = _ctCategoriesTree.map(c =>
                     `<option value="${c.name}">${c.icon} ${c.name}</option>`
                 ).join('');
+                onCtCategoryChange();
             } catch (e) {
                 console.error('loadCtCategories:', e);
                 sel.innerHTML = '<option value="General">General</option>';
+            }
+        }
+
+        function onCtCategoryChange() {
+            const catSel = document.getElementById('ctCategory');
+            const wrap = document.getElementById('ctSubcategoryWrap');
+            const subSel = document.getElementById('ctSubcategory');
+            const cat = _ctCategoriesTree.find(c => c.name === catSel.value);
+            if (cat && cat.subcategories && cat.subcategories.length > 0) {
+                subSel.innerHTML = '<option value="">— Sin subcategoría —</option>' +
+                    cat.subcategories.map(sc => `<option value="${sc.name}">${sc.icon} ${sc.name}</option>`).join('');
+                wrap.style.display = 'block';
+            } else {
+                subSel.innerHTML = '<option value="">— Sin subcategoría —</option>';
+                wrap.style.display = 'none';
             }
         }
 
@@ -2562,6 +2588,7 @@
             document.getElementById('ctDescription').value = '';
             await loadCtCategories();
             document.getElementById('ctCategory').value = 'General';
+            onCtCategoryChange();
             document.getElementById('ctPriority').value = 'medium';
             document.getElementById('ctFiles').value = '';
             document.getElementById('ctFilesLabel').textContent = 'Acepta PDF, Word, Excel, PowerPoint, imágenes (PNG/JPG/GIF), comprimidos, texto.';
@@ -2642,6 +2669,7 @@
             const title = document.getElementById('ctTitle').value.trim();
             const description = document.getElementById('ctDescription').value.trim();
             const category = document.getElementById('ctCategory').value;
+            const subcategory = document.getElementById('ctSubcategory').value;
             const priority = document.getElementById('ctPriority').value;
             const assigneeRaw = document.getElementById('ctAssignee').value;
             const status = document.getElementById('ctStatus');
@@ -2659,7 +2687,7 @@
             submitBtn.disabled = true;
             status.innerHTML = '<span style="color:#6b7280;">⏳ Creando ticket...</span>';
 
-            const body = {title, description, category, priority};
+            const body = {title, description, category, subcategory, priority};
             if (assigneeRaw) body.assignee_id = parseInt(assigneeRaw);
 
             try {

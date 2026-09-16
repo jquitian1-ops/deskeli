@@ -1022,8 +1022,8 @@
 
                     <!-- Crear categoría -->
                     <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin-bottom:18px;">
-                        <h3 style="margin:0 0 10px 0;font-size:14px;color:#374151;">➕ Agregar Categoría</h3>
-                        <div style="display:grid;grid-template-columns:80px 2fr auto;gap:8px;align-items:end;">
+                        <h3 style="margin:0 0 10px 0;font-size:14px;color:#374151;">➕ Agregar Categoría o Subcategoría</h3>
+                        <div style="display:grid;grid-template-columns:80px 2fr 2fr auto;gap:8px;align-items:end;">
                             <div>
                                 <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Icono</label>
                                 <input id="catNewIcon" type="text" maxlength="4" value="📌"
@@ -1031,11 +1031,18 @@
                             </div>
                             <div>
                                 <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Nombre *</label>
-                                <input id="catNewName" type="text" placeholder="Ej: Mesa de Ayuda, Logística, RRHH..."
+                                <input id="catNewName" type="text" placeholder="Ej: Mesa de Ayuda, Impresoras láser..."
                                        style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Categoría padre (opcional)</label>
+                                <select id="catNewParent" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                    <option value="">— Ninguna (es de nivel superior) —</option>
+                                </select>
                             </div>
                             <button onclick="catCreate()" style="padding:9px 16px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;">+ Crear</button>
                         </div>
+                        <p style="font-size:11px;color:#9ca3af;margin-top:6px;">Si elegís una categoría padre, esta queda como <strong>subcategoría</strong> de esa categoría.</p>
                         <div id="catStatus" style="font-size:12px;margin-top:8px;"></div>
                     </div>
 
@@ -1062,6 +1069,12 @@
                                            style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
                                 </div>
                             </div>
+                            <div id="catEditParentGroup" style="margin-bottom:12px;">
+                                <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">Categoría padre (opcional)</label>
+                                <select id="catEditParent" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                    <option value="">— Ninguna (es de nivel superior) —</option>
+                                </select>
+                            </div>
                             <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#374151;margin-bottom:12px;">
                                 <input type="checkbox" id="catEditActive"> Activa
                             </label>
@@ -1080,13 +1093,14 @@
                             <tr style="background:#f9fafb;">
                                 <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Icono</th>
                                 <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Nombre</th>
+                                <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Pertenece a</th>
                                 <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Tipo</th>
                                 <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Estado</th>
                                 <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="catTbody">
-                            <tr><td colspan="5" style="padding:20px;text-align:center;color:#999;">Cargando categorías...</td></tr>
+                            <tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">Cargando categorías...</td></tr>
                         </tbody>
                     </table>
                     </div>
@@ -3276,6 +3290,17 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
         if (ok) setTimeout(() => { el.textContent = ''; }, 4000);
     }
 
+    function catPopulateParentSelects(topLevel, excludeId) {
+        const opts = '<option value="">— Ninguna (es de nivel superior) —</option>' +
+            topLevel.filter(c => c.id !== excludeId).map(c =>
+                `<option value="${c.id}">${escC(c.icon)} ${escC(c.name)}</option>`
+            ).join('');
+        const newSel = document.getElementById('catNewParent');
+        const editSel = document.getElementById('catEditParent');
+        if (newSel) newSel.innerHTML = opts;
+        if (editSel) editSel.innerHTML = opts;
+    }
+
     window.catLoad = async function() {
         const tbody = document.getElementById('catTbody');
         if (!tbody) return;
@@ -3283,15 +3308,26 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
             const r = await fetch('/api/admin/categories');
             const data = await r.json();
             if (!data.success) {
-                tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#dc2626;">Error</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#dc2626;">Error</td></tr>';
                 return;
             }
             _categories = data.categories;
             if (!_categories.length) {
-                tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#999;">No hay categorías. Agregá una arriba ⬆</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">No hay categorías. Agregá una arriba ⬆</td></tr>';
+                catPopulateParentSelects([]);
                 return;
             }
-            tbody.innerHTML = _categories.map(c => {
+            const topLevel = _categories.filter(c => !c.parent_id);
+            catPopulateParentSelects(topLevel);
+
+            // Ordenar: cada subcategoría justo debajo de su padre
+            const byParent = {};
+            _categories.forEach(c => { if (c.parent_id) (byParent[c.parent_id] = byParent[c.parent_id] || []).push(c); });
+            const ordered = [];
+            topLevel.forEach(t => { ordered.push(t); (byParent[t.id] || []).forEach(sc => ordered.push(sc)); });
+
+            tbody.innerHTML = ordered.map(c => {
+                const isSub = !!c.parent_id;
                 const sysTag = c.is_system
                     ? '<span style="background:#e0e7ff;color:#3730a3;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700;">🔒 Sistema</span>'
                     : '<span style="background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700;">Personalizada</span>';
@@ -3303,10 +3339,13 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                 const delBtn = c.is_system
                     ? ''
                     : `<button onclick="catDelete(${c.id}, '${escC(c.name).replace(/'/g,'&#39;')}')" style="padding:5px 10px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">🗑</button>`;
+                const nameCell = isSub ? `<span style="color:#9ca3af;margin-right:4px;">↳</span>${escC(c.name)}` : `<strong>${escC(c.name)}</strong>`;
+                const parentCell = isSub ? escC(c.parent_name || '—') : '<span style="color:#9ca3af;">— nivel superior —</span>';
                 return `
-                    <tr style="border-bottom:1px solid #f0f0f0;">
-                        <td style="padding:10px;text-align:center;font-size:22px;">${escC(c.icon)}</td>
-                        <td style="padding:10px;font-weight:600;color:#111827;">${escC(c.name)}</td>
+                    <tr style="border-bottom:1px solid #f0f0f0;${isSub ? 'background:#fafafa;' : ''}">
+                        <td style="padding:10px;text-align:center;font-size:22px;${isSub ? 'padding-left:24px;' : ''}">${escC(c.icon)}</td>
+                        <td style="padding:10px;color:#111827;${isSub ? 'padding-left:12px;' : ''}">${nameCell}</td>
+                        <td style="padding:10px;color:#6b7280;font-size:12px;">${parentCell}</td>
                         <td style="padding:10px;text-align:center;">${sysTag}</td>
                         <td style="padding:10px;text-align:center;">${stateTag}</td>
                         <td style="padding:10px;text-align:center;white-space:nowrap;">${editBtn}${toggleBtn}${delBtn}</td>
@@ -3314,25 +3353,27 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                 `;
             }).join('');
         } catch (e) {
-            tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#dc2626;">' + e.message + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#dc2626;">' + e.message + '</td></tr>';
         }
     };
 
     window.catCreate = async function() {
         const name = document.getElementById('catNewName').value.trim();
         const icon = document.getElementById('catNewIcon').value.trim() || '📌';
+        const parentId = document.getElementById('catNewParent').value || null;
         if (!name || name.length < 2) { catShow('✗ El nombre es requerido (mínimo 2 caracteres)', false); return; }
         try {
             const r = await fetch('/api/admin/categories', {
                 method: 'POST',
                 headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({name, icon})
+                body: JSON.stringify({name, icon, parent_id: parentId ? parseInt(parentId) : null})
             });
             const data = await r.json();
             if (data.success) {
                 catShow('✓ ' + data.message, true);
                 document.getElementById('catNewName').value = '';
                 document.getElementById('catNewIcon').value = '📌';
+                document.getElementById('catNewParent').value = '';
                 catLoad();
             } else {
                 catShow('✗ ' + (data.error || 'Error'), false);
@@ -3376,6 +3417,14 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
         document.getElementById('catEditName').disabled = !!c.is_system;
         document.getElementById('catEditActive').checked = !!c.is_active;
         document.getElementById('catEditSysWarn').style.display = c.is_system ? 'block' : 'none';
+        const hasSubs = _categories.some(x => x.parent_id === c.id);
+        const parentGroup = document.getElementById('catEditParentGroup');
+        if (c.is_system || hasSubs) {
+            parentGroup.style.display = 'none';
+        } else {
+            parentGroup.style.display = 'block';
+            document.getElementById('catEditParent').value = c.parent_id || '';
+        }
         document.getElementById('catEditStatus').textContent = '';
         document.getElementById('catEditModal').style.display = 'flex';
     };
@@ -3392,6 +3441,10 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
         };
         if (!document.getElementById('catEditName').disabled) {
             payload.name = document.getElementById('catEditName').value.trim();
+        }
+        if (document.getElementById('catEditParentGroup').style.display !== 'none') {
+            const parentVal = document.getElementById('catEditParent').value;
+            payload.parent_id = parentVal ? parseInt(parentVal) : null;
         }
         const statusEl = document.getElementById('catEditStatus');
         try {

@@ -882,7 +882,7 @@
                         <h3 style="margin-bottom: 15px; color: #374151;">Nueva Plantilla</h3>
                         <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; margin-bottom: 10px;">
                             <input type="text" id="tpl-name" placeholder="Nombre (ej: Problema de WiFi)" style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
-                            <select id="tpl-category" style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
+                            <select id="tpl-category" onchange="onTplCategoryChange()" style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
                                 <option value="General" selected>⏳ Cargando…</option>
                             </select>
                             <select id="tpl-priority" style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
@@ -890,6 +890,11 @@
                                 <option value="medium" selected>Media</option>
                                 <option value="high">Alta</option>
                                 <option value="critical">Crítica</option>
+                            </select>
+                        </div>
+                        <div id="tpl-subcategory-wrap" style="display:none;margin-bottom:10px;">
+                            <select id="tpl-subcategory" style="width:100%;padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
+                                <option value="">— Sin subcategoría —</option>
                             </select>
                         </div>
                         <input type="text" id="tpl-title" placeholder="Título del ticket (ej: WiFi no conecta)" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; margin-bottom: 10px;">
@@ -2694,6 +2699,8 @@
         }
 
         // ====== PLANTILLAS DE TICKETS ======
+        let _tplCategoriesTree = [];
+
         async function loadTplCategories() {
             const sel = document.getElementById('tpl-category');
             if (!sel) return;
@@ -2704,12 +2711,29 @@
                     sel.innerHTML = '<option value="General">General</option>';
                     return;
                 }
-                sel.innerHTML = data.categories.map(c =>
+                _tplCategoriesTree = data.categories;
+                sel.innerHTML = _tplCategoriesTree.map(c =>
                     `<option value="${c.name}"${c.name === 'General' ? ' selected' : ''}>${c.icon} ${c.name}</option>`
                 ).join('');
+                onTplCategoryChange();
             } catch (e) {
                 console.error('loadTplCategories:', e);
                 sel.innerHTML = '<option value="General">General</option>';
+            }
+        }
+
+        function onTplCategoryChange() {
+            const catSel = document.getElementById('tpl-category');
+            const wrap = document.getElementById('tpl-subcategory-wrap');
+            const subSel = document.getElementById('tpl-subcategory');
+            const cat = _tplCategoriesTree.find(c => c.name === catSel.value);
+            if (cat && cat.subcategories && cat.subcategories.length > 0) {
+                subSel.innerHTML = '<option value="">— Sin subcategoría —</option>' +
+                    cat.subcategories.map(sc => `<option value="${sc.name}">${sc.icon} ${sc.name}</option>`).join('');
+                wrap.style.display = 'block';
+            } else {
+                subSel.innerHTML = '<option value="">— Sin subcategoría —</option>';
+                wrap.style.display = 'none';
             }
         }
 
@@ -2815,6 +2839,7 @@
                 title_template: document.getElementById('tpl-title').value.trim(),
                 description_template: document.getElementById('tpl-description').value.trim(),
                 category: document.getElementById('tpl-category').value,
+                subcategory: document.getElementById('tpl-subcategory').value,
                 priority: document.getElementById('tpl-priority').value
             };
 
@@ -2891,6 +2916,8 @@
                 document.getElementById('tpl-title').value = t.title_template;
                 document.getElementById('tpl-description').value = t.description_template;
                 document.getElementById('tpl-category').value = t.category;
+                onTplCategoryChange();
+                document.getElementById('tpl-subcategory').value = t.subcategory || '';
                 document.getElementById('tpl-priority').value = t.priority;
                 window._editing_template_id = id;
                 window.scrollTo({top: document.getElementById('new-template-form').offsetTop - 50, behavior: 'smooth'});

@@ -195,15 +195,24 @@
                 <!-- PASO 1: Categoría -->
                 <div class="form-group" style="background:#ecfdf5;border:1px solid #a7f3d0;padding:12px;border-radius:8px;">
                     <label for="category" style="color:#065f46;font-weight:700;">1️⃣ 📁 Categoría del problema <span style="color:#dc2626;">*</span></label>
-                    <select id="category" name="category" onchange="filterTemplatesByCategory()" style="width:100%;padding:10px;border:1px solid #6ee7b7;border-radius:6px;font-size:14px;background:white;">
+                    <select id="category" name="category" onchange="onCategoryChange()" style="width:100%;padding:10px;border:1px solid #6ee7b7;border-radius:6px;font-size:14px;background:white;">
                         <option value="" selected>⏳ Cargando categorías…</option>
                     </select>
                     <p class="help-text" style="color:#065f46;">Primero elegí la categoría general. Luego abajo aparecerán las plantillas disponibles para esa categoría.</p>
                 </div>
 
-                <!-- PASO 2: Subcategoría / Plantilla -->
+                <!-- PASO 2: Subcategoría (opcional, solo si la categoría tiene subcategorías) -->
+                <div class="form-group" id="subcategoryBlock" style="display:none;background:#f5f3ff;border:1px solid #ddd6fe;padding:12px;border-radius:8px;">
+                    <label for="subcategory" style="color:#5b21b6;font-weight:700;">2️⃣ 🗂 Subcategoría (opcional)</label>
+                    <select id="subcategory" name="subcategory" style="width:100%;padding:10px;border:1px solid #c4b5fd;border-radius:6px;font-size:14px;background:white;">
+                        <option value="">— Sin subcategoría —</option>
+                    </select>
+                    <p class="help-text" style="color:#5b21b6;">Ayuda a clasificar mejor el problema dentro de la categoría elegida.</p>
+                </div>
+
+                <!-- PASO 3: Plantilla específica -->
                 <div class="form-group" id="templateBlock" style="background:#eff6ff;border:1px solid #bfdbfe;padding:12px;border-radius:8px;">
-                    <label for="empTemplate" style="color:#1e40af;font-weight:700;">2️⃣ 📋 Subcategoría / Plantilla específica (opcional)</label>
+                    <label for="empTemplate" style="color:#1e40af;font-weight:700;">3️⃣ 📋 Plantilla específica (opcional)</label>
                     <select id="empTemplate" onchange="applyEmpTemplate()" disabled style="background:#f3f4f6;color:#9ca3af;">
                         <option value="">— Primero selecciona una categoría arriba ⬆ —</option>
                     </select>
@@ -219,13 +228,13 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="title">3️⃣ Título del Problema *</label>
+                    <label for="title">4️⃣ Título del Problema *</label>
                     <input type="text" id="title" name="title" required placeholder="Ej: WiFi no conecta">
                     <p class="help-text">Describe brevemente tu problema</p>
                 </div>
 
                 <div class="form-group">
-                    <label for="description">4️⃣ Descripción / Notas adicionales</label>
+                    <label for="description">5️⃣ Descripción / Notas adicionales</label>
                     <textarea id="description" name="description" placeholder="Si usás una plantilla, este campo es opcional. Si no, describe el problema con detalle... Tip: podés pegar imágenes (Ctrl+V)"></textarea>
                     <p class="help-text">💡 <strong>Tip:</strong> podés <strong>pegar capturas directamente</strong> con Ctrl+V o agregar archivos abajo.</p>
                 </div>
@@ -413,6 +422,7 @@
 
 <script>
 let _empTemplates = [];
+let _categoriesTree = [];
 
 async function loadCategories() {
     const sel = document.getElementById('category');
@@ -424,8 +434,9 @@ async function loadCategories() {
             sel.innerHTML = '<option value="">— Selecciona la categoría —</option>';
             return;
         }
+        _categoriesTree = data.categories;
         let html = '<option value="" selected>— Selecciona la categoría —</option>';
-        data.categories.forEach(c => {
+        _categoriesTree.forEach(c => {
             html += `<option value="${escapeHtml(c.name)}">${escapeHtml(c.icon)} ${escapeHtml(c.name)}</option>`;
         });
         sel.innerHTML = html;
@@ -433,6 +444,27 @@ async function loadCategories() {
         console.error('loadCategories:', e);
         sel.innerHTML = '<option value="">— Selecciona la categoría —</option>';
     }
+}
+
+// Al elegir la categoría: poblar (o esconder) el dropdown de Subcategoría,
+// y disparar el filtro de plantillas que ya existía.
+function onCategoryChange() {
+    const catSel = document.getElementById('category');
+    const subBlock = document.getElementById('subcategoryBlock');
+    const subSel = document.getElementById('subcategory');
+    const cat = _categoriesTree.find(c => c.name === catSel.value);
+    if (cat && cat.subcategories && cat.subcategories.length > 0) {
+        let html = '<option value="">— Sin subcategoría —</option>';
+        cat.subcategories.forEach(sc => {
+            html += `<option value="${escapeHtml(sc.name)}">${escapeHtml(sc.icon)} ${escapeHtml(sc.name)}</option>`;
+        });
+        subSel.innerHTML = html;
+        subBlock.style.display = 'block';
+    } else {
+        subSel.innerHTML = '<option value="">— Sin subcategoría —</option>';
+        subBlock.style.display = 'none';
+    }
+    filterTemplatesByCategory();
 }
 
 async function loadEmpTemplates() {
@@ -946,7 +978,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Construir FormData manual (incluye los pasted + los del input)
         const fd = new FormData();
-        ['title','description','category','priority'].forEach(name => {
+        ['title','description','category','subcategory','priority'].forEach(name => {
             const el = form.querySelector(`[name="${name}"]`);
             if (el) fd.append(name, el.value);
         });
