@@ -17550,6 +17550,216 @@ def api_admin_categories_delete(category_id):
     return jsonify({'success': True, 'message': f'Categoría "{name}" eliminada'})
 
 
+_CATEGORY_EXCEL_HEADERS = [
+    ('icon', 'Icono'),
+    ('name', 'Nombre'),
+    ('is_active', 'Activo'),
+]
+
+
+def _normalize_category_header(s):
+    s = unicodedata.normalize('NFKD', str(s or '')).encode('ascii', 'ignore').decode('ascii')
+    return s.strip().lower()
+
+
+_CATEGORY_HEADER_ALIASES = {
+    'icon': {'icono', 'icon'},
+    'name': {'nombre', 'name'},
+    'is_active': {'activo', 'estado', 'is_active'},
+}
+
+
+@app.route('/api/admin/categories/export', methods=['GET'])
+def api_admin_categories_export():
+    """Exporta todas las categorías (globales + de la empresa) a Excel (.xlsx)."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    company = session.get('company')
+    categories = Category.query.filter(
+        (Category.company == None) | (Category.company == company)
+    ).order_by(Category.is_system.desc(), Category.sort_order, Category.name).all()
+
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from io import BytesIO
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Categorías'
+    for col, (_, label) in enumerate(_CATEGORY_EXCEL_HEADERS, 1):
+        cell = ws.cell(row=1, column=col, value=label)
+        cell.font = Font(bold=True, color='FFFFFF', size=12)
+        cell.fill = PatternFill('solid', fgColor='7C3AED')
+        cell.alignment = Alignment(horizontal='center')
+        ws.column_dimensions[cell.column_letter].width = 22
+    for r, c in enumerate(categories, start=2):
+        row = {
+            'icon': c.icon or '📌',
+            'name': c.name,
+            'is_active': 'Si' if c.is_active else 'No',
+        }
+        for col, (key, _) in enumerate(_CATEGORY_EXCEL_HEADERS, 1):
+            ws.cell(row=r, column=col, value=row.get(key, ''))
+
+    ws2 = wb.create_sheet('Instrucciones')
+    instructions = [
+        ('📋 Instrucciones de importación de Categorías', ''),
+        ('', ''),
+        ('Columna', 'Descripción'),
+        ('Icono', 'Un emoji para la categoría (ej: 🖥️, 💻, 🌐). Opcional, por defecto 📌'),
+        ('Nombre', 'Nombre de la categoría (ej: Hardware, Mesa de Ayuda). Obligatorio'),
+        ('Activo', 'Si / No'),
+        ('', ''),
+        ('Reglas', ''),
+        ('• Si el nombre ya existe en tu empresa (o como categoría global), esa fila se OMITE.', ''),
+        ('• Las categorías importadas quedan siempre como propias de tu empresa (nunca como "de sistema").', ''),
+        ('• Máximo 200 categorías por archivo importado.', ''),
+    ]
+    for i, (a, b) in enumerate(instructions, 1):
+        c1 = ws2.cell(row=i, column=1, value=a)
+        c2 = ws2.cell(row=i, column=2, value=b)
+        if i == 1:
+            c1.font = Font(bold=True, size=16, color='7C3AED')
+            ws2.merge_cells('A1:B1')
+        elif i == 3:
+            c1.font = Font(bold=True, color='FFFFFF')
+            c2.font = Font(bold=True, color='FFFFFF')
+            c1.fill = PatternFill('solid', fgColor='7C3AED')
+            c2.fill = PatternFill('solid', fgColor='7C3AED')
+        elif i == 8:
+            c1.font = Font(bold=True, size=14, color='7C3AED')
+    ws2.column_dimensions['A'].width = 45
+    ws2.column_dimensions['B'].width = 65
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    log_audit('categories_export', session['user_id'], 'category', None,
+              f'Exportó {len(categories)} categorías para empresa {company}')
+
+    filename = f'categorias_{company}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    return send_file(buffer,
+                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                      as_attachment=True,
+                      download_name=filename)
+
+
+@app.route('/api/admin/categories/import', methods=['POST'])
+def api_admin_categories_import():
+    """Importa categorías desde un archivo Excel (.xlsx/.xls) o CSV.
+    Modo merge: salta las que ya existen por nombre en la empresa."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    company = session.get('company')
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No se recibió archivo'}), 400
+    f = request.files['file']
+    if not f or not f.filename:
+        return jsonify({'success': False, 'error': 'Archivo vacío'}), 400
+    ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else ''
+
+    raw_rows = []
+    try:
+        if ext in ('xlsx', 'xls'):
+            wb = openpyxl.load_workbook(f, read_only=True, data_only=True)
+            ws = wb.active
+            header_map = None
+            for r in ws.iter_rows(values_only=True):
+                if header_map is None:
+                    header_map = {}
+                    for i, h in enumerate(r):
+                        norm = _normalize_category_header(h)
+                        for field, aliases in _CATEGORY_HEADER_ALIASES.items():
+                            if norm in aliases:
+                                header_map[field] = i
+                                break
+                    continue
+                if r is None or all(c is None or str(c).strip() == '' for c in r):
+                    continue
+                raw_rows.append({
+                    field: (str(r[idx]).strip() if idx < len(r) and r[idx] is not None else '')
+                    for field, idx in header_map.items()
+                })
+        elif ext == 'csv':
+            import csv as _csv
+            from io import TextIOWrapper
+            wrapper = TextIOWrapper(f.stream, encoding='utf-8-sig')
+            reader = _csv.reader(wrapper)
+            header_map = None
+            for r in reader:
+                if header_map is None:
+                    header_map = {}
+                    for i, h in enumerate(r):
+                        norm = _normalize_category_header(h)
+                        for field, aliases in _CATEGORY_HEADER_ALIASES.items():
+                            if norm in aliases:
+                                header_map[field] = i
+                                break
+                    continue
+                if not r or all((c or '').strip() == '' for c in r):
+                    continue
+                raw_rows.append({
+                    field: (r[idx].strip() if idx < len(r) else '')
+                    for field, idx in header_map.items()
+                })
+        else:
+            return jsonify({'success': False, 'error': 'Formato no soportado. Usá .xlsx, .xls o .csv'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Error leyendo archivo: {str(e)[:200]}'}), 400
+
+    if not header_map or 'name' not in header_map:
+        return jsonify({'success': False, 'error': 'El archivo no tiene las columnas esperadas (Nombre, ...). Descargá la plantilla con "Descargar" primero.'}), 400
+
+    if not raw_rows:
+        return jsonify({'success': False, 'error': 'El archivo no tiene filas válidas'}), 400
+
+    created = 0
+    skipped = 0
+    errors = []
+
+    existing_names = {
+        c.name.lower() for c in Category.query.filter(
+            (Category.company == None) | (Category.company == company)
+        ).all()
+    }
+
+    for item in raw_rows[:200]:  # Límite de 200 por request
+        try:
+            name = (item.get('name') or '').strip()[:100]
+            if not name or len(name) < 2:
+                errors.append(f'Nombre inválido: "{name}"')
+                continue
+            if name.lower() in existing_names:
+                skipped += 1
+                continue
+            active_val = (item.get('is_active') or 'Si').strip().lower()
+            c = Category(
+                name=name,
+                icon=(item.get('icon') or '📌').strip()[:10],
+                company=company,  # Siempre se importan como propias de la empresa
+                is_system=False,  # Nunca importar como sistema
+                is_active=active_val not in ('no', 'false', '0', 'inactivo', 'inactive'),
+                sort_order=100,
+            )
+            db.session.add(c)
+            existing_names.add(name.lower())
+            created += 1
+        except Exception as e:
+            errors.append(f'Error en {item.get("name","?")}: {e}')
+
+    db.session.commit()
+    log_audit('categories_import', session['user_id'], 'category', None,
+              f'Import categorías: {created} creadas, {skipped} omitidas (ya existían), {len(errors)} errores')
+
+    return jsonify({
+        'success': True,
+        'created': created,
+        'skipped': skipped,
+        'errors': errors[:10],
+        'message': f'✓ {created} categorías importadas. {skipped} omitidas (ya existían).'
+    })
+
+
 _SUBROLE_EXCEL_HEADERS = [
     ('icon', 'Icono'),
     ('name', 'Nombre'),
