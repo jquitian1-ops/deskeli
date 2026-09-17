@@ -169,6 +169,13 @@
             font-size: 14px;
         }
 
+        .stat-desc {
+            color: #9ca3af;
+            font-size: 11.5px;
+            line-height: 1.4;
+            margin-top: 6px;
+        }
+
         .queue-section {
             background: white;
             padding: 20px;
@@ -430,14 +437,17 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
             <div class="stat-card">
                 <div class="stat-number">{{ stats.sla_health }}</div>
                 <div class="stat-label">Salud SLA</div>
+                <div class="stat-desc">% de tus tickets que cumplen el SLA: los resueltos antes de su fecha límite, más los abiertos cuyo SLA todavía no vence.</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number">{{ stats.on_time }}</div>
                 <div class="stat-label">A Tiempo</div>
+                <div class="stat-desc">Cantidad de tickets de tu cola que están dentro de ese mismo criterio de SLA (el número, no el porcentaje).</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number">{{ stats.avg_resolution }}</div>
                 <div class="stat-label">Resolución Promedio</div>
+                <div class="stat-desc">Horas promedio desde que se crea un ticket hasta que lo resuelves, calculado solo con tus tickets ya resueltos.</div>
             </div>
         </div>
 
