@@ -3054,6 +3054,11 @@ def employee_create():
         db.session.add(ticket)
         db.session.commit()
 
+        try:
+            notify_ticket_created(ticket, user)
+        except Exception as e_email:
+            print(f'[employee_create][notify-created] email error: {e_email}')
+
         # Aprobaciones multi-nivel: si algún workflow matchea, entra en cola de aprobación
         try:
             template_name_used = request.form.get('template_name') or None
@@ -3277,6 +3282,11 @@ def technician_create():
         )
         db.session.add(ticket)
         db.session.commit()
+
+        try:
+            notify_ticket_created(ticket, behalf_user if behalf_user else tech)
+        except Exception as e_email:
+            print(f'[technician_create][notify-created] email error: {e_email}')
 
         # Adjuntos (mismo procesamiento que employee_create)
         attachments_saved = 0
@@ -7119,6 +7129,13 @@ def api_bot_ticket_from_chat():
         db.session.add(ticket)
         db.session.commit()
 
+        if not resolved:
+            try:
+                requester = User.query.get(user_id)
+                notify_ticket_created(ticket, requester)
+            except Exception as e_email:
+                print(f'[chat-ticket][notify-created] email error: {e_email}')
+
         # Audit log
         log_audit(
             'create_ticket_from_chat',
@@ -10536,6 +10553,111 @@ def is_email_event_enabled(event_name):
         return c.value != '0'
     except Exception:
         return True
+
+
+def notify_ticket_created(ticket, requester):
+    """Envía email de confirmación al solicitante cuando se crea su ticket.
+    Respeta el flag email_evt_ticket_created y verifica que el solicitante tenga email."""
+    if not is_email_event_enabled('ticket_created'):
+        print(f'[notify] Evento ticket_created deshabilitado en config, skip')
+        return False
+    if not requester or not requester.email:
+        print(f'[notify] Solicitante sin email, skip')
+        return False
+
+    base_url = ''
+    try:
+        c = Config.query.filter_by(key='general_base_url').first()
+        if c and c.value:
+            base_url = c.value.rstrip('/')
+    except Exception:
+        pass
+    if not base_url:
+        base_url = get_public_base_url()
+
+    portal = 'technician' if requester.role in ('technician', 'admin') else 'employee'
+    ticket_url = f'{base_url}/{portal}/ticket/{ticket.id}'
+
+    prio_meta = {
+        'critical': {'icon': '🔴', 'label': 'CRÍTICA', 'color': '#dc2626'},
+        'high':     {'icon': '🟠', 'label': 'ALTA',    'color': '#ea580c'},
+        'medium':   {'icon': '🟡', 'label': 'MEDIA',   'color': '#d97706'},
+        'low':      {'icon': '🟢', 'label': 'BAJA',    'color': '#16a34a'},
+    }
+    pm = prio_meta.get(ticket.priority or 'medium', prio_meta['medium'])
+    sla_str = ''
+    if ticket.sla_deadline:
+        sla_str = ticket.sla_deadline.strftime('%d/%m/%Y %H:%M')
+
+    desc_short = (ticket.description or '')
+    if len(desc_short) > 500:
+        desc_short = desc_short[:500] + '...'
+    desc_safe = desc_short.replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>')
+
+    categoria_str = ticket.category or 'General'
+    if ticket.subcategory:
+        categoria_str += f' › {ticket.subcategory}'
+
+    subject = f'[DeskEli] Recibimos tu caso {ticket.ticket_number} — {ticket.title[:50]}'
+
+    body = f"""
+    <html><body style="font-family: Segoe UI, Arial, sans-serif; color: #1f2937; max-width: 680px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #1f2937, #059669); color: white; padding: 24px; border-radius: 10px 10px 0 0;">
+            <h1 style="margin: 0; font-size: 22px;">✅ Recibimos tu caso</h1>
+            <p style="margin: 6px 0 0; opacity: 0.95;">{ticket.ticket_number} · {ticket.company.upper()}</p>
+        </div>
+        <div style="background: white; padding: 22px; border: 1px solid #e5e7eb; border-radius: 0 0 10px 10px;">
+            <p>Hola <strong>{requester.name}</strong>,</p>
+            <p>Tu solicitud quedó registrada en DeskEli. Un técnico la atenderá pronto. Te dejo el resumen:</p>
+
+            <table style="width: 100%; border-collapse: collapse; margin: 14px 0;">
+                <tr>
+                    <td style="padding: 9px 12px; background: #f3f4f6; font-weight: 700; width: 35%;">Número</td>
+                    <td style="padding: 9px 12px; background: #ffffff;"><strong>{ticket.ticket_number}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 9px 12px; background: #f3f4f6; font-weight: 700;">Título</td>
+                    <td style="padding: 9px 12px; background: #ffffff;">{ticket.title}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 9px 12px; background: #f3f4f6; font-weight: 700;">Prioridad</td>
+                    <td style="padding: 9px 12px; background: #ffffff;">
+                        <span style="background: {pm['color']}; color: white; padding: 3px 10px; border-radius: 4px; font-weight: 700; font-size: 12px;">{pm['icon']} {pm['label']}</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 9px 12px; background: #f3f4f6; font-weight: 700;">Categoría</td>
+                    <td style="padding: 9px 12px; background: #ffffff;">{categoria_str}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 9px 12px; background: #f3f4f6; font-weight: 700;">Estado</td>
+                    <td style="padding: 9px 12px; background: #ffffff;">Abierto</td>
+                </tr>
+                {f'<tr><td style="padding: 9px 12px; background: #f3f4f6; font-weight: 700;">SLA estimado</td><td style="padding: 9px 12px; background: #ffffff;">⏰ <strong>{sla_str}</strong></td></tr>' if sla_str else ''}
+            </table>
+
+            <div style="background: #f9fafb; border-left: 4px solid #059669; padding: 12px 14px; border-radius: 4px; margin-top: 14px;">
+                <div style="font-size: 12px; font-weight: 700; color: #065f46; margin-bottom: 6px;">📝 DESCRIPCIÓN</div>
+                <div style="font-size: 13px; color: #374151; line-height: 1.5;">{desc_safe or '<em>(Sin descripción)</em>'}</div>
+            </div>
+
+            <div style="text-align: center; margin-top: 22px;">
+                <a href="{ticket_url}" style="display: inline-block; padding: 12px 28px; background: linear-gradient(135deg, #059669, #2563eb); color: white; text-decoration: none; border-radius: 8px; font-weight: 700;">
+                    🔎 Ver seguimiento de mi caso
+                </a>
+            </div>
+
+            <p style="font-size: 11px; color: #6b7280; margin-top: 22px; text-align: center;">
+                Este correo fue enviado automáticamente por DeskEli al registrarse tu caso. Te avisaremos cuando un técnico lo tome.
+            </p>
+        </div>
+    </body></html>
+    """
+
+    ok = send_email(requester.email, subject, body, company=ticket.company)
+    status_str = 'OK' if ok else 'FALLO'
+    print(f'[notify] Email creacion {ticket.ticket_number} -> {requester.email}: {status_str}')
+    return ok
 
 
 def notify_ticket_assigned(ticket, new_assignee, assigned_by_name='Sistema', reason=''):
