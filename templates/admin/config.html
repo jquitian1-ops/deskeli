@@ -2833,6 +2833,28 @@
             }
         }
 
+        // Llamado desde el panel de Categorías (posiblemente en la ventana padre,
+        // vía iframe.contentWindow) para abrir el formulario "Nueva Plantilla"
+        // ya precargado con la categoría/subcategoría desde la que se hizo click.
+        window.openNewTemplatePrefilled = async function(name, category, subcategory) {
+            const form = document.getElementById('new-template-form');
+            form.style.display = 'block';
+            document.getElementById('tpl-name').value = name || '';
+            document.getElementById('tpl-title').value = '';
+            document.getElementById('tpl-description').value = '';
+            if (!_tplCategoriesTree || _tplCategoriesTree.length === 0) {
+                await loadTplCategories();
+            }
+            document.getElementById('tpl-category').value = category || 'General';
+            onTplCategoryChange();
+            const subSel = document.getElementById('tpl-subcategory');
+            if (subSel) subSel.value = subcategory || '';
+            document.getElementById('tpl-priority').value = 'medium';
+            window._editing_template_id = null;
+            document.getElementById('tpl-name').focus();
+            window.scrollTo({top: form.offsetTop - 50, behavior: 'smooth'});
+        };
+
         async function saveNewTemplate() {
             const data = {
                 name: document.getElementById('tpl-name').value.trim(),

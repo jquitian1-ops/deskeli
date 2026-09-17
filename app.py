@@ -17569,6 +17569,21 @@ def api_admin_categories_list():
         (Category.company == None) | (Category.company == company)
     ).order_by(Category.is_system.desc(), Category.sort_order, Category.name).all()
     names_by_id = {c.id: c.name for c in categories}
+
+    # Resolver, para cada categoría/subcategoría, si ya existe una Plantilla
+    # asociada (por company+category[+subcategory]) — usado por el botón
+    # "Ver/Crear plantilla" del panel de Categorías.
+    company_templates = Template.query.filter_by(company=company).all()
+    tpl_by_key = {}
+    for t in company_templates:
+        tpl_by_key[((t.category or '').strip().lower(), (t.subcategory or '').strip().lower())] = t.id
+
+    def _template_id_for(c):
+        parent_name = names_by_id.get(c.parent_id)
+        if c.parent_id and parent_name:
+            return tpl_by_key.get((parent_name.strip().lower(), c.name.strip().lower()))
+        return tpl_by_key.get((c.name.strip().lower(), ''))
+
     return jsonify({
         'success': True,
         'categories': [{
@@ -17581,6 +17596,7 @@ def api_admin_categories_list():
             'is_global': c.company is None,
             'parent_id': c.parent_id,
             'parent_name': names_by_id.get(c.parent_id),
+            'template_id': _template_id_for(c),
         } for c in categories]
     })
 
@@ -17696,6 +17712,9 @@ _CATEGORY_EXCEL_HEADERS = [
     ('name', 'Nombre'),
     ('parent_name', 'Categoria Padre'),
     ('is_active', 'Activo'),
+    ('tpl_title', 'Titulo Plantilla'),
+    ('tpl_body', 'Cuerpo Plantilla'),
+    ('tpl_priority', 'Prioridad Plantilla'),
 ]
 
 
@@ -17709,6 +17728,9 @@ _CATEGORY_HEADER_ALIASES = {
     'name': {'nombre', 'name'},
     'parent_name': {'categoria padre', 'categoria', 'padre', 'parent', 'parent_name'},
     'is_active': {'activo', 'estado', 'is_active'},
+    'tpl_title': {'titulo plantilla', 'titulo', 'title', 'tpl_title'},
+    'tpl_body': {'cuerpo plantilla', 'cuerpo', 'descripcion plantilla', 'body', 'tpl_body'},
+    'tpl_priority': {'prioridad plantilla', 'prioridad', 'priority', 'tpl_priority'},
 }
 
 
@@ -17748,12 +17770,26 @@ def api_admin_categories_export():
     ordered_ids = {c.id for c in ordered}
     ordered.extend(c for c in categories if c.id not in ordered_ids)
 
+    # Plantillas de la empresa, indexadas por (category, subcategory) en minúsculas
+    company_templates = Template.query.filter_by(company=company).all()
+    tpl_by_key = {}
+    for t in company_templates:
+        tpl_by_key[((t.category or '').strip().lower(), (t.subcategory or '').strip().lower())] = t
+
     for r, c in enumerate(ordered, start=2):
+        parent_name = names_by_id.get(c.parent_id, '')
+        if c.parent_id:
+            tpl = tpl_by_key.get((parent_name.strip().lower(), c.name.strip().lower()))
+        else:
+            tpl = tpl_by_key.get((c.name.strip().lower(), ''))
         row = {
             'icon': c.icon or '📌',
             'name': c.name,
-            'parent_name': names_by_id.get(c.parent_id, ''),
+            'parent_name': parent_name,
             'is_active': 'Si' if c.is_active else 'No',
+            'tpl_title': (tpl.title_template if tpl else ''),
+            'tpl_body': (tpl.description_template if tpl else '') or '',
+            'tpl_priority': (tpl.priority if tpl else ''),
         }
         for col, (key, _) in enumerate(_CATEGORY_EXCEL_HEADERS, 1):
             ws.cell(row=r, column=col, value=row.get(key, ''))
@@ -17767,12 +17803,16 @@ def api_admin_categories_export():
         ('Nombre', 'Nombre de la categoría o subcategoría (ej: Hardware, Impresoras). Obligatorio'),
         ('Categoria Padre', '(Opcional) si esta fila es una SUBCATEGORÍA, poné acá el nombre exacto de su categoría padre. Dejalo vacío si es una categoría de nivel superior.'),
         ('Activo', 'Si / No'),
+        ('Titulo Plantilla', '(Opcional) si la completás, se crea (o actualiza) automáticamente una Plantilla ligada a esta categoría/subcategoría, con este texto como título pre-cargado del ticket.'),
+        ('Cuerpo Plantilla', '(Opcional) texto pre-cargado en la descripción del ticket cuando se usa esa plantilla.'),
+        ('Prioridad Plantilla', '(Opcional) low / medium / high / critical. Si se deja vacío, la plantilla queda en "medium".'),
         ('', ''),
         ('Reglas', ''),
-        ('• Si el nombre ya existe en tu empresa en ese mismo nivel, esa fila se OMITE.', ''),
+        ('• Si el nombre ya existe en tu empresa en ese mismo nivel, esa fila se OMITE (pero si trae datos de plantilla, la plantilla sí se crea/actualiza).', ''),
         ('• Las categorías importadas quedan siempre como propias de tu empresa (nunca como "de sistema").', ''),
         ('• Una subcategoría no puede a su vez tener sub-subcategorías (máximo 2 niveles).', ''),
         ('• La "Categoria Padre" debe existir ya en el sistema, o venir en OTRA fila de este mismo archivo sin su propia Categoria Padre.', ''),
+        ('• La Plantilla se identifica por Empresa+Categoria+Subcategoria: si ya existe una con esa combinación, se actualiza (título/cuerpo/prioridad); si no, se crea.', ''),
         ('• Máximo 200 filas por archivo importado.', ''),
     ]
     for i, (a, b) in enumerate(instructions, 1):
@@ -17786,7 +17826,7 @@ def api_admin_categories_export():
             c2.font = Font(bold=True, color='FFFFFF')
             c1.fill = PatternFill('solid', fgColor='7C3AED')
             c2.fill = PatternFill('solid', fgColor='7C3AED')
-        elif i == 10:
+        elif i == 12:
             c1.font = Font(bold=True, size=14, color='7C3AED')
     ws2.column_dimensions['A'].width = 45
     ws2.column_dimensions['B'].width = 65
@@ -17887,6 +17927,39 @@ def api_admin_categories_import():
     id_by_name_toplevel = {c.name.lower(): c.id for c in visible if not c.parent_id}
     existing_pairs = {(c.name.lower(), c.parent_id) for c in visible}
 
+    templates_created = 0
+    templates_updated = 0
+
+    def _maybe_upsert_template(item, category_name, subcategory_name):
+        nonlocal templates_created, templates_updated
+        tpl_title = (item.get('tpl_title') or '').strip()
+        if not tpl_title:
+            return
+        tpl_body = (item.get('tpl_body') or '').strip()
+        tpl_priority = (item.get('tpl_priority') or 'medium').strip().lower()
+        if tpl_priority not in ('low', 'medium', 'high', 'critical'):
+            tpl_priority = 'medium'
+        existing_tpl = Template.query.filter_by(
+            company=company, category=category_name, subcategory=subcategory_name or None
+        ).first()
+        if existing_tpl:
+            existing_tpl.title_template = tpl_title[:200]
+            existing_tpl.description_template = tpl_body or None
+            existing_tpl.priority = tpl_priority
+            templates_updated += 1
+        else:
+            db.session.add(Template(
+                name=(subcategory_name or category_name)[:100],
+                title_template=tpl_title[:200],
+                description_template=tpl_body or None,
+                category=category_name,
+                subcategory=subcategory_name or None,
+                priority=tpl_priority,
+                company=company,
+                is_system=False,
+            ))
+            templates_created += 1
+
     rows = raw_rows[:200]  # Límite de 200 por request
 
     # Pasada 1: categorías de nivel superior (sin "Categoria Padre")
@@ -17901,6 +17974,7 @@ def api_admin_categories_import():
                 continue
             if (name.lower(), None) in existing_pairs:
                 skipped += 1
+                _maybe_upsert_template(item, name, None)
                 continue
             active_val = (item.get('is_active') or 'Si').strip().lower()
             c = Category(
@@ -17917,6 +17991,7 @@ def api_admin_categories_import():
             existing_pairs.add((name.lower(), None))
             id_by_name_toplevel[name.lower()] = c.id
             created += 1
+            _maybe_upsert_template(item, name, None)
         except Exception as e:
             errors.append(f'Error en {item.get("name","?")}: {e}')
 
@@ -17936,6 +18011,7 @@ def api_admin_categories_import():
                 continue
             if (name.lower(), parent_id) in existing_pairs:
                 skipped += 1
+                _maybe_upsert_template(item, parent_name, name)
                 continue
             active_val = (item.get('is_active') or 'Si').strip().lower()
             c = Category(
@@ -17950,19 +18026,27 @@ def api_admin_categories_import():
             db.session.add(c)
             existing_pairs.add((name.lower(), parent_id))
             created += 1
+            _maybe_upsert_template(item, parent_name, name)
         except Exception as e:
             errors.append(f'Error en {item.get("name","?")}: {e}')
 
     db.session.commit()
     log_audit('categories_import', session['user_id'], 'category', None,
-              f'Import categorías: {created} creadas, {skipped} omitidas (ya existían), {len(errors)} errores')
+              f'Import categorías: {created} creadas, {skipped} omitidas, '
+              f'{templates_created} plantillas creadas, {templates_updated} actualizadas, {len(errors)} errores')
+
+    tpl_msg = ''
+    if templates_created or templates_updated:
+        tpl_msg = f' · {templates_created} plantilla(s) creada(s), {templates_updated} actualizada(s)'
 
     return jsonify({
         'success': True,
         'created': created,
         'skipped': skipped,
+        'templates_created': templates_created,
+        'templates_updated': templates_updated,
         'errors': errors[:10],
-        'message': f'✓ {created} categorías importadas. {skipped} omitidas (ya existían).'
+        'message': f'✓ {created} categorías importadas. {skipped} omitidas (ya existían){tpl_msg}.'
     })
 
 

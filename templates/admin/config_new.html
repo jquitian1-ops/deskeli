@@ -3339,6 +3339,11 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                 const delBtn = c.is_system
                     ? ''
                     : `<button onclick="catDelete(${c.id}, '${escC(c.name).replace(/'/g,'&#39;')}')" style="padding:5px 10px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">🗑</button>`;
+                const tplBtn = isSub
+                    ? (c.template_id
+                        ? `<button onclick="catGoToTemplate('${escC(c.parent_name).replace(/'/g,'&#39;')}', '${escC(c.name).replace(/'/g,'&#39;')}', ${c.template_id})" style="padding:5px 10px;background:#7c3aed;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:4px;font-weight:600;">📋 Ver plantilla</button>`
+                        : `<button onclick="catGoToTemplate('${escC(c.parent_name).replace(/'/g,'&#39;')}', '${escC(c.name).replace(/'/g,'&#39;')}', null)" style="padding:5px 10px;background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd;border-radius:4px;cursor:pointer;font-size:11px;margin-right:4px;font-weight:600;">➕ Crear plantilla</button>`)
+                    : '';
                 const nameCell = isSub ? `<span style="color:#9ca3af;margin-right:4px;">↳</span>${escC(c.name)}` : `<strong>${escC(c.name)}</strong>`;
                 const parentCell = isSub ? escC(c.parent_name || '—') : '<span style="color:#9ca3af;">— nivel superior —</span>';
                 return `
@@ -3348,7 +3353,7 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                         <td style="padding:10px;color:#6b7280;font-size:12px;">${parentCell}</td>
                         <td style="padding:10px;text-align:center;">${sysTag}</td>
                         <td style="padding:10px;text-align:center;">${stateTag}</td>
-                        <td style="padding:10px;text-align:center;white-space:nowrap;">${editBtn}${toggleBtn}${delBtn}</td>
+                        <td style="padding:10px;text-align:center;white-space:nowrap;">${tplBtn}${editBtn}${toggleBtn}${delBtn}</td>
                     </tr>
                 `;
             }).join('');
@@ -3494,7 +3499,11 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
             });
             const data = await r.json();
             if (data.success) {
-                statusEl.textContent = `✓ ${data.created} creadas · ${data.skipped} omitidas (ya existían)`;
+                let tplTxt = '';
+                if (data.templates_created || data.templates_updated) {
+                    tplTxt = ` · ${data.templates_created || 0} plantilla(s) creada(s), ${data.templates_updated || 0} actualizada(s)`;
+                }
+                statusEl.textContent = `✓ ${data.created} creadas · ${data.skipped} omitidas (ya existían)${tplTxt}`;
                 statusEl.style.color = '#065f46';
                 if (data.errors && data.errors.length) {
                     console.warn('Errores parciales de importación:', data.errors);
@@ -3511,6 +3520,34 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
             statusEl.style.color = '#991b1b';
         }
         document.getElementById('catImportFile').value = '';
+    };
+
+    // Click en "Ver plantilla" / "Crear plantilla" de una subcategoría:
+    // cambia a la pestaña Plantillas (que carga /admin/config-old embebido
+    // en un iframe) y, una vez cargado, abre esa plantilla para editar o
+    // abre el formulario "Nueva Plantilla" precargado con Categoría/Subcategoría.
+    window.catGoToTemplate = function(categoryName, subcategoryName, templateId) {
+        const tab = document.querySelector('.config-tab[data-tab="plantillas"]');
+        const panel = document.getElementById('panel-plantillas');
+        const iframe = panel ? panel.querySelector('.config-iframe') : null;
+        if (!tab || !iframe) return;
+        const onLoaded = function() {
+            iframe.removeEventListener('load', onLoaded);
+            setTimeout(() => {
+                try {
+                    const win = iframe.contentWindow;
+                    if (templateId && typeof win.editTemplate === 'function') {
+                        win.editTemplate(templateId);
+                    } else if (typeof win.openNewTemplatePrefilled === 'function') {
+                        win.openNewTemplatePrefilled(subcategoryName, categoryName, subcategoryName);
+                    }
+                } catch (e) {
+                    console.error('catGoToTemplate:', e);
+                }
+            }, 500);
+        };
+        iframe.addEventListener('load', onLoaded);
+        tab.click();
     };
 })();
 </script>
