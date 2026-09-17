@@ -1999,9 +1999,9 @@
                     </div>
 
                     <div id="ctSubcategoryWrap" style="display:none;margin-bottom:12px;">
-                        <label style="display:block;font-size:13px;color:#374151;font-weight:600;margin-bottom:4px;">Subcategoría (opcional)</label>
+                        <label id="ctSubcategoryLabel" style="display:block;font-size:13px;color:#374151;font-weight:600;margin-bottom:4px;">Subcategoría <span style="color:#dc2626;">*</span></label>
                         <select id="ctSubcategory" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
-                            <option value="">— Sin subcategoría —</option>
+                            <option value="">— Selecciona una subcategoría —</option>
                         </select>
                     </div>
 
@@ -2572,7 +2572,9 @@
             const subSel = document.getElementById('ctSubcategory');
             const cat = _ctCategoriesTree.find(c => c.name === catSel.value);
             if (cat && cat.subcategories && cat.subcategories.length > 0) {
-                subSel.innerHTML = '<option value="">— Sin subcategoría —</option>' +
+                // La categoría tiene subcategorías: es obligatorio elegir una
+                // (sin opción "Sin subcategoría" para forzar la elección).
+                subSel.innerHTML = '<option value="" selected disabled>— Selecciona una subcategoría —</option>' +
                     cat.subcategories.map(sc => `<option value="${sc.name}">${sc.icon} ${sc.name}</option>`).join('');
                 wrap.style.display = 'block';
             } else {
@@ -2681,6 +2683,11 @@
             }
             if (!description) {
                 status.innerHTML = '<span style="color:#dc2626;">⚠ La descripción es obligatoria</span>';
+                return;
+            }
+            const subcategoryWrap = document.getElementById('ctSubcategoryWrap');
+            if (subcategoryWrap.style.display !== 'none' && !subcategory) {
+                status.innerHTML = '<span style="color:#dc2626;">⚠ Esta categoría tiene subcategorías: debes elegir una</span>';
                 return;
             }
 
