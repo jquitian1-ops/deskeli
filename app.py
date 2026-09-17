@@ -11834,6 +11834,68 @@ def seed_default_templates():
                 {'name': 'centro_costo', 'label': '💰 Centro de costo / aprobación', 'type': 'text', 'required': False, 'placeholder': 'Centro de costo o nombre de quien aprueba el gasto'},
             ]
         },
+        # ── Office: 4 plantillas basadas en los problemas mas comunes reportados
+        # en soporte de Microsoft 365 (Word/Excel/PowerPoint que no abren o se
+        # cierran, instalacion/activacion, OneDrive sin sincronizar, y Teams con
+        # fallas de audio/video/conexion) — Outlook queda en su propia categoria.
+        {
+            'name': '💼 Office no abre o se cierra',
+            'description': 'Word, Excel o PowerPoint no abren, se cierran solos o se congelan',
+            'title_template': '{aplicacion} no abre o se cierra — {usuario_equipo}',
+            'category': 'Office',
+            'priority': 'high',
+            'form_fields': [
+                {'name': 'aplicacion', 'label': '📄 Aplicación afectada', 'type': 'select', 'required': True,
+                    'options': ['Word', 'Excel', 'PowerPoint', 'Varias / todo Office', 'Otra']},
+                {'name': 'usuario_equipo', 'label': '💻 Usuario / nombre del equipo', 'type': 'text', 'required': True, 'placeholder': 'Ej: jperez / PC-CONTAB-05'},
+                {'name': 'sintoma', 'label': '⚠ Qué pasa exactamente', 'type': 'select', 'required': True,
+                    'options': ['No abre / no responde', 'Se cierra solo a los pocos segundos', 'Se congela / deja de responder', 'Error al guardar el archivo', 'Otro']},
+                {'name': 'mensaje_error', 'label': '💬 Mensaje de error (si aparece)', 'type': 'text', 'required': False, 'placeholder': 'Copiá el texto exacto del error'},
+                {'name': 'cuando_inicio', 'label': '🕐 ¿Desde cuándo pasa esto?', 'type': 'text', 'required': True, 'placeholder': 'Ej: Desde hoy / desde la última actualización de Windows'},
+            ]
+        },
+        {
+            'name': '🔑 Instalación / Activación de Office',
+            'description': 'Instalar Office, reactivar licencia o migrar a otro equipo',
+            'title_template': 'Office — {tipo_solicitud} ({usuario_equipo})',
+            'category': 'Office',
+            'priority': 'medium',
+            'form_fields': [
+                {'name': 'tipo_solicitud', 'label': '🎯 Tipo de solicitud', 'type': 'select', 'required': True,
+                    'options': ['Instalar Office en equipo nuevo', 'Reactivar / renovar licencia', 'Migrar licencia a otro equipo', 'Error de activación', 'Otro']},
+                {'name': 'usuario_equipo', 'label': '💻 Usuario / nombre del equipo', 'type': 'text', 'required': True, 'placeholder': 'Ej: jperez / PC-CONTAB-05'},
+                {'name': 'version_office', 'label': '🔢 Versión de Office (si la conocés)', 'type': 'text', 'required': False, 'placeholder': 'Ej: Microsoft 365, Office 2021'},
+                {'name': 'mensaje_error', 'label': '💬 Mensaje de error de activación (si aplica)', 'type': 'text', 'required': False},
+            ]
+        },
+        {
+            'name': '☁️ OneDrive — Archivos sin sincronizar',
+            'description': 'Archivos que no sincronizan, faltan, o sin espacio en OneDrive',
+            'title_template': 'OneDrive — {tipo_problema}',
+            'category': 'Office',
+            'priority': 'medium',
+            'form_fields': [
+                {'name': 'tipo_problema', 'label': '⚠ Tipo de problema', 'type': 'select', 'required': True,
+                    'options': ['Archivos no sincronizan (ícono con reloj/nube)', 'Ícono de error (nube roja o amarilla)', 'Archivo o carpeta no aparece / se perdió', 'Sin espacio de almacenamiento', 'No puedo compartir un archivo', 'Otro']},
+                {'name': 'archivo_carpeta', 'label': '📁 Archivo o carpeta afectada', 'type': 'text', 'required': True, 'placeholder': 'Ej: \\Documentos\\Presupuesto2026.xlsx'},
+                {'name': 'cuando_inicio', 'label': '🕐 ¿Desde cuándo?', 'type': 'text', 'required': True, 'placeholder': 'Ej: Desde ayer / desde que reinstalé Windows'},
+                {'name': 'detalles', 'label': '📝 Detalles adicionales', 'type': 'textarea', 'required': False},
+            ]
+        },
+        {
+            'name': '📹 Teams — Conexión, audio o video',
+            'description': 'Fallas de conexión, audio, video o pantalla compartida en Microsoft Teams',
+            'title_template': 'Teams — {tipo_problema}',
+            'category': 'Office',
+            'priority': 'high',
+            'form_fields': [
+                {'name': 'tipo_problema', 'label': '⚠ Tipo de problema', 'type': 'select', 'required': True,
+                    'options': ['Se desconecta / no conecta a la llamada', 'Sin audio (no escucho o no me escuchan)', 'Sin video / cámara no funciona', 'Pantalla compartida no funciona', 'Mensajes o chats no sincronizan', 'Otro']},
+                {'name': 'cuando_inicio', 'label': '🕐 ¿Desde cuándo pasa esto?', 'type': 'text', 'required': True, 'placeholder': 'Ej: Desde hoy / en todas las reuniones de esta semana'},
+                {'name': 'reunion_afectada', 'label': '📅 ¿Es urgente por una reunión puntual?', 'type': 'text', 'required': False, 'placeholder': 'Ej: Reunión con cliente a las 3pm'},
+                {'name': 'detalles', 'label': '📝 Detalles adicionales', 'type': 'textarea', 'required': False, 'placeholder': '¿Le pasa a alguien más en la reunión? ¿Probaste con auriculares?'},
+            ]
+        },
     ]
 
     # Crear las plantillas para cada empresa (excepto la master que las comparte)
