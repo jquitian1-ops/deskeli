@@ -3378,7 +3378,9 @@ def technician_create():
 
 @app.route('/api/technician/company-users', methods=['GET'])
 def api_technician_company_users():
-    """Devuelve la lista de empleados de la empresa (para el dropdown 'crear en nombre de')."""
+    """Devuelve la lista de usuarios de la empresa (para el dropdown 'crear en
+    nombre de'). Incluye al propio técnico logueado: puede ser él mismo quien
+    reporta el problema (no solo terceros)."""
     if 'user_id' not in session or session['role'] not in ('technician', 'admin'):
         return jsonify({'success': False}), 401
     company = session['company']
@@ -3391,7 +3393,7 @@ def api_technician_company_users():
             'email': u.email,
             'role': u.role,
             'username': u.username,
-        } for u in users if u.id != session['user_id']]
+        } for u in users]
     })
 
 
