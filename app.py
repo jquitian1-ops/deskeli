@@ -17586,6 +17586,33 @@ def api_admin_categories_list():
             return tpl_by_key.get((parent_name.strip().lower(), c.name.strip().lower()))
         return tpl_by_key.get((c.name.strip().lower(), ''))
 
+    # Plantillas "huérfanas": ya existen (algunas de antes de que existiera
+    # el concepto de Subcategoría) pero no están ligadas a ninguna
+    # Subcategoría formal de esta categoría. Se muestran igual al expandir
+    # la categoría en el panel, como si fueran subcategorías, para que el
+    # admin las vea y pueda editarlas sin tener que crearlas de nuevo a mano.
+    formal_sub_names_by_parent = {}
+    for c in categories:
+        if c.parent_id:
+            formal_sub_names_by_parent.setdefault(c.parent_id, set()).add(c.name.strip().lower())
+
+    orphan_templates_by_category = {}
+    for t in company_templates:
+        cat_name = (t.category or '').strip()
+        if not cat_name:
+            continue
+        parent = next((c for c in categories if not c.parent_id and c.name.strip().lower() == cat_name.lower()), None)
+        if not parent:
+            continue
+        sub_name = (t.subcategory or '').strip().lower()
+        formal_names = formal_sub_names_by_parent.get(parent.id, set())
+        if sub_name and sub_name in formal_names:
+            continue  # ya se muestra vía su Subcategoría formal
+        orphan_templates_by_category.setdefault(parent.id, []).append({
+            'template_id': t.id,
+            'name': t.subcategory or t.name,
+        })
+
     return jsonify({
         'success': True,
         'categories': [{
@@ -17599,6 +17626,7 @@ def api_admin_categories_list():
             'parent_id': c.parent_id,
             'parent_name': names_by_id.get(c.parent_id),
             'template_id': _template_id_for(c),
+            'orphan_templates': (orphan_templates_by_category.get(c.id, []) if not c.parent_id else []),
         } for c in categories]
     })
 
