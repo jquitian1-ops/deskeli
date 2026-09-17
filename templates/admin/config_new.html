@@ -1647,8 +1647,10 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                 <div class="panel-content" id="panel-backup">
                     <h2 class="config-panel-title">💾 Backup y Restauración</h2>
                     <p style="color:#666;margin-bottom:18px;font-size:14px;">
-                        Los backups son archivos comprimidos (.db.gz para SQLite, .sql.gz para PostgreSQL) de la base de datos. Se crean automáticamente cada 24h
-                        y se mantienen los últimos 30. Aquí podés crear uno manual, descargarlo, eliminarlo o restaurar.
+                        Hay 2 tipos de backup: <strong>Solo BD</strong> (.db.gz / .sql.gz — solo la base de datos) y
+                        <strong>Completo</strong> (.tar.gz — base de datos + todos los archivos adjuntos de tickets/subtareas/solicitudes).
+                        El backup <strong>automático diario ahora es siempre Completo</strong>, para que ante una pérdida total del servidor se pueda reconstruir todo el sistema, no solo los datos.
+                        Se mantienen los últimos 30 backups de solo-BD y los últimos 14 completos (pesan más). Aquí podés crear uno manual, descargarlo, eliminarlo o restaurar.
                     </p>
 
                     <!-- KPIs -->
@@ -1673,7 +1675,11 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
                             <button onclick="bkpCreateNow()" id="bkpCreateBtn"
                                     style="padding:10px 20px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;">
-                                💾 Crear backup ahora
+                                💾 Crear backup (solo BD)
+                            </button>
+                            <button onclick="bkpCreateFullNow()" id="bkpCreateFullBtn"
+                                    style="padding:10px 20px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;">
+                                📦 Crear backup completo (BD + adjuntos)
                             </button>
                             <button onclick="bkpRefresh()"
                                     style="padding:10px 16px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">
@@ -1690,6 +1696,7 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                         <thead>
                             <tr style="background:#f9fafb;">
                                 <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Archivo</th>
+                                <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Alcance</th>
                                 <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Tamaño</th>
                                 <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Fecha</th>
                                 <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Acciones</th>
@@ -2669,12 +2676,12 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
     async function bkpLoad() {
         const tbody = document.getElementById('bkpTbody');
         if (!tbody) return;
-        tbody.innerHTML = '<tr><td colspan="4" style="padding:20px;text-align:center;color:#999;">⏳ Cargando...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#999;">⏳ Cargando...</td></tr>';
         try {
             const r = await fetch('/api/admin/backups');
             const data = await r.json();
             if (!data.success) {
-                tbody.innerHTML = '<tr><td colspan="4" style="padding:20px;text-align:center;color:#dc2626;">Error</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#dc2626;">Error</td></tr>';
                 return;
             }
             document.getElementById('bkpCount').textContent = data.backups.length;
@@ -2682,27 +2689,33 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
             document.getElementById('bkpLast').textContent = data.backups[0] ? data.backups[0].created_at : 'Nunca';
 
             if (data.backups.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="padding:30px;text-align:center;color:#999;">No hay backups todavía. Click en "💾 Crear backup ahora" para generar el primero.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="padding:30px;text-align:center;color:#999;">No hay backups todavía. Click en uno de los botones de arriba para generar el primero.</td></tr>';
                 return;
             }
 
-            tbody.innerHTML = data.backups.map(b => `
+            tbody.innerHTML = data.backups.map(b => {
+                const scopeTag = b.is_full
+                    ? '<span style="background:#ede9fe;color:#5b21b6;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700;">📦 BD + adjuntos</span>'
+                    : '<span style="background:#dbeafe;color:#1e40af;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700;">🗄️ Solo BD</span>';
+                return `
                 <tr style="border-bottom:1px solid #f0f0f0;">
                     <td style="padding:10px;font-family:monospace;font-size:12px;color:#374151;">📦 ${b.name}</td>
+                    <td style="padding:10px;text-align:center;">${scopeTag}</td>
                     <td style="padding:10px;font-size:12px;color:#6b7280;">${b.size_human}</td>
                     <td style="padding:10px;font-size:12px;color:#374151;">${b.created_at}</td>
                     <td style="padding:10px;text-align:center;">
                         <a href="/api/admin/backups/${encodeURIComponent(b.name)}/download" download
                            style="display:inline-block;padding:5px 10px;background:#2563eb;color:white;text-decoration:none;border-radius:4px;font-size:11px;margin-right:4px;font-weight:600;">⬇ Descargar</a>
-                        <button onclick="bkpRestore('${b.name.replace(/'/g, '&#39;')}')"
+                        <button onclick="bkpRestore('${b.name.replace(/'/g, '&#39;')}', ${b.is_full})"
                                 style="padding:5px 10px;background:#d97706;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-right:4px;font-weight:600;">♻ Restaurar</button>
                         <button onclick="bkpDelete('${b.name.replace(/'/g, '&#39;')}')"
                                 style="padding:5px 10px;background:#dc2626;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">🗑 Eliminar</button>
                     </td>
                 </tr>
-            `).join('');
+            `;
+            }).join('');
         } catch (e) {
-            tbody.innerHTML = '<tr><td colspan="4" style="padding:20px;text-align:center;color:#dc2626;">Error: ' + e.message + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#dc2626;">Error: ' + e.message + '</td></tr>';
         }
     }
 
@@ -2726,7 +2739,29 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
             bkpShow('✗ ' + e.message, false);
         } finally {
             btn.disabled = false;
-            btn.textContent = '💾 Crear backup ahora';
+            btn.textContent = '💾 Crear backup (solo BD)';
+        }
+    };
+
+    window.bkpCreateFullNow = async function() {
+        const btn = document.getElementById('bkpCreateFullBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Empaquetando BD + adjuntos...';
+        bkpShow('Creando backup completo (puede tardar más que uno de solo BD)...', true);
+        try {
+            const r = await fetch('/api/admin/backups/create-full', {method:'POST'});
+            const data = await r.json();
+            if (data.success) {
+                bkpShow('✓ ' + data.message, true);
+                bkpLoad();
+            } else {
+                bkpShow('✗ ' + (data.error || 'Error'), false);
+            }
+        } catch (e) {
+            bkpShow('✗ ' + e.message, false);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '📦 Crear backup completo (BD + adjuntos)';
         }
     };
 
@@ -2746,8 +2781,11 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
         }
     };
 
-    window.bkpRestore = async function(name) {
-        const confirm1 = confirm('⚠ Vas a RESTAURAR la BD desde "' + name + '".\n\nEsto sobrescribirá la base de datos actual. Se creará un backup de seguridad antes.\n\n¿Continuar?');
+    window.bkpRestore = async function(name, isFull) {
+        const scopeMsg = isFull
+            ? 'Esto sobrescribirá la base de datos ACTUAL y TODOS los archivos adjuntos actuales (tickets, subtareas, solicitudes). Se creará un backup completo de seguridad antes.'
+            : 'Esto sobrescribirá la base de datos actual (los adjuntos NO se tocan). Se creará un backup de seguridad antes.';
+        const confirm1 = confirm('⚠ Vas a RESTAURAR desde "' + name + '".\n\n' + scopeMsg + '\n\n¿Continuar?');
         if (!confirm1) return;
         const confirm2 = prompt('Escribe RESTAURAR (en mayúsculas) para confirmar:');
         if (confirm2 !== 'RESTAURAR') {

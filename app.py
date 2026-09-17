@@ -8887,13 +8887,204 @@ def create_backup(user_id=None):
         log_audit('backup_failed', user_id, 'backup', None, f'Error backup: {str(e)}')
         return None
 
+
+def _get_raw_db_dump():
+    """Devuelve (raw_bytes, archive_name) con el dump CRUDO de la BD actual
+    (sin comprimir ni cifrar) — usado por el backup completo para empaquetarlo
+    junto con los adjuntos. archive_name es 'database.sql' (Postgres) o
+    'database.db' (SQLite). (None, None) si falla."""
+    uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if uri.startswith('postgres'):
+        import subprocess as _sp
+        from urllib.parse import urlparse as _urlparse
+        parsed = _urlparse(uri)
+        env = os.environ.copy()
+        env['PGPASSWORD'] = parsed.password or ''
+        cmd = [
+            'pg_dump',
+            '-h', parsed.hostname or 'localhost',
+            '-p', str(parsed.port or 5432),
+            '-U', parsed.username or '',
+            '-d', (parsed.path or '').lstrip('/') or 'postgres',
+            '--no-owner', '--no-privileges', '--format=plain', '--encoding=UTF8',
+        ]
+        try:
+            proc = _sp.run(cmd, env=env, capture_output=True, timeout=600)
+            if proc.returncode != 0 or not proc.stdout:
+                return None, None
+            return proc.stdout, 'database.sql'
+        except Exception:
+            return None, None
+    # SQLite
+    db_path = _get_db_file_path()
+    if not db_path or not db_path.exists():
+        return None, None
+    with open(db_path, 'rb') as f:
+        return f.read(), 'database.db'
+
+
+# Carpetas de adjuntos que se incluyen en el backup COMPLETO (BD + archivos).
+# arcname = ruta dentro del .tar.gz; debe coincidir con la que usa
+# _restore_full_backup() para saber a qué carpeta real devolver cada archivo.
+_FULL_BACKUP_UPLOAD_DIRS = [
+    ('uploads/tickets', 'TICKET_UPLOAD_FOLDER'),
+    ('uploads/subtasks', 'UPLOAD_FOLDER'),
+]
+
+
+def create_full_backup(user_id=None):
+    """Backup COMPLETO del sistema: base de datos + todos los archivos
+    adjuntos (uploads/tickets, uploads/subtasks — tickets, subtareas y
+    solicitudes de usuario, que reutiliza la carpeta de tickets) empaquetados
+    en un único .tar.gz(.enc). A diferencia de create_backup() (solo BD),
+    este SÍ permite reconstruir el sistema completo ante una pérdida total.
+
+    Retorna Path del backup o None si falló."""
+    import tarfile
+    dump_bytes, dump_name = _get_raw_db_dump()
+    if dump_bytes is None:
+        log_audit('backup_failed', user_id, 'backup', None,
+                  'Backup completo: no se pudo obtener el dump de la BD')
+        return None
+
+    backup_dir = Path('backups')
+    backup_dir.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    use_encryption = crypto_has_key()
+    suffix = '.tar.gz.enc' if use_encryption else '.tar.gz'
+    backup_file = backup_dir / f'ticketdesk_full_backup_{timestamp}{suffix}'
+
+    try:
+        tar_buf = BytesIO()
+        with tarfile.open(fileobj=tar_buf, mode='w:gz') as tar:
+            dump_info = tarfile.TarInfo(name=dump_name)
+            dump_info.size = len(dump_bytes)
+            tar.addfile(dump_info, BytesIO(dump_bytes))
+            for arcname, config_key in _FULL_BACKUP_UPLOAD_DIRS:
+                folder = app.config.get(config_key)
+                if folder and os.path.isdir(folder):
+                    tar.add(folder, arcname=arcname)
+        tar_bytes = tar_buf.getvalue()
+
+        payload = encrypt_bytes(tar_bytes) if use_encryption else tar_bytes
+        with open(backup_file, 'wb') as f_out:
+            f_out.write(payload)
+
+        # Retención: los backups completos pesan más (incluyen adjuntos) —
+        # se mantienen menos copias que los de solo-BD (30).
+        all_full = sorted(
+            list(backup_dir.glob('ticketdesk_full_backup_*.tar.gz')) +
+            list(backup_dir.glob('ticketdesk_full_backup_*.tar.gz.enc'))
+        )
+        removed = 0
+        for old in all_full[:-14]:
+            try:
+                old.unlink()
+                removed += 1
+            except Exception:
+                pass
+
+        log_audit('backup_created', user_id, 'backup', None,
+                  f'Backup completo {backup_file.name} ({backup_file.stat().st_size} bytes) '
+                  f'{"cifrado" if use_encryption else "PLANO"} — BD + adjuntos, {removed} antiguos eliminados')
+        return backup_file
+    except Exception as e:
+        log_audit('backup_failed', user_id, 'backup', None, f'Error backup completo: {str(e)}')
+        return None
+
+
+def _restore_full_backup(payload):
+    """Restaura un backup COMPLETO (BD + adjuntos) desde `payload` (bytes del
+    .tar.gz, ya desencriptados si el archivo estaba cifrado). Lanza
+    ValueError con un mensaje claro si algo no es compatible."""
+    import tarfile
+    tar_buf = BytesIO(payload)
+    with tarfile.open(fileobj=tar_buf, mode='r:gz') as tar:
+        members = tar.getmembers()
+        db_member = next((m for m in members if m.name in ('database.sql', 'database.db')), None)
+        if not db_member:
+            raise ValueError('El backup completo no contiene la base de datos (database.sql/database.db)')
+        db_bytes = tar.extractfile(db_member).read()
+
+        uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        is_pg = uri.startswith('postgres')
+        if is_pg and db_member.name != 'database.sql':
+            raise ValueError('La BD actual es Postgres pero este backup no trae database.sql (¿es de un SQLite?)')
+        if not is_pg and db_member.name != 'database.db':
+            raise ValueError('La BD actual es SQLite pero este backup no trae database.db (¿es de un Postgres?)')
+
+        # ── Restaurar la base de datos ──
+        if is_pg:
+            import subprocess as _sp
+            import tempfile as _tf
+            from urllib.parse import urlparse as _urlparse
+            parsed = _urlparse(uri)
+            env = os.environ.copy()
+            env['PGPASSWORD'] = parsed.password or ''
+            with _tf.NamedTemporaryFile(delete=False, suffix='.sql') as tmp:
+                tmp.write(db_bytes)
+                tmp_path = tmp.name
+            try:
+                db.session.close()
+                db.engine.dispose()
+                cmd = [
+                    'psql',
+                    '-h', parsed.hostname or 'localhost',
+                    '-p', str(parsed.port or 5432),
+                    '-U', parsed.username or 'postgres',
+                    '-d', (parsed.path or '/postgres').lstrip('/'),
+                    '-v', 'ON_ERROR_STOP=1',
+                    '-f', tmp_path,
+                ]
+                result = _sp.run(cmd, env=env, capture_output=True, text=True, timeout=600)
+                if result.returncode != 0:
+                    raise ValueError(f'psql retornó {result.returncode}: {(result.stderr or "")[-500:]}')
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+        else:
+            db_path = _get_db_file_path()
+            if not db_path:
+                raise ValueError('No se pudo determinar la ruta de la BD SQLite')
+            db.session.close()
+            db.engine.dispose()
+            with open(db_path, 'wb') as f_out:
+                f_out.write(db_bytes)
+
+        # ── Restaurar adjuntos ──
+        dir_by_prefix = {arcname + '/': app.config.get(config_key) for arcname, config_key in _FULL_BACKUP_UPLOAD_DIRS}
+        for member in members:
+            if member.isdir() or member is db_member:
+                continue
+            target_root = None
+            rel = None
+            for prefix, folder in dir_by_prefix.items():
+                if member.name.startswith(prefix):
+                    target_root = folder
+                    rel = member.name[len(prefix):]
+                    break
+            if not target_root or not rel or '..' in rel or os.path.isabs(rel):
+                continue
+            target_path = os.path.join(target_root, rel)
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            src = tar.extractfile(member)
+            if src is None:
+                continue
+            with src, open(target_path, 'wb') as dst:
+                shutil.copyfileobj(src, dst)
+
+
 def start_backup_scheduler():
-    """Iniciar scheduler de backups automáticos cada 24h"""
+    """Iniciar scheduler de backups automáticos cada 24h.
+    Usa create_full_backup() (BD + adjuntos) para que el respaldo automático
+    cubra todo el sistema, no solo la base de datos."""
     def backup_loop():
         while True:
             try:
                 with app.app_context():
-                    create_backup()
+                    create_full_backup()
                 time.sleep(86400)  # 24 horas
             except Exception as e:
                 print(f'[Backup Error] {e}')
@@ -8933,21 +9124,26 @@ def api_backups_list():
             'db_size_human': _human_size(db_size),
         })
 
-    # Incluir TODOS los formatos (SQLite y Postgres).
+    # Incluir TODOS los formatos (SQLite, Postgres, y completos BD+adjuntos).
     all_files = (
         list(backup_dir.glob('ticketdesk_backup_*.db.gz'))
         + list(backup_dir.glob('ticketdesk_backup_*.db.gz.enc'))
         + list(backup_dir.glob('ticketdesk_backup_pg_*.sql.gz'))
         + list(backup_dir.glob('ticketdesk_backup_pg_*.sql.gz.enc'))
+        + list(backup_dir.glob('ticketdesk_full_backup_*.tar.gz'))
+        + list(backup_dir.glob('ticketdesk_full_backup_*.tar.gz.enc'))
     )
     backups = []
     for f in sorted(all_files, key=lambda p: p.stat().st_mtime, reverse=True):
         try:
             stat = f.stat()
+            is_full = f.name.startswith('ticketdesk_full_backup_')
             backups.append({
                 'name': f.name,
                 'encrypted': f.name.endswith('.enc'),
                 'engine': 'postgres' if '_pg_' in f.name else 'sqlite',
+                'is_full': is_full,
+                'scope': 'BD + adjuntos' if is_full else 'Solo BD',
                 'size_bytes': stat.st_size,
                 'size_human': _human_size(stat.st_size),
                 'created_at': datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
@@ -9003,7 +9199,7 @@ def _get_current_db_size():
 
 @app.route('/api/admin/backups/create', methods=['POST'])
 def api_backups_create():
-    """Crear backup manual on-demand."""
+    """Crear backup manual on-demand (solo base de datos)."""
     if 'user_id' not in session or session.get('role') != 'admin':
         return jsonify({'success': False}), 401
     backup_file = create_backup(user_id=session['user_id'])
@@ -9013,6 +9209,23 @@ def api_backups_create():
     return jsonify({
         'success': True,
         'message': f'Backup creado: {backup_file.name}',
+        'name': backup_file.name,
+        'size_bytes': stat.st_size
+    })
+
+
+@app.route('/api/admin/backups/create-full', methods=['POST'])
+def api_backups_create_full():
+    """Crear backup manual COMPLETO (base de datos + archivos adjuntos)."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+    backup_file = create_full_backup(user_id=session['user_id'])
+    if not backup_file:
+        return jsonify({'success': False, 'error': 'No se pudo crear el backup completo. Revisa la consola del servidor.'}), 500
+    stat = backup_file.stat()
+    return jsonify({
+        'success': True,
+        'message': f'Backup completo creado: {backup_file.name}',
         'name': backup_file.name,
         'size_bytes': stat.st_size
     })
@@ -9073,11 +9286,14 @@ def api_backups_restore(filename):
     if not target.exists():
         return jsonify({'success': False, 'error': 'Backup no encontrado'}), 404
 
-    # Detectar formato del backup (.sql.gz = pg, .db.gz = sqlite)
+    # Detectar formato del backup (.sql.gz = pg, .db.gz = sqlite, .tar.gz = completo)
+    is_full_backup = target.name.startswith('ticketdesk_full_backup_')
     is_pg_backup = '_pg_' in target.name or target.name.endswith('.sql.gz') or target.name.endswith('.sql.gz.enc')
 
-    # Antes de restaurar, hacer un backup de seguridad de la BD actual
-    safety_backup = create_backup(user_id=session['user_id'])
+    # Antes de restaurar, hacer un backup de seguridad de la BD actual.
+    # Si el backup a restaurar es completo, el de seguridad también lo es
+    # (para no perder los adjuntos actuales si algo sale mal).
+    safety_backup = create_full_backup(user_id=session['user_id']) if is_full_backup else create_backup(user_id=session['user_id'])
 
     try:
         # Leer y desencriptar el payload
@@ -9092,6 +9308,22 @@ def api_backups_restore(filename):
             except Exception as ex:
                 return jsonify({'success': False,
                                 'error': f'No se pudo descifrar el backup (clave incorrecta?): {ex}'}), 500
+
+        if is_full_backup:
+            # ── Restore completo: BD + adjuntos, empaquetados en el .tar.gz ──
+            try:
+                _restore_full_backup(payload)
+            except ValueError as ve:
+                return jsonify({'success': False, 'error': str(ve)}), 400
+            log_audit('backup_restore', session['user_id'], 'backup', None,
+                      f'Restaurado backup COMPLETO desde {filename} (BD + adjuntos). '
+                      f'Safety backup: {safety_backup.name if safety_backup else "ninguno"}')
+            return jsonify({
+                'success': True,
+                'message': f'Sistema restaurado (BD + adjuntos) desde {filename}. Se creó un backup de seguridad: '
+                           f'{safety_backup.name if safety_backup else "fallido"}. RECARGA LA PÁGINA.',
+                'safety_backup': safety_backup.name if safety_backup else None
+            })
 
         if is_pg_backup:
             # ── Restore Postgres via psql ──
