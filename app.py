@@ -12275,8 +12275,11 @@ def seed_default_templates():
         },
     ]
 
-    # Crear las plantillas para cada empresa (excepto la master que las comparte)
-    companies = [c.code for c in Company.query.all()] or ['eliot', 'pash', 'primatela']
+    # Crear las plantillas para cada empresa (excepto la master que las comparte).
+    # Se unen las 3 empresas conocidas del sistema con lo que haya en la tabla
+    # Company, para que ninguna se quede sin plantillas si esa tabla llegó a
+    # crearse incompleta (ej. sin 'pash') en algún momento de la vida del despliegue.
+    companies = sorted({c.code for c in Company.query.all()} | {'eliot', 'pash', 'primatela'})
     created_total = 0
     for company in companies:
         for tdef in templates_defs:
