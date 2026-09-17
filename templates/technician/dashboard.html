@@ -176,6 +176,18 @@
             margin-top: 6px;
         }
 
+        .stat-tip {
+            color: #059669;
+            font-size: 11.5px;
+            line-height: 1.4;
+            margin-top: 8px;
+            text-align: left;
+            background: #f0fdf4;
+            border-left: 3px solid #10b981;
+            padding: 6px 8px;
+            border-radius: 4px;
+        }
+
         .queue-section {
             background: white;
             padding: 20px;
@@ -438,16 +450,19 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                 <div class="stat-number">{{ stats.sla_health }}</div>
                 <div class="stat-label">Salud SLA</div>
                 <div class="stat-desc">% de tus tickets que cumplen el SLA: los resueltos antes de su fecha límite, más los abiertos cuyo SLA todavía no vence.</div>
+                <div class="stat-tip">💡 Ordena tu cola por SLA restante y atiende primero los que están por vencer, no solo los más recientes.</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number">{{ stats.on_time }}</div>
                 <div class="stat-label">A Tiempo</div>
                 <div class="stat-desc">Cantidad de tickets de tu cola que están dentro de ese mismo criterio de SLA (el número, no el porcentaje).</div>
+                <div class="stat-tip">💡 Si ves que se te acumulan tickets vencidos, pide reasignar o escalar los que no puedas cubrir a tiempo en vez de dejarlos esperando.</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number">{{ stats.avg_resolution }}</div>
                 <div class="stat-label">Resolución Promedio</div>
                 <div class="stat-desc">Horas promedio desde que se crea un ticket hasta que lo resuelves, calculado solo con tus tickets ya resueltos.</div>
+                <div class="stat-tip">💡 Usa plantillas y la base de conocimiento para resolver de una vez los casos comunes, y escala rápido los que necesiten otro especialista en lugar de dejarlos en espera.</div>
             </div>
         </div>
 
