@@ -3228,6 +3228,7 @@ def technician_create():
         title = (request.form.get('title') or '').strip()
         description = (request.form.get('description') or '').strip()
         category = (request.form.get('category') or 'General').strip()
+        subcategory = (request.form.get('subcategory') or '').strip() or None
         priority = (request.form.get('priority') or 'medium').strip()
         auto_assign = request.form.get('auto_assign_me') in ('1', 'true', 'on')
         # Crear en nombre de otro usuario (opcional)
@@ -3272,6 +3273,7 @@ def technician_create():
             title=title,
             description=final_description,
             category=category,
+            subcategory=subcategory,
             priority=priority,
             creator_id=creator_id,
             assignee_id=assignee_id,
