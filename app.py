@@ -11788,6 +11788,52 @@ def seed_default_templates():
                 {'name': 'detalles', 'label': '📝 Detalles', 'type': 'textarea', 'required': False, 'placeholder': '¿Cuándo empezó? ¿Qué intentaste?'},
             ]
         },
+        {
+            'name': '🖥️ Caída de Servidor',
+            'description': 'Reportar un servidor caído o inaccesible',
+            'title_template': 'Servidor caído — {servidor}',
+            'category': 'Servidores',
+            'priority': 'critical',
+            'form_fields': [
+                {'name': 'servidor', 'label': '🖥️ Nombre / IP del servidor', 'type': 'text', 'required': True, 'placeholder': 'Ej: SRV-SAP-PRD, 10.10.1.20'},
+                {'name': 'sistemas_afectados', 'label': '⚠ Sistemas / aplicaciones afectadas', 'type': 'textarea', 'required': True, 'placeholder': 'Ej: SAP producción, facturación, correo interno...'},
+                {'name': 'alcance', 'label': '📡 Alcance del problema', 'type': 'select', 'required': True,
+                    'options': ['Solo este servidor', 'Varios servidores', 'Todo el datacenter / sede']},
+                {'name': 'cuando_inicio', 'label': '🕐 ¿Desde cuándo está caído?', 'type': 'text', 'required': True, 'placeholder': 'Ej: Hace 10 minutos / desde las 6 AM'},
+                {'name': 'mensaje_error', 'label': '💬 Mensaje de error / síntoma observado', 'type': 'textarea', 'required': False, 'placeholder': 'Ej: No responde ping, timeout, pantalla azul, servicio caído...'},
+            ]
+        },
+        {
+            'name': '🐢 Lentitud de Servidor',
+            'description': 'Reportar un servidor funcionando con lentitud',
+            'title_template': 'Servidor lento — {servidor}',
+            'category': 'Servidores',
+            'priority': 'high',
+            'form_fields': [
+                {'name': 'servidor', 'label': '🖥️ Nombre / IP del servidor', 'type': 'text', 'required': True, 'placeholder': 'Ej: SRV-SAP-PRD, 10.10.1.20'},
+                {'name': 'sintomas', 'label': '⚠ Síntomas observados', 'type': 'textarea', 'required': True, 'placeholder': 'Ej: Transacciones tardan varios minutos, timeouts intermitentes...'},
+                {'name': 'frecuencia', 'label': '🔁 Frecuencia', 'type': 'select', 'required': True,
+                    'options': ['Constante', 'Intermitente', 'Solo en horas pico']},
+                {'name': 'impacto', 'label': '👥 ¿A quién afecta?', 'type': 'select', 'required': True,
+                    'options': ['Solo a mí', 'A mi área / equipo', 'A toda la empresa']},
+                {'name': 'cuando_inicio', 'label': '🕐 ¿Desde cuándo?', 'type': 'text', 'required': True, 'placeholder': 'Ej: Desde ayer / desde el último cambio'},
+            ]
+        },
+        {
+            'name': '🆕 Solicitud de Nuevo Servidor',
+            'description': 'Solicitar el aprovisionamiento de un servidor nuevo',
+            'title_template': 'Solicitud de nuevo servidor — {proposito}',
+            'category': 'Servidores',
+            'priority': 'low',
+            'form_fields': [
+                {'name': 'proposito', 'label': '🎯 Propósito / para qué se necesita', 'type': 'text', 'required': True, 'placeholder': 'Ej: Ambiente de pruebas SAP, nuevo aplicativo de RRHH'},
+                {'name': 'tipo_servidor', 'label': '🖥️ Tipo de servidor', 'type': 'select', 'required': True,
+                    'options': ['Físico', 'Virtual (VM)', 'Cloud']},
+                {'name': 'especificaciones', 'label': '⚙ Especificaciones estimadas', 'type': 'textarea', 'required': True, 'placeholder': 'Ej: 4 vCPU, 16GB RAM, 200GB disco, Windows Server 2022'},
+                {'name': 'fecha_necesaria', 'label': '📅 Fecha en que se necesita', 'type': 'text', 'required': True, 'placeholder': 'Ej: Antes del 30 de octubre'},
+                {'name': 'centro_costo', 'label': '💰 Centro de costo / aprobación', 'type': 'text', 'required': False, 'placeholder': 'Centro de costo o nombre de quien aprueba el gasto'},
+            ]
+        },
     ]
 
     # Crear las plantillas para cada empresa (excepto la master que las comparte)
