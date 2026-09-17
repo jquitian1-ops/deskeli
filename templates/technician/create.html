@@ -188,6 +188,17 @@
                         <input type="checkbox" id="auto_assign_me" name="auto_assign_me" value="1" style="width:18px;height:18px;cursor:pointer;">
                         <strong>Auto-asignármelo</strong> — el ticket queda asignado a vos directamente, en estado "En progreso"
                     </label>
+
+                    <!-- Asignar a un compañero del grupo (solo visible para Mesa de Ayuda) -->
+                    <div id="groupAssignBlock" style="display:none;margin-top:10px;background:white;border:1px solid #c4b5fd;border-radius:6px;padding:10px 12px;">
+                        <label for="assign_to_technician_id" style="display:block;font-weight:800;color:#5b21b6;font-size:13px;margin-bottom:6px;">
+                            👥 Asignar a un técnico de <span id="groupAssignName">tu grupo</span> (opcional)
+                        </label>
+                        <select id="assign_to_technician_id" name="assign_to_technician_id"
+                                style="width:100%;padding:9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="">— Sin asignar (dejar que el sistema decida) —</option>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- PASO 1: Categoría -->
@@ -369,6 +380,40 @@ function onCategoryChange() {
         subBlock.style.display = 'none';
     }
     filterTemplatesByCategory();
+}
+
+async function loadMyGroupTechnicians() {
+    try {
+        const r = await fetch('/api/technician/my-group-technicians');
+        const data = await r.json();
+        if (!data.success || !data.in_group || !data.technicians || data.technicians.length === 0) return;
+
+        const block = document.getElementById('groupAssignBlock');
+        const sel = document.getElementById('assign_to_technician_id');
+        const nameSpan = document.getElementById('groupAssignName');
+        if (!block || !sel) return;
+
+        nameSpan.textContent = data.group_name || 'tu grupo';
+        let html = '<option value="">— Sin asignar (dejar que el sistema decida) —</option>';
+        data.technicians.forEach(t => {
+            html += `<option value="${t.id}">${escapeHtml(t.name)} (${escapeHtml(t.username)})</option>`;
+        });
+        sel.innerHTML = html;
+        block.style.display = 'block';
+
+        // Mutuamente excluyente con "Auto-asignármelo": elegir uno limpia el otro
+        const autoAssign = document.getElementById('auto_assign_me');
+        sel.addEventListener('change', () => {
+            if (sel.value && autoAssign) autoAssign.checked = false;
+        });
+        if (autoAssign) {
+            autoAssign.addEventListener('change', () => {
+                if (autoAssign.checked) sel.value = '';
+            });
+        }
+    } catch (e) {
+        console.error('loadMyGroupTechnicians:', e);
+    }
 }
 
 async function loadEmpTemplates() {
@@ -637,7 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Construir FormData manual (incluye los pasted + los del input)
         const fd = new FormData();
-        ['title','description','category','subcategory','priority','behalf_of_user_id'].forEach(name => {
+        ['title','description','category','subcategory','priority','behalf_of_user_id','assign_to_technician_id'].forEach(name => {
             const el = form.querySelector(`[name="${name}"]`);
             if (el) fd.append(name, el.value);
         });
@@ -675,7 +720,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-document.addEventListener('DOMContentLoaded', () => { loadCategories(); loadEmpTemplates(); });
+document.addEventListener('DOMContentLoaded', () => { loadCategories(); loadEmpTemplates(); loadMyGroupTechnicians(); });
 
 // === EXCLUSIVO TÉCNICO: lista de usuarios + autocompletado del solicitante ===
 let _companyUsers = [];

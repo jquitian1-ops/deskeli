@@ -3233,6 +3233,10 @@ def technician_create():
         auto_assign = request.form.get('auto_assign_me') in ('1', 'true', 'on')
         # Crear en nombre de otro usuario (opcional)
         behalf_id_raw = (request.form.get('behalf_of_user_id') or '').strip()
+        # Asignar directo a un compañero del grupo "Mesa de Ayuda" (opcional,
+        # solo disponible para técnicos de ese grupo — ver
+        # /api/technician/my-group-technicians)
+        assign_to_tech_id_raw = (request.form.get('assign_to_technician_id') or '').strip()
 
         if not title or not description:
             return render_template('technician/create.html', error='Título y descripción son requeridos')
@@ -3256,8 +3260,30 @@ def technician_create():
         sla_config = Config.query.filter_by(key=f'sla_{priority}').first()
         sla_minutes = int(sla_config.value) if sla_config else 120
 
-        # Si el técnico marca auto-asignar Y no creó en nombre de otro, lo asigna a sí mismo
+        # Si el técnico marca auto-asignar, lo asigna a sí mismo
         assignee_id = tech.id if auto_assign else None
+
+        # Si eligió un compañero de su grupo "Mesa de Ayuda" (opcional), validar
+        # de nuevo en el servidor que pertenece al mismo grupo antes de asignarlo
+        # (no confiar en lo que mandó el navegador).
+        assigned_colleague = None
+        if not assignee_id and assign_to_tech_id_raw and assign_to_tech_id_raw.isdigit():
+            my_group = Subrole.query.join(
+                UserSubrole, UserSubrole.subrole_id == Subrole.id
+            ).filter(
+                UserSubrole.user_id == tech.id,
+                db.func.lower(Subrole.name) == 'mesa de ayuda',
+                (Subrole.company == None) | (Subrole.company == tech.company),
+            ).first()
+            if my_group:
+                candidate_id = int(assign_to_tech_id_raw)
+                is_member = UserSubrole.query.filter_by(
+                    subrole_id=my_group.id, user_id=candidate_id
+                ).first()
+                candidate = User.query.get(candidate_id)
+                if is_member and candidate and candidate.company == tech.company and candidate.is_active:
+                    assignee_id = candidate_id
+                    assigned_colleague = candidate
 
         # Si el técnico creó "en nombre de", aclarar en la descripción
         final_description = description
@@ -3289,6 +3315,17 @@ def technician_create():
             notify_ticket_created(ticket, behalf_user if behalf_user else tech)
         except Exception as e_email:
             print(f'[technician_create][notify-created] email error: {e_email}')
+
+        if assigned_colleague:
+            try:
+                notify_ticket_assigned(
+                    ticket=ticket,
+                    new_assignee=assigned_colleague,
+                    assigned_by_name=tech.name,
+                    reason='Asignado directamente por un compañero de Mesa de Ayuda'
+                )
+            except Exception as e_email:
+                print(f'[technician_create][notify-colleague] email error: {e_email}')
 
         # Adjuntos (mismo procesamiento que employee_create)
         attachments_saved = 0
@@ -3392,7 +3429,12 @@ def technician_create():
                     print(f'[technician_create][notify-assign] email error: {e_email}')
 
         creator_note = f' en nombre de {behalf_user.username}' if behalf_user else ''
-        assign_note = ' (auto-asignado al técnico)' if assignee_id else ''
+        if assigned_colleague:
+            assign_note = f' (asignado directamente a {assigned_colleague.username})'
+        elif assignee_id:
+            assign_note = ' (auto-asignado al técnico)'
+        else:
+            assign_note = ''
         log_audit('create_ticket', tech.id, 'ticket', ticket.id,
                   f'Ticket {ticket.ticket_number} creado por técnico {tech.username}{creator_note}{assign_note} · {attachments_saved} adjunto(s)')
 
@@ -3429,6 +3471,41 @@ def api_technician_company_users():
             'role': u.role,
             'username': u.username,
         } for u in users]
+    })
+
+
+@app.route('/api/technician/my-group-technicians', methods=['GET'])
+def api_technician_my_group_technicians():
+    """Si el técnico logueado pertenece al grupo de especialistas "Mesa de
+    Ayuda" (de su empresa), devuelve la lista de técnicos de ese mismo grupo
+    para que pueda asignarles el ticket directamente al crearlo. Para
+    cualquier otro grupo devuelve in_group=False (no se muestra el selector)."""
+    if 'user_id' not in session or session['role'] not in ('technician', 'admin'):
+        return jsonify({'success': False}), 401
+    user_id = session['user_id']
+    company = session['company']
+
+    my_group = Subrole.query.join(
+        UserSubrole, UserSubrole.subrole_id == Subrole.id
+    ).filter(
+        UserSubrole.user_id == user_id,
+        db.func.lower(Subrole.name) == 'mesa de ayuda',
+        (Subrole.company == None) | (Subrole.company == company),
+    ).first()
+
+    if not my_group:
+        return jsonify({'success': True, 'in_group': False, 'technicians': []})
+
+    member_ids = [us.user_id for us in UserSubrole.query.filter_by(subrole_id=my_group.id).all()]
+    technicians = User.query.filter(
+        User.id.in_(member_ids), User.company == company, User.is_active == True
+    ).order_by(User.name).all()
+
+    return jsonify({
+        'success': True,
+        'in_group': True,
+        'group_name': my_group.name,
+        'technicians': [{'id': t.id, 'name': t.name, 'username': t.username} for t in technicians]
     })
 
 
