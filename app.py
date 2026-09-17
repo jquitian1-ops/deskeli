@@ -3133,49 +3133,60 @@ def employee_create():
         # Hook del Agent Orchestrator — procesar ticket automáticamente.
         # Prioridad: grupo por defecto de la empresa (override del orchestrator IA)
         # Si no hay grupo por defecto configurado, sigue el flujo original.
-        default_group_assigned = False
+        # IMPORTANTE: se notifica por email al técnico asignado UNA sola vez al
+        # final, sin importar CUÁL de las 3 vías lo asignó (antes solo se
+        # notificaba en el fallback, así que si el grupo por defecto o el
+        # orchestrator asignaban primero — el caso más común — nunca llegaba
+        # el correo de asignación).
+        assigned_via = None
         try:
-            default_group_assigned = assign_to_default_group(ticket)
-            if default_group_assigned:
+            if assign_to_default_group(ticket):
+                assigned_via = 'default_group'
                 db.session.commit()
         except Exception as e:
             print(f'[default-group] Error: {e}')
 
-        # Si el orchestrator no está disponible o falla, usar assign_ticket_auto como FALLBACK.
         orch = app.config.get('orchestrator')
-        orch_ran = default_group_assigned  # si default_group asignó, no llamamos al orchestrator
-        if not default_group_assigned and orch is not None:
+        if not assigned_via and orch is not None:
             try:
                 orch.process_new_ticket(ticket)
-                orch_ran = True
+                db.session.refresh(ticket)
+                if ticket.assignee_id:
+                    assigned_via = 'orchestrator'
             except Exception as e:
                 print(f'[Orchestrator Hook] Falló: {e}. Intentando fallback assign_ticket_auto...')
-                orch_ran = False
 
-        # Si después del orchestrator (o sin él) el ticket sigue sin asignar, intentar fallback
-        try:
-            db.session.refresh(ticket)
-            if not ticket.assignee_id:
-                print(f'[fallback-assign] Ticket {ticket.ticket_number} sin asignar (orch_ran={orch_ran}), usando assign_ticket_auto')
-                assign_ticket_auto(ticket)
-                if ticket.assignee_id:
-                    if ticket.status == 'open':
-                        ticket.status = 'in_progress'
-                    db.session.commit()
-                    # Notificar por email al técnico asignado por fallback
-                    try:
-                        new_tech = User.query.get(ticket.assignee_id)
-                        if new_tech:
-                            notify_ticket_assigned(
-                                ticket=ticket,
-                                new_assignee=new_tech,
-                                assigned_by_name='Asignacion automatica (fallback por carga)',
-                                reason='Orchestrator no disponible, usado balanceo por carga'
-                            )
-                    except Exception as e_email:
-                        print(f'[fallback-assign] email error: {e_email}')
-        except Exception as e_fb:
-            print(f'[fallback-assign] Error general: {e_fb}')
+        if not assigned_via:
+            try:
+                db.session.refresh(ticket)
+                if not ticket.assignee_id:
+                    print(f'[fallback-assign] Ticket {ticket.ticket_number} sin asignar, usando assign_ticket_auto')
+                    assign_ticket_auto(ticket)
+                    if ticket.assignee_id:
+                        if ticket.status == 'open':
+                            ticket.status = 'in_progress'
+                        db.session.commit()
+                        assigned_via = 'fallback'
+            except Exception as e_fb:
+                print(f'[fallback-assign] Error general: {e_fb}')
+
+        if assigned_via and ticket.assignee_id:
+            try:
+                new_tech = User.query.get(ticket.assignee_id)
+                if new_tech:
+                    reason_by_via = {
+                        'default_group': 'Grupo por defecto de la empresa',
+                        'orchestrator': 'Asignación automática por IA (Orchestrator)',
+                        'fallback': 'Orchestrator no disponible, usado balanceo por carga',
+                    }
+                    notify_ticket_assigned(
+                        ticket=ticket,
+                        new_assignee=new_tech,
+                        assigned_by_name='Asignación automática',
+                        reason=reason_by_via.get(assigned_via, 'Asignación automática')
+                    )
+            except Exception as e_email:
+                print(f'[notify-assign] email error: {e_email}')
 
         log_audit('create_ticket', user.id, 'ticket', ticket.id,
                   f"Ticket {ticket.ticket_number} creado · {attachments_saved} adjunto(s)")
@@ -3312,49 +3323,61 @@ def technician_create():
 
         # Hook orchestrator (solo si NO se auto-asignó manualmente, para no sobrescribir)
         # Prioridad: si hay grupo por defecto configurado, se usa ese antes del orchestrator.
-        try:
-            if not assignee_id:
-                default_group_assigned = False
-                try:
-                    default_group_assigned = assign_to_default_group(ticket)
-                    if default_group_assigned:
-                        db.session.commit()
-                except Exception as e:
-                    print(f'[default-group] Error: {e}')
-                if not default_group_assigned:
-                    orch = app.config.get('orchestrator')
-                    if orch is not None:
-                        orch.process_new_ticket(ticket)
-        except Exception as e:
-            print(f'[Orchestrator Hook] {e}')
-
-        # Si después del orchestrator (o sin él) el ticket sigue sin asignar, intentar
-        # fallback igual que en employee_create — esto es lo que dispara el email de
-        # asignación cuando nadie más asignó (ej: técnico crea "a nombre de" otro
-        # usuario sin marcar auto-asignarse).
+        # IMPORTANTE: se notifica por email al técnico UNA sola vez al final, sin
+        # importar cuál de las 3 vías lo asignó (antes solo se notificaba en el
+        # fallback, así que si el grupo por defecto o el orchestrator asignaban
+        # primero — el caso más común — nunca llegaba el correo de asignación).
+        assigned_via = None
         if not assignee_id:
             try:
-                db.session.refresh(ticket)
-                if not ticket.assignee_id:
-                    print(f'[technician_create][fallback-assign] Ticket {ticket.ticket_number} sin asignar, usando assign_ticket_auto')
-                    assign_ticket_auto(ticket)
-                    if ticket.assignee_id:
-                        if ticket.status == 'open':
-                            ticket.status = 'in_progress'
-                        db.session.commit()
-                        try:
-                            new_tech = User.query.get(ticket.assignee_id)
-                            if new_tech:
-                                notify_ticket_assigned(
-                                    ticket=ticket,
-                                    new_assignee=new_tech,
-                                    assigned_by_name=f'Ticket registrado por {tech.name}' + (f' en nombre de {behalf_user.name}' if behalf_user else ''),
-                                    reason='Orchestrator no disponible o sin asignar, usado balanceo por carga'
-                                )
-                        except Exception as e_email:
-                            print(f'[technician_create][fallback-assign] email error: {e_email}')
-            except Exception as e_fb:
-                print(f'[technician_create][fallback-assign] Error general: {e_fb}')
+                if assign_to_default_group(ticket):
+                    assigned_via = 'default_group'
+                    db.session.commit()
+            except Exception as e:
+                print(f'[default-group] Error: {e}')
+
+            if not assigned_via:
+                orch = app.config.get('orchestrator')
+                if orch is not None:
+                    try:
+                        orch.process_new_ticket(ticket)
+                        db.session.refresh(ticket)
+                        if ticket.assignee_id:
+                            assigned_via = 'orchestrator'
+                    except Exception as e:
+                        print(f'[Orchestrator Hook] {e}')
+
+            if not assigned_via:
+                try:
+                    db.session.refresh(ticket)
+                    if not ticket.assignee_id:
+                        print(f'[technician_create][fallback-assign] Ticket {ticket.ticket_number} sin asignar, usando assign_ticket_auto')
+                        assign_ticket_auto(ticket)
+                        if ticket.assignee_id:
+                            if ticket.status == 'open':
+                                ticket.status = 'in_progress'
+                            db.session.commit()
+                            assigned_via = 'fallback'
+                except Exception as e_fb:
+                    print(f'[technician_create][fallback-assign] Error general: {e_fb}')
+
+            if assigned_via and ticket.assignee_id:
+                try:
+                    new_tech = User.query.get(ticket.assignee_id)
+                    if new_tech:
+                        reason_by_via = {
+                            'default_group': 'Grupo por defecto de la empresa',
+                            'orchestrator': 'Asignación automática por IA (Orchestrator)',
+                            'fallback': 'Orchestrator no disponible o sin asignar, usado balanceo por carga',
+                        }
+                        notify_ticket_assigned(
+                            ticket=ticket,
+                            new_assignee=new_tech,
+                            assigned_by_name=f'Ticket registrado por {tech.name}' + (f' en nombre de {behalf_user.name}' if behalf_user else ''),
+                            reason=reason_by_via.get(assigned_via, 'Asignación automática')
+                        )
+                except Exception as e_email:
+                    print(f'[technician_create][notify-assign] email error: {e_email}')
 
         creator_note = f' en nombre de {behalf_user.username}' if behalf_user else ''
         assign_note = ' (auto-asignado al técnico)' if assignee_id else ''
