@@ -49,6 +49,15 @@ socket.on('user_kicked', (data) => {
     setTimeout(() => window.location.href = '/logout', 2000);
 });
 
+// Chat interno entre especialistas (DM 1-a-1 o canal grupal): el servidor
+// emite esto a la sala del destinatario (ver api_chat_specialists_send()).
+// Se reenvía como evento de window para que cada dashboard reaccione con su
+// propia lógica de badge/banner sin acoplar este script a esos detalles.
+socket.on('chat_message', (data) => {
+    console.log('[Chat] Mensaje recibido:', data);
+    window.dispatchEvent(new CustomEvent('deskeli:chat-message', { detail: data }));
+});
+
 function showNotification(message) {
     // Mostrar notificación tipo toast
     if (Notification && Notification.permission === 'granted') {

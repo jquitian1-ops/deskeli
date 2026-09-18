@@ -1737,6 +1737,36 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                 loadTechSpecMessages();
             }
         }, 30000);
+
+        // Aviso en tiempo real (WebSocket) de que otro especialista escribió.
+        // Antes solo existía el polling de 60s (y pausado con la pestaña en
+        // segundo plano) — esto reacciona apenas llega el mensaje: refresca
+        // el hilo si ya lo tenés abierto, o ilumina el FAB + banner + muestra
+        // un aviso (toast) clickeable si no.
+        window.addEventListener('deskeli:chat-message', (ev) => {
+            const data = ev.detail || {};
+            if (!data || data.user_id === {{ session.user_id|default(0) }}) return; // es mi propio mensaje
+            const win = document.getElementById('techChatWindow');
+            const chatOpenOnSpec = win && win.classList.contains('active') && techChatTab === 'spec';
+            if (data.is_dm) {
+                const currentOpen = parseInt(techCurrentSpec) || 0;
+                if (chatOpenOnSpec && currentOpen === data.dm_with) {
+                    loadTechSpecMessages();
+                    return;
+                }
+                checkSpecUnread();
+                if (window.showToast) {
+                    const preview = (data.content || '').slice(0, 80);
+                    window.showToast('💬 ' + (data.user_name || 'Alguien') + ': ' + preview, 'info', () => {
+                        if (!win.classList.contains('active')) toggleTechChat();
+                        switchTechChat('spec');
+                        openDmFromBanner(data.user_id);
+                    });
+                }
+            } else if (!chatOpenOnSpec && window.showToast) {
+                window.showToast('💬 Chat grupal — ' + (data.user_name || 'Alguien') + ': ' + (data.content || '').slice(0, 80), 'info');
+            }
+        });
     </script>
 
     <!-- WebSocket Socket.IO RT-01 a RT-07 -->

@@ -13773,6 +13773,14 @@ def handle_connect():
     company = session.get('company')
     if company:
         join_room(f'company_{company}')
+    # Chat interno entre especialistas: unirse a la sala propia de DMs y a la
+    # del canal grupal de la empresa, para que api_chat_specialists_send()
+    # pueda notificar en tiempo real (antes emitía a salas a las que nadie
+    # se había unido nunca, así que el evento se perdía siempre).
+    if session.get('role') in ('technician', 'admin'):
+        join_room(f"user_dm_{session['user_id']}")
+        if company:
+            join_room(f'chat_specialists_{company}')
     emit('user_connected', {
         'user': session.get('name'),
         'company': company,
@@ -13786,6 +13794,10 @@ def handle_disconnect():
         company = session.get('company')
         if company:
             leave_room(f'company_{company}')
+        if session.get('role') in ('technician', 'admin'):
+            leave_room(f"user_dm_{session['user_id']}")
+            if company:
+                leave_room(f'chat_specialists_{company}')
 
 def emit_ticket_event(company, event_type, ticket_data):
     """Emitir evento a todos en la company (RT-02, RT-03, RT-04, RT-06)"""

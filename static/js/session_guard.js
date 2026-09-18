@@ -58,17 +58,21 @@
 
     // ─── UI: toast para errores no críticos ──────────────────────────
     let toastEl = null;
-    function showToast(msg, type) {
+    function showToast(msg, type, onClick) {
         // Reutilizar un solo toast
         if (toastEl) toastEl.remove();
         toastEl = document.createElement('div');
-        const bgColor = type === 'error' ? '#dc2626' : (type === 'warn' ? '#f59e0b' : '#374151');
+        const bgColor = type === 'error' ? '#dc2626' : (type === 'warn' ? '#f59e0b' : (type === 'info' ? '#2563eb' : '#374151'));
         toastEl.style.cssText =
             `position:fixed;bottom:24px;right:24px;background:${bgColor};color:white;` +
             'padding:14px 20px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.25);' +
             'z-index:2147482999;font-family:"Segoe UI",Tahoma,sans-serif;font-size:14px;' +
-            'max-width:400px;transition:opacity 0.3s;';
+            'max-width:400px;transition:opacity 0.3s;' +
+            (onClick ? 'cursor:pointer;' : '');
         toastEl.textContent = msg;
+        if (typeof onClick === 'function') {
+            toastEl.addEventListener('click', onClick);
+        }
         document.body.appendChild(toastEl);
         const localRef = toastEl;
         setTimeout(() => {
@@ -78,6 +82,10 @@
             }
         }, TOAST_TIMEOUT);
     }
+
+    // Expuesto globalmente para que otras páginas (ej. el chat entre
+    // especialistas) puedan reusar el mismo estilo de aviso.
+    window.showToast = showToast;
 
     // ─── Wrapper del fetch ────────────────────────────────────────────
     const originalFetch = window.fetch.bind(window);
