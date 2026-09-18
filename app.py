@@ -789,6 +789,28 @@ class Category(db.Model):
     parent = db.relationship('Category', remote_side=[id], backref='subcategories')
 
 
+class CategoryCompanyState(db.Model):
+    """Override por empresa del estado Activa/Inactiva de una categoría
+    GLOBAL (Category.company IS NULL, is_system=True).
+
+    Las 12 categorías del sistema son una única fila compartida por las 3
+    empresas (para no duplicar nombres ni romper tickets/plantillas ya
+    existentes). Sin esta tabla, Category.is_active también era compartido:
+    si Pash desactivaba "Impresoras" y luego Primatela la reactivaba, quedaba
+    reactivada para Pash también — exactamente el bug reportado. Ahora
+    activar/desactivar una categoría del sistema desde el panel de admin NO
+    toca Category.is_active (que queda como default = True, sin uso real
+    salvo de fallback); en su lugar crea/actualiza una fila acá, scoped por
+    empresa. Las categorías propias de cada empresa (company=<code>) no
+    necesitan esto: ya son independientes por diseño."""
+    __tablename__ = 'category_company_state'
+    id = db.Column(db.Integer, primary_key=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=False, index=True)
+    company = db.Column(db.String(20), nullable=False, index=True)
+    is_active = db.Column(db.Boolean, default=True)
+    __table_args__ = (db.UniqueConstraint('category_id', 'company', name='_category_company_state_uc'),)
+
+
 class Tag(db.Model):
     __tablename__ = 'tags'
     id = db.Column(db.Integer, primary_key=True)
@@ -18363,10 +18385,13 @@ def api_categories_list_public():
     if 'user_id' not in session:
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     company = session.get('company')
-    all_cats = Category.query.filter(
+    candidate_cats = Category.query.filter(
         (Category.company == None) | (Category.company == company),
-        Category.is_active == True,
     ).order_by(Category.sort_order, Category.name).all()
+    # El activo/inactivo de una categoría global depende de la empresa (ver
+    # CategoryCompanyState / effective_category_active), por eso se filtra
+    # en Python en vez de en la query.
+    all_cats = [c for c in candidate_cats if effective_category_active(c, company)]
     children_by_parent = {}
     for c in all_cats:
         if c.parent_id:
@@ -18447,7 +18472,7 @@ def api_admin_categories_list():
             'icon': c.icon or '📌',
             'company': c.company,
             'is_system': bool(c.is_system),
-            'is_active': bool(c.is_active),
+            'is_active': effective_category_active(c, company),
             'is_global': c.company is None,
             'parent_id': c.parent_id,
             'parent_name': names_by_id.get(c.parent_id),
@@ -18502,6 +18527,22 @@ def api_admin_categories_create():
     return jsonify({'success': True, 'id': c.id, 'message': f'{"Subcategoría" if parent else "Categoría"} "{name}" creada'})
 
 
+def effective_category_active(category, company):
+    """is_active efectivo de `category` para `company`. Las categorías
+    globales (company=NULL, ej. las 12 del sistema) son una única fila
+    compartida por las 3 empresas — activar/desactivarlas ya NO muta esa
+    fila compartida (eso hacía que una empresa reactivara sin querer lo que
+    otra había desactivado); en su lugar se respeta el override específico
+    de `company` en CategoryCompanyState, si existe."""
+    if category.company is None:
+        override = CategoryCompanyState.query.filter_by(
+            category_id=category.id, company=company
+        ).first()
+        if override is not None:
+            return bool(override.is_active)
+    return bool(category.is_active)
+
+
 @app.route('/api/admin/categories/<int:category_id>', methods=['PUT'])
 def api_admin_categories_update(category_id):
     """Actualizar categoría (sistema solo permite cambiar icon/is_active; custom permite todo)."""
@@ -18510,9 +18551,26 @@ def api_admin_categories_update(category_id):
     c = Category.query.get_or_404(category_id)
     data = request.get_json() or {}
     company = session.get('company')
+    # SECURITY: una categoría personalizada (no-sistema) pertenece a una sola
+    # empresa; sin este chequeo, un admin podía editar/renombrar la categoría
+    # de OTRA empresa adivinando su id (violación de segregación multi-tenant).
+    if not c.is_system and c.company != company:
+        return jsonify({'success': False, 'error': 'Sin acceso a esta categoría'}), 403
     if c.is_system:
         if 'icon' in data: c.icon = (data['icon'] or '📌').strip()[:10]
-        if 'is_active' in data: c.is_active = bool(data['is_active'])
+        if 'is_active' in data:
+            # Categoría global: el activo/inactivo es POR EMPRESA (ver
+            # CategoryCompanyState), nunca se toca c.is_active directamente.
+            new_active = bool(data['is_active'])
+            override = CategoryCompanyState.query.filter_by(
+                category_id=c.id, company=company
+            ).first()
+            if override:
+                override.is_active = new_active
+            else:
+                db.session.add(CategoryCompanyState(
+                    category_id=c.id, company=company, is_active=new_active
+                ))
     else:
         if 'parent_id' in data:
             new_parent_id = data['parent_id']
@@ -18553,6 +18611,8 @@ def api_admin_categories_delete(category_id):
     c = Category.query.get_or_404(category_id)
     if c.is_system:
         return jsonify({'success': False, 'error': 'No se puede eliminar una categoría del sistema. Desactívala en su lugar.'}), 400
+    if c.company != session.get('company'):
+        return jsonify({'success': False, 'error': 'Sin acceso a esta categoría'}), 403
     sub_count = Category.query.filter_by(parent_id=c.id).count()
     if sub_count > 0:
         return jsonify({'success': False, 'error': f'Esta categoría tiene {sub_count} subcategoría(s). Eliminalas primero.'}), 400
@@ -18642,7 +18702,7 @@ def api_admin_categories_export():
             'icon': c.icon or '📌',
             'name': c.name,
             'parent_name': parent_name,
-            'is_active': 'Si' if c.is_active else 'No',
+            'is_active': 'Si' if effective_category_active(c, company) else 'No',
             'tpl_title': (tpl.title_template if tpl else ''),
             'tpl_body': (tpl.description_template if tpl else '') or '',
             'tpl_priority': (tpl.priority if tpl else ''),
