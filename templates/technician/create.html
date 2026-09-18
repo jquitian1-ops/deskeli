@@ -189,6 +189,29 @@
                         <strong>Auto-asignármelo</strong> — el ticket queda asignado a vos directamente, en estado "En progreso"
                     </label>
 
+                    {% if session.get('company') == 'pash' %}
+                    <!-- Asignar a un técnico por grupo (solo Pash): cualquier grupo, no solo el propio -->
+                    <div id="techGroupAssignBlock" style="margin-top:10px;background:white;border:1px solid #c4b5fd;border-radius:6px;padding:10px 12px;">
+                        <label style="display:block;font-weight:800;color:#5b21b6;font-size:13px;margin-bottom:6px;">
+                            👥 Asignar a (opcional)
+                        </label>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                            <div>
+                                <label for="techGroup" style="font-size:11px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px;">1. Grupo de Especialistas</label>
+                                <select id="techGroup" onchange="onTechGroupChange()" style="width:100%;padding:9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                                    <option value="">— Sin asignar (dejar que el sistema decida) —</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="assign_to_technician_id" style="font-size:11px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px;">2. Técnico del grupo</label>
+                                <select id="assign_to_technician_id" name="assign_to_technician_id" disabled
+                                        style="width:100%;padding:9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;background:#f9fafb;">
+                                    <option value="">— Elegí un grupo primero —</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
                     <!-- Asignar a un compañero del grupo (solo visible para Mesa de Ayuda) -->
                     <div id="groupAssignBlock" style="display:none;margin-top:10px;background:white;border:1px solid #c4b5fd;border-radius:6px;padding:10px 12px;">
                         <label for="assign_to_technician_id" style="display:block;font-weight:800;color:#5b21b6;font-size:13px;margin-bottom:6px;">
@@ -199,6 +222,7 @@
                             <option value="">— Sin asignar (dejar que el sistema decida) —</option>
                         </select>
                     </div>
+                    {% endif %}
                 </div>
 
                 <!-- PASO 1: Categoría -->
@@ -418,6 +442,84 @@ async function loadMyGroupTechnicians() {
     } catch (e) {
         console.error('loadMyGroupTechnicians:', e);
     }
+}
+
+// Solo Pash: selector de 2 pasos Grupo de Especialistas → Técnico del grupo
+// (cualquier grupo, no solo el propio) — igual al del modal "Crear Nuevo
+// Ticket" del admin.
+let _techGroupsCache = [];
+let _techNoGroupCache = [];
+
+async function loadTeamGroups() {
+    const gsel = document.getElementById('techGroup');
+    if (!gsel) return; // bloque no renderizado (empresa distinta a Pash)
+    try {
+        const r = await fetch('/api/team-by-groups?include_self=1');
+        const data = await r.json();
+        _techGroupsCache = (data.success && data.groups) ? data.groups : [];
+        _techNoGroupCache = (data.success && data.no_group) ? data.no_group : [];
+
+        let html = '<option value="">— Sin asignar (dejar que el sistema decida) —</option>';
+        _techGroupsCache.forEach(g => {
+            const defTag = g.is_default_group ? ' ⭐' : '';
+            html += `<option value="group:${g.id}">${g.icon || '🔧'} ${g.name}${defTag} (${g.members.length})</option>`;
+        });
+        if (_techNoGroupCache.length > 0) {
+            html += `<option value="no_group">👥 Sin grupo asignado (${_techNoGroupCache.length})</option>`;
+        }
+        gsel.innerHTML = html;
+
+        const sel = document.getElementById('assign_to_technician_id');
+        // Mutuamente excluyente con "Auto-asignármelo"
+        const autoAssign = document.getElementById('auto_assign_me');
+        if (sel && autoAssign) {
+            sel.addEventListener('change', () => {
+                if (sel.value) autoAssign.checked = false;
+            });
+            autoAssign.addEventListener('change', () => {
+                if (autoAssign.checked) {
+                    sel.value = '';
+                    gsel.value = '';
+                    onTechGroupChange();
+                }
+            });
+        }
+    } catch (e) {
+        console.error('loadTeamGroups:', e);
+    }
+}
+
+function onTechGroupChange() {
+    const gVal = document.getElementById('techGroup').value;
+    const asel = document.getElementById('assign_to_technician_id');
+    if (!gVal) {
+        asel.innerHTML = '<option value="">— Sin asignar (dejar que el sistema decida) —</option>';
+        asel.disabled = true;
+        asel.style.background = '#f9fafb';
+        return;
+    }
+    let members = [];
+    if (gVal === 'no_group') {
+        members = _techNoGroupCache;
+    } else if (gVal.startsWith('group:')) {
+        const gid = parseInt(gVal.split(':')[1]);
+        const g = _techGroupsCache.find(x => x.id === gid);
+        members = g ? g.members : [];
+    }
+    if (members.length === 0) {
+        asel.innerHTML = '<option value="">— Grupo sin miembros elegibles —</option>';
+        asel.disabled = true;
+        asel.style.background = '#f9fafb';
+        return;
+    }
+    let html = '<option value="">— Cualquiera del grupo —</option>';
+    members.forEach(u => {
+        const icon = u.role === 'admin' ? '👑' : '🔧';
+        html += `<option value="${u.id}">${icon} ${escapeHtml(u.name)} (${escapeHtml(u.username)})</option>`;
+    });
+    asel.innerHTML = html;
+    asel.disabled = false;
+    asel.style.background = 'white';
 }
 
 async function loadEmpTemplates() {
@@ -741,7 +843,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-document.addEventListener('DOMContentLoaded', () => { loadCategories(); loadEmpTemplates(); loadMyGroupTechnicians(); });
+document.addEventListener('DOMContentLoaded', () => { loadCategories(); loadEmpTemplates(); loadMyGroupTechnicians(); loadTeamGroups(); });
 
 // === EXCLUSIVO TÉCNICO: lista de usuarios + autocompletado del solicitante ===
 let _companyUsers = [];

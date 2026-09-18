@@ -3267,27 +3267,38 @@ def technician_create():
         # Si el técnico marca auto-asignar, lo asigna a sí mismo
         assignee_id = tech.id if auto_assign else None
 
-        # Si eligió un compañero de su grupo "Mesa de Ayuda" (opcional), validar
-        # de nuevo en el servidor que pertenece al mismo grupo antes de asignarlo
-        # (no confiar en lo que mandó el navegador).
+        # Si eligió a alguien puntual para asignarle el ticket (opcional), validar
+        # de nuevo en el servidor antes de asignarlo (no confiar en lo que mandó
+        # el navegador):
+        #  - Pash: puede elegir cualquier técnico/admin activo de su empresa
+        #    (selector de 2 pasos Grupo → Técnico, cualquier grupo).
+        #  - Resto de empresas: solo si ambos son del grupo "Mesa de Ayuda".
         assigned_colleague = None
         if not assignee_id and assign_to_tech_id_raw and assign_to_tech_id_raw.isdigit():
-            my_group = Subrole.query.join(
-                UserSubrole, UserSubrole.subrole_id == Subrole.id
-            ).filter(
-                UserSubrole.user_id == tech.id,
-                db.func.lower(Subrole.name) == 'mesa de ayuda',
-                (Subrole.company == None) | (Subrole.company == tech.company),
-            ).first()
-            if my_group:
-                candidate_id = int(assign_to_tech_id_raw)
-                is_member = UserSubrole.query.filter_by(
-                    subrole_id=my_group.id, user_id=candidate_id
+            candidate_id = int(assign_to_tech_id_raw)
+            candidate = User.query.get(candidate_id)
+            candidate_valid = bool(
+                candidate and candidate.company == tech.company
+                and candidate.is_active and candidate.role in ('technician', 'admin')
+            )
+            if candidate_valid and tech.company == 'pash':
+                assignee_id = candidate_id
+                assigned_colleague = candidate
+            elif candidate_valid:
+                my_group = Subrole.query.join(
+                    UserSubrole, UserSubrole.subrole_id == Subrole.id
+                ).filter(
+                    UserSubrole.user_id == tech.id,
+                    db.func.lower(Subrole.name) == 'mesa de ayuda',
+                    (Subrole.company == None) | (Subrole.company == tech.company),
                 ).first()
-                candidate = User.query.get(candidate_id)
-                if is_member and candidate and candidate.company == tech.company and candidate.is_active:
-                    assignee_id = candidate_id
-                    assigned_colleague = candidate
+                if my_group:
+                    is_member = UserSubrole.query.filter_by(
+                        subrole_id=my_group.id, user_id=candidate_id
+                    ).first()
+                    if is_member:
+                        assignee_id = candidate_id
+                        assigned_colleague = candidate
 
         # Si el técnico creó "en nombre de", aclarar en la descripción
         final_description = description
