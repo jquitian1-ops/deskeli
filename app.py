@@ -3342,6 +3342,14 @@ def technician_create():
             assignee_id = None
             assigned_colleague = None
 
+        # Regla fija: si el ticket es "en nombre de" un usuario de uno de los
+        # dominios externos forzados a Mesa de Ayuda (tiendas/empresas
+        # asociadas), se descarta cualquier asignación manual igual que con
+        # la plantilla MQA — el flujo de abajo lo enruta a Mesa de Ayuda.
+        if behalf_user and email_forces_pash_mesa_ayuda(tech.company, behalf_user.email):
+            assignee_id = None
+            assigned_colleague = None
+
         # Si el técnico creó "en nombre de", aclarar en la descripción
         final_description = description
         if behalf_user:
@@ -8721,6 +8729,27 @@ def ping_server(server_id):
         except Exception as e:
             log_audit('ping_error', None, 'server', server_id, f'Error ping (general): {str(e)}')
 
+# Dominios de correo de tiendas/empresas externas cuyos casos SIEMPRE deben
+# llegar al grupo "Mesa de Ayuda" de Pash — sin importar si llegan por el
+# buzón de correo (mailbox → ticket) o los crea directamente un usuario
+# registrado con uno de estos dominios. No afecta a otras empresas ni a
+# otros dominios de Pash (esos siguen con el flujo normal, que de por sí
+# ya termina en Mesa de Ayuda cuando nadie asigna manualmente).
+PASH_MESA_AYUDA_FORCED_DOMAINS = {
+    'sevenseven.com.co', 'almacenespatprimo.co', 'ostu.com',
+    'tekstelas.com', 'atmosmovement.com', 'facol.com.co',
+}
+
+
+def email_forces_pash_mesa_ayuda(company, email):
+    """True si `email` pertenece a uno de los dominios de
+    PASH_MESA_AYUDA_FORCED_DOMAINS y el ticket es de Pash."""
+    if company != 'pash' or not email or '@' not in email:
+        return False
+    domain = email.rsplit('@', 1)[-1].strip().lower()
+    return domain in PASH_MESA_AYUDA_FORCED_DOMAINS
+
+
 def assign_to_default_group(ticket):
     """Asigna el ticket al miembro con menor carga del 'Grupo por defecto'
     de la empresa (Subrole con is_default_group=True). Excepción: para Pash
@@ -9954,7 +9983,15 @@ def fetch_emails_from_mailbox(mailbox_id):
                 db.session.flush()  # ticket.id ya está poblado
 
                 try:
-                    assign_ticket_auto(ticket)
+                    if email_forces_pash_mesa_ayuda(mb.company, sender_email):
+                        # Dominio de tienda/empresa externa forzado a Mesa de
+                        # Ayuda: NUNCA debe caer al balanceador por
+                        # habilidades aunque el grupo default fallara por
+                        # algún motivo — solo se intenta Mesa de Ayuda.
+                        if not assign_to_default_group(ticket):
+                            print(f'[mailbox] {sender_email}: dominio forzado a Mesa de Ayuda pero el grupo no pudo asignar (¿sin miembros?); ticket queda sin asignar')
+                    else:
+                        assign_ticket_auto(ticket)
                 except Exception as _e:
                     # No crítico: si la asignación automática falla, el ticket
                     # queda sin asignar y aparece en la cola general.
