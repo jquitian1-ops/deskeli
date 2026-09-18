@@ -219,6 +219,16 @@
                     <p class="help-text" style="color:#1e40af;">Una vez elijas la categoría arriba, aquí aparecerán las plantillas disponibles.</p>
                 </div>
 
+                <!-- Documento de referencia de la plantilla (si trae uno) -->
+                <div id="tplReferenceDoc" style="display:none;background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
+                    <div style="font-size:13px;color:#065f46;">
+                        📄 Esta plantilla requiere el formato oficial: descárgalo, llénalo y vuelve a subirlo como adjunto abajo.
+                    </div>
+                    <a id="tplReferenceDocLink" href="#" target="_blank" style="display:inline-block;margin-top:8px;padding:8px 14px;background:#059669;color:white;text-decoration:none;border-radius:6px;font-weight:700;font-size:13px;">
+                        ⬇️ Descargar documento
+                    </a>
+                </div>
+
                 <!-- Formulario dinámico generado desde la plantilla -->
                 <div id="dynamicFormFields" style="display:none;background:#fffbeb;border:2px solid #f59e0b;border-radius:8px;padding:16px;margin-bottom:14px;">
                     <div style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:10px;">
@@ -549,6 +559,8 @@ function applyEmpTemplate() {
         if (dynBlock) dynBlock.style.display = 'none';
         if (container) container.innerHTML = '';
         document.body.classList.remove('template-wide');
+        const refBlockReset = document.getElementById('tplReferenceDoc');
+        if (refBlockReset) refBlockReset.style.display = 'none';
         return;
     }
     const t = _empTemplates.find(x => x.id === id);
@@ -572,6 +584,35 @@ function applyEmpTemplate() {
                 cat.appendChild(opt);
             }
             cat.value = t.category;
+            onCategoryChange();
+            if (t.subcategory) {
+                const subSel = document.getElementById('subcategory');
+                const subBlock = document.getElementById('subcategoryBlock');
+                if (subSel) {
+                    // La plantilla puede traer una subcategoría "huérfana" (sin
+                    // Category formal asociada) — se agrega como opción si hace falta.
+                    if (![...subSel.options].some(o => o.value === t.subcategory)) {
+                        const opt = document.createElement('option');
+                        opt.value = t.subcategory;
+                        opt.textContent = t.subcategory;
+                        subSel.appendChild(opt);
+                    }
+                    subSel.value = t.subcategory;
+                    if (subBlock) subBlock.style.display = 'block';
+                }
+            }
+        }
+    }
+
+    // Documento de referencia (si la plantilla trae uno)
+    const refBlock = document.getElementById('tplReferenceDoc');
+    const refLink = document.getElementById('tplReferenceDocLink');
+    if (refBlock && refLink) {
+        if (t.reference_doc_label) {
+            refLink.href = `/api/templates/${t.id}/reference-document`;
+            refBlock.style.display = 'block';
+        } else {
+            refBlock.style.display = 'none';
         }
     }
 

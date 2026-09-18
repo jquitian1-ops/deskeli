@@ -705,6 +705,14 @@ class Template(db.Model):
     # Ej: [{"name":"equipo","label":"Equipo afectado","type":"text","required":true,"placeholder":"Ej: SAP PRD"}]
     # Tipos soportados: text, textarea, select, date
     form_fields = db.Column(db.Text)
+    # Documento de referencia descargable (ej. formato oficial que hay que
+    # llenar y volver a adjuntar). Se sirve desde static/template_docs/.
+    reference_doc_filename = db.Column(db.String(255))
+    reference_doc_label = db.Column(db.String(255))
+    # Si True, la plantilla no se ofrece en el portal de Empleado (solo
+    # técnico/admin) — para procesos formales que requieren conocimiento
+    # técnico (ej. escalamientos SAP).
+    technician_only = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
 
 class Server(db.Model):
@@ -3300,6 +3308,17 @@ def technician_create():
                     if is_member:
                         assignee_id = candidate_id
                         assigned_colleague = candidate
+
+        # Regla fija: la plantilla "Crear Caso MQA" (escalamiento SAP a
+        # Minsait, exclusiva de Pash) siempre debe llegar al grupo Mesa de
+        # Ayuda, sin importar si el técnico marcó auto-asignar o eligió a
+        # alguien puntual — se descarta cualquier asignación manual y se deja
+        # en None para que el flujo de abajo (assign_to_default_group) la
+        # enrute a Mesa de Ayuda, que es el comportamiento fijo para Pash.
+        if (tech.company == 'pash' and (category or '').strip().lower() == 'sap'
+                and (subcategory or '').strip().lower() == 'escalamiento mqa'):
+            assignee_id = None
+            assigned_colleague = None
 
         # Si el técnico creó "en nombre de", aclarar en la descripción
         final_description = description
@@ -11835,6 +11854,32 @@ def migrate_categories_parent_id():
                 print(f"[migrate_categories] error agregando tickets.subcategory: {e}")
 
 
+def migrate_templates_reference_doc():
+    """Agrega reference_doc_filename/reference_doc_label a templates
+    (documento oficial descargable, ej. formato de escalamiento SAP a
+    llenar y volver a adjuntar)."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'templates' not in inspector.get_table_names():
+        return
+    existing_cols = {c['name'] for c in inspector.get_columns('templates')}
+    is_postgres = db.engine.dialect.name == 'postgresql'
+    bool_default = 'FALSE' if is_postgres else '0'
+    for col_name, col_type in (
+        ('reference_doc_filename', 'VARCHAR(255)'),
+        ('reference_doc_label', 'VARCHAR(255)'),
+        ('technician_only', f'BOOLEAN DEFAULT {bool_default}'),
+    ):
+        if col_name in existing_cols:
+            continue
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE templates ADD COLUMN {col_name} {col_type}"))
+            print(f"[migrate_templates] Columna {col_name} agregada")
+        except Exception as e:
+            print(f"[migrate_templates] error agregando {col_name}: {e}")
+
+
 def migrate_messages_schema():
     """Agrega subtask_id a la tabla messages si no existe."""
     from sqlalchemy import inspect, text
@@ -12485,6 +12530,56 @@ def seed_default_categories():
         print(f"[init_db] {created} categorías del sistema creadas")
 
 
+def seed_mqa_escalation_template():
+    """Plantilla 'Crear Caso MQA' (escalamiento formal de incidentes/
+    requerimientos SAP a soporte Minsait), exclusiva de Pash.
+
+    - NO se crea como subcategoría formal de "SAP": aparece igual en el
+      panel de Categorías como "huérfana" (mecanismo ya existente para
+      plantillas con `subcategory` sin Category formal), sin volver
+      obligatorio elegir subcategoría para el resto de tickets de SAP.
+    - El ticket creado con esta plantilla siempre se enruta al grupo Mesa de
+      Ayuda (ver el chequeo por category+subcategory en technician_create()).
+    - Trae adjunto el formato oficial (PRO-PAR-SAP-0004-F1) para que el
+      técnico lo descargue, lo llene y lo vuelva a subir como adjunto del
+      ticket."""
+    if not Template.query.filter_by(name='Crear Caso MQA', company='pash').first():
+        form_fields = [
+            {'name': 'usuario_autor', 'label': '👤 Usuario autor del ticket', 'type': 'text', 'required': True, 'placeholder': 'Nombre completo de quien reporta'},
+            {'name': 'correo_autor', 'label': '📧 Correo del usuario', 'type': 'text', 'required': True, 'placeholder': 'usuario@patprimo.com.co'},
+            {'name': 'telefono_autor', 'label': '📞 Teléfono de contacto', 'type': 'text', 'required': True},
+            {'name': 'modulo_sap', 'label': '🧩 Módulo SAP', 'type': 'text', 'required': True, 'placeholder': 'Ej: RISE, FI, MM, SD, EWM...'},
+            {'name': 'transaccion', 'label': '🔤 Transacción SAP', 'type': 'text', 'required': True, 'placeholder': 'Ej: SMQ2, VA01, FB60...'},
+            {'name': 'mandante', 'label': '🌐 Mandante', 'type': 'select', 'required': True,
+                'options': ['PRODUCTIVO', 'CALIDAD', 'DESARROLLO']},
+            {'name': 'paso_a_paso', 'label': '📝 Paso a paso desde el ingreso a SAP hasta el error', 'type': 'textarea', 'required': True,
+                'placeholder': 'Detalle el paso a paso, mensajes de error exactos (número de mensaje si aplica), y capturas si las tiene'},
+            {'name': 'es_replicable', 'label': '🔁 ¿Es replicable en el mandante de Calidad?', 'type': 'select', 'required': True,
+                'options': ['Sí, es replicable en Calidad', 'No es replicable', 'No aplica (requerimiento nuevo)']},
+            {'name': 'caso_similar', 'label': '📎 ¿Caso similar anterior? (número, si aplica)', 'type': 'text', 'required': False},
+            {'name': 'escenarios_prueba', 'label': '✅ Escenarios a validar en la implementación', 'type': 'textarea', 'required': False,
+                'placeholder': 'Escenarios que deben probarse antes de dar por resuelto el caso'},
+        ]
+        db.session.add(Template(
+            name='Crear Caso MQA',
+            description='Escalamiento formal de incidentes/requerimientos SAP a soporte Minsait (formato PRO-PAR-SAP-0004-F1). Se enruta siempre al grupo Mesa de Ayuda.',
+            title_template='Escalamiento SAP — {modulo_sap} / {transaccion}',
+            description_template='',
+            category='SAP',
+            subcategory='Escalamiento MQA',
+            priority='high',
+            company='pash',
+            is_system=True,
+            technician_only=True,
+            form_fields=json.dumps(form_fields, ensure_ascii=False),
+            reference_doc_filename='PRO-PAR-SAP-0004-F1-Escalamiento-MQA.docx',
+            reference_doc_label='PRO-PAR-SAP-0004-F1 Escalamiento de Incidentes.docx',
+        ))
+        print('[seed_mqa] Plantilla "Crear Caso MQA" creada para Pash')
+
+    db.session.commit()
+
+
 def migrate_tickets_resolution_note():
     """Agrega columnas resolution_note y resolved_by_id a tickets si no existen."""
     from sqlalchemy import inspect, text
@@ -12645,6 +12740,10 @@ def init_db():
         except Exception as _e:
             print(f"[migrate] categories_parent_id: {_e}")
         try:
+            migrate_templates_reference_doc()
+        except Exception as _e:
+            print(f"[migrate] templates_reference_doc: {_e}")
+        try:
             migrate_report_recipients_team()
         except Exception as _e:
             print(f"[migrate] report_recipients_team: {_e}")
@@ -12665,6 +12764,7 @@ def init_db():
         seed_default_subroles()
         seed_default_categories()
         seed_default_templates()
+        seed_mqa_escalation_template()
         convert_legacy_templates_to_forms()
 
         # Crear empresas si no existen
@@ -17128,6 +17228,28 @@ def api_admin_botkb_seed():
     })
 
 
+@app.route('/api/templates/<int:template_id>/reference-document', methods=['GET'])
+def api_template_reference_document(template_id):
+    """Descarga el documento de referencia de una plantilla (ej. el formato
+    oficial que hay que llenar y volver a adjuntar al ticket). Disponible
+    para cualquier usuario logueado de la empresa dueña de la plantilla."""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    t = Template.query.get_or_404(template_id)
+    if t.company and t.company != session.get('company'):
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+    if not t.reference_doc_filename:
+        return jsonify({'success': False, 'error': 'Esta plantilla no tiene documento de referencia'}), 404
+
+    from flask import send_from_directory
+    docs_dir = os.path.join(app.root_path, 'static', 'template_docs')
+    return send_from_directory(
+        docs_dir, t.reference_doc_filename,
+        as_attachment=True,
+        download_name=t.reference_doc_label or t.reference_doc_filename,
+    )
+
+
 @app.route('/api/admin/templates', methods=['GET'])
 def api_admin_templates_list():
     """Listar plantillas de tickets de la empresa"""
@@ -17136,6 +17258,8 @@ def api_admin_templates_list():
 
     company = session['company']
     templates = Template.query.filter_by(company=company).order_by(Template.category, Template.name).all()
+    if session.get('role') == 'employee':
+        templates = [t for t in templates if not t.technician_only]
     result = []
     for t in templates:
         # Parsear form_fields JSON
@@ -17155,7 +17279,8 @@ def api_admin_templates_list():
             'subcategory': t.subcategory or '',
             'priority': t.priority or 'medium',
             'is_system': bool(t.is_system),
-            'form_fields': form_fields
+            'form_fields': form_fields,
+            'reference_doc_label': t.reference_doc_label if t.reference_doc_filename else None,
         })
     return jsonify({'success': True, 'templates': result})
 
