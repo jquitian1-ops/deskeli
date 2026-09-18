@@ -3088,7 +3088,7 @@ def employee_create():
         db.session.commit()
 
         try:
-            notify_ticket_created(ticket, user)
+            notify_ticket_created_async(ticket.id, user.id)
         except Exception as e_email:
             print(f'[employee_create][notify-created] email error: {e_email}')
 
@@ -3210,19 +3210,16 @@ def employee_create():
 
         if assigned_via and ticket.assignee_id:
             try:
-                new_tech = User.query.get(ticket.assignee_id)
-                if new_tech:
-                    reason_by_via = {
-                        'default_group': 'Grupo por defecto de la empresa',
-                        'orchestrator': 'Asignación automática por IA (Orchestrator)',
-                        'fallback': 'Orchestrator no disponible, usado balanceo por carga',
-                    }
-                    notify_ticket_assigned(
-                        ticket=ticket,
-                        new_assignee=new_tech,
-                        assigned_by_name='Asignación automática',
-                        reason=reason_by_via.get(assigned_via, 'Asignación automática')
-                    )
+                reason_by_via = {
+                    'default_group': 'Grupo por defecto de la empresa',
+                    'orchestrator': 'Asignación automática por IA (Orchestrator)',
+                    'fallback': 'Orchestrator no disponible, usado balanceo por carga',
+                }
+                notify_ticket_assigned_async(
+                    ticket.id, ticket.assignee_id,
+                    assigned_by_name='Asignación automática',
+                    reason=reason_by_via.get(assigned_via, 'Asignación automática')
+                )
             except Exception as e_email:
                 print(f'[notify-assign] email error: {e_email}')
 
@@ -3377,15 +3374,14 @@ def technician_create():
         db.session.commit()
 
         try:
-            notify_ticket_created(ticket, behalf_user if behalf_user else tech)
+            notify_ticket_created_async(ticket.id, (behalf_user or tech).id)
         except Exception as e_email:
             print(f'[technician_create][notify-created] email error: {e_email}')
 
         if assigned_colleague:
             try:
-                notify_ticket_assigned(
-                    ticket=ticket,
-                    new_assignee=assigned_colleague,
+                notify_ticket_assigned_async(
+                    ticket.id, assigned_colleague.id,
                     assigned_by_name=tech.name,
                     reason='Asignado directamente por un compañero de Mesa de Ayuda'
                 )
@@ -3477,19 +3473,16 @@ def technician_create():
 
             if assigned_via and ticket.assignee_id:
                 try:
-                    new_tech = User.query.get(ticket.assignee_id)
-                    if new_tech:
-                        reason_by_via = {
-                            'default_group': 'Grupo por defecto de la empresa',
-                            'orchestrator': 'Asignación automática por IA (Orchestrator)',
-                            'fallback': 'Orchestrator no disponible o sin asignar, usado balanceo por carga',
-                        }
-                        notify_ticket_assigned(
-                            ticket=ticket,
-                            new_assignee=new_tech,
-                            assigned_by_name=f'Ticket registrado por {tech.name}' + (f' en nombre de {behalf_user.name}' if behalf_user else ''),
-                            reason=reason_by_via.get(assigned_via, 'Asignación automática')
-                        )
+                    reason_by_via = {
+                        'default_group': 'Grupo por defecto de la empresa',
+                        'orchestrator': 'Asignación automática por IA (Orchestrator)',
+                        'fallback': 'Orchestrator no disponible o sin asignar, usado balanceo por carga',
+                    }
+                    notify_ticket_assigned_async(
+                        ticket.id, ticket.assignee_id,
+                        assigned_by_name=f'Ticket registrado por {tech.name}' + (f' en nombre de {behalf_user.name}' if behalf_user else ''),
+                        reason=reason_by_via.get(assigned_via, 'Asignación automática')
+                    )
                 except Exception as e_email:
                     print(f'[technician_create][notify-assign] email error: {e_email}')
 
@@ -7275,8 +7268,7 @@ def api_bot_ticket_from_chat():
 
         if not resolved:
             try:
-                requester = User.query.get(user_id)
-                notify_ticket_created(ticket, requester)
+                notify_ticket_created_async(ticket.id, user_id)
             except Exception as e_email:
                 print(f'[chat-ticket][notify-created] email error: {e_email}')
 
@@ -7292,14 +7284,11 @@ def api_bot_ticket_from_chat():
         # Notificar por email al técnico asignado automáticamente
         if assignee_id and not resolved:
             try:
-                tech_to_notify = User.query.get(assignee_id)
-                if tech_to_notify:
-                    notify_ticket_assigned(
-                        ticket=ticket,
-                        new_assignee=tech_to_notify,
-                        assigned_by_name='Asignación automática (IA por carga de trabajo)',
-                        reason='Técnico con menor carga activa en la empresa'
-                    )
+                notify_ticket_assigned_async(
+                    ticket.id, assignee_id,
+                    assigned_by_name='Asignación automática (IA por carga de trabajo)',
+                    reason='Técnico con menor carga activa en la empresa'
+                )
             except Exception as e:
                 print(f'[WARN] Notificación email: {e}')
 
@@ -8900,14 +8889,11 @@ def assign_ticket_auto(ticket):
 
     # Notificar al técnico asignado por email
     try:
-        tech_to_notify = User.query.get(best_technician_id)
-        if tech_to_notify:
-            notify_ticket_assigned(
-                ticket=ticket,
-                new_assignee=tech_to_notify,
-                assigned_by_name='Asignación automática (IA por carga + categoría)',
-                reason=f'Técnico con menor carga para categoría "{ticket.category or "General"}"'
-            )
+        notify_ticket_assigned_async(
+            ticket.id, best_technician_id,
+            assigned_by_name='Asignación automática (IA por carga + categoría)',
+            reason=f'Técnico con menor carga para categoría "{ticket.category or "General"}"'
+        )
     except Exception as e:
         print(f'[WARN] Notificación email: {e}')
 
@@ -10962,6 +10948,40 @@ def notify_ticket_assigned(ticket, new_assignee, assigned_by_name='Sistema', rea
     status_str = 'OK' if ok else 'FALLO'
     print(f'[notify] Email asignacion {ticket.ticket_number} -> {new_assignee.email}: {status_str}')
     return ok
+
+
+def notify_ticket_created_async(ticket_id, requester_id):
+    """Dispara notify_ticket_created() en un hilo aparte, con su propia
+    sesión de BD, para que un SMTP lento o caído NUNCA bloquee la respuesta
+    HTTP de creación del ticket (el envío de correo puede tardar hasta el
+    timeout de smtplib — con el usuario esperando esos segundos en cada
+    ticket creado, sentía que "no crea el caso"). El try/except del
+    thread evita que un error de correo se pierda sin log."""
+    def _run():
+        with app.app_context():
+            try:
+                t = Ticket.query.get(ticket_id)
+                r = User.query.get(requester_id)
+                if t and r:
+                    notify_ticket_created(t, r)
+            except Exception as e:
+                print(f'[async-email][ticket_created] error: {e}')
+    Thread(target=_run, daemon=True).start()
+
+
+def notify_ticket_assigned_async(ticket_id, new_assignee_id, assigned_by_name='Sistema', reason=''):
+    """Versión no bloqueante de notify_ticket_assigned() — ver
+    notify_ticket_created_async() para el motivo."""
+    def _run():
+        with app.app_context():
+            try:
+                t = Ticket.query.get(ticket_id)
+                u = User.query.get(new_assignee_id)
+                if t and u:
+                    notify_ticket_assigned(t, u, assigned_by_name=assigned_by_name, reason=reason)
+            except Exception as e:
+                print(f'[async-email][ticket_assigned] error: {e}')
+    Thread(target=_run, daemon=True).start()
 
 
 def start_watchdog():
@@ -13094,15 +13114,12 @@ def api_admin_create_ticket():
 
     # Notificar al técnico si fue asignado al crear (manual o auto)
     try:
-        if ticket.assignee_id:
-            tech_to_notify = User.query.get(ticket.assignee_id)
-            if tech_to_notify and tech_to_notify.id != session['user_id']:
-                notify_ticket_assigned(
-                    ticket=ticket,
-                    new_assignee=tech_to_notify,
-                    assigned_by_name=user.name,
-                    reason='Ticket creado y asignado por admin'
-                )
+        if ticket.assignee_id and ticket.assignee_id != session['user_id']:
+            notify_ticket_assigned_async(
+                ticket.id, ticket.assignee_id,
+                assigned_by_name=user.name,
+                reason='Ticket creado y asignado por admin'
+            )
     except Exception as e:
         print(f'[WARN] Notificación email admin_create: {e}')
 
@@ -13138,15 +13155,12 @@ def api_admin_edit_ticket(ticket_id):
     # Si cambió el asignado en la edición, notificar al nuevo
     try:
         if ticket.assignee_id and ticket.assignee_id != old_assignee_id and ticket.assignee_id != session['user_id']:
-            new_tech = User.query.get(ticket.assignee_id)
-            if new_tech:
-                editor = User.query.get(session['user_id'])
-                notify_ticket_assigned(
-                    ticket=ticket,
-                    new_assignee=new_tech,
-                    assigned_by_name=editor.name if editor else 'Administrador',
-                    reason='Asignación modificada desde edición del ticket'
-                )
+            editor = User.query.get(session['user_id'])
+            notify_ticket_assigned_async(
+                ticket.id, ticket.assignee_id,
+                assigned_by_name=editor.name if editor else 'Administrador',
+                reason='Asignación modificada desde edición del ticket'
+            )
     except Exception as e:
         print(f'[WARN] Notificación email edit_ticket: {e}')
 
@@ -14884,11 +14898,10 @@ def api_reassign_ticket(ticket_id):
     except Exception as e:
         print(f'[WARN] WebSocket emit: {e}')
 
-    # Notificar por email al técnico asignado (no bloquea la respuesta si falla)
+    # Notificar por email al técnico asignado (async: no bloquea la respuesta)
     try:
-        notify_ticket_assigned(
-            ticket=ticket,
-            new_assignee=new_assignee,
+        notify_ticket_assigned_async(
+            ticket.id, new_assignee.id,
             assigned_by_name=session.get('name', 'Administrador'),
             reason=reason if reason and reason != 'Asignación directa' else ''
         )
