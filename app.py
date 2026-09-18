@@ -8681,7 +8681,9 @@ def ping_server(server_id):
 
 def assign_to_default_group(ticket):
     """Asigna el ticket al miembro con menor carga del 'Grupo por defecto'
-    de la empresa (Subrole con is_default_group=True).
+    de la empresa (Subrole con is_default_group=True). Excepción: para Pash
+    el grupo objetivo es siempre "Mesa de Ayuda" (regla fija de negocio, no
+    depende del flag is_default_group).
 
     Devuelve True si asignó, False si no hay grupo por defecto o si el grupo
     no tiene miembros elegibles. En ambos casos el llamador debe caer al flujo
@@ -8697,11 +8699,23 @@ def assign_to_default_group(ticket):
     if not ticket.company:
         return False
 
-    default_group = Subrole.query.filter(
-        Subrole.company == ticket.company,
-        Subrole.is_default_group == True,
-        Subrole.is_active == True,
-    ).first()
+    if ticket.company == 'pash':
+        # Regla de negocio fija para Pash: todo ticket que quede en
+        # "Auto-asignar por IA" (sin grupo/técnico elegido manualmente) va
+        # siempre al grupo "Mesa de Ayuda", sin importar el flag de "grupo
+        # por defecto" (ese flag se sigue usando tal cual para las demás
+        # empresas).
+        default_group = Subrole.query.filter(
+            Subrole.company == 'pash',
+            db.func.lower(Subrole.name) == 'mesa de ayuda',
+            Subrole.is_active == True,
+        ).first()
+    else:
+        default_group = Subrole.query.filter(
+            Subrole.company == ticket.company,
+            Subrole.is_default_group == True,
+            Subrole.is_active == True,
+        ).first()
     if not default_group:
         return False
 
