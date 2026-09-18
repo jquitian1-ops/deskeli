@@ -17991,6 +17991,73 @@ def api_admin_subroles_list():
     })
 
 
+@app.route('/api/admin/subroles/<int:subrole_id>/members', methods=['GET'])
+def api_admin_subrole_members_get(subrole_id):
+    """Lista los técnicos/admins de la empresa actual, marcando cuáles ya
+    pertenecen a este grupo de especialistas — vista "desde el grupo" que
+    complementa el modal de asignación "desde el usuario" que ya existía."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    company = session.get('company')
+    subrole = Subrole.query.get_or_404(subrole_id)
+    if subrole.company is not None and subrole.company != company:
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+
+    member_ids = {us.user_id for us in UserSubrole.query.filter_by(subrole_id=subrole_id).all()}
+    users = User.query.filter(
+        User.company == company,
+        User.is_active == True,
+        User.role.in_(['technician', 'admin']),
+    ).order_by(User.role.desc(), User.name).all()
+
+    return jsonify({
+        'success': True,
+        'group_name': subrole.name,
+        'users': [{
+            'id': u.id,
+            'name': u.name,
+            'username': u.username,
+            'role': u.role,
+            'is_member': u.id in member_ids,
+        } for u in users]
+    })
+
+
+@app.route('/api/admin/subroles/<int:subrole_id>/members', methods=['POST'])
+def api_admin_subrole_members_set(subrole_id):
+    """Reemplaza completamente la lista de miembros de este grupo.
+    Body: {user_ids: [1, 2, 3]}"""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    company = session.get('company')
+    subrole = Subrole.query.get_or_404(subrole_id)
+    if subrole.company is not None and subrole.company != company:
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+
+    data = request.get_json() or {}
+    new_ids = data.get('user_ids') or []
+    try:
+        new_ids = [int(x) for x in new_ids]
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'user_ids debe ser una lista de IDs'}), 400
+
+    # Solo se pueden agregar usuarios técnicos/admins de la misma empresa
+    valid_users = User.query.filter(
+        User.id.in_(new_ids), User.company == company,
+        User.role.in_(['technician', 'admin']), User.is_active == True,
+    ).all()
+    valid_ids = {u.id for u in valid_users}
+
+    UserSubrole.query.filter_by(subrole_id=subrole_id).delete()
+    for uid in valid_ids:
+        db.session.add(UserSubrole(user_id=uid, subrole_id=subrole_id))
+    db.session.commit()
+    log_audit('set_subrole_members', session['user_id'], 'subrole', subrole_id,
+              f'{len(valid_ids)} miembro(s) asignado(s) al grupo "{subrole.name}"')
+
+    return jsonify({'success': True, 'message': f'{len(valid_ids)} miembro(s) guardado(s) en "{subrole.name}"'})
+
+
 @app.route('/api/admin/subroles', methods=['POST'])
 def api_admin_subroles_create():
     """Crear subrol personalizado para la empresa actual."""
