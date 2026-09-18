@@ -240,13 +240,14 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(TICKET_UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['TICKET_UPLOAD_FOLDER'] = TICKET_UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024  # 25 MB por archivo
+app.config['MAX_CONTENT_LENGTH'] = 250 * 1024 * 1024  # 250 MB por request (videos sin comprimir pesan más que documentos/imágenes)
 
 ALLOWED_EXTENSIONS = {
     'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv',
     'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp',
     'zip', 'rar', '7z',
-    'log', 'msg', 'eml'
+    'log', 'msg', 'eml',
+    'mp4', 'mov', 'webm', 'avi', 'mkv', 'm4v', '3gp',
 }
 
 def _allowed_attachment(filename):

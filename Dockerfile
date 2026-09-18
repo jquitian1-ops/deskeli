@@ -38,12 +38,14 @@ WORKDIR /app
 
 # Librerías de runtime + wget para healthcheck (más liviano que curl)
 # postgresql-client: da pg_dump para backups de Postgres
+# ffmpeg: recomprime videos adjuntados a tickets (ver file_compression.py)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     libffi8 \
     wget \
     tzdata \
     postgresql-client \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Usuario no-root

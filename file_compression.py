@@ -8,6 +8,15 @@ Estrategia:
     * PNG: convertir a JPEG si no tiene canal alpha significativo (ahorra ~70%).
       Si tiene alpha real, dejarlo como PNG pero con optimize=True.
     * GIF/WebP animados: no tocar (preservan animación).
+- Videos (MP4/MOV/WEBM/AVI/MKV/M4V/3GP): reencodear con ffmpeg (si está
+  instalado en el servidor).
+    * Reescalar a máximo 1280px de ancho (preserva aspecto), sin subir de
+      tamaño si ya es más chico.
+    * H.264 (libx264) CRF 28 + audio AAC 128k — buen balance calidad/peso
+      para adjuntos de soporte (no producción audiovisual).
+    * Si ffmpeg no está disponible, falla, o tarda más del timeout, se
+      conserva el archivo original tal cual (nunca bloquea la creación
+      del ticket).
 - Otros archivos (PDF, DOCX, XLSX, TXT, LOG, ZIP): devolver tal cual.
     (Los formatos Office ya son ZIPs internamente; PDF requiere Ghostscript
     para comprimir bien, complejidad no vale la pena para el ahorro.)
@@ -24,6 +33,10 @@ from __future__ import annotations
 
 import io
 import logging
+import os
+import shutil
+import subprocess
+import tempfile
 from typing import Tuple, Optional
 
 _logger = logging.getLogger(__name__)
@@ -33,6 +46,11 @@ MAX_IMAGE_DIMENSION = 1920      # Lado más largo en píxeles
 JPEG_QUALITY = 85               # Buen balance calidad/tamaño
 PNG_TO_JPEG_THRESHOLD_KB = 200  # Sobre este tamaño y sin alpha real, convertir PNG a JPEG
 
+MAX_VIDEO_WIDTH = 1280          # Ancho máximo de salida (mantiene aspecto)
+VIDEO_CRF = 28                  # Calidad H.264 (18=casi sin pérdida, 28=liviano)
+VIDEO_AUDIO_BITRATE = '128k'
+VIDEO_COMPRESSION_TIMEOUT_SEC = 300  # No dejar el request colgado indefinidamente
+
 try:
     from PIL import Image, ImageSequence
     PIL_AVAILABLE = True
@@ -40,8 +58,18 @@ except ImportError:
     PIL_AVAILABLE = False
     _logger.warning("Pillow no está disponible; compresión de imágenes desactivada")
 
+FFMPEG_PATH = shutil.which('ffmpeg')
+if not FFMPEG_PATH:
+    _logger.warning("ffmpeg no está instalado; los videos se guardarán sin comprimir")
+
 
 IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'}
+VIDEO_EXTENSIONS = {'.mp4', '.mov', '.webm', '.avi', '.mkv', '.m4v', '.3gp'}
+VIDEO_MIME_BY_EXT = {
+    '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm',
+    '.avi': 'video/x-msvideo', '.mkv': 'video/x-matroska', '.m4v': 'video/x-m4v',
+    '.3gp': 'video/3gpp',
+}
 
 
 def _get_ext(filename: str) -> str:
@@ -168,6 +196,59 @@ def _return_smaller(orig_bytes, orig_name, orig_mime,
     return orig_bytes, orig_name, orig_mime
 
 
+def compress_video(raw_bytes: bytes, filename: str) -> Tuple[bytes, str, str]:
+    """Recomprime un video con ffmpeg (H.264 + audio AAC, reescalado a
+    MAX_VIDEO_WIDTH). Devuelve (bytes, filename_final, mime).
+
+    Si ffmpeg no está instalado, falla, o supera el timeout, devuelve el
+    archivo original sin tocar — nunca debe bloquear la creación del ticket."""
+    ext = _get_ext(filename)
+    original_mime = VIDEO_MIME_BY_EXT.get(ext, 'video/mp4')
+
+    if not FFMPEG_PATH:
+        return raw_bytes, filename, ''
+
+    tmp_dir = tempfile.mkdtemp(prefix='deskeli_vid_')
+    in_path = os.path.join(tmp_dir, 'in' + (ext or '.mp4'))
+    out_path = os.path.join(tmp_dir, 'out.mp4')
+    try:
+        with open(in_path, 'wb') as fh:
+            fh.write(raw_bytes)
+
+        # scale: solo reduce si el video es más ancho que MAX_VIDEO_WIDTH
+        # (nunca lo agranda); -2 fuerza alto par (requisito de libx264).
+        vf = f"scale='min({MAX_VIDEO_WIDTH},iw)':-2"
+        cmd = [
+            FFMPEG_PATH, '-y', '-i', in_path,
+            '-vf', vf,
+            '-c:v', 'libx264', '-preset', 'veryfast', '-crf', str(VIDEO_CRF),
+            '-c:a', 'aac', '-b:a', VIDEO_AUDIO_BITRATE,
+            '-movflags', '+faststart',
+            out_path,
+        ]
+        result = subprocess.run(
+            cmd, capture_output=True, timeout=VIDEO_COMPRESSION_TIMEOUT_SEC
+        )
+        if result.returncode != 0 or not os.path.exists(out_path):
+            _logger.warning("ffmpeg falló comprimiendo %s: %s", filename,
+                            result.stderr.decode('utf-8', 'ignore')[-500:])
+            return raw_bytes, filename, ''
+
+        with open(out_path, 'rb') as fh:
+            new_bytes = fh.read()
+        new_filename = (filename.rsplit('.', 1)[0] + '.mp4') if '.' in filename else filename + '.mp4'
+        return _return_smaller(raw_bytes, filename, original_mime,
+                               new_bytes, new_filename, 'video/mp4')
+    except subprocess.TimeoutExpired:
+        _logger.warning("ffmpeg superó el timeout comprimiendo %s; se guarda sin comprimir", filename)
+        return raw_bytes, filename, ''
+    except Exception as e:
+        _logger.warning("Error comprimiendo video %s: %s", filename, e)
+        return raw_bytes, filename, ''
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
 def compress_upload(file_storage) -> Tuple[bytes, str, str, dict]:
     """Recibe un objeto FileStorage de Werkzeug y devuelve la versión comprimida.
 
@@ -194,6 +275,9 @@ def compress_upload(file_storage) -> Tuple[bytes, str, str, dict]:
     ext = _get_ext(original_filename)
     if ext in IMAGE_EXTENSIONS:
         out_bytes, out_filename, out_mime = compress_image(raw, original_filename)
+        final_mime = out_mime or original_mime
+    elif ext in VIDEO_EXTENSIONS:
+        out_bytes, out_filename, out_mime = compress_video(raw, original_filename)
         final_mime = out_mime or original_mime
     else:
         out_bytes = raw

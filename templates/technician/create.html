@@ -274,13 +274,14 @@
 
                 <!-- Adjuntos: archivos + imágenes pegadas -->
                 <div class="form-group" style="background:#eff6ff;border:1px dashed #bfdbfe;padding:14px;border-radius:8px;">
-                    <label style="color:#1e40af;font-weight:700;">📎 Adjuntar archivos o imágenes</label>
+                    <label style="color:#1e40af;font-weight:700;">📎 Adjuntar archivos, imágenes o videos</label>
                     <input type="file" id="attachmentsInput" multiple
-                           accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp,.zip,.rar,.log,.msg,.eml"
+                           accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp,.zip,.rar,.log,.msg,.eml,.mp4,.mov,.webm,.avi,.mkv,.m4v,.3gp"
                            style="width:100%;margin-top:6px;padding:8px;background:white;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
                     <p class="help-text" style="color:#1e40af;margin-top:4px;">
                         🖼️ <strong>Imágenes pegadas con Ctrl+V</strong> en el campo de descripción se agregarán automáticamente aquí.
-                        Tipos permitidos: PDF, Word, Excel, imágenes (PNG/JPG), comprimidos. Máx 25MB c/u.
+                        Tipos permitidos: PDF, Word, Excel, imágenes (PNG/JPG), videos (MP4/MOV/WEBM), comprimidos.
+                        Las imágenes y videos se comprimen automáticamente al subirlos.
                     </p>
                     <div id="attachmentsPreview" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;"></div>
                 </div>
