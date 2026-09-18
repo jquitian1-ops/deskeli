@@ -212,7 +212,7 @@
 
                 <!-- PASO 1.5: Subcategoría (opcional, solo si la categoría tiene subcategorías) -->
                 <div class="form-group" id="subcategoryBlock" style="display:none;background:#f5f3ff;border:1px solid #ddd6fe;padding:12px;border-radius:8px;">
-                    <label for="subcategory" style="color:#5b21b6;font-weight:700;">🗂 Subcategoría (opcional)</label>
+                    <label id="subcategoryLabel" for="subcategory" style="color:#5b21b6;font-weight:700;">🗂 Subcategoría (opcional)</label>
                     <select id="subcategory" name="subcategory" style="width:100%;padding:10px;border:1px solid #c4b5fd;border-radius:6px;font-size:14px;background:white;">
                         <option value="">— Sin subcategoría —</option>
                     </select>
@@ -367,16 +367,20 @@ function onCategoryChange() {
     const catSel = document.getElementById('category');
     const subBlock = document.getElementById('subcategoryBlock');
     const subSel = document.getElementById('subcategory');
+    const subLabel = document.getElementById('subcategoryLabel');
     const cat = _categoriesTree.find(c => c.name === catSel.value);
     if (cat && cat.subcategories && cat.subcategories.length > 0) {
-        let html = '<option value="">— Sin subcategoría —</option>';
+        // Tiene subcategorías: es obligatorio elegir una (sin opción vacía).
+        let html = '<option value="" selected disabled>— Selecciona una subcategoría —</option>';
         cat.subcategories.forEach(sc => {
             html += `<option value="${escapeHtml(sc.name)}">${escapeHtml(sc.icon)} ${escapeHtml(sc.name)}</option>`;
         });
         subSel.innerHTML = html;
+        if (subLabel) subLabel.innerHTML = '🗂 Subcategoría <span style="color:#dc2626;">*</span>';
         subBlock.style.display = 'block';
     } else {
         subSel.innerHTML = '<option value="">— Sin subcategoría —</option>';
+        if (subLabel) subLabel.innerHTML = '🗂 Subcategoría (opcional)';
         subBlock.style.display = 'none';
     }
     filterTemplatesByCategory();
@@ -641,6 +645,23 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('ticketForm');
     if (!form) return;
+
+    // Si la categoría elegida tiene subcategorías, es obligatorio elegir una
+    // antes de poder crear el ticket (va primero para bloquear los demás
+    // listeners de submit si falla).
+    form.addEventListener('submit', function(e) {
+        const subBlock = document.getElementById('subcategoryBlock');
+        const subSel = document.getElementById('subcategory');
+        if (subBlock && subSel && subBlock.style.display !== 'none' && !subSel.value) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            subSel.style.borderColor = '#dc2626';
+            alert('⚠ Esta categoría tiene subcategorías: debes elegir una');
+            subSel.focus();
+            return false;
+        }
+    });
+
     form.addEventListener('submit', function(e) {
         if (!_currentTemplateFields || _currentTemplateFields.length === 0) return; // dejar el flujo normal
 

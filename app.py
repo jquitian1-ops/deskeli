@@ -3019,6 +3019,8 @@ def employee_create():
             return _render_error('El campo "Número de contacto" es obligatorio (mín. 4 dígitos)')
         if len(user_area) > 120 or len(user_location) > 120 or len(user_phone) > 40:
             return _render_error('Algún campo de contacto excede el máximo permitido')
+        if not subcategory and category_requires_subcategory(category, user.company):
+            return _render_error(f'La categoría "{category}" tiene subcategorías: debes elegir una')
 
         # Actualizar el perfil del usuario con los datos más recientes (pre-llenado futuro)
         try:
@@ -3246,6 +3248,8 @@ def technician_create():
             return render_template('technician/create.html', error='Descripción debe tener 10-5000 caracteres')
         if priority not in ('low', 'medium', 'high', 'critical'):
             priority = 'medium'
+        if not subcategory and category_requires_subcategory(category, tech.company):
+            return render_template('technician/create.html', error=f'La categoría "{category}" tiene subcategorías: debes elegir una')
 
         # Validar "creado para": debe ser usuario activo de la misma empresa
         creator_id = tech.id
@@ -12834,6 +12838,11 @@ def api_admin_create_ticket():
     data = request.get_json()
     user = User.query.get(session['user_id'])
 
+    category = data.get('category', 'General')
+    subcategory = (data.get('subcategory') or '').strip() or None
+    if not subcategory and category_requires_subcategory(category, user.company):
+        return jsonify({'success': False, 'error': f'La categoría "{category}" tiene subcategorías: debes elegir una'}), 400
+
     sla_config = Config.query.filter_by(key=f"sla_{data.get('priority', 'medium')}").first()
     sla_minutes = int(sla_config.value) if sla_config else 120
 
@@ -12841,8 +12850,8 @@ def api_admin_create_ticket():
         ticket_number=get_next_ticket_number(user.company),
         title=data.get('title'),
         description=data.get('description'),
-        category=data.get('category', 'General'),
-        subcategory=(data.get('subcategory') or '').strip() or None,
+        category=category,
+        subcategory=subcategory,
         priority=data.get('priority', 'medium'),
         creator_id=session['user_id'],
         company=user.company,
@@ -18092,6 +18101,26 @@ def api_admin_subroles_delete(subrole_id):
     db.session.commit()
     log_audit('delete_subrole', session['user_id'], 'subrole', subrole_id, f'Subrol "{name}" eliminado')
     return jsonify({'success': True, 'message': f'Subrol "{name}" eliminado'})
+
+
+def category_requires_subcategory(category_name, company):
+    """True si `category_name` (nivel superior, visible para `company`) tiene
+    al menos una subcategoría activa — usado para exigir el campo Subcategoría
+    al crear un ticket, en los 3 portales, del mismo modo que ya se valida
+    en el frontend."""
+    if not category_name:
+        return False
+    parent = Category.query.filter(
+        Category.parent_id.is_(None),
+        (Category.company == None) | (Category.company == company),
+        db.func.lower(Category.name) == category_name.strip().lower(),
+    ).first()
+    if not parent:
+        return False
+    return Category.query.filter(
+        Category.parent_id == parent.id,
+        Category.is_active == True,
+    ).first() is not None
 
 
 @app.route('/api/categories', methods=['GET'])
