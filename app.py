@@ -18817,7 +18817,7 @@ def api_admin_categories_export():
         ('• Una subcategoría no puede a su vez tener sub-subcategorías (máximo 2 niveles).', ''),
         ('• La "Categoria Padre" debe existir ya en el sistema, o venir en OTRA fila de este mismo archivo sin su propia Categoria Padre.', ''),
         ('• La Plantilla se identifica por Empresa+Categoria+Subcategoria: si ya existe una con esa combinación, se actualiza (título/cuerpo/prioridad); si no, se crea.', ''),
-        ('• Máximo 200 filas por archivo importado.', ''),
+        ('• Máximo 500 filas por archivo importado.', ''),
     ]
     for i, (a, b) in enumerate(instructions, 1):
         c1 = ws2.cell(row=i, column=1, value=a)
@@ -18964,7 +18964,7 @@ def api_admin_categories_import():
             ))
             templates_created += 1
 
-    rows = raw_rows[:200]  # Límite de 200 por request
+    rows = raw_rows[:500]  # Límite de 500 por request
 
     def _process_inline_subcategories(item, parent_id):
         """Crea de una vez las subcategorías listadas en la columna 'Subcategorias'
