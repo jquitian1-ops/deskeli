@@ -18744,6 +18744,31 @@ def api_admin_categories_export():
     for t in company_templates:
         tpl_by_key[((t.category or '').strip().lower(), (t.subcategory or '').strip().lower())] = t
 
+    # Plantillas "huérfanas": tienen una Subcategoría (texto libre) pero nunca
+    # se creó la fila formal en Category para ella (herencia de antes de que
+    # existiera el concepto de Subcategoría). El panel de Categorías las
+    # muestra igual como pseudo-subcategorías; para que también salgan acá
+    # (y se puedan formalizar al re-importar el archivo) se agregan a la
+    # columna "Subcategorias" del padre correspondiente.
+    formal_sub_names_by_parent = {}
+    for c in categories:
+        if c.parent_id:
+            formal_sub_names_by_parent.setdefault(c.parent_id, set()).add(c.name.strip().lower())
+    orphan_sub_names_by_parent = {}
+    for t in company_templates:
+        cat_name = (t.category or '').strip()
+        sub_name = (t.subcategory or '').strip()
+        if not cat_name or not sub_name:
+            continue
+        parent = next((c for c in top if c.name.strip().lower() == cat_name.lower()), None)
+        if not parent:
+            continue
+        if sub_name.lower() in formal_sub_names_by_parent.get(parent.id, set()):
+            continue  # ya existe como subcategoría formal, no duplicar
+        orphan_sub_names_by_parent.setdefault(parent.id, [])
+        if sub_name.lower() not in {s.lower() for s in orphan_sub_names_by_parent[parent.id]}:
+            orphan_sub_names_by_parent[parent.id].append(sub_name)
+
     for r, c in enumerate(ordered, start=2):
         parent_name = names_by_id.get(c.parent_id, '')
         if c.parent_id:
@@ -18752,7 +18777,8 @@ def api_admin_categories_export():
             tpl = tpl_by_key.get((c.name.strip().lower(), ''))
         subcats_str = ''
         if not c.parent_id:
-            subcats_str = ', '.join(sc.name for sc in by_parent.get(c.id, []))
+            names = [sc.name for sc in by_parent.get(c.id, [])] + orphan_sub_names_by_parent.get(c.id, [])
+            subcats_str = ', '.join(names)
         row = {
             'icon': c.icon or '📌',
             'name': c.name,
