@@ -143,6 +143,12 @@
 
     <div class="container">
         <div class="form-card">
+            {% if error %}
+            <div id="serverErrorBanner" style="background:#fef2f2;border:2px solid #fca5a5;color:#991b1b;padding:14px 16px;border-radius:8px;margin-bottom:20px;font-size:14px;font-weight:600;">
+                ⚠ {{ error }}
+                <div style="font-weight:400;font-size:12px;margin-top:4px;color:#7f1d1d;">Corrige lo indicado y volvé a darle a "Crear Ticket". Lo que ya habías escrito quedó guardado abajo.</div>
+            </div>
+            {% endif %}
             <form method="POST" action="" id="ticketForm" enctype="multipart/form-data">
 
                 <!-- BLOQUE EXCLUSIVO TÉCNICO: usuario afectado + auto-asignar -->
@@ -272,13 +278,13 @@
 
                 <div class="form-group">
                     <label for="title">3️⃣ Título del Problema *</label>
-                    <input type="text" id="title" name="title" required placeholder="Ej: WiFi no conecta">
+                    <input type="text" id="title" name="title" required placeholder="Ej: WiFi no conecta" value="{{ form_prev.title if form_prev else '' }}">
                     <p class="help-text">Describe brevemente tu problema</p>
                 </div>
 
                 <div class="form-group">
                     <label for="description">4️⃣ Descripción / Notas adicionales</label>
-                    <textarea id="description" name="description" placeholder="Si usás una plantilla, este campo es opcional. Si no, describe el problema con detalle... Tip: podés pegar imágenes (Ctrl+V)"></textarea>
+                    <textarea id="description" name="description" placeholder="Si usás una plantilla, este campo es opcional. Si no, describe el problema con detalle... Tip: podés pegar imágenes (Ctrl+V)">{{ form_prev.description if form_prev else '' }}</textarea>
                     <p class="help-text">💡 <strong>Tip:</strong> podés <strong>pegar capturas directamente</strong> con Ctrl+V o agregar archivos abajo.</p>
                 </div>
 
@@ -373,6 +379,11 @@
 <script>
 let _empTemplates = [];
 let _categoriesTree = [];
+// Si el POST anterior falló una validación server-side, el backend re-renderiza
+// este mismo formulario con lo ya llenado (ver `error` + `form_prev` en
+// technician_create()); acá lo recuperamos para re-seleccionar categoría/
+// subcategoría/prioridad una vez que las categorías terminen de cargar.
+const FORM_PREV = {{ (form_prev or {}) | tojson }};
 
 async function loadCategories() {
     const sel = document.getElementById('category');
@@ -390,6 +401,17 @@ async function loadCategories() {
             html += `<option value="${escapeHtml(c.name)}">${escapeHtml(c.icon)} ${escapeHtml(c.name)}</option>`;
         });
         sel.innerHTML = html;
+        if (FORM_PREV && FORM_PREV.category) {
+            sel.value = FORM_PREV.category;
+            onCategoryChange();
+            if (FORM_PREV.subcategory) {
+                const subSel = document.getElementById('subcategory');
+                if (subSel) subSel.value = FORM_PREV.subcategory;
+            }
+        }
+        if (FORM_PREV && FORM_PREV.priority && typeof selectPriority === 'function') {
+            selectPriority(FORM_PREV.priority);
+        }
     } catch (e) {
         console.error('loadCategories:', e);
         sel.innerHTML = '<option value="">— Selecciona la categoría —</option>';

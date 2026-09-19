@@ -158,6 +158,12 @@
 
     <div class="container">
         <div class="form-card">
+            {% if error %}
+            <div id="serverErrorBanner" style="background:#fef2f2;border:2px solid #fca5a5;color:#991b1b;padding:14px 16px;border-radius:8px;margin-bottom:20px;font-size:14px;font-weight:600;">
+                ⚠ {{ error }}
+                <div style="font-weight:400;font-size:12px;margin-top:4px;color:#7f1d1d;">Corrige lo indicado y volvé a darle a "Crear Ticket". Lo que ya habías escrito quedó guardado abajo.</div>
+            </div>
+            {% endif %}
             <form method="POST" action="" id="ticketForm" enctype="multipart/form-data">
                 <!-- PASO 0: Datos del solicitante (obligatorios) -->
                 <div class="form-group" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:2px solid #2563eb;padding:16px;border-radius:10px;">
@@ -171,21 +177,21 @@
                         <div>
                             <label for="user_area" style="font-size:12px;color:#1e3a8a;font-weight:700;">🏢 Área donde trabajas <span style="color:#dc2626;">*</span></label>
                             <input type="text" id="user_area" name="user_area" required maxlength="120"
-                                   value="{{ user.area if user and user.area else '' }}"
+                                   value="{{ form_prev.user_area if form_prev else (user.area if user and user.area else '') }}"
                                    placeholder="Ej: Contabilidad, Producción, Comercial..."
                                    style="width:100%;padding:9px 12px;border:1px solid #bfdbfe;border-radius:6px;font-size:13px;margin-top:4px;background:white;">
                         </div>
                         <div>
                             <label for="user_location" style="font-size:12px;color:#1e3a8a;font-weight:700;">📍 Ubicación en la empresa <span style="color:#dc2626;">*</span></label>
                             <input type="text" id="user_location" name="user_location" required maxlength="120"
-                                   value="{{ user.location if user and user.location else '' }}"
+                                   value="{{ form_prev.user_location if form_prev else (user.location if user and user.location else '') }}"
                                    placeholder="Ej: Sede Norte - Piso 3 - Of. 304"
                                    style="width:100%;padding:9px 12px;border:1px solid #bfdbfe;border-radius:6px;font-size:13px;margin-top:4px;background:white;">
                         </div>
                         <div>
                             <label for="user_phone" style="font-size:12px;color:#1e3a8a;font-weight:700;">📞 Número de contacto <span style="color:#dc2626;">*</span></label>
                             <input type="tel" id="user_phone" name="user_phone" required maxlength="40" minlength="4"
-                                   value="{{ user.phone if user and user.phone else '' }}"
+                                   value="{{ form_prev.user_phone if form_prev else (user.phone if user and user.phone else '') }}"
                                    placeholder="Ej: Ext. 1234 o 310 555 1234"
                                    style="width:100%;padding:9px 12px;border:1px solid #bfdbfe;border-radius:6px;font-size:13px;margin-top:4px;background:white;">
                         </div>
@@ -239,13 +245,13 @@
 
                 <div class="form-group">
                     <label for="title">4️⃣ Título del Problema *</label>
-                    <input type="text" id="title" name="title" required placeholder="Ej: WiFi no conecta">
+                    <input type="text" id="title" name="title" required placeholder="Ej: WiFi no conecta" value="{{ form_prev.title if form_prev else '' }}">
                     <p class="help-text">Describe brevemente tu problema</p>
                 </div>
 
                 <div class="form-group">
                     <label for="description">5️⃣ Descripción / Notas adicionales</label>
-                    <textarea id="description" name="description" placeholder="Si usás una plantilla, este campo es opcional. Si no, describe el problema con detalle... Tip: podés pegar imágenes (Ctrl+V)"></textarea>
+                    <textarea id="description" name="description" placeholder="Si usás una plantilla, este campo es opcional. Si no, describe el problema con detalle... Tip: podés pegar imágenes (Ctrl+V)">{{ form_prev.description if form_prev else '' }}</textarea>
                     <p class="help-text">💡 <strong>Tip:</strong> podés <strong>pegar capturas directamente</strong> con Ctrl+V o agregar archivos abajo.</p>
                 </div>
 
@@ -434,6 +440,11 @@
 <script>
 let _empTemplates = [];
 let _categoriesTree = [];
+// Si el POST anterior falló una validación server-side, el backend re-renderiza
+// este mismo formulario con lo que el usuario ya había llenado (ver `error` +
+// `form_prev` en employee_create()); acá lo recuperamos para re-seleccionar
+// categoría/subcategoría/prioridad una vez que las categorías terminen de cargar.
+const FORM_PREV = {{ (form_prev or {}) | tojson }};
 
 async function loadCategories() {
     const sel = document.getElementById('category');
@@ -451,6 +462,17 @@ async function loadCategories() {
             html += `<option value="${escapeHtml(c.name)}">${escapeHtml(c.icon)} ${escapeHtml(c.name)}</option>`;
         });
         sel.innerHTML = html;
+        if (FORM_PREV && FORM_PREV.category) {
+            sel.value = FORM_PREV.category;
+            onCategoryChange();
+            if (FORM_PREV.subcategory) {
+                const subSel = document.getElementById('subcategory');
+                if (subSel) subSel.value = FORM_PREV.subcategory;
+            }
+        }
+        if (FORM_PREV && FORM_PREV.priority && typeof applyPriority === 'function') {
+            applyPriority(FORM_PREV.priority);
+        }
     } catch (e) {
         console.error('loadCategories:', e);
         sel.innerHTML = '<option value="">— Selecciona la categoría —</option>';

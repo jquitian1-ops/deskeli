@@ -3034,7 +3034,20 @@ def employee_create():
 
         # Validación contextual: campos personales obligatorios
         def _render_error(msg):
-            return render_template('employee/create.html', error=msg, user=user)
+            # Re-renderiza el formulario con el mismo error Y lo ya escrito por
+            # el usuario (antes se perdía todo sin aviso: el POST fallaba una
+            # validación server-side, la página volvía a cargar en blanco y
+            # el usuario creía que "no pasaba nada").
+            return render_template('employee/create.html', error=msg, user=user, form_prev={
+                'title': title,
+                'description': description,
+                'category': category,
+                'subcategory': subcategory or '',
+                'priority': priority,
+                'user_area': user_area,
+                'user_location': user_location,
+                'user_phone': user_phone,
+            })
 
         if not title or not description:
             return _render_error('Título y descripción son requeridos')
@@ -3268,16 +3281,29 @@ def technician_create():
         # /api/technician/my-group-technicians)
         assign_to_tech_id_raw = (request.form.get('assign_to_technician_id') or '').strip()
 
-        if not title or not description:
-            return render_template('technician/create.html', error='Título y descripción son requeridos')
-        if len(title) > 200 or len(title) < 5:
-            return render_template('technician/create.html', error='Título debe tener 5-200 caracteres')
-        if len(description) > 5000 or len(description) < 10:
-            return render_template('technician/create.html', error='Descripción debe tener 10-5000 caracteres')
         if priority not in ('low', 'medium', 'high', 'critical'):
             priority = 'medium'
+
+        def _render_error(msg):
+            # Re-renderiza con el error visible y lo ya escrito (antes el POST
+            # fallaba una validación server-side y la página volvía a cargar
+            # en blanco sin ningún aviso).
+            return render_template('technician/create.html', error=msg, form_prev={
+                'title': title,
+                'description': description,
+                'category': category,
+                'subcategory': subcategory or '',
+                'priority': priority,
+            })
+
+        if not title or not description:
+            return _render_error('Título y descripción son requeridos')
+        if len(title) > 200 or len(title) < 5:
+            return _render_error('Título debe tener 5-200 caracteres')
+        if len(description) > 5000 or len(description) < 10:
+            return _render_error('Descripción debe tener 10-5000 caracteres')
         if not subcategory and category_requires_subcategory(category, tech.company):
-            return render_template('technician/create.html', error=f'La categoría "{category}" tiene subcategorías: debes elegir una')
+            return _render_error(f'La categoría "{category}" tiene subcategorías: debes elegir una')
 
         # Validar "creado para": debe ser usuario activo de la misma empresa
         creator_id = tech.id
