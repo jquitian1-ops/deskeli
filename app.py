@@ -18500,18 +18500,23 @@ def api_admin_categories_list():
     orphan_templates_by_category = {}
     for t in company_templates:
         cat_name = (t.category or '').strip()
-        if not cat_name:
+        sub_name = (t.subcategory or '').strip()
+        # Sin subcategoría en la plantilla no hay nada que mostrar como
+        # pseudo-subcategoría: es solo una plantilla de la categoría en sí
+        # (ANTES esto se contaba igual, usando el nombre de la plantilla
+        # como si fuera una subcategoría — inflaba el contador y mostraba
+        # filas falsas al expandir la categoría).
+        if not cat_name or not sub_name:
             continue
         parent = next((c for c in categories if not c.parent_id and c.name.strip().lower() == cat_name.lower()), None)
         if not parent:
             continue
-        sub_name = (t.subcategory or '').strip().lower()
         formal_names = formal_sub_names_by_parent.get(parent.id, set())
-        if sub_name and sub_name in formal_names:
+        if sub_name.lower() in formal_names:
             continue  # ya se muestra vía su Subcategoría formal
         orphan_templates_by_category.setdefault(parent.id, []).append({
             'template_id': t.id,
-            'name': t.subcategory or t.name,
+            'name': sub_name,
         })
 
     return jsonify({
