@@ -18677,6 +18677,7 @@ _CATEGORY_EXCEL_HEADERS = [
     ('icon', 'Icono'),
     ('name', 'Nombre'),
     ('parent_name', 'Categoria Padre'),
+    ('subcategories', 'Subcategorias'),
     ('is_active', 'Activo'),
     ('tpl_title', 'Titulo Plantilla'),
     ('tpl_body', 'Cuerpo Plantilla'),
@@ -18693,6 +18694,7 @@ _CATEGORY_HEADER_ALIASES = {
     'icon': {'icono', 'icon'},
     'name': {'nombre', 'name'},
     'parent_name': {'categoria padre', 'categoria', 'padre', 'parent', 'parent_name'},
+    'subcategories': {'subcategorias', 'subcategoria', 'subcategories', 'subcategory'},
     'is_active': {'activo', 'estado', 'is_active'},
     'tpl_title': {'titulo plantilla', 'titulo', 'title', 'tpl_title'},
     'tpl_body': {'cuerpo plantilla', 'cuerpo', 'descripcion plantilla', 'body', 'tpl_body'},
@@ -18748,10 +18750,14 @@ def api_admin_categories_export():
             tpl = tpl_by_key.get((parent_name.strip().lower(), c.name.strip().lower()))
         else:
             tpl = tpl_by_key.get((c.name.strip().lower(), ''))
+        subcats_str = ''
+        if not c.parent_id:
+            subcats_str = ', '.join(sc.name for sc in by_parent.get(c.id, []))
         row = {
             'icon': c.icon or '📌',
             'name': c.name,
             'parent_name': parent_name,
+            'subcategories': subcats_str,
             'is_active': 'Si' if effective_category_active(c, company) else 'No',
             'tpl_title': (tpl.title_template if tpl else ''),
             'tpl_body': (tpl.description_template if tpl else '') or '',
@@ -18768,6 +18774,7 @@ def api_admin_categories_export():
         ('Icono', 'Un emoji para la categoría (ej: 🖥️, 💻, 🌐). Opcional, por defecto 📌'),
         ('Nombre', 'Nombre de la categoría o subcategoría (ej: Hardware, Impresoras). Obligatorio'),
         ('Categoria Padre', '(Opcional) si esta fila es una SUBCATEGORÍA, poné acá el nombre exacto de su categoría padre. Dejalo vacío si es una categoría de nivel superior.'),
+        ('Subcategorias', '(Opcional, solo en filas de categoría de nivel superior) lista de subcategorías a crear para esa categoría, separadas por coma, punto y coma o "/". Ej: "Impresoras, Escáneres, Toner". Es un atajo para no tener que agregar una fila por cada subcategoría; se crean con ícono 📌 y activas por defecto. Si necesitás ícono, plantilla o estado propio para una subcategoría, agregala en su propia fila usando "Categoria Padre" en vez de esta columna.'),
         ('Activo', 'Si / No'),
         ('Titulo Plantilla', '(Opcional) si la completás, se crea (o actualiza) automáticamente una Plantilla ligada a esta categoría/subcategoría, con este texto como título pre-cargado del ticket.'),
         ('Cuerpo Plantilla', '(Opcional) texto pre-cargado en la descripción del ticket cuando se usa esa plantilla.'),
@@ -18928,6 +18935,36 @@ def api_admin_categories_import():
 
     rows = raw_rows[:200]  # Límite de 200 por request
 
+    def _process_inline_subcategories(item, parent_id):
+        """Crea de una vez las subcategorías listadas en la columna 'Subcategorias'
+        de una fila de categoría de nivel superior (atajo para no requerir una fila
+        aparte por cada subcategoría vía 'Categoria Padre')."""
+        nonlocal created, skipped
+        if not parent_id:
+            return
+        raw = (item.get('subcategories') or '').strip()
+        if not raw:
+            return
+        for sub_name in re.split(r'[;,/]', raw):
+            sub_name = sub_name.strip()[:100]
+            if not sub_name or len(sub_name) < 2:
+                continue
+            if (sub_name.lower(), parent_id) in existing_pairs:
+                skipped += 1
+                continue
+            sc = Category(
+                name=sub_name,
+                icon='📌',
+                company=company,
+                parent_id=parent_id,
+                is_system=False,
+                is_active=True,
+                sort_order=100,
+            )
+            db.session.add(sc)
+            existing_pairs.add((sub_name.lower(), parent_id))
+            created += 1
+
     # Pasada 1: categorías de nivel superior (sin "Categoria Padre")
     for item in rows:
         parent_name = (item.get('parent_name') or '').strip()
@@ -18941,6 +18978,7 @@ def api_admin_categories_import():
             if (name.lower(), None) in existing_pairs:
                 skipped += 1
                 _maybe_upsert_template(item, name, None)
+                _process_inline_subcategories(item, id_by_name_toplevel.get(name.lower()))
                 continue
             active_val = (item.get('is_active') or 'Si').strip().lower()
             c = Category(
@@ -18958,6 +18996,7 @@ def api_admin_categories_import():
             id_by_name_toplevel[name.lower()] = c.id
             created += 1
             _maybe_upsert_template(item, name, None)
+            _process_inline_subcategories(item, c.id)
         except Exception as e:
             errors.append(f'Error en {item.get("name","?")}: {e}')
 
