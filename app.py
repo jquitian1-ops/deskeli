@@ -3387,9 +3387,12 @@ def technician_create():
 
         # Regla fija: si el ticket es "en nombre de" un usuario de uno de los
         # dominios externos forzados a Mesa de Ayuda (tiendas/empresas
-        # asociadas), se descarta cualquier asignación manual igual que con
-        # la plantilla MQA — el flujo de abajo lo enruta a Mesa de Ayuda.
-        if behalf_user and email_forces_pash_mesa_ayuda(tech.company, behalf_user.email):
+        # asociadas), se enruta a Mesa de Ayuda — PERO solo cuando el técnico
+        # NO eligió manualmente a alguien al crear el caso (ni auto-asignarse
+        # ni un compañero puntual). La selección manual explícita en el
+        # portal técnico siempre gana sobre esta regla de dominio forzado.
+        if (not assignee_id and behalf_user
+                and email_forces_pash_mesa_ayuda(tech.company, behalf_user.email)):
             assignee_id = None
             assigned_colleague = None
 
