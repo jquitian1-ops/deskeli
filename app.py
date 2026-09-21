@@ -3353,7 +3353,7 @@ def technician_create():
                     UserSubrole, UserSubrole.subrole_id == Subrole.id
                 ).filter(
                     UserSubrole.user_id == tech.id,
-                    db.func.lower(Subrole.name) == 'mesa de ayuda',
+                    Subrole.name.ilike('mesa de ayuda%'),
                     (Subrole.company == None) | (Subrole.company == tech.company),
                 ).first()
                 if my_group:
@@ -3583,7 +3583,7 @@ def api_technician_my_group_technicians():
         UserSubrole, UserSubrole.subrole_id == Subrole.id
     ).filter(
         UserSubrole.user_id == user_id,
-        db.func.lower(Subrole.name) == 'mesa de ayuda',
+        Subrole.name.ilike('mesa de ayuda%'),
         (Subrole.company == None) | (Subrole.company == company),
     ).first()
 
@@ -8841,9 +8841,13 @@ def assign_to_default_group(ticket):
         # siempre al grupo "Mesa de Ayuda", sin importar el flag de "grupo
         # por defecto" (ese flag se sigue usando tal cual para las demás
         # empresas).
+        # Match tolerante: el grupo real puede llamarse "Mesa De Ayuda PASH"
+        # (con el nombre de la empresa incluido), no exactamente "Mesa de
+        # Ayuda" — un match exacto nunca encontraba el grupo y todo terminaba
+        # cayendo al fallback de habilidades en vez de a Mesa de Ayuda.
         default_group = Subrole.query.filter(
             Subrole.company == 'pash',
-            db.func.lower(Subrole.name) == 'mesa de ayuda',
+            Subrole.name.ilike('mesa de ayuda%'),
             Subrole.is_active == True,
         ).first()
     else:
