@@ -5756,6 +5756,15 @@ def find_matching_workflow(ticket, template_name=None):
     q = ApprovalWorkflow.query.filter_by(company=ticket.company, is_active=True)
     workflows = q.order_by(ApprovalWorkflow.id.desc()).all()
     for w in workflows:
+        # Salvaguarda: un workflow sin NINGUNA condición configurada (las 3
+        # en None) matchearía CUALQUIER ticket de la empresa, sin importar
+        # categoría/prioridad/plantilla — eso mandó a aprobación hasta
+        # tickets de prueba sin relación. El alta/edición ya lo bloquea,
+        # pero esto protege igual a un workflow viejo que haya quedado así.
+        if not (w.trigger_category or w.trigger_priority or w.trigger_template_name):
+            print(f'[approvals] Workflow "{w.name}" (id={w.id}, {w.company}) ignorado: '
+                  f'no tiene ninguna condición configurada (matchearía todos los tickets).')
+            continue
         # AND semantics: cada trigger no-vacío debe matchear
         if w.trigger_category and (ticket.category or '').lower() != w.trigger_category.lower():
             continue
@@ -6114,13 +6123,22 @@ def api_admin_workflow_create():
         else:
             return jsonify({'success': False, 'error': f'Aprobador #{i+1} requiere user_id o user_from_form_field'}), 400
 
+    trigger_category = (data.get('trigger_category') or '').strip() or None
+    trigger_priority = (data.get('trigger_priority') or '').strip() or None
+    trigger_template_name = (data.get('trigger_template_name') or '').strip() or None
+    if not (trigger_category or trigger_priority or trigger_template_name):
+        # Sin NINGUNA condición, el workflow matchea CUALQUIER ticket de la
+        # empresa (ver find_matching_workflow) — eso mandaría a aprobación
+        # hasta un ticket de prueba sin relación con lo que se quiso proteger.
+        return jsonify({'success': False, 'error': 'Definí al menos una condición (categoría, prioridad o plantilla) para que el workflow no aplique a TODOS los tickets de la empresa'}), 400
+
     w = ApprovalWorkflow(
         company=company,
         name=name[:120],
         description=(data.get('description') or '').strip(),
-        trigger_category=(data.get('trigger_category') or '').strip() or None,
-        trigger_priority=(data.get('trigger_priority') or '').strip() or None,
-        trigger_template_name=(data.get('trigger_template_name') or '').strip() or None,
+        trigger_category=trigger_category,
+        trigger_priority=trigger_priority,
+        trigger_template_name=trigger_template_name,
         approvers_json=json.dumps(clean_approvers),
         is_active=bool(data.get('is_active', True)),
         created_by_id=session['user_id']
@@ -6152,6 +6170,8 @@ def api_admin_workflow_update(wid):
         w.trigger_priority = (data['trigger_priority'] or '').strip() or None
     if 'trigger_template_name' in data:
         w.trigger_template_name = (data['trigger_template_name'] or '').strip() or None
+    if not (w.trigger_category or w.trigger_priority or w.trigger_template_name):
+        return jsonify({'success': False, 'error': 'Definí al menos una condición (categoría, prioridad o plantilla) para que el workflow no aplique a TODOS los tickets de la empresa'}), 400
     if 'is_active' in data:
         w.is_active = bool(data['is_active'])
     if 'approvers' in data:

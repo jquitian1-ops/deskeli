@@ -325,6 +325,12 @@
                                                 <span class="badge badge-open">🟡 Abierto</span>
                                             {% elif ticket.status == 'in_progress' %}
                                                 <span class="badge badge-in-progress">🔵 En Progreso</span>
+                                            {% elif ticket.status == 'pending_approval' %}
+                                                <span class="badge badge-open">⏳ Pendiente de aprobación</span>
+                                            {% elif ticket.status == 'rejected' %}
+                                                <span class="badge badge-open">❌ Rechazado</span>
+                                            {% elif ticket.status == 'closed' %}
+                                                <span class="badge badge-resolved">🔒 Cerrado</span>
                                             {% else %}
                                                 <span class="badge badge-resolved">🟢 Resuelto</span>
                                             {% endif %}
