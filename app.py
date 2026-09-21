@@ -3190,51 +3190,61 @@ def employee_create():
         # orchestrator asignaban primero — el caso más común — nunca llegaba
         # el correo de asignación).
         assigned_via = None
-        try:
-            if assign_to_default_group(ticket):
-                assigned_via = 'default_group'
-                db.session.commit()
-        except Exception as e:
-            print(f'[default-group] Error: {e}')
-
-        orch = app.config.get('orchestrator')
-        if not assigned_via and orch is not None:
+        if ticket.status == 'pending_approval' and ticket.company == 'pash':
+            # Regla de negocio (solo Pash): mientras el ticket está DENTRO del
+            # módulo del aprobador (workflow multi-nivel, ej. "Creación y
+            # Modificación de Usuarios") no se asigna a ningún técnico/grupo
+            # todavía. Recién cuando termine de aprobarse pasa a Mesa de Ayuda
+            # Pash (ver _finalize_approval_chain). Fuera del módulo del
+            # aprobador (este `if` no aplica) sigue el flujo normal de abajo,
+            # que para Pash ya termina en Mesa de Ayuda vía assign_to_default_group.
+            print(f'[approval-gate] Ticket {ticket.ticket_number} (Pash) en aprobación: no se asigna hasta que se apruebe.')
+        else:
             try:
-                orch.process_new_ticket(ticket)
-                db.session.refresh(ticket)
-                if ticket.assignee_id:
-                    assigned_via = 'orchestrator'
+                if assign_to_default_group(ticket):
+                    assigned_via = 'default_group'
+                    db.session.commit()
             except Exception as e:
-                print(f'[Orchestrator Hook] Falló: {e}. Intentando fallback assign_ticket_auto...')
+                print(f'[default-group] Error: {e}')
 
-        if not assigned_via:
-            try:
-                db.session.refresh(ticket)
-                if not ticket.assignee_id:
-                    print(f'[fallback-assign] Ticket {ticket.ticket_number} sin asignar, usando assign_ticket_auto')
-                    assign_ticket_auto(ticket)
+            orch = app.config.get('orchestrator')
+            if not assigned_via and orch is not None:
+                try:
+                    orch.process_new_ticket(ticket)
+                    db.session.refresh(ticket)
                     if ticket.assignee_id:
-                        if ticket.status == 'open':
-                            ticket.status = 'in_progress'
-                        db.session.commit()
-                        assigned_via = 'fallback'
-            except Exception as e_fb:
-                print(f'[fallback-assign] Error general: {e_fb}')
+                        assigned_via = 'orchestrator'
+                except Exception as e:
+                    print(f'[Orchestrator Hook] Falló: {e}. Intentando fallback assign_ticket_auto...')
 
-        if assigned_via and ticket.assignee_id:
-            try:
-                reason_by_via = {
-                    'default_group': 'Grupo por defecto de la empresa',
-                    'orchestrator': 'Asignación automática por IA (Orchestrator)',
-                    'fallback': 'Orchestrator no disponible, usado balanceo por carga',
-                }
-                notify_ticket_assigned_async(
-                    ticket.id, ticket.assignee_id,
-                    assigned_by_name='Asignación automática',
-                    reason=reason_by_via.get(assigned_via, 'Asignación automática')
-                )
-            except Exception as e_email:
-                print(f'[notify-assign] email error: {e_email}')
+            if not assigned_via:
+                try:
+                    db.session.refresh(ticket)
+                    if not ticket.assignee_id:
+                        print(f'[fallback-assign] Ticket {ticket.ticket_number} sin asignar, usando assign_ticket_auto')
+                        assign_ticket_auto(ticket)
+                        if ticket.assignee_id:
+                            if ticket.status == 'open':
+                                ticket.status = 'in_progress'
+                            db.session.commit()
+                            assigned_via = 'fallback'
+                except Exception as e_fb:
+                    print(f'[fallback-assign] Error general: {e_fb}')
+
+            if assigned_via and ticket.assignee_id:
+                try:
+                    reason_by_via = {
+                        'default_group': 'Grupo por defecto de la empresa',
+                        'orchestrator': 'Asignación automática por IA (Orchestrator)',
+                        'fallback': 'Orchestrator no disponible, usado balanceo por carga',
+                    }
+                    notify_ticket_assigned_async(
+                        ticket.id, ticket.assignee_id,
+                        assigned_by_name='Asignación automática',
+                        reason=reason_by_via.get(assigned_via, 'Asignación automática')
+                    )
+                except Exception as e_email:
+                    print(f'[notify-assign] email error: {e_email}')
 
         log_audit('create_ticket', user.id, 'ticket', ticket.id,
                   f"Ticket {ticket.ticket_number} creado · {attachments_saved} adjunto(s)")
@@ -5991,6 +6001,26 @@ def _finalize_approval_chain(ticket):
         # Toda la cadena aprobó → el ticket va a la cola normal
         ticket.status = 'open'
         ticket.updated_at = datetime.now()
+        # Regla de negocio (solo Pash): un ticket que acaba de SALIR del
+        # módulo del aprobador (cadena de aprobación 100% completa) se asigna
+        # al grupo Mesa de Ayuda Pash — igual que cualquier ticket de Pash que
+        # nunca pasó por aprobación (ver el gate en employee_create). Mientras
+        # estuvo pending_approval no se asignó a nadie a propósito.
+        if ticket.company == 'pash' and not ticket.assignee_id:
+            try:
+                if assign_to_default_group(ticket):
+                    # Commitear ya (aunque el caller también commitea al final)
+                    # porque notify_ticket_assigned_async dispara un hilo aparte
+                    # que re-consulta el ticket por id en su propia sesión; si
+                    # todavía no está commiteado, puede no ver el assignee_id.
+                    db.session.commit()
+                    notify_ticket_assigned_async(
+                        ticket.id, ticket.assignee_id,
+                        assigned_by_name='Asignación automática',
+                        reason='Aprobación completa · Grupo por defecto de la empresa'
+                    )
+            except Exception as e:
+                print(f'[approval-finalize][default-group] Error: {e}')
         return
 
     # Hay pendientes → notificar al siguiente en la cola
