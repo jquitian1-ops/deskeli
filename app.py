@@ -3246,6 +3246,16 @@ def employee_create():
                 except Exception as e_email:
                     print(f'[notify-assign] email error: {e_email}')
 
+            # Regla de negocio (solo portal de empleado): un caso recién
+            # creado queda SIEMPRE en "Abierto", sin excepción, aunque el
+            # sistema ya lo haya asignado automáticamente a un técnico o
+            # grupo (default_group/orchestrator/fallback ponen "En Progreso"
+            # al asignar, lo cual acá NO se quiere). Pasa a "En Progreso"
+            # recién cuando un técnico empieza a trabajarlo de verdad.
+            if ticket.status == 'in_progress':
+                ticket.status = 'open'
+                db.session.commit()
+
         log_audit('create_ticket', user.id, 'ticket', ticket.id,
                   f"Ticket {ticket.ticket_number} creado · {attachments_saved} adjunto(s)")
 
