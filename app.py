@@ -26376,11 +26376,15 @@ def _apply_transition(s, user, accion, observacion):
                 steps = []
             total = len(steps)
             new_idx = (s.current_step_index or 0) + 1
+            # SIEMPRE avanzar el índice, incluido el último paso: si no, la
+            # cadena de aprobación (_solicitud_approval_chain) sigue viendo
+            # current_step_index apuntando al último paso y lo muestra como
+            # "Pendiente (paso actual)" para siempre, aunque ya se haya
+            # aprobado del todo y generado el ticket.
+            s.current_step_index = new_idx
             if new_idx >= total:
                 next_estado = SOLICITUD_ESTADO_APROBADO_GERENTE_TI  # marca "todos aprobaron"
             else:
-                # Mantenemos el estado "pendiente" pero avanzamos el índice
-                s.current_step_index = new_idx
                 next_estado = SOLICITUD_ESTADO_PENDIENTE_JEFE  # reutilizamos como "pendiente próximo paso"
         else:
             next_estado = SOLICITUD_APROBAR_SIGUIENTE[estado_actual]
@@ -28000,7 +28004,12 @@ def _solicitud_approval_chain(s):
             steps = []
         pos = s.current_step_index if s.current_step_index is not None else -1
         total = len(steps)
-        fully_approved = pos >= total
+        # Solicitudes ya aprobadas del todo antes del fix de current_step_index
+        # (quedó apuntando al último paso en vez de más allá) también deben
+        # mostrar todo en verde — no solo cuando pos >= total.
+        fully_approved = pos >= total or s.estado in (
+            SOLICITUD_ESTADO_APROBADO_GERENTE_TI, SOLICITUD_ESTADO_EN_TRAMITE, SOLICITUD_ESTADO_CERRADO,
+        )
 
         def _status_for(index):
             if fully_approved:
