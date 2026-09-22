@@ -45,6 +45,14 @@
         .controles-table td.ctl-desc { color:#6b7280; font-size:11px; width:220px; }
         .controles-table textarea, .controles-table input { width:100%; padding:5px 8px; border:1px solid #d1d5db; border-radius:4px; font-family:inherit; font-size:12px; }
         .controles-table textarea:disabled, .controles-table input:disabled { background:#f9fafb; color:#9ca3af; }
+        /* Los checkboxes de una lista interna (multi-select) NO deben heredar
+           el width:100%/padding/border de arriba — eso los infla y descuadra
+           todo el listado (checkbox gigante, texto empujado a la derecha). */
+        .ms-search { width:100%; padding:4px 7px; border:1px solid #d1d5db; border-radius:4px; font-size:11px; margin-bottom:5px; font-family:inherit; box-sizing:border-box; }
+        .ms-list label { display:flex; align-items:flex-start; gap:6px; font-size:11px; font-weight:400; padding:3px 2px; line-height:1.3; }
+        .ms-list label[hidden] { display:none; }
+        .ms-list input[type="checkbox"] { width:14px; height:14px; padding:0; margin:1px 0 0; border:1px solid #9ca3af; border-radius:2px; flex:0 0 auto; }
+        .ms-list input[type="checkbox"]:disabled { background:#f3f4f6; }
         .espejo-row { margin-top:6px; }
         .espejo-label { font-size:11px; color:#92400e; font-weight:600; margin-bottom:2px; display:block; }
         .actions { display:flex; gap:12px; justify-content:flex-end; margin-top:20px; }
@@ -365,12 +373,16 @@
                     <td class="ctl-desc">${esc(c.descripcion || '')}</td>
                     <td>
                         ${c.is_multi_select && c.list_items.length ? `
-                        <div data-multiselect-of="${c.id}" style="max-height:140px; overflow-y:auto; border:1px solid #d1d5db; border-radius:4px; padding:6px 8px; margin-bottom:6px; background:#f9fafb;">
+                        <div data-multiselect-of="${c.id}">
+                            ${c.list_items.length > 8 ? `<input type="text" class="ms-search" data-search-of="${c.id}" placeholder="🔎 Buscar en la lista…" disabled
+                                oninput="filterMultiSelect(${c.id}, this.value)">` : ''}
+                            <div class="ms-list" style="max-height:140px; overflow-y:auto; border:1px solid #d1d5db; border-radius:4px; padding:6px 8px; background:#f9fafb;">
                             ${c.list_items.map(li => `
-                                <label style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:400; padding:2px 0;">
+                                <label data-item-row-of="${c.id}" data-item-text="${esc(li.label.toLowerCase())}">
                                     <input type="checkbox" data-item-of="${c.id}" data-item-label="${esc(li.label)}" disabled>
-                                    ${esc(li.label)}
+                                    <span>${esc(li.label)}</span>
                                 </label>`).join('')}
+                            </div>
                         </div>` : ''}
                         <textarea data-detalle="${c.id}" rows="2" disabled placeholder="${c.is_multi_select ? 'Notas adicionales (opcional)…' : 'Marcá el checkbox y completá…'}"></textarea>
                         ${espejo}
@@ -383,8 +395,16 @@
     function toggleRow(id) {
         const chk = document.querySelector(`input[data-check="${id}"]`);
         const enabled = chk.checked;
-        document.querySelectorAll(`[data-detalle="${id}"], [data-espejo="${id}"], [data-item-of="${id}"]`).forEach(el => {
+        document.querySelectorAll(`[data-detalle="${id}"], [data-espejo="${id}"], [data-item-of="${id}"], [data-search-of="${id}"]`).forEach(el => {
             el.disabled = !enabled;
+        });
+    }
+
+    function filterMultiSelect(id, query) {
+        const q = query.trim().toLowerCase();
+        document.querySelectorAll(`label[data-item-row-of="${id}"]`).forEach(row => {
+            const matches = !q || row.getAttribute('data-item-text').includes(q);
+            row.hidden = !matches;
         });
     }
 
