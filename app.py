@@ -976,6 +976,7 @@ class EmailLog(db.Model):
     company = db.Column(db.String(20), index=True)  # NULL = no se pudo determinar la empresa
     direction = db.Column(db.String(10), nullable=False, index=True)  # 'saliente' | 'entrante'
     status = db.Column(db.String(20), nullable=False, default='enviado', index=True)  # enviado | erroneo | en_espera
+    codigo = db.Column(db.String(10), index=True)  # ver EMAIL_LOG_CODES — código corto tipo SAP (EN100, ER101, ...)
     asunto = db.Column(db.String(300))
     emisor = db.Column(db.String(255))
     destinatario = db.Column(db.String(500))
@@ -988,16 +989,33 @@ class EmailLog(db.Model):
     )
 
 
+# Códigos cortos tipo SAP (ver pantalla SOST: XS855, XS612, SO672, XS718) para
+# identificar de un vistazo QUÉ pasó con un correo, sin tener que leer el
+# texto completo del error. EN* = resultado normal/exitoso, ER* = error,
+# WA* = advertencia/en espera.
+EMAIL_LOG_CODES = {
+    'EN100': 'Correo enviado correctamente',
+    'ER101': 'Falla de autenticación SMTP (usuario/contraseña o App Password inválidos)',
+    'ER102': 'El servidor SMTP rechazó o cerró la conexión',
+    'ER103': 'SMTP no configurado para esta empresa (falta usuario/contraseña)',
+    'ER104': 'Error no clasificado al enviar el correo',
+    'EN200': 'Correo recibido y procesado: ticket creado',
+    'ER201': 'Correo recibido pero sin ningún usuario válido para asignar como creador',
+    'ER202': 'No se pudo conectar al buzón (IMAP)',
+}
+
+
 def _log_email(company, direction, status, asunto=None, emisor=None, destinatario=None,
-               referencia=None, error_message=None):
+               referencia=None, error_message=None, codigo=None):
     """Registra un correo saliente o entrante en EmailLog. Best-effort: nunca
     debe romper el flujo de envío/recepción real si falla (ej. sesión de BD
-    en mal estado)."""
+    en mal estado). `codigo`: ver EMAIL_LOG_CODES."""
     try:
         db.session.add(EmailLog(
             company=company or None,
             direction=direction,
             status=status,
+            codigo=codigo,
             asunto=(asunto or '')[:300] or None,
             emisor=(emisor or '')[:255] or None,
             destinatario=(destinatario or '')[:500] or None,
@@ -10027,7 +10045,7 @@ def fetch_emails_from_mailbox(mailbox_id):
             conn, conn_err = _imap_connect_and_login(mb)
             if conn_err:
                 _log_email(mb.company, 'entrante', 'erroneo', asunto='(conexión IMAP)', emisor=mb.imap_user,
-                           destinatario=mb.imap_user, referencia=f'mailbox: {mb.name}', error_message=conn_err)
+                           destinatario=mb.imap_user, referencia=f'mailbox: {mb.name}', error_message=conn_err, codigo='ER202')
                 return 0, conn_err
             conn.select(mb.folder)
 
@@ -10101,7 +10119,8 @@ def fetch_emails_from_mailbox(mailbox_id):
                     print(f"[mailbox] No hay usuario válido en empresa {mb.company} para asignar como creator. Skipping email.")
                     _log_email(mb.company, 'entrante', 'erroneo', asunto=subject, emisor=sender,
                                destinatario=mb.imap_user or mb.name, referencia=f'mailbox: {mb.name}',
-                               error_message=f'No hay ningún usuario activo en la empresa {mb.company} para asignar como creador del ticket.')
+                               error_message=f'No hay ningún usuario activo en la empresa {mb.company} para asignar como creador del ticket.',
+                               codigo='ER201')
                     continue
 
                 # Crear ticket
@@ -10215,7 +10234,7 @@ def fetch_emails_from_mailbox(mailbox_id):
                 ))
                 _log_email(mb.company, 'entrante', 'enviado', asunto=subject, emisor=sender,
                            destinatario=mb.imap_user or mb.name,
-                           referencia=f'mailbox: {mb.name} → {ticket.ticket_number}')
+                           referencia=f'mailbox: {mb.name} → {ticket.ticket_number}', codigo='EN200')
 
                 # Marcar como leído
                 conn.store(msg_id, '+FLAGS', '\\Seen')
@@ -10797,13 +10816,13 @@ def send_email(to_email, subject, body, attachments=None, company=None, cc_email
     smtp_from = cfg['from_addr']
     print(f'[send_email] Usando SMTP de "{cfg["source"]}" ({smtp_server}:{smtp_port}) para enviar a {to_email}')
 
-    def _log(status, error_message=None):
+    def _log(status, codigo, error_message=None):
         _log_email(company, 'saliente', status, asunto=subject, emisor=smtp_from,
-                   destinatario=to_email, error_message=error_message)
+                   destinatario=to_email, error_message=error_message, codigo=codigo)
 
     if not smtp_user or not smtp_password:
         print('[send_email] SMTP no configurado (faltan SMTP_USER/SMTP_PASSWORD). Saltando envío.')
-        _log('erroneo', 'SMTP no configurado (faltan usuario/contraseña) para esta empresa')
+        _log('erroneo', 'ER103', 'SMTP no configurado (faltan usuario/contraseña) para esta empresa')
         return False
 
     msg = _MIMEMultipart()
@@ -10860,14 +10879,14 @@ def send_email(to_email, subject, body, attachments=None, company=None, cc_email
                 server.ehlo()
                 server.login(smtp_user, smtp_password)
                 server.send_message(msg)
-        _log('enviado')
+        _log('enviado', 'EN100')
         return True
 
     except smtplib.SMTPAuthenticationError as e:
         print(f'[send_email] Autenticación SMTP falló: {e}')
         print('  → Office 365: tu cuenta puede tener MFA activo. Usa una App Password.')
         print('  → También verifica que "Authenticated SMTP" esté habilitado en el mailbox.')
-        _log('erroneo', f'Autenticación SMTP falló: {e}')
+        _log('erroneo', 'ER101', f'Autenticación SMTP falló: {e}')
         return False
     except (ConnectionResetError, socket.error, smtplib.SMTPServerDisconnected) as e:
         print(f'[send_email] El servidor SMTP cerró la conexión: {e}')
@@ -10883,11 +10902,11 @@ def send_email(to_email, subject, body, attachments=None, company=None, cc_email
         print('    4) Si tienes MFA, genera una App Password (https://mysignins.microsoft.com/security-info → "Contraseñas de aplicación").')
         print('    5) Alternativa: usar puerto 465 con SSL en lugar de 587 con STARTTLS.')
         print('    6) Otra alternativa: usar Microsoft Graph API o un servicio como SendGrid.')
-        _log('erroneo', f'El servidor SMTP cerró la conexión: {e}')
+        _log('erroneo', 'ER102', f'El servidor SMTP cerró la conexión: {e}')
         return False
     except Exception as e:
         print(f'[Email Error] {e}')
-        _log('erroneo', str(e))
+        _log('erroneo', 'ER104', str(e))
         return False
 
 
@@ -13563,6 +13582,10 @@ def api_admin_email_log():
     if status in ('enviado', 'erroneo', 'en_espera'):
         q = q.filter(EmailLog.status == status)
 
+    codigo = (request.args.get('codigo') or '').strip().upper()
+    if codigo in EMAIL_LOG_CODES:
+        q = q.filter(EmailLog.codigo == codigo)
+
     texto = (request.args.get('q') or '').strip()
     if texto:
         pat = f'%{texto}%'
@@ -13596,11 +13619,14 @@ def api_admin_email_log():
         'erroneos': erroneos,
         'mostrando': len(rows),
         'companies': scope,
+        'codes': EMAIL_LOG_CODES,
         'logs': [{
             'id': r.id,
             'company': r.company,
             'direction': r.direction,
             'status': r.status,
+            'codigo': r.codigo,
+            'codigo_desc': EMAIL_LOG_CODES.get(r.codigo, ''),
             'asunto': r.asunto,
             'emisor': r.emisor,
             'destinatario': r.destinatario,

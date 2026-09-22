@@ -46,6 +46,10 @@
         .dir-saliente { background: #dbeafe; color: #1e40af; }
         .dir-entrante { background: #ede9fe; color: #5b21b6; }
         .co-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; background: #f3f4f6; color: #374151; }
+        .code-badge { display: inline-block; font-family: 'Consolas', monospace; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 4px; margin-bottom: 3px; cursor: help; letter-spacing: 0.3px; }
+        .code-badge.code-enviado { background: #d1fae5; color: #065f46; }
+        .code-badge.code-erroneo { background: #fee2e2; color: #991b1b; }
+        .code-badge.code-en_espera { background: #fef3c7; color: #92400e; }
         .err-msg { color: #991b1b; font-size: 11px; margin-top: 3px; }
         .empty { padding: 40px; text-align: center; color: #9ca3af; }
         .truncate { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -110,6 +114,12 @@
                 </select>
             </div>
             <div>
+                <label>Código</label>
+                <select id="f-codigo">
+                    <option value="">— Todos —</option>
+                </select>
+            </div>
+            <div>
                 <label>Desde</label>
                 <input type="date" id="f-desde">
             </div>
@@ -161,20 +171,31 @@ function esc(s) {
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-async function loadCompanies() {
-    if (!IS_MASTER) return;
+async function loadFiltersMeta() {
     try {
         const r = await fetch('/api/admin/email-log');
         const data = await r.json();
         if (!data.success) return;
-        const sel = document.getElementById('f-company');
-        if (!sel) return;
-        (data.companies || []).forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c;
-            opt.textContent = c;
-            sel.appendChild(opt);
-        });
+
+        const companySel = document.getElementById('f-company');
+        if (IS_MASTER && companySel) {
+            (data.companies || []).forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = c;
+                companySel.appendChild(opt);
+            });
+        }
+
+        const codeSel = document.getElementById('f-codigo');
+        if (codeSel && data.codes) {
+            Object.keys(data.codes).sort().forEach(code => {
+                const opt = document.createElement('option');
+                opt.value = code;
+                opt.textContent = `${code} — ${data.codes[code]}`;
+                codeSel.appendChild(opt);
+            });
+        }
     } catch (e) { /* silencioso */ }
 }
 
@@ -189,6 +210,8 @@ async function loadLogs() {
     if (direction) params.set('direction', direction);
     const status = document.getElementById('f-status').value;
     if (status) params.set('status', status);
+    const codigo = document.getElementById('f-codigo').value;
+    if (codigo) params.set('codigo', codigo);
     const desde = document.getElementById('f-desde').value;
     if (desde) params.set('desde', desde);
     const hasta = document.getElementById('f-hasta').value;
@@ -228,7 +251,10 @@ async function loadLogs() {
                     <td class="truncate" title="${esc(l.destinatario)}">${esc(l.destinatario || '—')}</td>
                     <td>${esc(l.fecha)}</td>
                     <td>${esc(l.hora)}</td>
-                    <td class="truncate" title="${esc(l.referencia)}">${esc(l.referencia || '—')}</td>
+                    <td>
+                        ${l.codigo ? `<span class="code-badge code-${esc(l.status)}" title="${esc(l.codigo_desc || '')}">${esc(l.codigo)}</span>` : ''}
+                        <div class="truncate" title="${esc(l.referencia)}">${esc(l.referencia || (l.codigo ? '' : '—'))}</div>
+                    </td>
                 </tr>`;
         }).join('');
     } catch (e) {
@@ -241,13 +267,14 @@ function clearFilters() {
     if (companyEl) companyEl.value = '';
     document.getElementById('f-direction').value = '';
     document.getElementById('f-status').value = '';
+    document.getElementById('f-codigo').value = '';
     document.getElementById('f-desde').value = '';
     document.getElementById('f-hasta').value = '';
     document.getElementById('f-q').value = '';
     loadLogs();
 }
 
-loadCompanies();
+loadFiltersMeta();
 loadLogs();
 </script>
 </body>
