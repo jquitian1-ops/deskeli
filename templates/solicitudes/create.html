@@ -408,6 +408,26 @@
         });
     }
 
+    // El navegador bloquea el submit de forma nativa y silenciosa si hay un
+    // campo "required" sin completar (solo hace scroll + un globito que es
+    // fácil de no notar en un formulario largo). Enganchamos el click del
+    // botón ANTES de que el navegador dispare esa validación nativa, para
+    // dar un aviso explícito y llevar al usuario directo al campo faltante.
+    document.getElementById('btnSubmit').addEventListener('click', function(e) {
+        const form = document.getElementById('solicitudForm');
+        if (form.checkValidity()) return; // todo OK, sigue el submit normal
+        e.preventDefault();
+        e.stopPropagation();
+        const invalid = form.querySelector(':invalid');
+        if (invalid) {
+            const label = invalid.closest('.field, .field-inline')?.querySelector('label')?.textContent?.replace('*', '').trim()
+                || invalid.getAttribute('placeholder') || invalid.id || 'un campo obligatorio';
+            invalid.scrollIntoView({behavior: 'smooth', block: 'center'});
+            setTimeout(() => invalid.focus(), 300);
+            alert('⚠ Falta completar: "' + label + '"\n\nEse campo es obligatorio (*) y todavía no tiene un valor válido.');
+        }
+    }, true);
+
     async function submitSolicitud(evt) {
         evt.preventDefault();
         const btn = document.getElementById('btnSubmit');
