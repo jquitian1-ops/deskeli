@@ -441,11 +441,20 @@
         e.stopPropagation();
         const invalid = form.querySelector(':invalid');
         if (invalid) {
+            const card = invalid.closest('.card');
+            const cardTitle = card?.querySelector('.section-title')?.textContent?.trim() || '';
             const label = invalid.closest('.field, .field-inline')?.querySelector('label')?.textContent?.replace('*', '').trim()
                 || invalid.getAttribute('placeholder') || invalid.id || 'un campo obligatorio';
-            invalid.scrollIntoView({behavior: 'smooth', block: 'center'});
-            setTimeout(() => invalid.focus(), 300);
-            alert('⚠ Falta completar: "' + label + '"\n\nEse campo es obligatorio (*) y todavía no tiene un valor válido.');
+            // Scroll inmediato (sin "smooth") y resaltado en rojo ANTES del
+            // alert(): alert() congela el repintado del navegador, así que si
+            // el scroll fuera animado podía quedar a mitad de camino, dando
+            // la falsa impresión de que el campo "no existe" en el formulario.
+            invalid.scrollIntoView({behavior: 'auto', block: 'center'});
+            invalid.style.outline = '3px solid #dc2626';
+            invalid.style.outlineOffset = '2px';
+            setTimeout(() => { invalid.style.outline = ''; invalid.style.outlineOffset = ''; invalid.focus(); }, 3000);
+            alert('⚠ Falta completar: "' + label + '"' + (cardTitle ? '\n(sección: ' + cardTitle + ')' : '') +
+                '\n\nEse campo es obligatorio (*) y todavía no tiene un valor válido.\nLa página ya saltó hasta él y quedó resaltado en rojo.');
         }
     }, true);
 
