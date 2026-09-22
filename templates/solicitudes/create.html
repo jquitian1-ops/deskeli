@@ -421,9 +421,11 @@
             ubicacion: document.getElementById('ubicacion').value.trim(),
             centro_costo: document.getElementById('centro_costo').value.trim(),
             tipo_contrato: document.getElementById('tipo_contrato').value,
-            // Modo dinámico: flow_area activa el flujo configurado del área
-            // (arranca DESPUÉS de que el Jefe Inmediato aprueba)
-            flow_area: useDynamicFlow ? flowAreaVal : null,
+            // Modo dinámico: flow_id identifica el flujo elegido por id (no
+            // por nombre de área, porque Pash puede elegir un área que
+            // existe tanto en Pash como en Eliot) — arranca DESPUÉS de que
+            // el Jefe Inmediato aprueba.
+            flow_id: useDynamicFlow ? parseInt(flowAreaVal, 10) : null,
             // Jefe Inmediato: SIEMPRE obligatorio, con o sin flujo dinámico
             jefe_inmediato_nombre: jefeNombreEl?.value.trim() || null,
             jefe_inmediato_email: jefeEmailEl?.value.trim().toLowerCase() || null,
@@ -649,8 +651,12 @@
                 return;
             }
             html = '<option value="">— Elegí un área —</option>';
+            // Identificado por id (no por nombre): Pash puede ver la misma
+            // área definida tanto en Pash como en Eliot, cada una con su
+            // propia cadena de aprobadores — hay que poder elegir cuál.
             _flowAreas.forEach(a => {
-                html += `<option value="${esc(a.area)}">${esc(a.area)} — ${a.steps_count} aprobadores</option>`;
+                const companyTag = a.is_own_company ? '' : ` (${esc(a.company)})`;
+                html += `<option value="${a.id}">${esc(a.area)}${companyTag} — ${a.steps_count} aprobadores</option>`;
             });
             html += '<option value="__none__">— Sin flujo (usar aprobadores manuales) —</option>';
             sel.innerHTML = html;
@@ -669,7 +675,7 @@
         // o no flujo dinámico configurado para el área.
         if (val && val !== '__none__') {
             // Modo dinámico: mostrar preview de los pasos después del jefe
-            const a = _flowAreas.find(x => x.area === val);
+            const a = _flowAreas.find(x => String(x.id) === val);
             if (a) {
                 preview.style.display = 'block';
                 document.getElementById('flowSteps').innerHTML = a.steps_preview.map((label, i) =>

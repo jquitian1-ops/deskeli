@@ -25636,8 +25636,14 @@ def api_solicitudes_create():
             return jsonify({'success': False, 'error': f'Campo obligatorio faltante: {f}'}), 400
 
     # ── Modo de aprobación: dinámico (ApprovalFlow por área) o legacy (4 fijos) ──
+    # flow_id es la selección explícita del dropdown (soporta flujos de OTRA
+    # empresa cuando aplica, ej. Pash usando un flujo de Eliot). flow_area
+    # queda como fallback legacy (solo flujos propios) para compatibilidad.
+    flow_id = data.get('flow_id')
     flow_area = (data.get('flow_area') or '').strip()
-    approval_flow = _resolve_approval_flow_for_solicitud(user.company, flow_area) if flow_area else None
+    approval_flow = None
+    if flow_id or flow_area:
+        approval_flow = _resolve_approval_flow_for_solicitud(user.company, flow_area, flow_id=flow_id)
 
     # Variables que se rellenan según el modo
     jefe = analista_ti = gerente_ti = None
@@ -25978,6 +25984,17 @@ def _generate_case_from_solicitud(solicitud, actor_user):
     )
     db.session.add(ticket)
     db.session.flush()  # id disponible para FKs
+
+    # Pash: si el flujo no definió un "Ticket padre asignado a" explícito
+    # (flow_ticket_assignee_email vacío) o ese correo no matcheó un User,
+    # usar el mismo asistente de asignación automática que el resto del
+    # sistema — termina siempre en Mesa De Ayuda Pash, igual que cualquier
+    # otro caso de Pash sin asignación manual (ver assign_to_default_group).
+    if not ticket.assignee_id and solicitud.company == 'pash':
+        try:
+            assign_to_default_group(ticket)
+        except Exception as e:
+            print(f'[case-gen] assign_to_default_group falló (no crítico): {e}')
 
     # ── 2. Generar el PDF una sola vez ───────────────────────────────────
     try:
@@ -27505,11 +27522,20 @@ def api_approval_flows_import():
 @app.route('/api/approval-flows/areas', methods=['GET'])
 def api_approval_flows_areas():
     """Endpoint público (para el form de solicitud): devuelve las áreas con
-    flujo activo de la empresa del usuario. Payload compacto."""
+    flujo activo disponibles para el usuario. Payload compacto.
+
+    Regla especial para Pash: además de sus propios flujos, también puede
+    usar los flujos configurados para Eliot (se muestran ambos por separado,
+    identificados por empresa, incluso si comparten el mismo nombre de
+    área) — decisión de negocio para que Pash reutilice flujos ya armados
+    en Eliot en vez de tener que duplicarlos a mano."""
     user, err = _current_user_or_401()
     if err: return err
+    companies = [user.company]
+    if user.company == 'pash' and 'eliot' not in companies:
+        companies.append('eliot')
     flows = ApprovalFlow.query.filter(
-        ApprovalFlow.company == user.company,
+        ApprovalFlow.company.in_(companies),
         ApprovalFlow.is_active == True,
     ).order_by(ApprovalFlow.area).all()
     return jsonify({
@@ -27518,6 +27544,8 @@ def api_approval_flows_areas():
             {
                 'id': f.id,
                 'area': f.area,
+                'company': f.company,
+                'is_own_company': f.company == user.company,
                 'description': f.description or '',
                 'steps_count': len(f.steps()),
                 'steps_preview': [s.get('label', '') for s in f.steps()],
@@ -27527,8 +27555,28 @@ def api_approval_flows_areas():
     })
 
 
-def _resolve_approval_flow_for_solicitud(company, area):
-    """Devuelve el ApprovalFlow activo para (company, area) o None."""
+def _company_can_use_approval_flow_company(requester_company, flow_company):
+    """True si un usuario de `requester_company` puede usar un ApprovalFlow
+    que pertenece a `flow_company`. Regla especial: Pash puede usar también
+    los flujos de Eliot (ver api_approval_flows_areas)."""
+    if requester_company == flow_company:
+        return True
+    return requester_company == 'pash' and flow_company == 'eliot'
+
+
+def _resolve_approval_flow_for_solicitud(company, area, flow_id=None):
+    """Devuelve el ApprovalFlow activo para usar en la solicitud, o None.
+
+    Si se pasa `flow_id` (selección explícita del usuario, que puede
+    identificar un flujo de OTRA empresa cuando aplica la regla de Pash),
+    se resuelve por id y se valida que `company` tenga permiso de usarlo.
+    Si no, cae al lookup legacy por (company, area) exacto — solo flujos
+    propios."""
+    if flow_id:
+        flow = ApprovalFlow.query.filter_by(id=flow_id, is_active=True).first()
+        if flow and _company_can_use_approval_flow_company(company, flow.company):
+            return flow
+        return None
     if not company or not area:
         return None
     return ApprovalFlow.query.filter_by(
