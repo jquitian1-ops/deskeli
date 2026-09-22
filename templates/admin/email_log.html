@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Log de Correos - DeskEli Admin</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f5f7fa; color: #1f2937; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 32px 24px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+        h1 { font-size: 24px; color: #111827; }
+        .back { color: #6b7280; text-decoration: none; font-size: 13px; }
+        .back:hover { color: #1f2937; }
+        .card { background: white; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 20px; }
+
+        .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .kpi { padding: 14px; border-radius: 8px; text-align: center; }
+        .kpi-total { background: #dbeafe; color: #1e40af; }
+        .kpi-ok { background: #d1fae5; color: #065f46; }
+        .kpi-err { background: #fee2e2; color: #991b1b; }
+        .kpi-shown { background: #f3f4f6; color: #374151; }
+        .kpi-num { font-size: 28px; font-weight: bold; }
+        .kpi-lbl { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-top: 2px; }
+
+        .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 6px; }
+        .filters label { display: block; font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.3px; font-weight: 700; margin-bottom: 4px; }
+        .filters input, .filters select { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+        .filters-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+        .btn { padding: 9px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px; }
+        .btn-primary { background: #7c3aed; color: white; }
+        .btn-primary:hover { background: #6d28d9; }
+        .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 10px; background: #f9fafb; border-bottom: 2px solid #e5e7eb; font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+        td { padding: 10px; border-bottom: 1px solid #f3f4f6; font-size: 13px; vertical-align: top; }
+        tr:hover td { background: #fafafa; }
+        .table-wrap { overflow-x: auto; }
+
+        .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+        .dot-enviado { background: #16a34a; }
+        .dot-erroneo { background: #dc2626; }
+        .dot-en_espera { background: #f59e0b; }
+        .status-text { font-size: 12px; font-weight: 600; vertical-align: middle; }
+        .dir-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; display: inline-block; white-space: nowrap; }
+        .dir-saliente { background: #dbeafe; color: #1e40af; }
+        .dir-entrante { background: #ede9fe; color: #5b21b6; }
+        .co-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; background: #f3f4f6; color: #374151; }
+        .err-msg { color: #991b1b; font-size: 11px; margin-top: 3px; }
+        .empty { padding: 40px; text-align: center; color: #9ca3af; }
+        .truncate { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    </style>
+    <script>
+        if (window.self !== window.top) {
+            document.documentElement.classList.add('embed-mode');
+        }
+    </script>
+    <style>
+        html.embed-mode .header .back { display: none; }
+        html.embed-mode .container { padding-top: 12px; }
+        html.embed-mode body { background: transparent; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div>
+            <a href="/admin/dashboard" class="back">← Volver al dashboard</a>
+            <h1>📧 Log de Correos</h1>
+            <p style="color:#6b7280;font-size:13px;margin-top:4px;">
+                Correos que el sistema envió (notificaciones, aprobaciones) y recibió (buzones → tickets), por empresa.
+                Si un correo no llegó, revisá acá si el sistema lo intentó y qué error dio.
+            </p>
+        </div>
+        <button class="btn btn-secondary" onclick="loadLogs()">🔄 Actualizar</button>
+    </div>
+
+    <div class="kpis">
+        <div class="kpi kpi-total"><div class="kpi-num" id="kpi-total">–</div><div class="kpi-lbl">Total (filtro actual)</div></div>
+        <div class="kpi kpi-ok"><div class="kpi-num" id="kpi-ok">–</div><div class="kpi-lbl">Enviados / OK</div></div>
+        <div class="kpi kpi-err"><div class="kpi-num" id="kpi-err">–</div><div class="kpi-lbl">Erróneos</div></div>
+        <div class="kpi kpi-shown"><div class="kpi-num" id="kpi-shown">–</div><div class="kpi-lbl">Mostrando (máx. 500)</div></div>
+    </div>
+
+    <div class="card">
+        <div class="filters">
+            {% if is_master %}
+            <div>
+                <label>Empresa</label>
+                <select id="f-company">
+                    <option value="">— Todas —</option>
+                </select>
+            </div>
+            {% endif %}
+            <div>
+                <label>Dirección</label>
+                <select id="f-direction">
+                    <option value="">— Todas —</option>
+                    <option value="saliente">📤 Salientes</option>
+                    <option value="entrante">📥 Entrantes</option>
+                </select>
+            </div>
+            <div>
+                <label>Estado</label>
+                <select id="f-status">
+                    <option value="">— Todos —</option>
+                    <option value="enviado">🟢 Enviado / OK</option>
+                    <option value="erroneo">🔴 Erróneo</option>
+                    <option value="en_espera">🟡 En espera</option>
+                </select>
+            </div>
+            <div>
+                <label>Desde</label>
+                <input type="date" id="f-desde">
+            </div>
+            <div>
+                <label>Hasta</label>
+                <input type="date" id="f-hasta">
+            </div>
+            <div style="grid-column: span 2;">
+                <label>Buscar (asunto, emisor, destinatario, referencia)</label>
+                <input type="text" id="f-q" placeholder="Ej: jefe@empresa.com, TKT-PASH-..., aprobación">
+            </div>
+        </div>
+        <div class="filters-actions">
+            <button class="btn btn-secondary" onclick="clearFilters()">Limpiar filtros</button>
+            <button class="btn btn-primary" onclick="loadLogs()">🔍 Filtrar</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Estado</th>
+                        <th>Dirección</th>
+                        {% if is_master %}<th>Empresa</th>{% endif %}
+                        <th>Asunto</th>
+                        <th>Emisor</th>
+                        <th>Destinatario</th>
+                        <th>Fecha</th>
+                        <th>Hora</th>
+                        <th>Referencia</th>
+                    </tr>
+                </thead>
+                <tbody id="logsBody">
+                    <tr><td colspan="9" class="empty">Cargando…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+const IS_MASTER = {{ 'true' if is_master else 'false' }};
+const STATUS_LABEL = { enviado: 'Enviado', erroneo: 'Erróneo', en_espera: 'En espera' };
+
+function esc(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function loadCompanies() {
+    if (!IS_MASTER) return;
+    try {
+        const r = await fetch('/api/admin/email-log');
+        const data = await r.json();
+        if (!data.success) return;
+        const sel = document.getElementById('f-company');
+        if (!sel) return;
+        (data.companies || []).forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = c;
+            sel.appendChild(opt);
+        });
+    } catch (e) { /* silencioso */ }
+}
+
+async function loadLogs() {
+    const tbody = document.getElementById('logsBody');
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">Cargando…</td></tr>';
+
+    const params = new URLSearchParams();
+    const companyEl = document.getElementById('f-company');
+    if (companyEl && companyEl.value) params.set('company', companyEl.value);
+    const direction = document.getElementById('f-direction').value;
+    if (direction) params.set('direction', direction);
+    const status = document.getElementById('f-status').value;
+    if (status) params.set('status', status);
+    const desde = document.getElementById('f-desde').value;
+    if (desde) params.set('desde', desde);
+    const hasta = document.getElementById('f-hasta').value;
+    if (hasta) params.set('hasta', hasta);
+    const q = document.getElementById('f-q').value.trim();
+    if (q) params.set('q', q);
+
+    try {
+        const r = await fetch('/api/admin/email-log?' + params.toString());
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error || 'Error');
+
+        document.getElementById('kpi-total').textContent = data.total;
+        document.getElementById('kpi-err').textContent = data.erroneos;
+        document.getElementById('kpi-ok').textContent = data.total - data.erroneos;
+        document.getElementById('kpi-shown').textContent = data.mostrando;
+
+        if (!data.logs.length) {
+            tbody.innerHTML = `<tr><td colspan="9" class="empty">📭 No hay correos con esos filtros.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = data.logs.map(l => {
+            const dirLabel = l.direction === 'saliente' ? '📤 Saliente' : '📥 Entrante';
+            const dirClass = l.direction === 'saliente' ? 'dir-saliente' : 'dir-entrante';
+            const statusLabel = STATUS_LABEL[l.status] || l.status;
+            return `
+                <tr>
+                    <td>
+                        <span class="dot dot-${esc(l.status)}"></span><span class="status-text">${esc(statusLabel)}</span>
+                        ${l.error_message ? `<div class="err-msg" title="${esc(l.error_message)}">${esc(l.error_message.slice(0, 90))}${l.error_message.length > 90 ? '…' : ''}</div>` : ''}
+                    </td>
+                    <td><span class="dir-badge ${dirClass}">${dirLabel}</span></td>
+                    ${IS_MASTER ? `<td><span class="co-badge">${esc(l.company || '—')}</span></td>` : ''}
+                    <td class="truncate" title="${esc(l.asunto)}">${esc(l.asunto || '—')}</td>
+                    <td class="truncate" title="${esc(l.emisor)}">${esc(l.emisor || '—')}</td>
+                    <td class="truncate" title="${esc(l.destinatario)}">${esc(l.destinatario || '—')}</td>
+                    <td>${esc(l.fecha)}</td>
+                    <td>${esc(l.hora)}</td>
+                    <td class="truncate" title="${esc(l.referencia)}">${esc(l.referencia || '—')}</td>
+                </tr>`;
+        }).join('');
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="9" class="empty">❌ ${esc(e.message)}</td></tr>`;
+    }
+}
+
+function clearFilters() {
+    const companyEl = document.getElementById('f-company');
+    if (companyEl) companyEl.value = '';
+    document.getElementById('f-direction').value = '';
+    document.getElementById('f-status').value = '';
+    document.getElementById('f-desde').value = '';
+    document.getElementById('f-hasta').value = '';
+    document.getElementById('f-q').value = '';
+    loadLogs();
+}
+
+loadCompanies();
+loadLogs();
+</script>
+</body>
+</html>

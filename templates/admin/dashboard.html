@@ -659,6 +659,9 @@
                 <a class="sidebar-link" data-tab="18" onclick="switchTab(18)">
                     <span><span class="sl-icon">👥</span>Sesiones Activas</span>
                 </a>
+                <a class="sidebar-link" data-tab="19" onclick="switchTab(19)">
+                    <span><span class="sl-icon">📧</span>Log de Correos</span>
+                </a>
             </div>
 
             <div class="sidebar-group">
@@ -1959,6 +1962,11 @@
             <iframe id="iframe-sessions" data-src="/admin/sessions?embed=1" style="width:100%; height:85vh; border:none; border-radius:8px; background:white;"></iframe>
         </div>
 
+        <!-- TAB 19: LOG DE CORREOS (iframe lazy) -->
+        <div class="tab-content">
+            <iframe id="iframe-email-log" data-src="/admin/email-log?embed=1" style="width:100%; height:85vh; border:none; border-radius:8px; background:white;"></iframe>
+        </div>
+
         <!-- MODAL CREAR TICKET (ADMIN) -->
         <div id="createTicketModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
             <div style="background:white;border-radius:10px;padding:24px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
@@ -3080,6 +3088,7 @@
             if (index === 16) loadIframeOnce('iframe-solicitud-flows');
             if (index === 17) loadIframeOnce('iframe-controles');
             if (index === 18) loadIframeOnce('iframe-sessions');
+            if (index === 19) loadIframeOnce('iframe-email-log');
         };
 
         function loadIframeOnce(id) {

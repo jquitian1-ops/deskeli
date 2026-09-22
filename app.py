@@ -965,6 +965,54 @@ class MailboxEmail(db.Model):
     __table_args__ = (db.UniqueConstraint('mailbox_id', 'message_id', name='_mailbox_message_uc'),)
 
 
+class EmailLog(db.Model):
+    """Auditoría de TODOS los correos que salen y entran del sistema, por
+    empresa — panel /admin/email-log. Sin esto, un correo que nunca llegó
+    (SMTP mal configurado, buzón caído, etc.) era invisible: solo quedaba
+    un print() en la consola del servidor, no en ningún lado que el admin
+    pudiera ver."""
+    __tablename__ = 'email_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    company = db.Column(db.String(20), index=True)  # NULL = no se pudo determinar la empresa
+    direction = db.Column(db.String(10), nullable=False, index=True)  # 'saliente' | 'entrante'
+    status = db.Column(db.String(20), nullable=False, default='enviado', index=True)  # enviado | erroneo | en_espera
+    asunto = db.Column(db.String(300))
+    emisor = db.Column(db.String(255))
+    destinatario = db.Column(db.String(500))
+    referencia = db.Column(db.String(150))  # ej. "ticket_created", "mailbox: Soporte Pash", "solicitud_aprobacion"
+    error_message = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.now, index=True)
+
+    __table_args__ = (
+        db.Index('ix_email_logs_company_created', 'company', 'created_at'),
+    )
+
+
+def _log_email(company, direction, status, asunto=None, emisor=None, destinatario=None,
+               referencia=None, error_message=None):
+    """Registra un correo saliente o entrante en EmailLog. Best-effort: nunca
+    debe romper el flujo de envío/recepción real si falla (ej. sesión de BD
+    en mal estado)."""
+    try:
+        db.session.add(EmailLog(
+            company=company or None,
+            direction=direction,
+            status=status,
+            asunto=(asunto or '')[:300] or None,
+            emisor=(emisor or '')[:255] or None,
+            destinatario=(destinatario or '')[:500] or None,
+            referencia=(referencia or '')[:150] or None,
+            error_message=(error_message or None),
+        ))
+        db.session.commit()
+    except Exception as e:
+        print(f'[email-log] No se pudo registrar el log de correo: {e}')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
+
 class Webhook(db.Model):
     __tablename__ = 'webhooks'
     id = db.Column(db.Integer, primary_key=True)
@@ -9978,6 +10026,8 @@ def fetch_emails_from_mailbox(mailbox_id):
             # Conectar con auth flexible (password o OAuth2)
             conn, conn_err = _imap_connect_and_login(mb)
             if conn_err:
+                _log_email(mb.company, 'entrante', 'erroneo', asunto='(conexión IMAP)', emisor=mb.imap_user,
+                           destinatario=mb.imap_user, referencia=f'mailbox: {mb.name}', error_message=conn_err)
                 return 0, conn_err
             conn.select(mb.folder)
 
@@ -10049,6 +10099,9 @@ def fetch_emails_from_mailbox(mailbox_id):
                 if not creator:
                     # Ninguna opción — saltar este correo con log claro
                     print(f"[mailbox] No hay usuario válido en empresa {mb.company} para asignar como creator. Skipping email.")
+                    _log_email(mb.company, 'entrante', 'erroneo', asunto=subject, emisor=sender,
+                               destinatario=mb.imap_user or mb.name, referencia=f'mailbox: {mb.name}',
+                               error_message=f'No hay ningún usuario activo en la empresa {mb.company} para asignar como creador del ticket.')
                     continue
 
                 # Crear ticket
@@ -10160,6 +10213,9 @@ def fetch_emails_from_mailbox(mailbox_id):
                     sender=sender[:200],
                     ticket_id=ticket.id
                 ))
+                _log_email(mb.company, 'entrante', 'enviado', asunto=subject, emisor=sender,
+                           destinatario=mb.imap_user or mb.name,
+                           referencia=f'mailbox: {mb.name} → {ticket.ticket_number}')
 
                 # Marcar como leído
                 conn.store(msg_id, '+FLAGS', '\\Seen')
@@ -10741,8 +10797,13 @@ def send_email(to_email, subject, body, attachments=None, company=None, cc_email
     smtp_from = cfg['from_addr']
     print(f'[send_email] Usando SMTP de "{cfg["source"]}" ({smtp_server}:{smtp_port}) para enviar a {to_email}')
 
+    def _log(status, error_message=None):
+        _log_email(company, 'saliente', status, asunto=subject, emisor=smtp_from,
+                   destinatario=to_email, error_message=error_message)
+
     if not smtp_user or not smtp_password:
         print('[send_email] SMTP no configurado (faltan SMTP_USER/SMTP_PASSWORD). Saltando envío.')
+        _log('erroneo', 'SMTP no configurado (faltan usuario/contraseña) para esta empresa')
         return False
 
     msg = _MIMEMultipart()
@@ -10799,12 +10860,14 @@ def send_email(to_email, subject, body, attachments=None, company=None, cc_email
                 server.ehlo()
                 server.login(smtp_user, smtp_password)
                 server.send_message(msg)
+        _log('enviado')
         return True
 
     except smtplib.SMTPAuthenticationError as e:
         print(f'[send_email] Autenticación SMTP falló: {e}')
         print('  → Office 365: tu cuenta puede tener MFA activo. Usa una App Password.')
         print('  → También verifica que "Authenticated SMTP" esté habilitado en el mailbox.')
+        _log('erroneo', f'Autenticación SMTP falló: {e}')
         return False
     except (ConnectionResetError, socket.error, smtplib.SMTPServerDisconnected) as e:
         print(f'[send_email] El servidor SMTP cerró la conexión: {e}')
@@ -10820,9 +10883,11 @@ def send_email(to_email, subject, body, attachments=None, company=None, cc_email
         print('    4) Si tienes MFA, genera una App Password (https://mysignins.microsoft.com/security-info → "Contraseñas de aplicación").')
         print('    5) Alternativa: usar puerto 465 con SSL en lugar de 587 con STARTTLS.')
         print('    6) Otra alternativa: usar Microsoft Graph API o un servicio como SendGrid.')
+        _log('erroneo', f'El servidor SMTP cerró la conexión: {e}')
         return False
     except Exception as e:
         print(f'[Email Error] {e}')
+        _log('erroneo', str(e))
         return False
 
 
@@ -13457,6 +13522,95 @@ def api_kick_user(user_id):
     log_audit('kick_user', session['user_id'], 'user', user_id,
               f"Usuario {user.username}@{user.company} expulsado de sesión")
     return jsonify({'success': True, 'message': f'{user.name} fue expulsado. Su sesión queda inválida.'})
+
+# ═════════════════════════════════════════════════════════════════════════════
+# LOG DE CORREOS (entrantes + salientes) — EmailLog
+# ═════════════════════════════════════════════════════════════════════════════
+
+@app.route('/admin/email-log')
+def admin_email_log_page():
+    """Página admin: log de correos que el sistema envió (notificaciones,
+    aprobaciones, etc.) y recibió (buzones IMAP → tickets), por empresa."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return redirect(url_for('login'))
+    user = User.query.get(session['user_id'])
+    return render_template('admin/email_log.html',
+                           company_info=COMPANY_COLORS.get(user.company, {}),
+                           is_master=is_master_admin(),
+                           user=user)
+
+
+@app.route('/api/admin/email-log', methods=['GET'])
+def api_admin_email_log():
+    """Lista el log de correos (entrantes + salientes) con filtros. Un admin
+    normal solo ve su empresa; un admin master puede filtrar por cualquiera
+    de las empresas de su scope (o todas)."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False}), 401
+
+    scope = admin_companies_scope()
+    q = EmailLog.query.filter(EmailLog.company.in_(scope))
+
+    company_filter = (request.args.get('company') or '').strip()
+    if company_filter and company_filter in scope:
+        q = q.filter(EmailLog.company == company_filter)
+
+    direction = (request.args.get('direction') or '').strip()
+    if direction in ('saliente', 'entrante'):
+        q = q.filter(EmailLog.direction == direction)
+
+    status = (request.args.get('status') or '').strip()
+    if status in ('enviado', 'erroneo', 'en_espera'):
+        q = q.filter(EmailLog.status == status)
+
+    texto = (request.args.get('q') or '').strip()
+    if texto:
+        pat = f'%{texto}%'
+        q = q.filter(
+            (EmailLog.asunto.ilike(pat)) |
+            (EmailLog.emisor.ilike(pat)) |
+            (EmailLog.destinatario.ilike(pat)) |
+            (EmailLog.referencia.ilike(pat))
+        )
+
+    desde = (request.args.get('desde') or '').strip()
+    if desde:
+        try:
+            q = q.filter(EmailLog.created_at >= datetime.strptime(desde, '%Y-%m-%d'))
+        except ValueError:
+            pass
+    hasta = (request.args.get('hasta') or '').strip()
+    if hasta:
+        try:
+            q = q.filter(EmailLog.created_at < datetime.strptime(hasta, '%Y-%m-%d') + timedelta(days=1))
+        except ValueError:
+            pass
+
+    total = q.count()
+    erroneos = q.filter(EmailLog.status == 'erroneo').count()
+    rows = q.order_by(EmailLog.created_at.desc()).limit(500).all()
+
+    return jsonify({
+        'success': True,
+        'total': total,
+        'erroneos': erroneos,
+        'mostrando': len(rows),
+        'companies': scope,
+        'logs': [{
+            'id': r.id,
+            'company': r.company,
+            'direction': r.direction,
+            'status': r.status,
+            'asunto': r.asunto,
+            'emisor': r.emisor,
+            'destinatario': r.destinatario,
+            'referencia': r.referencia,
+            'error_message': r.error_message,
+            'fecha': r.created_at.strftime('%d/%m/%Y') if r.created_at else '',
+            'hora': r.created_at.strftime('%H:%M:%S') if r.created_at else '',
+            'created_at': r.created_at.isoformat() if r.created_at else None,
+        } for r in rows],
+    })
 
 # ═════════════════════════════════════════════════════════════════════════════
 # MICROSOFT TEAMS WEBHOOKS (RF-03-12)
