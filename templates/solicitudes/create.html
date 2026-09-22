@@ -131,11 +131,11 @@
                 <div class="grid-3">
                     <div class="field">
                         <label>Fecha de ingreso <span class="req">*</span></label>
-                        <input type="date" id="fecha_ingreso">
+                        <input type="date" id="fecha_ingreso" required>
                     </div>
                     <div class="field">
                         <label>¿Es reemplazo? <span class="req">*</span></label>
-                        <select id="es_reemplazo" onchange="onReemplazoChange()">
+                        <select id="es_reemplazo" required onchange="onReemplazoChange()">
                             <option value="">— Seleccionar —</option>
                             <option value="false">No</option>
                             <option value="true">Sí</option>
@@ -143,7 +143,7 @@
                     </div>
                     <div class="field cond-hidden" id="fldReemplazo">
                         <label>Nombre a reemplazar <span class="req">*</span></label>
-                        <input type="text" id="nombre_reemplazo" placeholder="Nombre del empleado saliente">
+                        <input type="text" id="nombre_reemplazo" required placeholder="Nombre del empleado saliente">
                     </div>
                 </div>
             </div>
@@ -154,7 +154,7 @@
                 <div class="grid-2">
                     <div class="field">
                         <label>Usuario de red <span class="req">*</span></label>
-                        <input type="text" id="usuario_red" placeholder="Login actual del empleado">
+                        <input type="text" id="usuario_red" required placeholder="Login actual del empleado">
                         <small class="hint">Requerido para modificaciones y traslados.</small>
                     </div>
                 </div>
@@ -167,7 +167,7 @@
                 <!-- Selector de Área (activa el flujo dinámico si hay uno configurado) -->
                 <div class="field" style="margin-bottom:14px;">
                     <label>Área del empleado <span class="req">*</span></label>
-                    <select id="flow_area" onchange="onFlowAreaChange()">
+                    <select id="flow_area" required onchange="onFlowAreaChange()">
                         <option value="">⏳ Cargando áreas configuradas…</option>
                     </select>
                     <small class="hint">Elegí el área para cargar automáticamente su flujo de aprobación configurado por el admin.</small>
