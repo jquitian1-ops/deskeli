@@ -1536,12 +1536,21 @@ class SolicitudUsuario(db.Model):
         aprobar/devolver/rechazar — lógica OR)."""
         return _step_emails(self.current_flow_step())
 
+    def jefe_gate_pending(self):
+        """True si esta solicitud usa flujo dinámico y todavía está en el
+        paso previo (Jefe Inmediato aprueba primero, antes de que arranque
+        el flujo configurado por área). Se marca con current_step_index=-1
+        al crear la solicitud (ver api_solicitudes_create)."""
+        return self.uses_dynamic_flow() and (self.current_step_index or 0) < 0
+
     def is_current_approver(self, user):
         """True si `user` puede actuar (aprobar/devolver/rechazar) sobre el
         estado actual de esta solicitud. Soporta:
         - Devuelto: solo el creador puede reenviar.
-        - Flujo dinámico: cualquiera cuyo email esté en la lista de
-          aprobadores del paso actual (multi-aprobador, lógica OR).
+        - Flujo dinámico con Jefe Inmediato pendiente (jefe_gate_pending):
+          el correo del jefe inmediato es quien puede decidir este paso.
+        - Flujo dinámico ya arrancado: cualquiera cuyo email esté en la
+          lista de aprobadores del paso actual (multi-aprobador, lógica OR).
         - Flujo legacy, nivel jefe_inmediato: el correo ingresado manualmente
           es la fuente de verdad (puede no tener User asociado).
         - Flujo legacy, otros niveles: el User mapeado 1:1 al nivel actual.
@@ -1551,6 +1560,8 @@ class SolicitudUsuario(db.Model):
         if self.estado in SOLICITUD_DEVUELTO_A_PENDIENTE:
             return user.id == self.creator_id
         if self.uses_dynamic_flow():
+            if self.jefe_gate_pending():
+                return bool(self.jefe_inmediato_email) and (user.email or '').strip().lower() == self.jefe_inmediato_email.strip().lower()
             emails = self.current_flow_step_emails()
             return bool(emails) and (user.email or '').strip().lower() in emails
         nivel = SOLICITUD_NIVEL_POR_ESTADO.get(self.estado)
@@ -1571,6 +1582,8 @@ class SolicitudUsuario(db.Model):
             return self.creator_id
         # Flujo dinámico: buscar user por alguno de los emails del paso actual
         if self.uses_dynamic_flow():
+            if self.jefe_gate_pending():
+                return self.jefe_inmediato_id
             emails = self.current_flow_step_emails()
             if not emails:
                 return None
@@ -1595,6 +1608,8 @@ class SolicitudUsuario(db.Model):
         """Devuelve el primer email de aprobador del paso actual (para el
         flujo dinámico envía correo aunque el User no exista en el sistema)."""
         if self.uses_dynamic_flow():
+            if self.jefe_gate_pending():
+                return self.jefe_inmediato_email.strip().lower() if self.jefe_inmediato_email else None
             emails = self.current_flow_step_emails()
             if emails:
                 return emails[0]
@@ -1611,6 +1626,8 @@ class SolicitudUsuario(db.Model):
     def current_approver_label(self):
         """Etiqueta humana del aprobador actual (para el email)."""
         if self.uses_dynamic_flow():
+            if self.jefe_gate_pending():
+                return 'Jefe Inmediato'
             step = self.current_flow_step()
             if step:
                 return step.get('label') or 'Aprobador'
@@ -25199,6 +25216,14 @@ def _serialize_solicitud_detail(s, viewer=None):
         'gerente_area': _u(s.gerente_area),
         'analista_ti': _u(s.analista_ti),
         'gerente_ti': _u(s.gerente_ti),
+        # Flujo dinámico configurable por área (si aplica) + cadena completa
+        # de aprobación (Jefe Inmediato + pasos, con su estado cada uno) —
+        # usado por el detalle y por la pantalla de decisión desde el correo.
+        'uses_dynamic_flow': s.uses_dynamic_flow(),
+        'flow_area': s.flow_area,
+        'current_step_index': s.current_step_index,
+        'jefe_gate_pending': s.jefe_gate_pending(),
+        'approval_chain': _solicitud_approval_chain(s),
         'justificacion': s.justificacion,
         'fecha_ingreso': s.fecha_ingreso.isoformat() if s.fecha_ingreso else None,
         'es_reemplazo': s.es_reemplazo,
@@ -25417,35 +25442,35 @@ def api_solicitudes_create():
     flow_steps_snapshot = None
     flow_ticket_email = None
 
+    # El Jefe Inmediato (nombre + correo, ingresado manualmente) SIEMPRE es
+    # obligatorio y SIEMPRE aprueba primero — con o sin flujo dinámico
+    # configurado para el área. Cuando hay flujo dinámico, este paso
+    # antecede a los pasos del flujo (ver current_step_index=-1 más abajo);
+    # el flujo del área recién arranca después de que el jefe aprueba.
+    jefe_nombre = (data.get('jefe_inmediato_nombre') or '').strip()
+    jefe_email = (data.get('jefe_inmediato_email') or '').strip().lower()
+    if not jefe_nombre or not jefe_email:
+        return jsonify({'success': False, 'error': 'Jefe Inmediato (nombre y correo) es obligatorio'}), 400
+    if '@' not in jefe_email:
+        return jsonify({'success': False, 'error': 'Correo del Jefe Inmediato inválido'}), 400
+    # Resolución best-effort: si el correo matchea un User activo de la
+    # empresa, se linkea el FK (para que pueda decidir desde el panel);
+    # si no existe, la solicitud sigue funcionando por correo igual.
+    jefe = User.query.filter(
+        db.func.lower(User.email) == jefe_email,
+        User.company == user.company,
+        User.is_active == True,
+    ).first()
+
     if approval_flow:
-        # Modo dinámico: los aprobadores vienen del flujo configurado
+        # Modo dinámico: los aprobadores DESPUÉS del jefe vienen del flujo configurado
         flow_steps_snapshot = approval_flow.steps()
         if not flow_steps_snapshot:
             return jsonify({'success': False, 'error': f'El flujo del área "{flow_area}" no tiene pasos configurados'}), 400
         flow_ticket_email = approval_flow.ticket_assignee_email or None
-        # Los campos legacy quedan en NULL — el modelo lo permite ahora
     else:
-        # Modo legacy: Jefe Inmediato se ingresa MANUALMENTE (nombre + correo,
-        # ya no se elige de un catálogo). El paso de Gerente de Área fue
-        # eliminado del flujo tradicional. Los aprobadores TI se resuelven
-        # automáticamente.
-        jefe_nombre = (data.get('jefe_inmediato_nombre') or '').strip()
-        jefe_email = (data.get('jefe_inmediato_email') or '').strip().lower()
-        if not jefe_nombre or not jefe_email:
-            return jsonify({
-                'success': False,
-                'error': 'Sin flujo configurado para el área. Jefe Inmediato (nombre y correo) es obligatorio'
-            }), 400
-        if '@' not in jefe_email:
-            return jsonify({'success': False, 'error': 'Correo del Jefe Inmediato inválido'}), 400
-        # Resolución best-effort: si el correo matchea un User activo de la
-        # empresa, se linkea el FK (para que pueda decidir desde el panel);
-        # si no existe, la solicitud sigue funcionando por correo igual.
-        jefe = User.query.filter(
-            db.func.lower(User.email) == jefe_email,
-            User.company == user.company,
-            User.is_active == True,
-        ).first()
+        # Modo legacy: Jefe Inmediato → Analista TI → Gerente TI (resueltos
+        # automáticamente por empresa).
         analista_ti = _resolve_ti_approver(user.company, 'analista_ti')
         gerente_ti = _resolve_ti_approver(user.company, 'gerente_ti')
         if not analista_ti or not gerente_ti:
@@ -25500,7 +25525,10 @@ def api_solicitudes_create():
         approval_flow_id=(approval_flow.id if approval_flow else None),
         flow_area=(approval_flow.area if approval_flow else None),
         flow_steps_json=(json.dumps(flow_steps_snapshot, ensure_ascii=False) if flow_steps_snapshot else None),
-        current_step_index=(0 if approval_flow else None),
+        # -1 = el Jefe Inmediato todavía no aprobó (gate previo al flujo
+        # dinámico); al aprobar, _apply_transition avanza a 0 (primer paso
+        # del flujo del área).
+        current_step_index=(-1 if approval_flow else None),
         flow_ticket_assignee_email=flow_ticket_email,
         justificacion=data['justificacion'].strip(),
         fecha_ingreso=fecha_ingreso,
@@ -25579,26 +25607,17 @@ def api_solicitudes_mis_pendientes():
         ]),
     ).order_by(SolicitudUsuario.created_at.desc())
     solicitudes = q.limit(200).all()
-    my_email = (user.email or '').lower()
 
     result = []
     for s in solicitudes:
-        # Chequeo eficiente: para flujo dinámico comparar email del paso actual;
-        # para legacy comparar el user_id del responsable
-        is_mine = False
-        approver_label = None
-        if s.uses_dynamic_flow():
-            step = s.current_flow_step()
-            if step and my_email in _step_emails(step):
-                is_mine = True
-                approver_label = step.get('label') or 'Aprobador'
-        else:
-            resp_id = s.responsable_actual_id()
-            if resp_id == user.id:
-                is_mine = True
-                approver_label = _role_label_for_solicitud_state(s.estado)
-        if not is_mine:
+        # is_current_approver() ya contempla el gate del Jefe Inmediato antes
+        # de un flujo dinámico (current_step_index=-1) — no duplicar la
+        # lógica acá (antes esto comparaba directo contra current_flow_step(),
+        # que devuelve None durante ese gate y dejaba al jefe sin ver la
+        # solicitud en su bandeja de pendientes).
+        if not s.is_current_approver(user):
             continue
+        approver_label = s.current_approver_label()
         result.append({
             'id': s.id,
             'codigo': s.codigo,
@@ -26427,16 +26446,21 @@ def _generate_solicitud_pdf(solicitud):
     elements.append(Spacer(1, 12))
 
     # ─── APROBADORES ───────────────────────────────────────────────────────
-    elements.append(Paragraph('✅ Cadena de aprobación (4 niveles)', section_style))
-    def _u(user):
-        if not user: return '—'
-        return f'{user.name} <font color="#6B7280">({user.email or "sin correo"})</font>'
-    aprob_rows = [
-        ('1. Jefe Inmediato', _u(solicitud.jefe_inmediato)),
-        ('2. Analista IT', _u(solicitud.analista_ti)),
-        ('3. Gerente Solicitante', _u(solicitud.gerente_area)),
-        ('4. Gerente IT', _u(solicitud.gerente_ti)),
-    ]
+    # Cadena real de esta solicitud: Jefe Inmediato SIEMPRE primero, seguido
+    # por Analista TI + Gerente TI (flujo legacy) o por los pasos del flujo
+    # dinámico configurado para el área (ver _solicitud_approval_chain).
+    chain_title = '✅ Cadena de aprobación' + (
+        f' · Flujo: {solicitud.flow_area}' if solicitud.uses_dynamic_flow() and solicitud.flow_area else ''
+    )
+    elements.append(Paragraph(chain_title, section_style))
+    _status_label = {
+        'aprobado': '✓ Aprobado', 'actual': '⏳ Pendiente (actual)',
+        'pendiente': '— Pendiente', 'rechazado': '✕ Rechazado', 'devuelto': '↩ Devuelto',
+    }
+    aprob_rows = []
+    for i, step in enumerate(_solicitud_approval_chain(solicitud), start=1):
+        value = f"{step['name']} <font color=\"#6B7280\">({step['email']})</font> — {_status_label.get(step['status'], step['status'])}"
+        aprob_rows.append((f"{i}. {step['label']}", value))
     elements.append(_kv_table(aprob_rows))
     elements.append(Spacer(1, 12))
 
@@ -27548,6 +27572,81 @@ def _role_label_for_solicitud_state(estado):
     }.get(estado, 'Aprobador')
 
 
+def _solicitud_approval_chain(s):
+    """Cadena de aprobación ordenada de esta solicitud, para el PDF y el
+    detalle. El Jefe Inmediato SIEMPRE es el paso 1, tanto en el flujo
+    legacy (Jefe → Analista TI → Gerente TI) como cuando hay un flujo
+    dinámico configurado por área (Jefe → pasos del flujo). Cada item:
+    {label, name, email, status} con status en
+    'aprobado'|'actual'|'pendiente'|'rechazado'|'devuelto'."""
+    jefe_name = (s.jefe_inmediato.name if s.jefe_inmediato else None) or s.jefe_inmediato_nombre or '—'
+    jefe_email = (s.jefe_inmediato.email if s.jefe_inmediato else None) or s.jefe_inmediato_email or '—'
+    chain = []
+
+    if s.uses_dynamic_flow():
+        try:
+            steps = json.loads(s.flow_steps_json or '[]')
+        except Exception:
+            steps = []
+        pos = s.current_step_index if s.current_step_index is not None else -1
+        total = len(steps)
+        fully_approved = pos >= total
+
+        def _status_for(index):
+            if fully_approved:
+                return 'aprobado'
+            if index < pos:
+                return 'aprobado'
+            if index == pos:
+                if s.estado == SOLICITUD_ESTADO_RECHAZADO_JEFE:
+                    return 'rechazado'
+                if s.estado == SOLICITUD_ESTADO_DEVUELTO_JEFE:
+                    return 'devuelto'
+                return 'actual'
+            return 'pendiente'
+
+        chain.append({'label': 'Jefe Inmediato', 'name': jefe_name, 'email': jefe_email, 'status': _status_for(-1)})
+        for i, step in enumerate(steps):
+            emails = _step_emails(step)
+            chain.append({
+                'label': step.get('label') or f'Paso {i + 1}',
+                'name': ', '.join(emails) if emails else '—',
+                'email': ', '.join(emails) if emails else '—',
+                'status': _status_for(i),
+            })
+        return chain
+
+    # Legacy: Jefe Inmediato → Analista TI → Gerente TI
+    legacy_steps = [
+        ('Jefe Inmediato', jefe_name, jefe_email, SOLICITUD_ESTADO_PENDIENTE_JEFE,
+         SOLICITUD_ESTADO_RECHAZADO_JEFE, SOLICITUD_ESTADO_DEVUELTO_JEFE),
+        ('Analista TI', s.analista_ti.name if s.analista_ti else '—', s.analista_ti.email if s.analista_ti else '—',
+         SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI, SOLICITUD_ESTADO_RECHAZADO_ANALISTA_TI, SOLICITUD_ESTADO_DEVUELTO_ANALISTA_TI),
+        ('Gerente TI', s.gerente_ti.name if s.gerente_ti else '—', s.gerente_ti.email if s.gerente_ti else '—',
+         SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI, SOLICITUD_ESTADO_RECHAZADO_GERENTE_TI, SOLICITUD_ESTADO_DEVUELTO_GERENTE_TI),
+    ]
+    order = [row[3] for row in legacy_steps]
+    if s.estado in order:
+        cur_idx = order.index(s.estado)
+    elif any(s.estado in (row[4], row[5]) for row in legacy_steps):
+        cur_idx = next(i for i, row in enumerate(legacy_steps) if s.estado in (row[4], row[5]))
+    elif s.estado == SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA:
+        cur_idx = 1  # solicitudes viejas: paso ya eliminado del flujo, se ubica antes de Analista TI
+    else:
+        cur_idx = len(order)  # aprobado / en trámite / cerrado / anulado
+    for i, (label, name, email, _pend, rech, dev) in enumerate(legacy_steps):
+        if cur_idx >= len(order):
+            status = 'aprobado'
+        elif i < cur_idx:
+            status = 'aprobado'
+        elif i == cur_idx:
+            status = 'rechazado' if s.estado == rech else ('devuelto' if s.estado == dev else 'actual')
+        else:
+            status = 'pendiente'
+        chain.append({'label': label, 'name': name, 'email': email, 'status': status})
+    return chain
+
+
 def _create_or_get_solicitud_token(solicitud, approver_email, approver_user=None, approver_label=None):
     """Devuelve un SolicitudApprovalToken válido. Idempotente por
     (solicitud, expected_state, step_index, approver_email).
@@ -27720,7 +27819,19 @@ def _notify_next_approver(solicitud):
         recipients = []
         approver_label = None
 
-        if solicitud.uses_dynamic_flow():
+        if solicitud.uses_dynamic_flow() and solicitud.jefe_gate_pending():
+            # Paso previo al flujo dinámico: el Jefe Inmediato (manual)
+            # aprueba primero, igual que en el flujo legacy.
+            approver_label = 'Jefe Inmediato'
+            if solicitud.jefe_inmediato_email:
+                email = solicitud.jefe_inmediato_email.strip().lower()
+                u = User.query.filter(
+                    db.func.lower(User.email) == email,
+                    User.company == solicitud.company,
+                    User.is_active == True,
+                ).first()
+                recipients.append((email, u))
+        elif solicitud.uses_dynamic_flow():
             step = solicitud.current_flow_step()
             if not step:
                 print(f'[notify] solicitud {solicitud.codigo}: flujo dinámico sin paso actual')
@@ -27759,16 +27870,24 @@ def _notify_next_approver(solicitud):
 
         if not recipients:
             print(f'[notify] solicitud {solicitud.codigo}: sin email de aprobador')
+            log_audit('solicitud_notificacion_fallida', None, 'solicitud', solicitud.id,
+                      f'{solicitud.codigo}: no se pudo resolver ningún email de aprobador para el estado {solicitud.estado} '
+                      f'(revisar Jefe Inmediato / pasos del flujo configurado)')
             return
 
         for approver_email, approver_user in recipients:
             # Token + email por cada aprobador del paso
             try:
                 token = _create_or_get_solicitud_token(solicitud, approver_email, approver_user, approver_label)
-                if token:
-                    _send_solicitud_approval_email(solicitud, token, approver_user)
+                sent = bool(token) and _send_solicitud_approval_email(solicitud, token, approver_user)
+                if not sent:
+                    log_audit('solicitud_email_fallido', None, 'solicitud', solicitud.id,
+                              f'{solicitud.codigo}: no se pudo enviar el correo de aprobación a {approver_email} '
+                              f'(revisar configuración SMTP de la empresa {solicitud.company})')
             except Exception as e:
                 print(f'[warn] token/email solicitud ({approver_email}): {e}')
+                log_audit('solicitud_email_fallido', None, 'solicitud', solicitud.id,
+                          f'{solicitud.codigo}: error enviando correo de aprobación a {approver_email}: {e}')
 
             approver_name = approver_user.name if approver_user else approver_email
             log_audit(
@@ -27802,32 +27921,53 @@ def _notify_next_approver(solicitud):
 # Endpoints públicos: aprobar solicitud desde el link del correo
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _resolve_token_approver(tok):
+    """Identidad que va a quedar registrada como quien decide con este token.
+    El token en sí (aleatorio, de un solo uso, con expiración de 30 días) es
+    lo que autentica la decisión — muchos aprobadores (Jefe Inmediato,
+    aprobadores de un flujo dinámico por área) no tienen cuenta en el
+    sistema, así que NO se exige login para poder decidir desde el correo.
+
+    Prioridad: si hay una sesión activa cuyo email matchea el del token, se
+    usa ese User real (mejor trazabilidad). Si no, se usa el User ya
+    resuelto en el token (tok.approver, puede ser None). Si tampoco hay
+    User, se arma una identidad "externa" con el nombre/correo del token
+    (o del Jefe Inmediato manual de la solicitud, si coincide)."""
+    from types import SimpleNamespace
+    if 'user_id' in session:
+        sess_user = User.query.get(session['user_id'])
+        if sess_user and (
+            sess_user.role == 'admin'
+            or (tok.approver_id and sess_user.id == tok.approver_id)
+            or (tok.approver_email and (sess_user.email or '').strip().lower() == tok.approver_email.strip().lower())
+        ):
+            return sess_user
+    if tok.approver:
+        return tok.approver
+    display_name = tok.approver_email
+    s = tok.solicitud
+    if s and s.jefe_inmediato_email and tok.approver_email and s.jefe_inmediato_email.strip().lower() == tok.approver_email.strip().lower():
+        display_name = s.jefe_inmediato_nombre or tok.approver_email
+    return SimpleNamespace(id=None, email=tok.approver_email, name=display_name, role='external_approver')
+
+
 @app.route('/solicitudes-usuarios/decidir/<token>', methods=['GET'])
 def solicitudes_decidir_page(token):
-    """Renderiza la pantalla de decisión del aprobador. Requiere login para
-    validar la identidad; si no está logueado, redirect a /login?next=..."""
+    """Renderiza la pantalla de decisión del aprobador. El link (token
+    aleatorio, de un solo uso) es la autenticación — no exige sesión
+    iniciada, para que aprobadores sin cuenta en el sistema (Jefe Inmediato,
+    aprobadores de flujos dinámicos por área) puedan decidir directamente
+    desde el correo."""
     tok = SolicitudApprovalToken.query.filter_by(token=token).first()
     if not tok:
         return render_template('solicitudes/decide.html', error='Token inválido o inexistente.'), 404
-    if 'user_id' not in session:
-        # Guardar next en query string para que el login redirija de vuelta acá
-        return redirect(url_for('login') + f'?next=/solicitudes-usuarios/decidir/{token}')
-
-    user = User.query.get(session['user_id'])
-    # Autorizar: admin || approver_id match || email match (flujo dinámico donde
-    # el approver_id puede ser NULL pero el email es la fuente de verdad).
-    is_authorized = user and (
-        user.role == 'admin'
-        or (tok.approver_id and user.id == tok.approver_id)
-        or (tok.approver_email and (user.email or '').lower() == tok.approver_email.lower())
-    )
-    if not is_authorized:
-        return render_template('solicitudes/decide.html',
-                               error='No sos el aprobador de esta solicitud.'), 403
 
     s = tok.solicitud
     if not s:
         return render_template('solicitudes/decide.html', error='Solicitud no encontrada.'), 404
+
+    viewer = User.query.get(session['user_id']) if 'user_id' in session else None
+    approver = _resolve_token_approver(tok)
 
     prefill = (request.args.get('action') or '').strip().lower()
     if prefill not in ('aprobar', 'devolver', 'rechazar'):
@@ -27836,8 +27976,9 @@ def solicitudes_decidir_page(token):
     return render_template(
         'solicitudes/decide.html',
         token=token,
-        solicitud=_serialize_solicitud_detail(s, viewer=user),
+        solicitud=_serialize_solicitud_detail(s, viewer=viewer),
         approver_role_label=tok.approver_role_label or _role_label_for_solicitud_state(s.estado),
+        approver_display_name=getattr(approver, 'name', None) or tok.approver_email,
         already_used=bool(tok.used),
         expected_state=tok.expected_state,
         current_state=s.estado,
@@ -27847,10 +27988,8 @@ def solicitudes_decidir_page(token):
 
 @app.route('/api/solicitudes-usuarios/decidir/<token>', methods=['POST'])
 def api_solicitudes_decidir(token):
-    """Procesa la decisión desde el link del correo. Requiere login (misma
-    identidad que el approver del token)."""
-    if 'user_id' not in session:
-        return jsonify({'success': False, 'error': 'Sesión requerida'}), 401
+    """Procesa la decisión desde el link del correo. El token es la
+    autenticación (ver _resolve_token_approver) — no exige sesión iniciada."""
     tok = SolicitudApprovalToken.query.filter_by(token=token).first()
     if not tok:
         return jsonify({'success': False, 'error': 'Token inválido'}), 404
@@ -27858,15 +27997,6 @@ def api_solicitudes_decidir(token):
         return jsonify({'success': False, 'error': 'Este token ya fue usado.'}), 409
     if tok.expires_at and tok.expires_at < datetime.now():
         return jsonify({'success': False, 'error': 'Token expirado.'}), 410
-
-    user = User.query.get(session['user_id'])
-    is_authorized = user and (
-        user.role == 'admin'
-        or (tok.approver_id and user.id == tok.approver_id)
-        or (tok.approver_email and (user.email or '').lower() == tok.approver_email.lower())
-    )
-    if not is_authorized:
-        return jsonify({'success': False, 'error': 'No autorizado'}), 403
 
     s = tok.solicitud
     if not s:
@@ -27880,11 +28010,20 @@ def api_solicitudes_decidir(token):
             'error': f'El estado de la solicitud cambió a "{SOLICITUD_ESTADO_LABEL.get(s.estado, s.estado)}". Este link ya no aplica.'
         }), 409
 
+    user = _resolve_token_approver(tok)
+    if getattr(user, 'role', None) != 'admin' and (not user.email or not s.is_current_approver(user)):
+        return jsonify({'success': False, 'error': 'No autorizado: este correo no es el aprobador de este paso'}), 403
+
     data = request.get_json() or {}
     accion = (data.get('accion') or '').strip().lower()
     if accion not in ('aprobar', 'devolver', 'rechazar'):
         return jsonify({'success': False, 'error': 'Acción inválida'}), 400
     obs = (data.get('observacion') or '').strip() or None
+    if user.id is None:
+        # Aprobador sin cuenta en el sistema: dejar constancia de quién
+        # decidió realmente, ya que SolicitudHistorial.aprobador_id queda NULL.
+        nota = f'[Decidido desde el correo por {user.name} <{user.email}>, sin cuenta en el sistema]'
+        obs = f'{nota} {obs}' if obs else nota
 
     ok, error, next_estado = _apply_transition(s, user, accion, obs)
     if not ok:
@@ -27897,7 +28036,7 @@ def api_solicitudes_decidir(token):
     db.session.commit()
 
     log_audit(f'solicitud_{accion}_by_email', user.id, 'solicitud', s.id,
-              f'{s.codigo}: {accion} desde link de correo → {next_estado}')
+              f'{s.codigo}: {accion} desde link de correo por {user.name} <{user.email}> → {next_estado}')
 
     # Notificar al siguiente si hubo transición a otro estado pendiente
     if accion == 'aprobar':

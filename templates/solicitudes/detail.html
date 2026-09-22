@@ -123,15 +123,12 @@
             </div>
         </div>
 
-        <!-- Aprobadores -->
+        <!-- Aprobadores: Jefe Inmediato siempre primero, luego el flujo legacy
+             (Analista TI → Gerente TI) o el flujo dinámico configurado por
+             área — ver approval_chain en el JSON de detalle. -->
         <div class="card">
-            <div class="section-title">✅ Cadena de aprobación</div>
-            <div class="grid-2">
-                <div class="field-ro"><label>1. Jefe Inmediato</label><div class="val" id="jefe_inmediato">—</div></div>
-                <div class="field-ro" id="fldGerenteArea" style="display:none;"><label>Gerente de Área</label><div class="val" id="gerente_area">—</div></div>
-                <div class="field-ro"><label>2. Analista TI</label><div class="val" id="analista_ti">—</div></div>
-                <div class="field-ro"><label>3. Gerente TI</label><div class="val" id="gerente_ti">—</div></div>
-            </div>
+            <div class="section-title">✅ Cadena de aprobación<span id="flowAreaTag" style="display:none;font-size:12px;font-weight:600;color:#5b21b6;margin-left:8px;"></span></div>
+            <div id="approvalChain" style="display:flex;flex-direction:column;gap:8px;"></div>
         </div>
 
         <!-- Justificación -->
@@ -271,24 +268,34 @@
             document.getElementById('caso_externo').textContent = s.caso_externo;
         }
 
-        // Aprobadores
-        const fmt = u => u ? `${esc(u.name)} <span style="color:#6b7280; font-size:12px;">(${esc(u.email)})</span>` : '—';
-        if (s.jefe_inmediato) {
-            document.getElementById('jefe_inmediato').innerHTML = fmt(s.jefe_inmediato);
-        } else if (s.jefe_inmediato_nombre || s.jefe_inmediato_email) {
-            // Jefe Inmediato ingresado manualmente (sin User asociado en el sistema)
-            document.getElementById('jefe_inmediato').innerHTML =
-                `${esc(s.jefe_inmediato_nombre || '—')} <span style="color:#6b7280; font-size:12px;">(${esc(s.jefe_inmediato_email || '—')})</span>`;
-        } else {
-            document.getElementById('jefe_inmediato').innerHTML = '—';
+        // Cadena de aprobación: Jefe Inmediato siempre primero, luego el
+        // flujo legacy (Analista TI → Gerente TI) o los pasos del flujo
+        // dinámico configurado por área — el backend ya arma el orden y el
+        // estado de cada paso (aprobado/actual/pendiente/rechazado/devuelto).
+        if (s.uses_dynamic_flow && s.flow_area) {
+            const tag = document.getElementById('flowAreaTag');
+            tag.textContent = `· Flujo: ${s.flow_area}`;
+            tag.style.display = '';
         }
-        if (s.gerente_area) {
-            // Solo aplica a solicitudes viejas; el paso ya no existe en el flujo tradicional
-            document.getElementById('fldGerenteArea').style.display = '';
-            document.getElementById('gerente_area').innerHTML = fmt(s.gerente_area);
-        }
-        document.getElementById('analista_ti').innerHTML = fmt(s.analista_ti);
-        document.getElementById('gerente_ti').innerHTML = fmt(s.gerente_ti);
+        const STATUS_STYLE = {
+            aprobado:  {bg:'#d1fae5', color:'#065f46', label:'✓ Aprobado'},
+            actual:    {bg:'#fef3c7', color:'#92400e', label:'⏳ Pendiente (paso actual)'},
+            pendiente: {bg:'#f3f4f6', color:'#4b5563', label:'— Pendiente'},
+            rechazado: {bg:'#fee2e2', color:'#991b1b', label:'✕ Rechazado'},
+            devuelto:  {bg:'#ffedd5', color:'#9a3412', label:'↩ Devuelto'},
+        };
+        const chain = s.approval_chain || [];
+        document.getElementById('approvalChain').innerHTML = chain.map((step, i) => {
+            const st = STATUS_STYLE[step.status] || STATUS_STYLE.pendiente;
+            return `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
+                    <div>
+                        <strong>${i + 1}. ${esc(step.label)}</strong>
+                        <div style="color:#6b7280;font-size:12px;">${esc(step.name)} ${step.email && step.email !== step.name ? `(${esc(step.email)})` : ''}</div>
+                    </div>
+                    <span style="background:${st.bg};color:${st.color};padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;">${st.label}</span>
+                </div>`;
+        }).join('') || '<div style="color:#9ca3af;font-size:13px;">Sin datos de aprobadores.</div>';
 
         // Justificación
         document.getElementById('justificacion').textContent = s.justificacion;

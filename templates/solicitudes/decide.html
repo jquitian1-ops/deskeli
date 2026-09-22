@@ -69,7 +69,7 @@
 
         <div class="card">
             <div class="callout">
-                Hola. Estás decidiendo la solicitud <strong>{{ solicitud.codigo }}</strong> como <strong>{{ approver_role_label }}</strong>.
+                Hola {{ approver_display_name or '' }}. Estás decidiendo la solicitud <strong>{{ solicitud.codigo }}</strong> como <strong>{{ approver_role_label }}</strong>.
                 Revisá los datos y elegí una acción abajo. Todas las acciones quedan registradas en el historial.
             </div>
 
