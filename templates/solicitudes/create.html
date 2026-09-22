@@ -299,6 +299,23 @@
 
     function esc(s) { return s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+    // Los campos condicionales (fecha_ingreso, es_reemplazo, nombre_reemplazo,
+    // usuario_red) NO deben depender solo de estar ocultos con display:none
+    // para quedar exentos de "required" — si por lo que sea el evento
+    // onchange no re-sincronizó a tiempo (autocompletado del navegador,
+    // restauración de valores, etc.) el campo queda oculto pero required
+    // igual, y el submit se bloquea en silencio sin que el usuario entienda
+    // por qué. Por eso el required se fija explícitamente acá según el
+    // estado actual, no solo la visibilidad.
+    function syncConditionalRequired() {
+        const t = document.getElementById('tipo_solicitud').value;
+        const esReemplazo = document.getElementById('es_reemplazo').value === 'true';
+        document.getElementById('fecha_ingreso').required = (t === 'INGRESO');
+        document.getElementById('es_reemplazo').required = (t === 'INGRESO');
+        document.getElementById('nombre_reemplazo').required = (t === 'INGRESO' && esReemplazo);
+        document.getElementById('usuario_red').required = (t === 'MODIFICACION' || t === 'TRASLADO');
+    }
+
     function onTipoChange() {
         const t = document.getElementById('tipo_solicitud').value;
         document.getElementById('tipoHint').textContent = TIPO_HINTS[t] || '';
@@ -313,6 +330,8 @@
         const tag = document.getElementById('cardControlesTipoTag');
         if (tag) tag.textContent = hasType ? ('Tipo: ' + t) : '';
 
+        syncConditionalRequired();
+
         // Cambió el tipo → re-renderizar (aplica filtros como SAP PASH solo en MODIFICACION)
         if (hasType && _controles.length > 0) {
             renderControles();
@@ -322,6 +341,7 @@
     function onReemplazoChange() {
         const v = document.getElementById('es_reemplazo').value;
         document.getElementById('fldReemplazo').classList.toggle('cond-hidden', v !== 'true');
+        syncConditionalRequired();
     }
 
 
@@ -415,6 +435,7 @@
     // dar un aviso explícito y llevar al usuario directo al campo faltante.
     document.getElementById('btnSubmit').addEventListener('click', function(e) {
         const form = document.getElementById('solicitudForm');
+        syncConditionalRequired(); // por si algún onchange no se disparó a tiempo
         if (form.checkValidity()) return; // todo OK, sigue el submit normal
         e.preventDefault();
         e.stopPropagation();
@@ -762,6 +783,7 @@
         }
     }
 
+    syncConditionalRequired();
     loadCatalogo();
     loadEmpresas();
     loadFlowAreas();
