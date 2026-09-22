@@ -18,7 +18,7 @@ try:
 except ImportError:
     pass
 
-from app import app, db, Control
+from app import app, db, Control, ControlListItem
 
 
 # Catálogo oficial de 28 controles según el documento
@@ -29,11 +29,78 @@ CATALOGO = [
     # 1
     {'code': 'elementos_tecnologia', 'name': 'ELEMENTOS DE TECNOLOGIA',
      'descripcion': 'Seleccione los elementos de tecnología que requiera solicitar. Esto está sujeto a posterior aprobación de las gerencias de área por costos.',
-     'tipo': 'elemento', 'needs_espejo': False, 'costo_referencia': None},
+     'tipo': 'elemento', 'needs_espejo': False, 'costo_referencia': None,
+     'list_items': [
+         'ADAPTADOR DE VGA A HDMI',
+         'BASE REFRIGERANTE 2 VENTILADORES 5 NIVELES',
+         'BATERIA PARA PORTATIL',
+         'BATERIA PARA UPS',
+         'CABEZAL DE IMPRESORA',
+         'CABLE HDMI (ESPECIFICA METROS)',
+         'CAMARA WEB',
+         'CARGADOR PARA PORTATIL (ESPECIFICA MODELO DE PORTATIL)',
+         'CARGADOR TIPO C PARA TABLET',
+         'CARGADOR TIPO C PARA TABLET (ESPECIFICA MODELO)',
+         'COMBO DE TECLADO Y MOUSE INALÁMBRICOS',
+         'COMPUTADOR DE ESCRITORIO CI5/16GB/512GBSS',
+         'COMPUTADOR DE ESCRITORIO CI7/16GB/1TB SSD',
+         'COMPUTADOR PORTATIL CI5/16GB/500GB',
+         'CONVERTIDOR DE VGA A HDMI CON SONIDO',
+         'CONVERTIDOR OTRO',
+         'CONVERTIDOR TIPO C 8 EN 1',
+         'DIADEMA USB MONOAURAL',
+         'DISCO DURO 1 TB SSD SATA',
+         'DISCO DURO 1TB SSD M2',
+         'DISCO DURO 512 GB SSD M2',
+         'DISCO DURO 512 GB SSD SATA',
+         'ESTUCHE PARA RADIO FRECUANCIA MC33XX CON MANGO',
+         'GUAYA PARA PORTATIL (ESPECIFICA MODELO)',
+         'IMPREZORA ETIQUETAS (ESPECIFICA MODELO)',
+         'LECTORES DE CODIGOS DE BARRAS USB',
+         'MEMORIA RAM DDR3 PARA PC',
+         'MEMORIA RAM DDR3 PARA PORTATIL',
+         'MEMORIA RAM DDR4 PARA PC',
+         'MEMORIA RAM DDR4 PARA PORTAIL',
+         'MICROFONO USB',
+         'MINI CPU CI5/16GB/512 GB SSD',
+         'MINI TECLADO',
+         'MOUSE USB',
+         'MULTICARGADOR DE 4 BATERÍAS PARA RADIO FRECUANCIAS MC33',
+         'MULTIPUERTO USB -C 4 EN 1 A USB 3.0',
+         'PANTALLA 22 PULGADAS',
+         'PANTALLA 24 PULGADAS',
+         'PANTALLA 27 PULGADAS',
+         'PANTALLA 32 PULGADAS',
+         'PARLANTES USB',
+         'PORTATIL CI7/16GB/500GB SSD',
+         'PORTATIL CI7/32GB/1TB SSD',
+         'PORTATIL MACBOOK M3/18/1TB SSD',
+         'PUNTOS DE RED Y ELECTRICOS',
+         'RADIO FRECUANCIAS CON MANGO (ACCESORIOS ADICIONALES CARGADORDE BATERIAS,ESTUCHE BATERIA ADICIONAL)',
+         'TABLA DE DIBUJO WACOM',
+         'TABLET (ESPECIFICA MODELO Y MOTIVO)',
+         'TECLADO USB',
+         'TELEFONO IP',
+     ]},
     # 2
     {'code': 'herramientas_ofimaticas', 'name': 'HERRAMIENTAS OFIMATICAS',
      'descripcion': 'Herramientas ofimáticas (seleccione los aplicativos a los cuales requiere acceso y justificación).',
-     'tipo': 'acceso', 'needs_espejo': False, 'costo_referencia': None},
+     'tipo': 'acceso', 'needs_espejo': False, 'costo_referencia': None,
+     'list_items': [
+         'OPEN OFFICE-0',
+         'COATS CONFECCIÓN-160',
+         'MICROSOFT OFFICE 365 (SOLO CORREO)-50',
+         'ACROBAT PROFESSIONAL-120',
+         'COREL DRAW-589',
+         'ADOBE SUITE-892',
+         'ILLUSTRATOR-407',
+         'PHOTOSHOP-407',
+         'AUTOCAD-348',
+         'BIZAGI-200',
+         'POWER BI PRO-120',
+         'LICENCIA OFFICE 365 E3 TEAMS-140',
+         'LICENCIA SOPORTE ANYDESK-200',
+     ]},
     # 3
     {'code': 'directorio_activo', 'name': 'DIRECTORIO ACTIVO',
      'descripcion': 'Usuario para ingresar al equipo de cómputo.',
@@ -136,15 +203,39 @@ CATALOGO = [
      'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
     # 28
     {'code': 'sap', 'name': 'SAP',
-     'descripcion': 'En el campo descripción indicar si ya cuenta con usuario; adicional deben indicar el Usuario Espejo y el ambiente (Productivo, Preproductivo, Calidad, Desarrollo). Indicar versión (AFS, FMS PASH, FMS PAISES, EWM, RISE).',
-     'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None},
+     'descripcion': 'En el campo descripción indicar si ya cuenta con usuario; adicional deben indicar el Usuario Espejo y el ambiente (Productivo, Preproductivo, Calidad, Desarrollo). Indicar versión (AFS, FMS PASH, FMS PAISES, EWM, RISE) en el campo de notas.',
+     'tipo': 'acceso', 'needs_espejo': True, 'costo_referencia': None,
+     'list_items': [  # Ambiente(s) — selección múltiple; versión/sistema se sigue indicando en notas
+         'CALIDAD',
+         'DESARROLLO',
+         'PREPRODUCTIVO',
+         'PRODUCTIVO',
+     ]},
 ]
+
+
+def _sync_list_items(control, labels):
+    """Reemplaza los ControlListItem del control si difieren de `labels`
+    (mismo criterio idempotente que el resto del seed: no toca si ya
+    coincide)."""
+    if not labels:
+        return 0
+    existing = [li.label for li in ControlListItem.query.filter_by(
+        control_id=control.id).order_by(ControlListItem.sort_order).all()]
+    if existing == labels:
+        return 0
+    ControlListItem.query.filter_by(control_id=control.id).delete()
+    for idx, label in enumerate(labels):
+        db.session.add(ControlListItem(control_id=control.id, label=label, sort_order=idx))
+    control.is_multi_select = True
+    return 1
 
 
 def run():
     with app.app_context():
-        created, updated = 0, 0
+        created, updated, lists_synced = 0, 0, 0
         for row in CATALOGO:
+            list_items = row.get('list_items') or []
             existing = Control.query.filter_by(code=row['code'], company=None).first()
             if existing:
                 existing.name = row['name']
@@ -154,6 +245,8 @@ def run():
                 existing.costo_referencia = row['costo_referencia']
                 existing.is_active = True
                 updated += 1
+                db.session.flush()
+                lists_synced += _sync_list_items(existing, list_items)
             else:
                 c = Control(
                     code=row['code'],
@@ -164,11 +257,15 @@ def run():
                     costo_referencia=row['costo_referencia'],
                     company=None,  # global
                     is_active=True,
+                    is_multi_select=bool(list_items),
                 )
                 db.session.add(c)
+                db.session.flush()
                 created += 1
+                lists_synced += _sync_list_items(c, list_items)
         db.session.commit()
-        print(f'[seed] Catalogo de controles: {created} creados, {updated} actualizados. Total: {len(CATALOGO)}')
+        print(f'[seed] Catalogo de controles: {created} creados, {updated} actualizados, '
+              f'{lists_synced} listas internas sincronizadas. Total: {len(CATALOGO)}')
 
 
 if __name__ == '__main__':

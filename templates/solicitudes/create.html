@@ -364,7 +364,15 @@
                     </td>
                     <td class="ctl-desc">${esc(c.descripcion || '')}</td>
                     <td>
-                        <textarea data-detalle="${c.id}" rows="2" disabled placeholder="Marcá el checkbox y completá…"></textarea>
+                        ${c.is_multi_select && c.list_items.length ? `
+                        <div data-multiselect-of="${c.id}" style="max-height:140px; overflow-y:auto; border:1px solid #d1d5db; border-radius:4px; padding:6px 8px; margin-bottom:6px; background:#f9fafb;">
+                            ${c.list_items.map(li => `
+                                <label style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:400; padding:2px 0;">
+                                    <input type="checkbox" data-item-of="${c.id}" data-item-label="${esc(li.label)}" disabled>
+                                    ${esc(li.label)}
+                                </label>`).join('')}
+                        </div>` : ''}
+                        <textarea data-detalle="${c.id}" rows="2" disabled placeholder="${c.is_multi_select ? 'Notas adicionales (opcional)…' : 'Marcá el checkbox y completá…'}"></textarea>
                         ${espejo}
                     </td>
                 </tr>`;
@@ -375,7 +383,7 @@
     function toggleRow(id) {
         const chk = document.querySelector(`input[data-check="${id}"]`);
         const enabled = chk.checked;
-        document.querySelectorAll(`[data-detalle="${id}"], [data-espejo="${id}"]`).forEach(el => {
+        document.querySelectorAll(`[data-detalle="${id}"], [data-espejo="${id}"], [data-item-of="${id}"]`).forEach(el => {
             el.disabled = !enabled;
         });
     }
@@ -388,9 +396,23 @@
 
         // Recolectar controles marcados
         const controles = [];
+        let faltaSeleccion = false;
         document.querySelectorAll('input[data-check]:checked').forEach(chk => {
             const id = chk.getAttribute('data-check');
-            const detalle = document.querySelector(`textarea[data-detalle="${id}"]`).value.trim();
+            const notasLibres = document.querySelector(`textarea[data-detalle="${id}"]`).value.trim();
+            const itemsSeleccionados = Array.from(
+                document.querySelectorAll(`input[data-item-of="${id}"]:checked`)
+            ).map(el => el.getAttribute('data-item-label'));
+            let detalle;
+            if (itemsSeleccionados.length > 0) {
+                detalle = itemsSeleccionados.join(', ') + (notasLibres ? '\n' + notasLibres : '');
+            } else {
+                detalle = notasLibres;
+            }
+            const hasList = document.querySelector(`[data-multiselect-of="${id}"]`);
+            if (hasList && itemsSeleccionados.length === 0 && !notasLibres) {
+                faltaSeleccion = true;
+            }
             const espejoEl = document.querySelector(`input[data-espejo="${id}"]`);
             controles.push({
                 control_id: parseInt(id),
@@ -398,6 +420,13 @@
                 usuario_espejo: espejoEl ? espejoEl.value.trim() : null,
             });
         });
+
+        if (faltaSeleccion) {
+            alert('Hay un control con lista de opciones marcado pero sin ninguna opción seleccionada. Elegí al menos una.');
+            btn.disabled = false;
+            btn.textContent = '✓ Registrar solicitud';
+            return;
+        }
 
         if (controles.length === 0) {
             alert('Debes seleccionar al menos un control.');

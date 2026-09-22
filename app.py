@@ -1467,15 +1467,48 @@ class Control(db.Model):
     # las subtasks a crear en el Ticket generado. NULL = subtask genérica de fallback.
     guion_id = db.Column(db.Integer, db.ForeignKey('guiones.id'), index=True)
     is_active = db.Column(db.Boolean, default=True, index=True)
+    # Si False: el control sigue guardándose y mostrándose en el PDF/detalle
+    # de la solicitud, pero NO genera una Subtask al aprobarse (es meramente
+    # informativo — ej. un control que otro equipo ya trackea aparte).
+    generates_task = db.Column(db.Boolean, default=True)
+    # Lista interna de selección múltiple (ver ControlListItem) en vez de/
+    # además del textarea libre — ej. "Elementos de Tecnología" (50 ítems).
+    is_multi_select = db.Column(db.Boolean, default=False)
+    # Responsable de la Subtask generada (solo aplica a controles SIN guion
+    # vinculado; con guion, el responsable sigue viniendo de GuionSubtask).
+    responsible_type = db.Column(db.String(10))  # None | 'group' | 'user'
+    # Por NOMBRE (no id): un control global (company=None) se usa en las 3
+    # empresas, y cada una tiene su propio Subrole.id para un grupo del
+    # mismo nombre — se resuelve por nombre en cada empresa al generar el
+    # caso (mismo patrón usado para Mesa De Ayuda Pash).
+    responsible_group_name = db.Column(db.String(100))
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
     guion = db.relationship('Guion', foreign_keys=[guion_id])
+    responsible_user = db.relationship('User', foreign_keys=[responsible_user_id])
 
     __table_args__ = (
         db.Index('ix_controles_company_active', 'company', 'is_active'),
         db.UniqueConstraint('code', 'company', name='uq_controles_code_company'),
     )
+
+
+class ControlListItem(db.Model):
+    """Ítem seleccionable dentro de la lista interna de un Control marcado
+    como is_multi_select (ej. uno de los 50 "Elementos de Tecnología").
+    Administrable desde /admin/controles junto con el control."""
+    __tablename__ = 'control_list_items'
+    id = db.Column(db.Integer, primary_key=True)
+    control_id = db.Column(db.Integer, db.ForeignKey('controles_catalogo.id'), nullable=False, index=True)
+    label = db.Column(db.String(200), nullable=False)
+    sort_order = db.Column(db.Integer, default=100)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    control = db.relationship('Control', backref=db.backref(
+        'list_items', cascade='all, delete-orphan', order_by='ControlListItem.sort_order'))
 
 
 def _step_emails(step):
@@ -9002,6 +9035,51 @@ def assign_to_default_group(ticket):
     return True
 
 
+def _resolve_control_responsible(control, company):
+    """Devuelve el user_id a asignar en la Subtask generada para este
+    Control (solo aplica a controles SIN guion vinculado; con guion, el
+    responsable sigue viniendo de GuionSubtask/UserGuion). None = sin
+    asignar (comportamiento previo, sin responsable configurado o el
+    configurado no aplica a esta empresa)."""
+    if not control or not control.responsible_type:
+        return None
+    if control.responsible_type == 'user' and control.responsible_user_id:
+        u = User.query.get(control.responsible_user_id)
+        # El usuario fijo solo aplica si es de la misma empresa que la
+        # solicitud (un control global puede tener un responsable que solo
+        # tiene sentido para una empresa puntual).
+        return u.id if (u and u.is_active and u.company == company) else None
+    if control.responsible_type == 'group' and control.responsible_group_name:
+        # Por NOMBRE, no por id: un control global se usa en las 3 empresas
+        # y cada una tiene su propio Subrole.id para un grupo homónimo
+        # (mismo patrón usado para resolver Mesa De Ayuda Pash).
+        members = (
+            db.session.query(User)
+            .join(UserSubrole, UserSubrole.user_id == User.id)
+            .join(Subrole, Subrole.id == UserSubrole.subrole_id)
+            .filter(
+                Subrole.name.ilike(control.responsible_group_name.strip()),
+                Subrole.company == company,
+                Subrole.is_active == True,
+                User.company == company,
+                User.is_active == True,
+                User.role.in_(['technician', 'admin']),
+            )
+            .all()
+        )
+        if not members:
+            return None
+        loads = {
+            u.id: Subtask.query.filter(
+                Subtask.assignee_id == u.id,
+                Subtask.status.in_(['open', 'in_progress']),
+            ).count()
+            for u in members
+        }
+        return min(loads, key=loads.get)
+    return None
+
+
 def assign_ticket_auto(ticket):
     """
     Asignación automática basada en carga y perfil (RF-03-06).
@@ -12172,6 +12250,34 @@ def migrate_email_logs_codigo():
         print(f"[migrate_email_logs] error agregando codigo: {e}")
 
 
+def migrate_controles_catalogo_extra():
+    """Agrega a controles_catalogo las columnas nuevas de responsable de
+    tarea + lista interna de selección múltiple, si la tabla ya existía de
+    un deploy anterior."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'controles_catalogo' not in inspector.get_table_names():
+        return
+    existing_cols = {c['name'] for c in inspector.get_columns('controles_catalogo')}
+    is_postgres = db.engine.dialect.name == 'postgresql'
+    bool_default = 'TRUE' if is_postgres else '1'
+    for col_name, col_type in (
+        ('generates_task', f'BOOLEAN DEFAULT {bool_default}'),
+        ('is_multi_select', f'BOOLEAN DEFAULT {"FALSE" if is_postgres else "0"}'),
+        ('responsible_type', 'VARCHAR(10)'),
+        ('responsible_group_name', 'VARCHAR(100)'),
+        ('responsible_user_id', 'INTEGER'),
+    ):
+        if col_name in existing_cols:
+            continue
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE controles_catalogo ADD COLUMN {col_name} {col_type}"))
+            print(f"[migrate_controles] Columna {col_name} agregada")
+        except Exception as e:
+            print(f"[migrate_controles] error agregando {col_name}: {e}")
+
+
 def migrate_messages_schema():
     """Agrega subtask_id a la tabla messages si no existe."""
     from sqlalchemy import inspect, text
@@ -13039,6 +13145,10 @@ def init_db():
             migrate_email_logs_codigo()
         except Exception as _e:
             print(f"[migrate] email_logs_codigo: {_e}")
+        try:
+            migrate_controles_catalogo_extra()
+        except Exception as _e:
+            print(f"[migrate] controles_catalogo_extra: {_e}")
         try:
             migrate_report_recipients_team()
         except Exception as _e:
@@ -25362,6 +25472,16 @@ def _serialize_control(c):
         'guion_id': c.guion_id,
         'guion_name': (c.guion.name if c.guion else None),
         'is_active': bool(c.is_active),
+        'generates_task': c.generates_task is not False,  # NULL (legacy) = True
+        'is_multi_select': bool(c.is_multi_select),
+        'responsible_type': c.responsible_type,
+        'responsible_group_name': c.responsible_group_name,
+        'responsible_user_id': c.responsible_user_id,
+        'responsible_user_name': (c.responsible_user.name if c.responsible_user else None),
+        'list_items': [
+            {'id': li.id, 'label': li.label}
+            for li in c.list_items if li.is_active
+        ] if c.is_multi_select else [],
     }
 
 
@@ -25501,6 +25621,32 @@ def api_controles_list():
     return jsonify({'success': True, 'controles': [_serialize_control(c) for c in controles]})
 
 
+def _apply_control_extra_fields(c, data):
+    """Aplica los campos de responsable de tarea + lista interna, comunes a
+    create/update. Si `list_items` viene en el payload, reemplaza TODOS los
+    ControlListItem del control (UX de "pegar lista, una opción por línea")."""
+    if 'generates_task' in data:
+        c.generates_task = bool(data['generates_task'])
+    if 'is_multi_select' in data:
+        c.is_multi_select = bool(data['is_multi_select'])
+    if 'responsible_type' in data:
+        rt = (data.get('responsible_type') or '').strip() or None
+        c.responsible_type = rt if rt in ('group', 'user') else None
+    if 'responsible_group_name' in data:
+        c.responsible_group_name = (data.get('responsible_group_name') or '').strip() or None
+    if 'responsible_user_id' in data:
+        c.responsible_user_id = data['responsible_user_id'] or None
+    if 'list_items' in data:
+        items = data.get('list_items') or []
+        # Reemplazo completo: borrar los existentes y crear de nuevo en orden.
+        ControlListItem.query.filter_by(control_id=c.id).delete()
+        for idx, label in enumerate(items):
+            label = (label or '').strip()
+            if not label:
+                continue
+            db.session.add(ControlListItem(control_id=c.id, label=label[:200], sort_order=idx))
+
+
 @app.route('/api/controles', methods=['POST'])
 def api_controles_create():
     user, err = _current_user_or_401()
@@ -25528,6 +25674,8 @@ def api_controles_create():
         is_active=True,
     )
     db.session.add(c)
+    db.session.flush()  # necesita c.id para ControlListItem
+    _apply_control_extra_fields(c, data)
     db.session.commit()
     log_audit('control_created', user.id, 'control', c.id, f'Control "{c.name}" creado')
     return jsonify({'success': True, 'control': _serialize_control(c)}), 201
@@ -25555,6 +25703,7 @@ def api_controles_update(control_id):
         c.guion_id = data['guion_id'] or None
     if 'is_active' in data:
         c.is_active = bool(data['is_active'])
+    _apply_control_extra_fields(c, data)
     db.session.commit()
     log_audit('control_updated', user.id, 'control', c.id, f'Control "{c.name}" modificado')
     return jsonify({'success': True, 'control': _serialize_control(c)})
@@ -26053,6 +26202,15 @@ def _generate_case_from_solicitud(solicitud, actor_user):
             + (f'Usuario espejo: {sc.usuario_espejo}\n' if sc.usuario_espejo else '')
         )
 
+        # Control marcado como "no genera tarea": sigue en solicitud.controles
+        # (el PDF/detalle lo siguen mostrando tal cual, sin cambios ahí) pero
+        # no dispara ninguna Subtask operativa. Comparación explícita contra
+        # False (no "not ctrl.generates_task") para que un valor NULL en
+        # controles ya existentes (antes de esta columna) siga generando
+        # tarea como hacía hasta ahora, en vez de saltearse por accidente.
+        if ctrl and ctrl.generates_task is False:
+            continue
+
         # Buscar guion vinculado al control
         guion = ctrl.guion if ctrl and ctrl.guion else None
         if guion and guion.is_active:
@@ -26122,7 +26280,15 @@ def _generate_case_from_solicitud(solicitud, actor_user):
                     except Exception as e:
                         print(f'[case-gen] Error adjuntando PDF a subtask {st.id}: {e}')
         else:
-            # Sin guion vinculado → subtask genérica (fallback)
+            # Sin guion vinculado → subtask genérica (fallback), con el
+            # responsable configurado en el catálogo (grupo o usuario
+            # directo) si el admin lo definió para este control.
+            resolved_assignee = _resolve_control_responsible(ctrl, solicitud.company) if ctrl else None
+            warn_note = (
+                '' if resolved_assignee else
+                '\n\n⚠ Este control no tiene guion ni responsable configurado. '
+                'Coordiná manualmente los pasos con el equipo correspondiente.'
+            )
             subtask_counter += 1
             st = Subtask(
                 ticket_id=ticket.id,
@@ -26131,15 +26297,14 @@ def _generate_case_from_solicitud(solicitud, actor_user):
                 description=(
                     f'Ejecutar acceso/entrega para el control {control_name}.\n\n'
                     + control_detail
-                    + '\n\n⚠ Este control no tiene guion vinculado. '
-                    'Coordiná manualmente los pasos con el equipo correspondiente.'
+                    + warn_note
                 ),
                 category='Accesos',
                 status='open',
                 priority=priority,
                 sla_minutes=sla_min,
                 sla_deadline=datetime.now() + _td(minutes=sla_min),
-                assignee_id=None,
+                assignee_id=resolved_assignee,
                 created_by_id=actor_user.id if actor_user else None,
                 order_idx=subtask_counter,
             )
@@ -27524,18 +27689,14 @@ def api_approval_flows_areas():
     """Endpoint público (para el form de solicitud): devuelve las áreas con
     flujo activo disponibles para el usuario. Payload compacto.
 
-    Regla especial para Pash: además de sus propios flujos, también puede
-    usar los flujos configurados para Eliot (se muestran ambos por separado,
-    identificados por empresa, incluso si comparten el mismo nombre de
-    área) — decisión de negocio para que Pash reutilice flujos ya armados
-    en Eliot en vez de tener que duplicarlos a mano."""
+    Visibilidad total entre empresas: cualquier empresa ve (y puede usar)
+    los flujos configurados en cualquiera de las otras, no solo los
+    propios — se muestran identificados por empresa (incluso si comparten
+    el mismo nombre de área) para reutilizar flujos ya armados en vez de
+    duplicarlos a mano en cada empresa."""
     user, err = _current_user_or_401()
     if err: return err
-    companies = [user.company]
-    if user.company == 'pash' and 'eliot' not in companies:
-        companies.append('eliot')
     flows = ApprovalFlow.query.filter(
-        ApprovalFlow.company.in_(companies),
         ApprovalFlow.is_active == True,
     ).order_by(ApprovalFlow.area).all()
     return jsonify({
@@ -27557,11 +27718,9 @@ def api_approval_flows_areas():
 
 def _company_can_use_approval_flow_company(requester_company, flow_company):
     """True si un usuario de `requester_company` puede usar un ApprovalFlow
-    que pertenece a `flow_company`. Regla especial: Pash puede usar también
-    los flujos de Eliot (ver api_approval_flows_areas)."""
-    if requester_company == flow_company:
-        return True
-    return requester_company == 'pash' and flow_company == 'eliot'
+    que pertenece a `flow_company`. Visibilidad total entre empresas: se
+    puede usar el flujo de cualquiera de las otras (ver api_approval_flows_areas)."""
+    return True
 
 
 def _resolve_approval_flow_for_solicitud(company, area, flow_id=None):
@@ -28409,8 +28568,10 @@ def _seed_controles_catalogo_if_empty():
                 print("  [WARN] Controles seed: CATALOGO vacío en el script")
                 return
 
-            created, updated = 0, 0
+            sync_list_items = getattr(mod, '_sync_list_items', None)
+            created, updated, lists_synced = 0, 0, 0
             for row in catalogo:
+                list_items = row.get('list_items') or []
                 existing = Control.query.filter_by(code=row['code'], company=None).first()
                 if existing:
                     # Actualizar campos por si cambió la descripción
@@ -28425,8 +28586,11 @@ def _seed_controles_catalogo_if_empty():
                         existing.costo_referencia = row.get('costo_referencia')
                         existing.is_active = True
                         updated += 1
+                    if sync_list_items and list_items:
+                        db.session.flush()
+                        lists_synced += sync_list_items(existing, list_items)
                 else:
-                    db.session.add(Control(
+                    c = Control(
                         code=row['code'],
                         name=row['name'],
                         descripcion=row['descripcion'],
@@ -28435,11 +28599,17 @@ def _seed_controles_catalogo_if_empty():
                         costo_referencia=row.get('costo_referencia'),
                         company=None,
                         is_active=True,
-                    ))
+                        is_multi_select=bool(list_items),
+                    )
+                    db.session.add(c)
                     created += 1
-            if created or updated:
+                    if sync_list_items and list_items:
+                        db.session.flush()
+                        lists_synced += sync_list_items(c, list_items)
+            if created or updated or lists_synced:
                 db.session.commit()
-            print(f"  [OK] Controles seed: {created} nuevos + {updated} actualizados (total {len(catalogo)})")
+            print(f"  [OK] Controles seed: {created} nuevos + {updated} actualizados + "
+                  f"{lists_synced} listas internas sincronizadas (total {len(catalogo)})")
     except Exception as e:
         print(f"  [WARN] No se pudo cargar Controles seed: {e}")
 

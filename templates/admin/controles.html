@@ -123,7 +123,46 @@
                     <option value="">— Sin guion (se creará subtask genérica) —</option>
                 </select>
                 <div style="font-size:11px; color:#6b7280; margin-top:4px;">
-                    Al aprobarse una Solicitud que incluya este control, el sistema clonará las subtasks del guion elegido y las asignará al ticket generado.
+                    Al aprobarse una Solicitud que incluya este control, el sistema clonará las subtasks del guion elegido y las asignará al ticket generado. Si NO hay guion, se usa el responsable configurado abajo.
+                </div>
+            </div>
+            <div class="form-group" style="background:#eff6ff; padding:10px 12px; border-radius:6px; border-left:4px solid #2563eb;">
+                <label><input type="checkbox" id="f-generates-task" checked> ✅ Genera tarea automáticamente</label>
+                <div style="font-size:11px; color:#6b7280; margin-top:4px;">
+                    Si lo destildás, el control sigue apareciendo en el PDF/detalle de la solicitud, pero no se crea ninguna Subtask al aprobarse (control solo informativo).
+                </div>
+            </div>
+            <div class="form-group" style="background:#f0fdf4; padding:10px 12px; border-radius:6px; border-left:4px solid #16a34a;">
+                <label>👤 Responsable de la tarea (solo aplica si NO hay guion vinculado)</label>
+                <select id="f-responsible-type" onchange="onResponsibleTypeChange()">
+                    <option value="">— Sin responsable fijo —</option>
+                    <option value="group">Grupo de especialistas</option>
+                    <option value="user">Usuario específico</option>
+                </select>
+                <div id="f-responsible-group-wrap" style="display:none; margin-top:8px;">
+                    <select id="f-responsible-group">
+                        <option value="">— Elegí un grupo —</option>
+                    </select>
+                    <div style="font-size:11px; color:#6b7280; margin-top:4px;">
+                        Se busca por NOMBRE en la empresa de cada solicitud (un control global puede usarse en las 3 empresas) — la tarea cae en el miembro con menor carga de ese grupo.
+                    </div>
+                </div>
+                <div id="f-responsible-user-wrap" style="display:none; margin-top:8px;">
+                    <select id="f-responsible-user">
+                        <option value="">— Elegí un usuario —</option>
+                    </select>
+                    <div style="font-size:11px; color:#6b7280; margin-top:4px;">
+                        Solo aplica cuando la solicitud es de la misma empresa que este usuario; si no, la tarea queda sin asignar.
+                    </div>
+                </div>
+            </div>
+            <div class="form-group" style="background:#fffbeb; padding:10px 12px; border-radius:6px; border-left:4px solid #f59e0b;">
+                <label><input type="checkbox" id="f-multiselect" onchange="onMultiSelectChange()"> 📋 Tiene lista interna de selección múltiple</label>
+                <div id="f-list-items-wrap" style="display:none; margin-top:8px;">
+                    <textarea id="f-list-items" rows="8" placeholder="Una opción por línea, ej:&#10;MOUSE USB&#10;TECLADO USB&#10;PANTALLA 24 PULGADAS"></textarea>
+                    <div style="font-size:11px; color:#6b7280; margin-top:4px;">
+                        En el formulario de la solicitud, el usuario va a poder marcar varias de estas opciones para este control (en vez de solo texto libre).
+                    </div>
                 </div>
             </div>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
@@ -176,7 +215,7 @@
                     <th>Nombre</th>
                     <th>Descripción</th>
                     <th>Tipo</th>
-                    <th>Guion</th>
+                    <th>Guion / Responsable</th>
                     <th>Empresa</th>
                     <th>Estado</th>
                     <th>Acciones</th>
@@ -184,9 +223,22 @@
             </thead>
             <tbody>`;
         _controles.forEach(c => {
-            const guionCell = c.guion_id
-                ? `<span title="Al aprobarse, clonará subtasks del guion" style="font-size:11px; padding:2px 6px; background:#ede9fe; color:#5b21b6; border-radius:6px; font-weight:600;">📜 ${esc(c.guion_name || '—')}</span>`
-                : '<span style="color:#9ca3af; font-size:11px;">— sin guion —</span>';
+            let guionCell;
+            if (c.guion_id) {
+                guionCell = `<span title="Al aprobarse, clonará subtasks del guion" style="font-size:11px; padding:2px 6px; background:#ede9fe; color:#5b21b6; border-radius:6px; font-weight:600;">📜 ${esc(c.guion_name || '—')}</span>`;
+            } else if (c.responsible_type === 'group' && c.responsible_group_name) {
+                guionCell = `<span style="font-size:11px; padding:2px 6px; background:#dcfce7; color:#166534; border-radius:6px; font-weight:600;">👥 ${esc(c.responsible_group_name)}</span>`;
+            } else if (c.responsible_type === 'user' && c.responsible_user_name) {
+                guionCell = `<span style="font-size:11px; padding:2px 6px; background:#dbeafe; color:#1e40af; border-radius:6px; font-weight:600;">👤 ${esc(c.responsible_user_name)}</span>`;
+            } else {
+                guionCell = '<span style="color:#9ca3af; font-size:11px;">— sin responsable —</span>';
+            }
+            if (!c.generates_task) {
+                guionCell += ' <span style="font-size:11px; padding:2px 6px; background:#fee2e2; color:#991b1b; border-radius:6px; font-weight:600;" title="No genera Subtask al aprobarse">🚫 sin tarea</span>';
+            }
+            if (c.is_multi_select) {
+                guionCell += ` <span style="font-size:11px; padding:2px 6px; background:#fef3c7; color:#92400e; border-radius:6px; font-weight:600;" title="${c.list_items.length} ítems">📋 ${c.list_items.length}</span>`;
+            }
             html += `
                 <tr>
                     <td><code style="background:#f3f4f6; padding:2px 6px; border-radius:3px; font-size:11px;">${esc(c.code)}</code></td>
@@ -222,11 +274,50 @@
         } catch (e) { /* silencioso */ }
     }
 
+    let _subroles = [];
+    async function loadSubroles() {
+        try {
+            const r = await fetch('/api/admin/subroles');
+            const data = await r.json();
+            if (!data.success) return;
+            _subroles = data.subroles || [];
+            const sel = document.getElementById('f-responsible-group');
+            const opts = _subroles.map(s => `<option value="${esc(s.name)}">${esc(s.icon || '🔧')} ${esc(s.name)}</option>`).join('');
+            sel.innerHTML = '<option value="">— Elegí un grupo —</option>' + opts;
+        } catch (e) { /* silencioso */ }
+    }
+
+    let _admUsers = [];
+    async function loadUsersForControl() {
+        try {
+            const r = await fetch('/api/admin/users');
+            const data = await r.json();
+            if (!data.success) return;
+            _admUsers = (data.users || []).filter(u => ['technician', 'admin'].includes(u.role));
+            const sel = document.getElementById('f-responsible-user');
+            const opts = _admUsers.map(u => `<option value="${u.id}">${esc(u.name)} (${esc(u.company)})</option>`).join('');
+            sel.innerHTML = '<option value="">— Elegí un usuario —</option>' + opts;
+        } catch (e) { /* silencioso */ }
+    }
+
+    function onResponsibleTypeChange() {
+        const val = document.getElementById('f-responsible-type').value;
+        document.getElementById('f-responsible-group-wrap').style.display = val === 'group' ? 'block' : 'none';
+        document.getElementById('f-responsible-user-wrap').style.display = val === 'user' ? 'block' : 'none';
+    }
+
+    function onMultiSelectChange() {
+        document.getElementById('f-list-items-wrap').style.display =
+            document.getElementById('f-multiselect').checked ? 'block' : 'none';
+    }
+
     function openModal(editing=null) {
         _editingId = editing;
         document.getElementById('modalTitle').textContent = editing ? 'Editar control' : 'Nuevo control';
-        // Asegurar guiones cargados antes de abrir
+        // Asegurar catálogos auxiliares cargados antes de abrir
         if (_guiones.length === 0) loadGuiones();
+        if (_subroles.length === 0) loadSubroles();
+        if (_admUsers.length === 0) loadUsersForControl();
         if (editing) {
             const c = _controles.find(x => x.id === editing);
             if (!c) return;
@@ -240,6 +331,14 @@
             document.getElementById('f-company').value = c.company || '';
             document.getElementById('f-company').disabled = true;
             document.getElementById('f-guion').value = c.guion_id || '';
+            document.getElementById('f-generates-task').checked = c.generates_task;
+            document.getElementById('f-responsible-type').value = c.responsible_type || '';
+            document.getElementById('f-responsible-group').value = c.responsible_group_name || '';
+            document.getElementById('f-responsible-user').value = c.responsible_user_id || '';
+            onResponsibleTypeChange();
+            document.getElementById('f-multiselect').checked = c.is_multi_select;
+            document.getElementById('f-list-items').value = (c.list_items || []).map(li => li.label).join('\n');
+            onMultiSelectChange();
         } else {
             document.getElementById('f-code').value = '';
             document.getElementById('f-code').disabled = false;
@@ -251,6 +350,14 @@
             document.getElementById('f-company').value = '';
             document.getElementById('f-company').disabled = false;
             document.getElementById('f-guion').value = '';
+            document.getElementById('f-generates-task').checked = true;
+            document.getElementById('f-responsible-type').value = '';
+            document.getElementById('f-responsible-group').value = '';
+            document.getElementById('f-responsible-user').value = '';
+            onResponsibleTypeChange();
+            document.getElementById('f-multiselect').checked = false;
+            document.getElementById('f-list-items').value = '';
+            onMultiSelectChange();
         }
         document.getElementById('modal').style.display = 'flex';
     }
@@ -261,6 +368,8 @@
 
     async function saveControl() {
         const guionSel = document.getElementById('f-guion').value;
+        const responsibleType = document.getElementById('f-responsible-type').value;
+        const isMultiSelect = document.getElementById('f-multiselect').checked;
         const payload = {
             code: document.getElementById('f-code').value.trim().toLowerCase(),
             name: document.getElementById('f-name').value.trim(),
@@ -271,6 +380,15 @@
             company: document.getElementById('f-company').value || null,
             guion_id: guionSel ? parseInt(guionSel) : null,
             is_active: true,
+            generates_task: document.getElementById('f-generates-task').checked,
+            responsible_type: responsibleType || null,
+            responsible_group_name: responsibleType === 'group' ? (document.getElementById('f-responsible-group').value || null) : null,
+            responsible_user_id: responsibleType === 'user' && document.getElementById('f-responsible-user').value
+                ? parseInt(document.getElementById('f-responsible-user').value) : null,
+            is_multi_select: isMultiSelect,
+            list_items: isMultiSelect
+                ? document.getElementById('f-list-items').value.split('\n').map(s => s.trim()).filter(Boolean)
+                : [],
         };
         if (!payload.code || !payload.name) { alert('code y nombre son obligatorios'); return; }
         try {
@@ -306,6 +424,8 @@
 
     loadControles();
     loadGuiones();
+    loadSubroles();
+    loadUsersForControl();
     </script>
 </body>
 </html>
