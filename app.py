@@ -12153,6 +12153,25 @@ def migrate_templates_reference_doc():
             print(f"[migrate_templates] error agregando {col_name}: {e}")
 
 
+def migrate_email_logs_codigo():
+    """Agrega la columna codigo a email_logs si la tabla ya existía de un
+    deploy anterior (antes de que se agregara EMAIL_LOG_CODES) — db.create_all()
+    solo crea tablas nuevas, no agrega columnas a una tabla ya existente."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'email_logs' not in inspector.get_table_names():
+        return
+    existing_cols = {c['name'] for c in inspector.get_columns('email_logs')}
+    if 'codigo' in existing_cols:
+        return
+    try:
+        with db.engine.begin() as conn:
+            conn.execute(text("ALTER TABLE email_logs ADD COLUMN codigo VARCHAR(10)"))
+        print("[migrate_email_logs] Columna codigo agregada")
+    except Exception as e:
+        print(f"[migrate_email_logs] error agregando codigo: {e}")
+
+
 def migrate_messages_schema():
     """Agrega subtask_id a la tabla messages si no existe."""
     from sqlalchemy import inspect, text
@@ -13016,6 +13035,10 @@ def init_db():
             migrate_templates_reference_doc()
         except Exception as _e:
             print(f"[migrate] templates_reference_doc: {_e}")
+        try:
+            migrate_email_logs_codigo()
+        except Exception as _e:
+            print(f"[migrate] email_logs_codigo: {_e}")
         try:
             migrate_report_recipients_team()
         except Exception as _e:
