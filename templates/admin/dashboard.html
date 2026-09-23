@@ -1539,6 +1539,7 @@
                         <button class="esc-period-btn" data-period="year"  onclick="setEscPeriod('year')">📊 Año</button>
                         <button class="esc-period-btn active" data-period="all"   onclick="setEscPeriod('all')">∞ Todo</button>
                         <button onclick="refreshEscalations()" style="padding: 7px 14px; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;font-size:12px;">🔄</button>
+                        <button onclick="clearEscalationsHistory()" title="Borra el histórico de escalaciones (no afecta los tickets)" style="padding: 7px 14px; background: #f3f4f6; color: #991b1b; border: 1px solid #fecaca; border-radius: 6px; cursor: pointer; font-weight: 600;font-size:12px;">🗑️ Limpiar historial</button>
                     </div>
                 </div>
                 <style>
@@ -5249,6 +5250,24 @@
                 tabActive.style.color = '#6b7280';
                 contentActive.style.display = 'none';
                 contentHistory.style.display = 'block';
+            }
+        }
+
+        async function clearEscalationsHistory() {
+            if (!confirm('¿Borrar todo el histórico de escalaciones?\n\nEsto reinicia la pestaña "Histórico" y la gráfica de tendencia desde cero. No afecta los tickets ni las escalaciones activas (esas se calculan en vivo). Esta acción no se puede deshacer.')) {
+                return;
+            }
+            try {
+                const r = await fetch('/api/monitor/escalations/clear', {method: 'POST'});
+                const data = await r.json();
+                if (!data.success) {
+                    alert('❌ ' + (data.error || 'No se pudo limpiar el historial'));
+                    return;
+                }
+                alert(`✓ Historial limpiado (${data.deleted} registro(s) borrados).`);
+                refreshEscalations();
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
             }
         }
 

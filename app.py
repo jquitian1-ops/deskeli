@@ -23722,6 +23722,29 @@ def api_monitor_escalations():
         'trend': trend,
     })
 
+
+@app.route('/api/monitor/escalations/clear', methods=['POST'])
+def api_monitor_escalations_clear():
+    """Borra el histórico de escalaciones (AgentAction del agent 'escalator')
+    de la empresa del admin, para reiniciar el Monitor de Escalaciones desde
+    cero. No toca los tickets ni sus SLA — solo el registro histórico que
+    alimenta la pestaña "Histórico" y la gráfica de tendencia; las
+    escalaciones ACTIVAS se siguen calculando en vivo desde los tickets."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'Solo administradores'}), 403
+
+    company = session['company']
+    deleted = AgentAction.query.filter(
+        AgentAction.company == company,
+        AgentAction.agent_name == 'escalator'
+    ).delete(synchronize_session=False)
+    db.session.commit()
+
+    log_audit('monitor_escalations_cleared', session['user_id'], 'company', None,
+              f'{company}: historial de escalaciones limpiado ({deleted} registros borrados)')
+
+    return jsonify({'success': True, 'deleted': deleted})
+
 # ═════════════════════════════════════════════════════════════════════════════
 # API PÚBLICA v1 - Para integraciones externas (proveedores, sistemas legacy)
 # Autenticación por Bearer token (API Key generada en el panel admin)
