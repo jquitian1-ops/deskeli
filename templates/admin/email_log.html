@@ -46,6 +46,9 @@
         .dir-saliente { background: #dbeafe; color: #1e40af; }
         .dir-entrante { background: #ede9fe; color: #5b21b6; }
         .co-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; background: #f3f4f6; color: #374151; }
+        .btn-resend { padding: 4px 10px; font-size: 11px; font-weight: 700; border: 1px solid #7c3aed; background: white; color: #7c3aed; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+        .btn-resend:hover { background: #7c3aed; color: white; }
+        .btn-resend:disabled { opacity: 0.6; cursor: not-allowed; }
         .code-badge { display: inline-block; font-family: 'Consolas', monospace; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 4px; margin-bottom: 3px; cursor: help; letter-spacing: 0.3px; }
         .code-badge.code-enviado { background: #d1fae5; color: #065f46; }
         .code-badge.code-erroneo { background: #fee2e2; color: #991b1b; }
@@ -152,10 +155,11 @@
                         <th>Fecha</th>
                         <th>Hora</th>
                         <th>Referencia</th>
+                        <th>Acción</th>
                     </tr>
                 </thead>
                 <tbody id="logsBody">
-                    <tr><td colspan="9" class="empty">Cargando…</td></tr>
+                    <tr><td colspan="10" class="empty">Cargando…</td></tr>
                 </tbody>
             </table>
         </div>
@@ -237,7 +241,7 @@ async function loadLogs() {
         document.getElementById('kpi-shown').textContent = data.mostrando;
 
         if (!data.logs.length) {
-            tbody.innerHTML = `<tr><td colspan="9" class="empty">📭 No hay correos con esos filtros.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="10" class="empty">📭 No hay correos con esos filtros.</td></tr>`;
             return;
         }
 
@@ -262,10 +266,31 @@ async function loadLogs() {
                         ${l.codigo ? `<span class="code-badge code-${esc(l.status)}" title="${esc(l.codigo_desc || '')}">${esc(l.codigo)}</span>` : ''}
                         <div class="truncate" title="${esc(l.referencia)}">${esc(l.referencia || (l.codigo ? '' : '—'))}</div>
                     </td>
+                    <td>
+                        ${l.can_resend ? `<button class="btn-resend" onclick="resendEmail(${l.id}, this)" title="Reenviar este correo (sin adjuntos)">🔁 Reenviar</button>` : ''}
+                    </td>
                 </tr>`;
         }).join('');
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="9" class="empty">❌ ${esc(e.message)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="empty">❌ ${esc(e.message)}</td></tr>`;
+    }
+}
+
+async function resendEmail(id, btn) {
+    if (!confirm('¿Reenviar este correo al mismo destinatario?\n\nSe manda el mismo asunto y cuerpo guardados — si el original tenía archivos adjuntos, NO se incluyen en el reenvío.')) return;
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ Enviando…';
+    try {
+        const r = await fetch(`/api/admin/email-log/${id}/resend`, {method: 'POST'});
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error || 'No se pudo reenviar');
+        alert('✓ ' + data.message);
+        loadLogs();
+    } catch (e) {
+        alert('❌ ' + e.message);
+        btn.disabled = false;
+        btn.textContent = original;
     }
 }
 

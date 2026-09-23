@@ -982,6 +982,12 @@ class EmailLog(db.Model):
     destinatario = db.Column(db.String(500))
     referencia = db.Column(db.String(150))  # ej. "ticket_created", "mailbox: Soporte Pash", "solicitud_aprobacion"
     error_message = db.Column(db.Text)
+    # Cuerpo HTML + CC tal como se enviaron, para poder reenviar el mismo
+    # correo desde el panel si falló (ej. throttling SMTP momentáneo). NULL
+    # en correos entrantes o en logs de antes de esta columna — esos no se
+    # pueden reenviar desde acá.
+    body = db.Column(db.Text)
+    cc = db.Column(db.String(1000))
     created_at = db.Column(db.DateTime, default=datetime.now, index=True)
 
     __table_args__ = (
@@ -1006,10 +1012,11 @@ EMAIL_LOG_CODES = {
 
 
 def _log_email(company, direction, status, asunto=None, emisor=None, destinatario=None,
-               referencia=None, error_message=None, codigo=None):
+               referencia=None, error_message=None, codigo=None, body=None, cc=None):
     """Registra un correo saliente o entrante en EmailLog. Best-effort: nunca
     debe romper el flujo de envío/recepción real si falla (ej. sesión de BD
-    en mal estado). `codigo`: ver EMAIL_LOG_CODES."""
+    en mal estado). `codigo`: ver EMAIL_LOG_CODES. `body`/`cc` (solo
+    salientes) permiten reenviar el correo desde el panel si falló."""
     try:
         db.session.add(EmailLog(
             company=company or None,
@@ -1021,6 +1028,8 @@ def _log_email(company, direction, status, asunto=None, emisor=None, destinatari
             destinatario=(destinatario or '')[:500] or None,
             referencia=(referencia or '')[:150] or None,
             error_message=(error_message or None),
+            body=body or None,
+            cc=(', '.join(cc) if isinstance(cc, (list, tuple)) else cc) or None,
         ))
         db.session.commit()
     except Exception as e:
@@ -11035,7 +11044,8 @@ def send_email(to_email, subject, body, attachments=None, company=None, cc_email
 
     def _log(status, codigo, error_message=None):
         _log_email(company, 'saliente', status, asunto=subject, emisor=smtp_from,
-                   destinatario=to_email, error_message=error_message, codigo=codigo)
+                   destinatario=to_email, error_message=error_message, codigo=codigo,
+                   body=body, cc=cc_emails)
 
     if not smtp_user or not smtp_password:
         print('[send_email] SMTP no configurado (faltan SMTP_USER/SMTP_PASSWORD). Saltando envío.')
@@ -12556,6 +12566,26 @@ def migrate_email_logs_codigo():
         print(f"[migrate_email_logs] error agregando codigo: {e}")
 
 
+def migrate_email_logs_body_cc():
+    """Agrega body/cc a email_logs si la tabla ya existía de un deploy
+    anterior — necesarias para poder reenviar un correo saliente que falló
+    desde /admin/email-log."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'email_logs' not in inspector.get_table_names():
+        return
+    existing_cols = {c['name'] for c in inspector.get_columns('email_logs')}
+    for col_name, col_type in (('body', 'TEXT'), ('cc', 'VARCHAR(1000)')):
+        if col_name in existing_cols:
+            continue
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE email_logs ADD COLUMN {col_name} {col_type}"))
+            print(f"[migrate_email_logs] Columna {col_name} agregada")
+        except Exception as e:
+            print(f"[migrate_email_logs] error agregando {col_name}: {e}")
+
+
 def migrate_controles_catalogo_extra():
     """Agrega a controles_catalogo las columnas nuevas de responsable de
     tarea + lista interna de selección múltiple, si la tabla ya existía de
@@ -13530,6 +13560,10 @@ def init_db():
         except Exception as _e:
             print(f"[migrate] email_logs_codigo: {_e}")
         try:
+            migrate_email_logs_body_cc()
+        except Exception as _e:
+            print(f"[migrate] email_logs_body_cc: {_e}")
+        try:
             migrate_controles_catalogo_extra()
         except Exception as _e:
             print(f"[migrate] controles_catalogo_extra: {_e}")
@@ -14167,8 +14201,47 @@ def api_admin_email_log():
             'fecha': r.created_at.strftime('%d/%m/%Y') if r.created_at else '',
             'hora': r.created_at.strftime('%H:%M:%S') if r.created_at else '',
             'created_at': r.created_at.isoformat() if r.created_at else None,
+            # Reenviar requiere: saliente + que se haya guardado el body
+            # (correos entrantes, o logueados antes de esta función, no se
+            # pueden reenviar desde acá).
+            'can_resend': bool(r.direction == 'saliente' and r.body and r.destinatario),
         } for r in rows],
     })
+
+
+@app.route('/api/admin/email-log/<int:log_id>/resend', methods=['POST'])
+def api_admin_email_log_resend(log_id):
+    """Reenvía un correo saliente ya logueado (típicamente uno que falló).
+    Usa el mismo asunto/cuerpo/destinatario/CC guardados en el momento del
+    envío original. Los adjuntos NO se conservan (no se guardan en el log).
+    Genera un nuevo registro en el log para el reintento — el original
+    queda igual, como historial."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False}), 401
+    log = EmailLog.query.get(log_id)
+    if not log:
+        return jsonify({'success': False, 'error': 'Registro no encontrado'}), 404
+    if log.company and log.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso a esa empresa'}), 403
+    if log.direction != 'saliente':
+        return jsonify({'success': False, 'error': 'Solo se pueden reenviar correos salientes'}), 400
+    if not log.body or not log.destinatario:
+        return jsonify({'success': False, 'error': 'Este correo es anterior a la función de reenvío y no tiene el contenido guardado'}), 400
+
+    cc_list = [e.strip() for e in (log.cc or '').split(',') if e.strip()] or None
+    ok = send_email(
+        to_email=log.destinatario,
+        subject=log.asunto or '(sin asunto)',
+        body=log.body,
+        company=log.company,
+        cc_emails=cc_list,
+    )
+    log_audit('email_resend', session['user_id'], 'email_log', log.id,
+              f'Reenvío manual de correo #{log.id} a {log.destinatario}: {"OK" if ok else "falló"}')
+    if ok:
+        return jsonify({'success': True, 'message': f'Reenviado a {log.destinatario}'})
+    return jsonify({'success': False, 'error': 'Falló el reenvío — revisá el nuevo registro en el log para el detalle'}), 502
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 # MICROSOFT TEAMS WEBHOOKS (RF-03-12)
