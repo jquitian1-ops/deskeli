@@ -108,15 +108,6 @@
                 <label>Costo de referencia (opcional)</label>
                 <input type="number" step="0.01" id="f-costo">
             </div>
-            <div class="form-group">
-                <label>Empresa específica (opcional; vacío = global a las 3)</label>
-                <select id="f-company">
-                    <option value="">— Global —</option>
-                    <option value="eliot">Eliot</option>
-                    <option value="pash">Pash</option>
-                    <option value="primatela">Primatela</option>
-                </select>
-            </div>
             <div class="form-group" style="background:#faf5ff; padding:10px 12px; border-radius:6px; border-left:4px solid #7c3aed;">
                 <label>📜 Guion vinculado (opcional)</label>
                 <select id="f-guion">
@@ -216,7 +207,6 @@
                     <th>Descripción</th>
                     <th>Tipo</th>
                     <th>Guion / Responsable</th>
-                    <th>Empresa</th>
                     <th>Estado</th>
                     <th>Acciones</th>
                 </tr>
@@ -246,7 +236,6 @@
                     <td style="color:#6b7280; font-size:12px;">${esc((c.descripcion || '').substring(0, 80))}${(c.descripcion || '').length > 80 ? '…' : ''}</td>
                     <td><span class="badge badge-${c.tipo}">${esc(c.tipo)}</span></td>
                     <td>${guionCell}</td>
-                    <td>${esc(c.company || 'Global')}</td>
                     <td>${c.is_active ? '<span style="color:#16a34a;">● Activo</span>' : '<span class="badge badge-inactive">Inactivo</span>'}</td>
                     <td>
                         <button class="btn btn-secondary" style="padding:5px 10px; font-size:11px;" onclick="editControl(${c.id})">✏️</button>
@@ -328,8 +317,6 @@
             document.getElementById('f-tipo').value = c.tipo;
             document.getElementById('f-espejo').checked = c.needs_espejo;
             document.getElementById('f-costo').value = c.costo_referencia || '';
-            document.getElementById('f-company').value = c.company || '';
-            document.getElementById('f-company').disabled = true;
             document.getElementById('f-guion').value = c.guion_id || '';
             document.getElementById('f-generates-task').checked = c.generates_task;
             document.getElementById('f-responsible-type').value = c.responsible_type || '';
@@ -347,8 +334,6 @@
             document.getElementById('f-tipo').value = 'acceso';
             document.getElementById('f-espejo').checked = false;
             document.getElementById('f-costo').value = '';
-            document.getElementById('f-company').value = '';
-            document.getElementById('f-company').disabled = false;
             document.getElementById('f-guion').value = '';
             document.getElementById('f-generates-task').checked = true;
             document.getElementById('f-responsible-type').value = '';
@@ -377,7 +362,6 @@
             tipo: document.getElementById('f-tipo').value,
             needs_espejo: document.getElementById('f-espejo').checked,
             costo_referencia: document.getElementById('f-costo').value ? parseFloat(document.getElementById('f-costo').value) : null,
-            company: document.getElementById('f-company').value || null,
             guion_id: guionSel ? parseInt(guionSel) : null,
             is_active: true,
             generates_task: document.getElementById('f-generates-task').checked,

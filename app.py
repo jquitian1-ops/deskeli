@@ -12542,6 +12542,84 @@ def migrate_controles_catalogo_extra():
             print(f"[migrate_controles] error agregando {col_name}: {e}")
 
 
+def migrate_split_controles_por_empresa():
+    """Los controles del catálogo (elementos de tecnología, herramientas
+    ofimáticas, SAP, etc.) se sembraron con company=NULL ("global a las 3
+    empresas"): las 3 compañías compartían literalmente las mismas filas, así
+    que un cambio hecho desde el catálogo de una empresa (activar/desactivar,
+    responsable, lista interna, etc.) se veía de inmediato en las otras dos.
+    El catálogo de controles debe ser independiente por empresa — se pide
+    explícitamente que las modificaciones de una empresa NO se reflejen en
+    las demás (a diferencia de los Flujos de Aprobación, que sí se comparten
+    a propósito).
+
+    Por cada Control global, esta migración (idempotente — solo actúa sobre
+    company IS NULL, así que corre una sola vez en la práctica):
+      1. Clona la fila en las otras 2 empresas (con sus ControlListItem).
+      2. Deja la fila original fija en la primera empresa de la lista.
+      3. guion_id / responsible_user_id (ambos company-scoped) solo se
+         conservan en la copia de SU PROPIA empresa; en las demás quedan
+         en None (evita que un control termine apuntando a un guion o
+         usuario de otra empresa).
+    """
+    companies = ['eliot', 'pash', 'primatela']
+    globales = Control.query.filter(Control.company.is_(None)).all()
+    if not globales:
+        return
+    for ctrl in globales:
+        original_guion_id = ctrl.guion_id
+        original_responsible_user_id = ctrl.responsible_user_id
+        guion_company = None
+        if original_guion_id:
+            g = Guion.query.get(original_guion_id)
+            guion_company = g.company if g else None
+        resp_user_company = None
+        if original_responsible_user_id:
+            u = User.query.get(original_responsible_user_id)
+            resp_user_company = u.company if u else None
+        items = ControlListItem.query.filter_by(control_id=ctrl.id).order_by(ControlListItem.sort_order).all()
+
+        # La fila original se queda en la primera empresa de la lista.
+        home_company = companies[0]
+        ctrl.company = home_company
+        if original_guion_id and guion_company != home_company:
+            ctrl.guion_id = None
+        if original_responsible_user_id and resp_user_company != home_company:
+            ctrl.responsible_type = None
+            ctrl.responsible_user_id = None
+
+        for other_company in companies[1:]:
+            clone = Control(
+                code=ctrl.code,
+                name=ctrl.name,
+                descripcion=ctrl.descripcion,
+                tipo=ctrl.tipo,
+                needs_espejo=ctrl.needs_espejo,
+                costo_referencia=ctrl.costo_referencia,
+                company=other_company,
+                guion_id=original_guion_id if guion_company == other_company else None,
+                is_active=ctrl.is_active,
+                generates_task=ctrl.generates_task,
+                is_multi_select=ctrl.is_multi_select,
+                responsible_type=(
+                    ctrl.responsible_type
+                    if not (ctrl.responsible_type == 'user' and resp_user_company != other_company)
+                    else None
+                ),
+                responsible_group_name=ctrl.responsible_group_name,
+                responsible_user_id=original_responsible_user_id if resp_user_company == other_company else None,
+            )
+            db.session.add(clone)
+            db.session.flush()  # necesita clone.id para los ControlListItem
+            for it in items:
+                db.session.add(ControlListItem(
+                    control_id=clone.id, label=it.label, sort_order=it.sort_order, is_active=it.is_active,
+                ))
+
+    db.session.commit()
+    print(f"[migrate_controles] {len(globales)} control(es) global(es) separados en catálogos independientes por empresa")
+
+
 def migrate_messages_schema():
     """Agrega subtask_id a la tabla messages si no existe."""
     from sqlalchemy import inspect, text
@@ -13413,6 +13491,10 @@ def init_db():
             migrate_controles_catalogo_extra()
         except Exception as _e:
             print(f"[migrate] controles_catalogo_extra: {_e}")
+        try:
+            migrate_split_controles_por_empresa()
+        except Exception as _e:
+            print(f"[migrate] split_controles_por_empresa: {_e}")
         try:
             migrate_report_recipients_team()
         except Exception as _e:
@@ -25903,14 +25985,13 @@ def _serialize_solicitud_detail(s, viewer=None):
 
 @app.route('/api/controles', methods=['GET'])
 def api_controles_list():
-    """Lista los controles activos visibles a la empresa del usuario.
-    Incluye globales (company=NULL) + los específicos de su empresa."""
+    """Lista los controles activos de la empresa del usuario. El catálogo de
+    controles es independiente por empresa — no hay controles globales
+    compartidos (a diferencia de los Flujos de Aprobación)."""
     user, err = _current_user_or_401()
     if err: return err
     include_inactive = request.args.get('include_inactive') == '1' and user.role == 'admin'
-    q = Control.query.filter(
-        (Control.company == user.company) | (Control.company.is_(None))
-    )
+    q = Control.query.filter(Control.company == user.company)
     if not include_inactive:
         q = q.filter(Control.is_active == True)
     controles = q.order_by(Control.name).all()
@@ -25954,10 +26035,13 @@ def api_controles_create():
     name = (data.get('name') or '').strip()
     if not code or not name:
         return jsonify({'success': False, 'error': 'code y name son obligatorios'}), 400
-    company = (data.get('company') or '').strip() or None
+    # El catálogo es propio de cada empresa: siempre se crea en la del admin
+    # que lo está creando, sin opción de "global" (se ignora cualquier
+    # `company` que venga en el payload).
+    company = user.company
     # Validar duplicado
     if Control.query.filter_by(code=code, company=company).first():
-        return jsonify({'success': False, 'error': 'Ya existe un control con ese code en esta empresa'}), 409
+        return jsonify({'success': False, 'error': 'Ya existe un control con ese code en tu empresa'}), 409
     c = Control(
         code=code,
         name=name,
@@ -25984,7 +26068,7 @@ def api_controles_update(control_id):
     if user.role != 'admin':
         return jsonify({'success': False, 'error': 'Solo admin puede modificar controles'}), 403
     c = Control.query.get(control_id)
-    if not c:
+    if not c or c.company != user.company:
         return jsonify({'success': False, 'error': 'Control no encontrado'}), 404
     data = request.get_json() or {}
     for field in ('name', 'descripcion', 'tipo'):
@@ -26013,7 +26097,7 @@ def api_controles_delete(control_id):
     if user.role != 'admin':
         return jsonify({'success': False, 'error': 'Solo admin puede eliminar controles'}), 403
     c = Control.query.get(control_id)
-    if not c:
+    if not c or c.company != user.company:
         return jsonify({'success': False, 'error': 'Control no encontrado'}), 404
     c.is_active = False
     db.session.commit()
@@ -28900,47 +28984,51 @@ def _seed_controles_catalogo_if_empty():
                 return
 
             sync_list_items = getattr(mod, '_sync_list_items', None)
+            companies = getattr(mod, 'COMPANIES', ['eliot', 'pash', 'primatela'])
             created, updated, lists_synced = 0, 0, 0
-            for row in catalogo:
-                list_items = row.get('list_items') or []
-                existing = Control.query.filter_by(code=row['code'], company=None).first()
-                if existing:
-                    # Actualizar campos por si cambió la descripción
-                    if (existing.name != row['name'] or
-                        existing.descripcion != row['descripcion'] or
-                        existing.tipo != row['tipo'] or
-                        bool(existing.needs_espejo) != bool(row['needs_espejo'])):
-                        existing.name = row['name']
-                        existing.descripcion = row['descripcion']
-                        existing.tipo = row['tipo']
-                        existing.needs_espejo = row['needs_espejo']
-                        existing.costo_referencia = row.get('costo_referencia')
-                        existing.is_active = True
-                        updated += 1
-                    if sync_list_items and list_items:
-                        db.session.flush()
-                        lists_synced += sync_list_items(existing, list_items)
-                else:
-                    c = Control(
-                        code=row['code'],
-                        name=row['name'],
-                        descripcion=row['descripcion'],
-                        tipo=row['tipo'],
-                        needs_espejo=row['needs_espejo'],
-                        costo_referencia=row.get('costo_referencia'),
-                        company=None,
-                        is_active=True,
-                        is_multi_select=bool(list_items),
-                    )
-                    db.session.add(c)
-                    created += 1
-                    if sync_list_items and list_items:
-                        db.session.flush()
-                        lists_synced += sync_list_items(c, list_items)
+            # Catálogo independiente por empresa (ver migrate_split_controles_por_empresa):
+            # una copia por cada compañía, no una fila global compartida.
+            for company in companies:
+                for row in catalogo:
+                    list_items = row.get('list_items') or []
+                    existing = Control.query.filter_by(code=row['code'], company=company).first()
+                    if existing:
+                        # Actualizar campos por si cambió la descripción
+                        if (existing.name != row['name'] or
+                            existing.descripcion != row['descripcion'] or
+                            existing.tipo != row['tipo'] or
+                            bool(existing.needs_espejo) != bool(row['needs_espejo'])):
+                            existing.name = row['name']
+                            existing.descripcion = row['descripcion']
+                            existing.tipo = row['tipo']
+                            existing.needs_espejo = row['needs_espejo']
+                            existing.costo_referencia = row.get('costo_referencia')
+                            existing.is_active = True
+                            updated += 1
+                        if sync_list_items and list_items:
+                            db.session.flush()
+                            lists_synced += sync_list_items(existing, list_items)
+                    else:
+                        c = Control(
+                            code=row['code'],
+                            name=row['name'],
+                            descripcion=row['descripcion'],
+                            tipo=row['tipo'],
+                            needs_espejo=row['needs_espejo'],
+                            costo_referencia=row.get('costo_referencia'),
+                            company=company,
+                            is_active=True,
+                            is_multi_select=bool(list_items),
+                        )
+                        db.session.add(c)
+                        created += 1
+                        if sync_list_items and list_items:
+                            db.session.flush()
+                            lists_synced += sync_list_items(c, list_items)
             if created or updated or lists_synced:
                 db.session.commit()
             print(f"  [OK] Controles seed: {created} nuevos + {updated} actualizados + "
-                  f"{lists_synced} listas internas sincronizadas (total {len(catalogo)})")
+                  f"{lists_synced} listas internas sincronizadas (total {len(catalogo)} x {len(companies)} empresas)")
     except Exception as e:
         print(f"  [WARN] No se pudo cargar Controles seed: {e}")
 

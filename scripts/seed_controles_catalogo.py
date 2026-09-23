@@ -5,9 +5,10 @@ Carga el catálogo maestro de Controles (tabla controles_catalogo) con los 24
 controles que replican el módulo T-APPS. Idempotente: si un control con el
 mismo (code, company) ya existe, lo actualiza; si no, lo crea.
 
-Los controles se cargan como globales (company=NULL) para que sean visibles a
-las 3 empresas. Si querés controles específicos por empresa, editá esta lista
-o creá controles adicionales desde /admin/controles.
+El catálogo es INDEPENDIENTE por empresa: se crea una copia por cada una de
+las 3 empresas (eliot, pash, primatela), y modificar una desde
+/admin/controles (activar/desactivar, responsable, lista interna, etc.) NO
+afecta a las otras dos.
 
 Uso:
     python scripts/seed_controles_catalogo.py
@@ -231,41 +232,45 @@ def _sync_list_items(control, labels):
     return 1
 
 
+COMPANIES = ['eliot', 'pash', 'primatela']
+
+
 def run():
     with app.app_context():
         created, updated, lists_synced = 0, 0, 0
-        for row in CATALOGO:
-            list_items = row.get('list_items') or []
-            existing = Control.query.filter_by(code=row['code'], company=None).first()
-            if existing:
-                existing.name = row['name']
-                existing.descripcion = row['descripcion']
-                existing.tipo = row['tipo']
-                existing.needs_espejo = row['needs_espejo']
-                existing.costo_referencia = row['costo_referencia']
-                existing.is_active = True
-                updated += 1
-                db.session.flush()
-                lists_synced += _sync_list_items(existing, list_items)
-            else:
-                c = Control(
-                    code=row['code'],
-                    name=row['name'],
-                    descripcion=row['descripcion'],
-                    tipo=row['tipo'],
-                    needs_espejo=row['needs_espejo'],
-                    costo_referencia=row['costo_referencia'],
-                    company=None,  # global
-                    is_active=True,
-                    is_multi_select=bool(list_items),
-                )
-                db.session.add(c)
-                db.session.flush()
-                created += 1
-                lists_synced += _sync_list_items(c, list_items)
+        for company in COMPANIES:
+            for row in CATALOGO:
+                list_items = row.get('list_items') or []
+                existing = Control.query.filter_by(code=row['code'], company=company).first()
+                if existing:
+                    existing.name = row['name']
+                    existing.descripcion = row['descripcion']
+                    existing.tipo = row['tipo']
+                    existing.needs_espejo = row['needs_espejo']
+                    existing.costo_referencia = row['costo_referencia']
+                    existing.is_active = True
+                    updated += 1
+                    db.session.flush()
+                    lists_synced += _sync_list_items(existing, list_items)
+                else:
+                    c = Control(
+                        code=row['code'],
+                        name=row['name'],
+                        descripcion=row['descripcion'],
+                        tipo=row['tipo'],
+                        needs_espejo=row['needs_espejo'],
+                        costo_referencia=row['costo_referencia'],
+                        company=company,
+                        is_active=True,
+                        is_multi_select=bool(list_items),
+                    )
+                    db.session.add(c)
+                    db.session.flush()
+                    created += 1
+                    lists_synced += _sync_list_items(c, list_items)
         db.session.commit()
         print(f'[seed] Catalogo de controles: {created} creados, {updated} actualizados, '
-              f'{lists_synced} listas internas sincronizadas. Total: {len(CATALOGO)}')
+              f'{lists_synced} listas internas sincronizadas. Total: {len(CATALOGO)} x {len(COMPANIES)} empresas')
 
 
 if __name__ == '__main__':
