@@ -273,6 +273,22 @@ async function fetchUsersForCompany(company) {
     }
 }
 
+let allGroups = {}; // por empresa
+async function fetchGroupsForCompany(company) {
+    if (allGroups[company]) return allGroups[company];
+    try {
+        const r = await fetch(`/api/admin/subroles?company=${encodeURIComponent(company)}`);
+        const data = await r.json();
+        let list = (data.subroles || []).filter(s => s.is_active);
+        allGroups[company] = list;
+        return list;
+    } catch (e) {
+        console.error('[approvals] fetchGroupsForCompany falló:', e);
+        allGroups[company] = [];
+        return [];
+    }
+}
+
 async function openNewWorkflow() {
     try {
         document.getElementById('modalTitle').textContent = 'Nuevo workflow';
@@ -317,14 +333,22 @@ async function editWorkflow(id) {
 
 async function addStep(existing) {
     const company = document.getElementById('wfCompany').value;
-    const users = await fetchUsersForCompany(company);
+    const [users, groups] = await Promise.all([fetchUsersForCompany(company), fetchGroupsForCompany(company)]);
     const wrap = document.createElement('div');
     wrap.className = 'step-editor';
     const num = document.getElementById('stepsList').children.length + 1;
-    const opts = users.map(u => `<option value="${u.id}" ${existing && existing.user_id === u.id ? 'selected' : ''}>${esc(u.name)} (${esc(u.role_label || u.role)})</option>`).join('');
+    const existingValue = existing
+        ? (existing.group_name ? `g:${existing.group_name}` : (existing.user_id ? `u:${existing.user_id}` : ''))
+        : '';
+    const userOpts = users.map(u => `<option value="u:${u.id}" ${existingValue === `u:${u.id}` ? 'selected' : ''}>${esc(u.name)} (${esc(u.role_label || u.role)})</option>`).join('');
+    const groupOpts = groups.map(g => `<option value="g:${esc(g.name)}" ${existingValue === `g:${g.name}` ? 'selected' : ''}>${esc(g.icon || '👥')} ${esc(g.name)}</option>`).join('');
     wrap.innerHTML = `
         <span class="num">${num}.</span>
-        <select class="step-user"><option value="">Seleccionar…</option>${opts}</select>
+        <select class="step-user" title="Persona específica o grupo (cualquiera de sus miembros puede aprobar/rechazar)">
+            <option value="">Seleccionar…</option>
+            <optgroup label="👤 Personas">${userOpts}</optgroup>
+            <optgroup label="👥 Grupos (cualquier miembro puede decidir)">${groupOpts}</optgroup>
+        </select>
         <input type="text" class="step-label" placeholder="Etiqueta (Jefe, Gerente, etc)" value="${existing ? esc(existing.role_label) : ''}" maxlength="120">
         <button type="button" class="rm" onclick="this.parentNode.remove(); renumberSteps();">✕</button>
     `;
@@ -339,13 +363,12 @@ async function saveWorkflow() {
     const id = document.getElementById('wfId').value;
     const approvers = [];
     document.querySelectorAll('#stepsList .step-editor').forEach((el, i) => {
-        const uid = el.querySelector('.step-user').value;
-        if (uid) {
-            approvers.push({
-                order: i + 1,
-                user_id: parseInt(uid),
-                role_label: el.querySelector('.step-label').value.trim()
-            });
+        const val = el.querySelector('.step-user').value;
+        const roleLabel = el.querySelector('.step-label').value.trim();
+        if (val.startsWith('g:')) {
+            approvers.push({ order: i + 1, group_name: val.slice(2), role_label: roleLabel });
+        } else if (val.startsWith('u:')) {
+            approvers.push({ order: i + 1, user_id: parseInt(val.slice(2)), role_label: roleLabel });
         }
     });
     if (!approvers.length) {

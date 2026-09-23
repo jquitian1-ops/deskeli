@@ -5834,6 +5834,7 @@ def _approvals_serialize_workflow(w, include_approvers=True):
         for step in approvers:
             uid = step.get('user_id')
             dyn_field = step.get('user_from_form_field')
+            group_name = step.get('group_name')
             condition_ctl = step.get('condition_control_marked')
             entry = {
                 'order': step.get('order', len(enriched) + 1),
@@ -5841,10 +5842,16 @@ def _approvals_serialize_workflow(w, include_approvers=True):
                 'user_id': uid,
                 'user_from_form_field': dyn_field or None,
                 'is_dynamic': bool(dyn_field),
+                'group_name': group_name or None,
+                'is_group': bool(group_name),
                 'condition_control_marked': condition_ctl or None,
                 'is_conditional': bool(condition_ctl),
             }
-            if dyn_field:
+            if group_name:
+                member_count = len(_resolve_group_approvers(group_name, w.company))
+                entry['user_name'] = f'👥 Grupo: {group_name} ({member_count} persona(s))'
+                entry['user_email'] = ''
+            elif dyn_field:
                 entry['user_name'] = f'⚡ Dinámico (campo del form: "{dyn_field}")'
                 entry['user_email'] = ''
             else:
@@ -5970,17 +5977,48 @@ def _is_control_marked_in_form(form_data, control_code):
     return bool(ctl.get('marcado'))
 
 
+def _resolve_group_approvers(group_name, company):
+    """Miembros activos (técnico/admin) del grupo `group_name` en `company`.
+
+    Por NOMBRE, no por id: el mismo workflow puede aplicar a un grupo
+    homónimo con distinto Subrole.id en cada empresa (mismo patrón usado
+    para Mesa De Ayuda Pash y para el responsable de controles del catálogo
+    de Solicitudes — ver _resolve_control_responsible)."""
+    if not group_name:
+        return []
+    return (
+        db.session.query(User)
+        .join(UserSubrole, UserSubrole.user_id == User.id)
+        .join(Subrole, Subrole.id == UserSubrole.subrole_id)
+        .filter(
+            Subrole.name.ilike(group_name.strip()),
+            Subrole.company == company,
+            Subrole.is_active == True,
+            User.company == company,
+            User.is_active == True,
+            User.role.in_(['technician', 'admin']),
+        )
+        .all()
+    )
+
+
 def create_approvals_for_ticket(ticket, workflow, steps, form_data=None):
     """Crea los N Approval records y marca el ticket como pending_approval.
-    Envía email al primer aprobador.
+    Envía email al/los aprobador(es) del primer paso.
 
-    Soporta 3 tipos de step:
+    Soporta 4 tipos de step:
       - **Estático**: `user_id` fijo en el step.
       - **Dinámico**: `user_from_form_field` = nombre del campo del form
         que contiene user_id/email/username del aprobador.
+      - **Grupo**: `group_name` = nombre de un Subrole (ej "Mesa de Ayuda
+        Pash"). Se crea un Approval por cada miembro activo del grupo, TODOS
+        con el mismo `order` — cualquiera de ellos puede aprobar (lógica OR;
+        al aprobar uno, los demás quedan 'skipped') o rechazar (si cualquiera
+        rechaza, se rechaza todo el ticket, igual que en Solicitudes de
+        Usuario).
       - **Condicional**: `condition_control_marked` = code del control
         (dentro del campo control_list `controles`). El step solo se crea
-        si el empleado marcó ese control. Combina con user_id o dinámico.
+        si el empleado marcó ese control. Combina con cualquiera de los 3 de arriba.
 
     Ejemplo: workflow con 3 pasos:
       1. Jefe inmediato (dinámico, siempre)
@@ -5991,9 +6029,11 @@ def create_approvals_for_ticket(ticket, workflow, steps, form_data=None):
     form_data = form_data or {}
     unresolved_dynamic = []  # para log de auditoría
     skipped_conditional = []  # steps saltados por no cumplir condición
+    unresolved_group = []  # grupos sin miembros activos
 
     for i, step in enumerate(steps):
         uid = step.get('user_id')
+        group_name = step.get('group_name')
         dynamic_field = step.get('user_from_form_field')
         condition_control = step.get('condition_control_marked')
 
@@ -6027,6 +6067,31 @@ def create_approvals_for_ticket(ticket, workflow, steps, form_data=None):
                 print(f"[approvals] Step {i+1} sin resolver: campo '{dynamic_field}' valor '{field_value}' no matchea usuario activo en {ticket.company}")
                 continue
 
+        # Step de grupo: un Approval por cada miembro activo, mismo order
+        if not uid and group_name:
+            members = _resolve_group_approvers(group_name, ticket.company)
+            if not members:
+                unresolved_group.append({
+                    'order': step.get('order', i + 1),
+                    'group_name': group_name,
+                    'role_label': step.get('role_label', ''),
+                })
+                print(f"[approvals] Step {i+1} sin resolver: grupo '{group_name}' sin miembros activos en {ticket.company}")
+                continue
+            step_order = step.get('order', i + 1)
+            for m in members:
+                db.session.add(Approval(
+                    ticket_id=ticket.id,
+                    workflow_id=workflow.id,
+                    approver_id=m.id,
+                    approver_role_label=step.get('role_label', ''),
+                    order=step_order,
+                    status='pending',
+                    token=secrets.token_urlsafe(32)
+                ))
+            print(f"[approvals] Step {i+1} resuelto a grupo '{group_name}': {len(members)} aprobador(es) posibles (cualquiera puede decidir)")
+            continue
+
         if not uid:
             continue
 
@@ -6040,6 +6105,17 @@ def create_approvals_for_ticket(ticket, workflow, steps, form_data=None):
             token=secrets.token_urlsafe(32)
         )
         db.session.add(approval)
+
+    if unresolved_group:
+        try:
+            log_audit(
+                'approval_group_unresolved', None, 'ticket', ticket.id,
+                f"Workflow '{workflow.name}' tuvo {len(unresolved_group)} paso(s) de grupo "
+                f"sin miembros activos: {unresolved_group}. El ticket se creó igual pero ese "
+                f"paso puede necesitar reasignación manual."
+            )
+        except Exception:
+            pass
 
     # Si algún step dinámico quedó sin resolver, registrar en auditoría
     if unresolved_dynamic:
@@ -6068,10 +6144,23 @@ def create_approvals_for_ticket(ticket, workflow, steps, form_data=None):
     ticket.updated_at = datetime.now()
     db.session.flush()
 
-    # Notificar al primer aprobador
-    first = Approval.query.filter_by(ticket_id=ticket.id).order_by(Approval.order.asc()).first()
-    if first:
-        _send_approval_email(first)
+    # Notificar al/los aprobador(es) del primer paso (un step de grupo
+    # notifica a TODOS sus miembros, no solo a uno).
+    _notify_current_approval_step(ticket)
+
+
+def _notify_current_approval_step(ticket):
+    """Envía email a TODOS los Approval pendientes que comparten el `order`
+    más chico entre los pendientes de este ticket. Un step normal tiene un
+    solo pendiente en ese order; un step de grupo tiene varios (cualquiera
+    puede decidir) y todos deben enterarse."""
+    pending = Approval.query.filter_by(ticket_id=ticket.id, status='pending').all()
+    if not pending:
+        return
+    min_order = min(a.order for a in pending)
+    for a in pending:
+        if a.order == min_order and not a.notified_at:
+            _send_approval_email(a)
 
 
 def _send_approval_email(approval):
@@ -6161,10 +6250,9 @@ def _finalize_approval_chain(ticket):
                 print(f'[approval-finalize][default-group] Error: {e}')
         return
 
-    # Hay pendientes → notificar al siguiente en la cola
-    next_pending = min(pending, key=lambda a: a.order)
-    if not next_pending.notified_at:
-        _send_approval_email(next_pending)
+    # Hay pendientes → notificar al siguiente paso (a TODOS sus miembros si
+    # es un step de grupo)
+    _notify_current_approval_step(ticket)
 
 
 # Admin: gestor de workflows
@@ -6224,6 +6312,7 @@ def api_admin_workflow_create():
     for i, step in enumerate(approvers):
         uid = step.get('user_id')
         dyn_field = (step.get('user_from_form_field') or '').strip()[:80]
+        group_name = (step.get('group_name') or '').strip()[:100]
         role_label = (step.get('role_label') or '').strip()[:120]
 
         condition_ctl = (step.get('condition_control_marked') or '').strip()[:80] or None
@@ -6232,6 +6321,15 @@ def api_admin_workflow_create():
             entry = {
                 'order': i + 1,
                 'user_from_form_field': dyn_field,
+                'role_label': role_label,
+            }
+            if condition_ctl:
+                entry['condition_control_marked'] = condition_ctl
+            clean_approvers.append(entry)
+        elif group_name:
+            entry = {
+                'order': i + 1,
+                'group_name': group_name,
                 'role_label': role_label,
             }
             if condition_ctl:
@@ -6250,7 +6348,7 @@ def api_admin_workflow_create():
                 entry['condition_control_marked'] = condition_ctl
             clean_approvers.append(entry)
         else:
-            return jsonify({'success': False, 'error': f'Aprobador #{i+1} requiere user_id o user_from_form_field'}), 400
+            return jsonify({'success': False, 'error': f'Aprobador #{i+1} requiere user_id, group_name o user_from_form_field'}), 400
 
     trigger_category = (data.get('trigger_category') or '').strip() or None
     trigger_priority = (data.get('trigger_priority') or '').strip() or None
@@ -6311,12 +6409,22 @@ def api_admin_workflow_update(wid):
         for i, step in enumerate(approvers):
             uid = step.get('user_id')
             dyn_field = (step.get('user_from_form_field') or '').strip()[:80]
+            group_name = (step.get('group_name') or '').strip()[:100]
             role_label = (step.get('role_label') or '').strip()[:120]
             condition_ctl = (step.get('condition_control_marked') or '').strip()[:80] or None
             if dyn_field:
                 entry = {
                     'order': i + 1,
                     'user_from_form_field': dyn_field,
+                    'role_label': role_label,
+                }
+                if condition_ctl:
+                    entry['condition_control_marked'] = condition_ctl
+                clean.append(entry)
+            elif group_name:
+                entry = {
+                    'order': i + 1,
+                    'group_name': group_name,
                     'role_label': role_label,
                 }
                 if condition_ctl:
@@ -6335,7 +6443,7 @@ def api_admin_workflow_update(wid):
                     entry['condition_control_marked'] = condition_ctl
                 clean.append(entry)
             else:
-                return jsonify({'success': False, 'error': f'Aprobador #{i+1} requiere user_id o user_from_form_field'}), 400
+                return jsonify({'success': False, 'error': f'Aprobador #{i+1} requiere user_id, group_name o user_from_form_field'}), 400
         w.approvers_json = json.dumps(clean)
     w.updated_at = datetime.now()
     db.session.commit()
@@ -6415,6 +6523,20 @@ def api_approval_decision(token):
     approval.decision_at = datetime.now()
     approval.comment = comment
     db.session.flush()
+
+    # Step de grupo: si uno aprueba, el paso queda resuelto para todo el
+    # grupo — los demás miembros pendientes del mismo order no deciden más
+    # (quedan 'skipped', no cuentan como pendientes ni bloquean el avance).
+    # Un rechazo NO hace esto: cualquiera que rechace ya rechaza todo el
+    # ticket en _finalize_approval_chain, sin importar cuántos compañeros
+    # de grupo sigan pendientes.
+    if action == 'approve':
+        Approval.query.filter(
+            Approval.ticket_id == approval.ticket_id,
+            Approval.order == approval.order,
+            Approval.id != approval.id,
+            Approval.status == 'pending',
+        ).update({'status': 'skipped'}, synchronize_session=False)
 
     # Actualizar cadena
     ticket = approval.ticket
@@ -18618,6 +18740,11 @@ def api_admin_subroles_list():
     if 'user_id' not in session or session['role'] != 'admin':
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     company = session.get('company')
+    # Master admin gestionando otra empresa (ej. flujos de aprobación de un
+    # workflow que no es el suyo): permitir override si tiene acceso a ella.
+    company_param = request.args.get('company')
+    if company_param and company_param in admin_companies_scope():
+        company = company_param
     subroles = Subrole.query.filter(
         (Subrole.company == None) | (Subrole.company == company)
     ).order_by(Subrole.is_system.desc(), Subrole.name).all()
