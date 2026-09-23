@@ -26459,13 +26459,20 @@ def _apply_transition(s, user, accion, observacion):
             # Pasar solicitud a EN_TRAMITE y linkear con el ticket generado
             s.estado = SOLICITUD_ESTADO_EN_TRAMITE
             s.caso_externo = ticket.ticket_number
+            subtask_numbers = [
+                st.subtask_number for st in
+                Subtask.query.filter_by(ticket_id=ticket.id).order_by(Subtask.order_idx).all()
+            ]
+            detalle_casos = f'Caso padre: {ticket.ticket_number}'
+            if subtask_numbers:
+                detalle_casos += f' · Subtarea{"s" if len(subtask_numbers) != 1 else ""}: ' + ', '.join(subtask_numbers)
             db.session.add(SolicitudHistorial(
                 solicitud_id=s.id,
                 estado_anterior=SOLICITUD_ESTADO_APROBADO_GERENTE_TI,
                 estado_nuevo=SOLICITUD_ESTADO_EN_TRAMITE,
                 aprobador_id=user.id,
                 accion='marcar_tramite',
-                observacion=f'Auto-generado tras aprobación final. Ticket: {ticket.ticket_number}',
+                observacion=f'Auto-generado tras aprobación final. {detalle_casos}',
             ))
             # Actualizar el estado devuelto para que el endpoint informe el final
             next_estado = SOLICITUD_ESTADO_EN_TRAMITE
