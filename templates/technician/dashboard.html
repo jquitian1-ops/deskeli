@@ -490,6 +490,14 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                     <span style="padding-left:8px;">👥 De mis grupos</span>
                     <span class="side-nav-count" id="countSubtasksTeam">…</span>
                 </button>
+
+                {% if is_mesa_ayuda_pash %}
+                <div class="side-nav-group-title">🗂️ Flujos (Pash)</div>
+                <button class="side-nav-btn" id="navFlowCases" onclick="switchView('flowcases')" title="Todos los casos generados por Solicitudes de Usuario en Pash, sin importar a quién estén asignados hoy">
+                    <span style="padding-left:8px;">📋 Todos los casos</span>
+                    <span class="side-nav-count" id="countFlowCases">…</span>
+                </button>
+                {% endif %}
             </nav>
 
             <!-- CONTENIDO -->
@@ -709,6 +717,27 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                 </div>
             </div>
 
+            {% if is_mesa_ayuda_pash %}
+            <!-- VISTA: CASOS POR FLUJOS (PASH) -->
+            <div id="viewFlowCases" class="queue-section" style="display:none;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                    <div class="section-title" style="margin:0;">📋 Todos los Casos Generados por Flujos (Pash)</div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="text" id="flowCasesSearch" placeholder="🔍 Buscar por ticket, solicitud, título..."
+                               onkeyup="filterFlowCases()"
+                               style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;min-width:280px;font-size:14px;">
+                        <span id="flowCasesSearchCount" style="font-size:12px;color:#6b7280;"></span>
+                    </div>
+                </div>
+                <div class="callout" style="background:#eff6ff;border-left:4px solid #3b82f6;padding:10px 14px;border-radius:4px;font-size:12px;color:#1e40af;margin-bottom:14px;">
+                    Todos los casos generados al aprobarse una Solicitud de Usuario en Pash, sin importar a quién estén asignados — incluye los que un flujo asignó a una persona puntual, no solo al grupo.
+                </div>
+                <div id="flowCasesList">
+                    <p style="text-align:center;color:#999;padding:30px;">Cargando casos...</p>
+                </div>
+            </div>
+            {% endif %}
+
             </div><!-- /col contenido -->
         </div><!-- /workspace -->
 
@@ -719,13 +748,16 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
         function switchView(view, scope) {
             scope = scope || 'mine';
             const isTickets = view === 'tickets';
+            const isFlowCases = view === 'flowcases';
+            const flowCasesEl = document.getElementById('viewFlowCases');
 
             // Mostrar/ocultar paneles principales
             document.getElementById('viewTickets').style.display = isTickets ? '' : 'none';
-            document.getElementById('viewSubtasks').style.display = isTickets ? 'none' : '';
+            document.getElementById('viewSubtasks').style.display = (!isTickets && !isFlowCases) ? '' : 'none';
+            if (flowCasesEl) flowCasesEl.style.display = isFlowCases ? '' : 'none';
 
             // Quitar active de todos los botones del sidebar
-            ['navTicketsMine','navTicketsTeam','navSubtasksMine','navSubtasksTeam'].forEach(id => {
+            ['navTicketsMine','navTicketsTeam','navSubtasksMine','navSubtasksTeam','navFlowCases'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.remove('active');
             });
@@ -738,6 +770,9 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                     scope === 'mine' ? '🎯 Tickets Asignados a Mí' : '👥 Tickets de Mis Grupos';
                 // Reaplicar búsqueda
                 filterQueue();
+            } else if (isFlowCases) {
+                document.getElementById('navFlowCases').classList.add('active');
+                loadFlowCases();
             } else {
                 document.getElementById(scope === 'mine' ? 'navSubtasksMine' : 'navSubtasksTeam').classList.add('active');
                 _currentSubtaskScope = scope;
@@ -886,6 +921,105 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
             renderMySubtasks(filtered);
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // CASOS POR FLUJOS (PASH) — solo para Mesa De Ayuda Pash
+        // ═══════════════════════════════════════════════════════════════
+        let _allFlowCases = [];
+
+        function loadFlowCases() {
+            const listEl = document.getElementById('flowCasesList');
+            if (!listEl) return;
+            listEl.innerHTML = '<p style="text-align:center;color:#999;padding:30px;">Cargando casos...</p>';
+            fetch('/api/technician/flow-cases')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) {
+                        listEl.innerHTML = `<p style="text-align:center;color:#dc2626;padding:30px;">${escSub(data.error || 'Error al cargar')}</p>`;
+                        return;
+                    }
+                    _allFlowCases = data.cases || [];
+                    const countEl = document.getElementById('countFlowCases');
+                    if (countEl) countEl.textContent = _countActiveSubtasks(_allFlowCases);
+                    renderFlowCases(_allFlowCases);
+                })
+                .catch(() => {
+                    listEl.innerHTML = '<p style="text-align:center;color:#dc2626;padding:30px;">Error de conexión</p>';
+                });
+        }
+
+        function renderFlowCases(list) {
+            const container = document.getElementById('flowCasesList');
+            if (!container) return;
+            if (!list || list.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:40px;color:#999;background:#f9fafb;border-radius:8px;">No hay casos generados por flujos todavía.</div>';
+                return;
+            }
+            const rows = list.map(c => {
+                const terminal = c.status === 'resolved' || c.status === 'closed';
+                const rowBg = (c.sla_expired && !terminal) ? 'background:#fef2f2;' : (terminal ? 'background:#f9fafb;' : '');
+                const titleTruncated = c.title.length > 60 ? c.title.slice(0,60)+'…' : c.title;
+                return `
+                    <tr onclick="window.location='/technician/ticket/${c.id}'"
+                        style="cursor:pointer;border-bottom:1px solid #f0f0f0;${rowBg}"
+                        title="Ver detalle del ticket">
+                        <td style="padding:10px;font-weight:700;color:#7c3aed;font-size:12px;">${escSub(c.ticket_number)}</td>
+                        <td style="padding:10px;font-size:11px;">
+                            ${c.solicitud_codigo ? `<div style="font-weight:600;color:#5b21b6;">${escSub(c.solicitud_codigo)}</div><div style="color:#6b7280;">${escSub(c.solicitud_nombre || '')}</div>` : '—'}
+                        </td>
+                        <td style="padding:10px;">
+                            <div style="font-weight:600;color:#111827;">${escSub(titleTruncated)}</div>
+                            ${c.category ? `<div style="font-size:11px;color:#6b7280;">📁 ${escSub(c.category)}</div>` : ''}
+                        </td>
+                        <td style="padding:10px;text-align:center;">${statusPill(c.status)}</td>
+                        <td style="padding:10px;text-align:center;">${priorityPill(c.priority)}</td>
+                        <td style="padding:10px;font-size:12px;color:#374151;">${c.assignee_name ? '👤 ' + escSub(c.assignee_name) : '<span style="color:#999;">Sin asignar</span>'}</td>
+                        <td style="padding:10px;font-size:11px;color:#374151;">${escSub(c.created_at || '—')}</td>
+                        <td style="padding:10px;text-align:center;">${slaText(c)}</td>
+                    </tr>
+                `;
+            }).join('');
+            container.innerHTML = `
+                <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-size:13px;">
+                    <thead>
+                        <tr style="background:#f9fafb;">
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Ticket</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Solicitud</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asunto</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Estado</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Prioridad</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asignado a</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Creado</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">SLA</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                </div>
+            `;
+        }
+
+        function filterFlowCases() {
+            const searchEl = document.getElementById('flowCasesSearch');
+            const countEl = document.getElementById('flowCasesSearchCount');
+            if (!searchEl) return;
+            const q = (searchEl.value || '').trim().toLowerCase();
+            if (!q) {
+                renderFlowCases(_allFlowCases);
+                if (countEl) countEl.textContent = '';
+                return;
+            }
+            const filtered = _allFlowCases.filter(c => {
+                const text = [
+                    c.ticket_number, c.title, c.priority, c.status, c.category,
+                    c.assignee_name, c.solicitud_codigo, c.solicitud_nombre
+                ].filter(Boolean).join(' ').toLowerCase();
+                return text.indexOf(q) !== -1;
+            });
+            if (countEl) countEl.textContent = filtered.length + ' de ' + _allFlowCases.length;
+            renderFlowCases(filtered);
+        }
+
         // Pre-cargar contadores de subtareas (mine + team) al abrir la página.
         // Solo cuentan subtareas ACTIVAS (open + in_progress). Las resueltas y
         // cerradas no aportan al badge — así el técnico ve de un vistazo lo pendiente.
@@ -912,6 +1046,19 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                 }).catch(() => {
                     document.getElementById('countSubtasksTeam').textContent = '0';
                 });
+
+            // Solo existe en el DOM si is_mesa_ayuda_pash (ver template)
+            if (document.getElementById('countFlowCases')) {
+                fetch('/api/technician/flow-cases')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('countFlowCases').textContent = _countActiveSubtasks(data.cases);
+                        }
+                    }).catch(() => {
+                        document.getElementById('countFlowCases').textContent = '0';
+                    });
+            }
         });
 
         // Estado de filtros por columna {mine: {col: val}, team: {col: val}}

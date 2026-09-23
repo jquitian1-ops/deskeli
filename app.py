@@ -3989,7 +3989,8 @@ def technician_dashboard():
                            user=user,
                            company=COMPANY_COLORS.get(session.get('company')),
                            theme_color=theme_color,
-                           current_theme=theme_name)
+                           current_theme=theme_name,
+                           is_mesa_ayuda_pash=_user_is_in_mesa_ayuda_pash(user))
 
 @app.route('/admin/dashboard')
 def admin_dashboard():
@@ -11792,6 +11793,30 @@ def get_my_group_user_ids(user):
     return {row.id for row in peers}
 
 
+def _user_is_in_mesa_ayuda_pash(user):
+    """True si `user` (o alguna de sus identidades espejo, ver
+    get_user_identity_ids) es miembro del grupo "Mesa de Ayuda" de Pash.
+    Mismo match tolerante que assign_to_default_group (el nombre real puede
+    ser "Mesa De Ayuda PASH", no exactamente "Mesa de Ayuda") — se resuelve
+    por nombre, no por id, para no depender de mayúsculas/variantes."""
+    if not user:
+        return False
+    group_ids = [
+        s.id for s in Subrole.query.filter(
+            Subrole.company == 'pash',
+            Subrole.name.ilike('mesa de ayuda%'),
+            Subrole.is_active == True,
+        ).all()
+    ]
+    if not group_ids:
+        return False
+    identity_ids = get_user_identity_ids(user)
+    return db.session.query(UserSubrole.id).filter(
+        UserSubrole.subrole_id.in_(group_ids),
+        UserSubrole.user_id.in_(identity_ids),
+    ).first() is not None
+
+
 def get_ticket_assignment_info(ticket):
     """Devuelve un dict {by, source, when} describiendo quién/qué hizo la última asignación.
     Busca primero en audit_logs (manual o auto_assign), luego en agent_actions (orchestrator IA)."""
@@ -16314,6 +16339,67 @@ def api_my_subtasks():
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/technician/flow-cases', methods=['GET'])
+def api_technician_flow_cases():
+    """Todos los tickets generados automáticamente por un flujo de
+    Solicitudes de Usuario en Pash, sin importar a quién estén asignados
+    hoy — para que Mesa De Ayuda Pash tenga visibilidad completa aunque el
+    flujo haya asignado el caso a una persona puntual (ver
+    flow_ticket_assignee_email) en vez de al grupo.
+
+    Solo visible para miembros de Mesa De Ayuda Pash (_user_is_in_mesa_ayuda_pash).
+    """
+    if 'user_id' not in session or session.get('role') not in ('technician', 'admin'):
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    user = User.query.get(session['user_id'])
+    if not _user_is_in_mesa_ayuda_pash(user):
+        return jsonify({'success': False, 'error': 'Sin acceso — esta vista es solo para Mesa De Ayuda Pash'}), 403
+
+    # caso_externo solo confirma un ticket REAL generado por el flujo una vez
+    # que la solicitud llegó a EN_TRAMITE/CERRADO — antes de eso puede
+    # contener un valor manual sin relación ("Ticket de soporte asociado"
+    # opcional cargado al crear la solicitud).
+    solicitudes = SolicitudUsuario.query.filter(
+        SolicitudUsuario.company == 'pash',
+        SolicitudUsuario.estado.in_([SOLICITUD_ESTADO_EN_TRAMITE, SOLICITUD_ESTADO_CERRADO]),
+        SolicitudUsuario.caso_externo.isnot(None),
+    ).all()
+    by_ticket_number = {s.caso_externo: s for s in solicitudes if s.caso_externo}
+    if not by_ticket_number:
+        return jsonify({'success': True, 'cases': [], 'total': 0})
+
+    tickets = Ticket.query.filter(Ticket.ticket_number.in_(list(by_ticket_number.keys()))).all()
+
+    estado_filter = (request.args.get('estado') or '').strip()
+    if estado_filter:
+        tickets = [t for t in tickets if t.status == estado_filter]
+
+    tickets.sort(key=lambda t: t.created_at or datetime.min, reverse=True)
+
+    now = datetime.now()
+    cases = []
+    for t in tickets:
+        s = by_ticket_number.get(t.ticket_number)
+        cases.append({
+            'id': t.id,
+            'ticket_number': t.ticket_number,
+            'title': t.title,
+            'status': t.status,
+            'priority': t.priority,
+            'category': t.category,
+            'assignee_name': t.assignee.name if t.assignee else None,
+            'sla_remaining': t.sla_remaining,
+            'sla_expired': bool(t.sla_deadline and t.sla_deadline < now and t.status not in ('resolved', 'closed')),
+            'created_at': t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else None,
+            'solicitud_id': s.id if s else None,
+            'solicitud_codigo': s.codigo if s else None,
+            'solicitud_nombre': s.nombre if s else None,
+            'solicitud_tipo': s.tipo_solicitud if s else None,
+        })
+
+    return jsonify({'success': True, 'cases': cases, 'total': len(cases)})
 
 
 @app.route('/api/subtask/<int:subtask_id>', methods=['GET'])
