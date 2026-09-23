@@ -11344,6 +11344,127 @@ def notify_ticket_assigned(ticket, new_assignee, assigned_by_name='Sistema', rea
     return ok
 
 
+def notify_subtask_assigned(subtask, assignee, assigned_by_name='Sistema'):
+    """Envía email al técnico/especialista cuando se le asigna una subtarea
+    (manual, o auto-generada al aprobar una Solicitud de Usuario). Respeta
+    el flag email_evt_subtask_assigned y verifica que el asignado tenga
+    email. Mismo patrón que notify_ticket_assigned."""
+    if not is_email_event_enabled('subtask_assigned'):
+        print('[notify] Evento subtask_assigned deshabilitado en config, skip')
+        return False
+    if not assignee or not assignee.email:
+        print('[notify] Asignado de subtarea sin email, skip')
+        return False
+    ticket = subtask.ticket
+    if not ticket:
+        return False
+
+    base_url = ''
+    try:
+        c = Config.query.filter_by(key='general_base_url').first()
+        if c and c.value:
+            base_url = c.value.rstrip('/')
+    except Exception:
+        pass
+    if not base_url:
+        base_url = get_public_base_url()
+    subtask_url = f'{base_url}/technician/subtask/{subtask.id}'
+
+    prio_meta = {
+        'critical': {'icon': '🔴', 'label': 'CRÍTICA', 'color': '#dc2626'},
+        'high':     {'icon': '🟠', 'label': 'ALTA',    'color': '#ea580c'},
+        'medium':   {'icon': '🟡', 'label': 'MEDIA',   'color': '#d97706'},
+        'low':      {'icon': '🟢', 'label': 'BAJA',    'color': '#16a34a'},
+    }
+    pm = prio_meta.get(subtask.priority or 'medium', prio_meta['medium'])
+    sla_str = subtask.sla_deadline.strftime('%d/%m/%Y %H:%M') if subtask.sla_deadline else ''
+
+    desc_short = (subtask.description or '')
+    if len(desc_short) > 500:
+        desc_short = desc_short[:500] + '...'
+    desc_safe = desc_short.replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>')
+
+    subject = f'[DeskEli] Te asignaron la subtarea {subtask.subtask_number} — {subtask.title[:50]}'
+
+    body = f"""
+    <html><body style="font-family: Segoe UI, Arial, sans-serif; color: #1f2937; max-width: 680px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #1f2937, #7c3aed); color: white; padding: 24px; border-radius: 10px 10px 0 0;">
+            <h1 style="margin: 0; font-size: 22px;">🔔 Nueva Subtarea Asignada</h1>
+            <p style="margin: 6px 0 0; opacity: 0.95;">{subtask.subtask_number} · Ticket padre {ticket.ticket_number} · {ticket.company.upper()}</p>
+        </div>
+        <div style="background: white; padding: 22px; border: 1px solid #e5e7eb; border-radius: 0 0 10px 10px;">
+            <p>Hola <strong>{assignee.name}</strong>,</p>
+            <p>Te asignaron una subtarea. Te dejo el resumen:</p>
+
+            <table style="width: 100%; border-collapse: collapse; margin: 14px 0;">
+                <tr>
+                    <td style="padding: 9px 12px; background: #f3f4f6; font-weight: 700; width: 35%;">Sub-caso</td>
+                    <td style="padding: 9px 12px; background: #ffffff;"><strong>{subtask.subtask_number}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 9px 12px; background: #f3f4f6; font-weight: 700;">Título</td>
+                    <td style="padding: 9px 12px; background: #ffffff;">{subtask.title}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 9px 12px; background: #f3f4f6; font-weight: 700;">Ticket padre</td>
+                    <td style="padding: 9px 12px; background: #ffffff;">{ticket.ticket_number} — {ticket.title}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 9px 12px; background: #f3f4f6; font-weight: 700;">Prioridad</td>
+                    <td style="padding: 9px 12px; background: #ffffff;">
+                        <span style="background: {pm['color']}; color: white; padding: 3px 10px; border-radius: 4px; font-weight: 700; font-size: 12px;">{pm['icon']} {pm['label']}</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 9px 12px; background: #f3f4f6; font-weight: 700;">Categoría</td>
+                    <td style="padding: 9px 12px; background: #ffffff;">{subtask.category or 'General'}</td>
+                </tr>
+                {f'<tr><td style="padding: 9px 12px; background: #f3f4f6; font-weight: 700;">SLA vence</td><td style="padding: 9px 12px; background: #ffffff;">⏰ <strong>{sla_str}</strong></td></tr>' if sla_str else ''}
+                <tr>
+                    <td style="padding: 9px 12px; background: #f3f4f6; font-weight: 700;">Asignado por</td>
+                    <td style="padding: 9px 12px; background: #ffffff;">{assigned_by_name}</td>
+                </tr>
+            </table>
+
+            <div style="background: #f9fafb; border-left: 4px solid #7c3aed; padding: 12px 14px; border-radius: 4px; margin-top: 14px;">
+                <div style="font-size: 12px; font-weight: 700; color: #5b21b6; margin-bottom: 6px;">📝 DETALLE</div>
+                <div style="font-size: 13px; color: #374151; line-height: 1.5;">{desc_safe or '<em>(Sin detalle)</em>'}</div>
+            </div>
+
+            <div style="text-align: center; margin-top: 22px;">
+                <a href="{subtask_url}" style="display: inline-block; padding: 12px 28px; background: linear-gradient(135deg, #7c3aed, #2563eb); color: white; text-decoration: none; border-radius: 8px; font-weight: 700;">
+                    🔧 Abrir subtarea en DeskEli
+                </a>
+            </div>
+
+            <p style="font-size: 11px; color: #6b7280; margin-top: 22px; text-align: center;">
+                Este correo fue enviado automáticamente por DeskEli cuando se te asignó la subtarea.
+            </p>
+        </div>
+    </body></html>
+    """
+
+    ok = send_email(assignee.email, subject, body, company=ticket.company)
+    status_str = 'OK' if ok else 'FALLO'
+    print(f'[notify] Email asignacion subtarea {subtask.subtask_number} -> {assignee.email}: {status_str}')
+    return ok
+
+
+def notify_subtask_assigned_async(subtask_id, assignee_id, assigned_by_name='Sistema'):
+    """Versión no bloqueante de notify_subtask_assigned() — ver
+    notify_ticket_created_async() para el motivo."""
+    def _run():
+        with app.app_context():
+            try:
+                st = Subtask.query.get(subtask_id)
+                u = User.query.get(assignee_id)
+                if st and u:
+                    notify_subtask_assigned(st, u, assigned_by_name=assigned_by_name)
+            except Exception as e:
+                print(f'[async-email][subtask_assigned] error: {e}')
+    Thread(target=_run, daemon=True).start()
+
+
 def notify_ticket_created_async(ticket_id, requester_id):
     """Dispara notify_ticket_created() en un hilo aparte, con su propia
     sesión de BD, para que un SMTP lento o caído NUNCA bloquee la respuesta
@@ -15824,6 +15945,9 @@ def api_subtasks_create(ticket_id):
     log_audit('subtask_create', session['user_id'], 'ticket', ticket_id,
               f'Subtarea {subtask.subtask_number} creada: {title[:60]}')
 
+    if subtask.assignee_id:
+        notify_subtask_assigned_async(subtask.id, subtask.assignee_id, assigned_by_name=session.get('name', 'Sistema'))
+
     try:
         emit_ticket_event(ticket.company, 'subtask_changed', {
             'ticket_id': ticket_id, 'subtask_id': subtask.id, 'action': 'created'
@@ -15993,6 +16117,7 @@ def api_subtask_update(subtask_id):
         subtask.description = (data['description'] or '').strip() or None
     if 'category' in data:
         subtask.category = (data['category'] or 'General')[:100]
+    old_assignee_id = subtask.assignee_id
     if 'assignee_id' in data:
         subtask.assignee_id = data['assignee_id'] or None
     if 'priority' in data:
@@ -16052,6 +16177,9 @@ def api_subtask_update(subtask_id):
             # No borramos resolution_note historico — queda como registro
 
     db.session.commit()
+
+    if subtask.assignee_id and subtask.assignee_id != old_assignee_id:
+        notify_subtask_assigned_async(subtask.id, subtask.assignee_id, assigned_by_name=session.get('name', 'Sistema'))
 
     audit_msg = f'Subtarea {subtask.subtask_number or subtask_id} actualizada'
     if resolution_note_new:
@@ -23433,7 +23561,7 @@ def api_config_email():
         cfg['smtp_port'] = cfg.get('smtp_port') or '587'
         cfg['smtp_security'] = cfg.get('smtp_security') or 'tls'
         # Eventos
-        for evt in ['ticket_created', 'ticket_assigned',
+        for evt in ['ticket_created', 'ticket_assigned', 'subtask_assigned',
                     'sla_30', 'sla_60', 'sla_100', 'sla_overdue',
                     'ticket_comment', 'ticket_resolved', 'ticket_escalated', 'server_down']:
             c = Config.query.filter_by(key=f'email_evt_{evt}').first()
@@ -26325,6 +26453,10 @@ def _generate_case_from_solicitud(solicitud, actor_user):
 
     # ── 3. Subtasks por control (clonando del guion vinculado) ───────────
     subtask_counter = 0
+    # (subtask_id, assignee_id) a notificar por email DESPUÉS de commitear —
+    # si se dispara el hilo async antes del commit, la consulta en su propia
+    # sesión puede no ver todavía la subtarea (ver notify_ticket_assigned_async).
+    subtask_notifications = []
     variables_ctx = {
         'nombre_empleado': solicitud.nombre,
         'documento': solicitud.documento,
@@ -26417,6 +26549,8 @@ def _generate_case_from_solicitud(solicitud, actor_user):
                 )
                 db.session.add(st)
                 db.session.flush()
+                if assignee:
+                    subtask_notifications.append((st.id, assignee))
                 if pdf_bytes:
                     try:
                         db.session.add(SubtaskAttachment(
@@ -26460,6 +26594,8 @@ def _generate_case_from_solicitud(solicitud, actor_user):
             )
             db.session.add(st)
             db.session.flush()
+            if resolved_assignee:
+                subtask_notifications.append((st.id, resolved_assignee))
             if pdf_bytes:
                 try:
                     db.session.add(SubtaskAttachment(
@@ -26480,6 +26616,17 @@ def _generate_case_from_solicitud(solicitud, actor_user):
         ticket.id,
         f'{solicitud.codigo}: Ticket {ticket.ticket_number} generado con {subtask_counter} subtasks'
     )
+
+    if subtask_notifications:
+        # Commitear ANTES de notificar: el hilo async re-consulta cada
+        # subtarea por id en su propia sesión de BD, y si todavía no está
+        # commiteada puede no encontrarla (mismo motivo documentado en
+        # notify_ticket_assigned_async / _finalize_approval_chain).
+        db.session.commit()
+        actor_name = actor_user.name if actor_user else 'Aprobación de Solicitud'
+        for st_id, assignee_id in subtask_notifications:
+            notify_subtask_assigned_async(st_id, assignee_id, assigned_by_name=f'Solicitud {solicitud.codigo} ({actor_name})')
+
     return ticket
 
 

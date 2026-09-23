@@ -1195,6 +1195,10 @@
                                 <input type="checkbox" id="evt_ticket_assigned" checked>
                                 <span>👤 Ticket asignado</span>
                             </label>
+                            <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: white; border-radius: 6px; cursor: pointer;">
+                                <input type="checkbox" id="evt_subtask_assigned" checked>
+                                <span>🧩 Subtarea asignada</span>
+                            </label>
                             <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: white; border-radius: 6px; cursor: pointer;border-left:3px solid #2563eb;">
                                 <input type="checkbox" id="evt_sla_30" checked>
                                 <span>🔔 SLA por vencer (30%)</span>
@@ -1248,7 +1252,7 @@
                                     if (cfg.smtp_security) document.getElementById('smtp_security').value = cfg.smtp_security;
                                     if (cfg.smtp_state) document.getElementById('smtp-state').textContent = cfg.smtp_state;
                                     // Eventos
-                                    ['ticket_created','ticket_assigned','sla_30','sla_60','sla_100','sla_overdue','ticket_comment','ticket_resolved','ticket_escalated','server_down'].forEach(evt => {
+                                    ['ticket_created','ticket_assigned','subtask_assigned','sla_30','sla_60','sla_100','sla_overdue','ticket_comment','ticket_resolved','ticket_escalated','server_down'].forEach(evt => {
                                         const el = document.getElementById('evt_' + evt);
                                         if (el && cfg['evt_' + evt] !== undefined) el.checked = cfg['evt_' + evt];
                                     });
@@ -1332,7 +1336,7 @@
 
                         async function saveEmailEvents() {
                             const events = {};
-                            ['ticket_created','ticket_assigned','sla_30','sla_60','sla_100','sla_overdue','ticket_comment','ticket_resolved','ticket_escalated','server_down'].forEach(evt => {
+                            ['ticket_created','ticket_assigned','subtask_assigned','sla_30','sla_60','sla_100','sla_overdue','ticket_comment','ticket_resolved','ticket_escalated','server_down'].forEach(evt => {
                                 const el = document.getElementById('evt_' + evt);
                                 if (el) events['evt_' + evt] = el.checked;
                             });
