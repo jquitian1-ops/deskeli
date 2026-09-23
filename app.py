@@ -27661,13 +27661,17 @@ def _validate_flow_payload(data):
 
 @app.route('/api/admin/approval-flows', methods=['GET'])
 def api_approval_flows_list():
-    """Lista los flujos de aprobación. Admin ve los de su empresa (o los del
-    scope si es master)."""
+    """Lista TODOS los flujos de aprobación de las 3 empresas. Visibilidad
+    total: los Flujos de Solicitudes se comparten entre empresas a propósito
+    (ver api_approval_flows_areas), así que este panel de administración
+    debe poder verlos y gestionarlos todos sin importar cuál sea la empresa
+    del admin logueado — de lo contrario un flujo creado en una empresa pero
+    usado por otra (ej. Pash usando un flujo de Eliot) queda inmanejable
+    para el admin de la empresa que lo usa."""
     if 'user_id' not in session or session.get('role') != 'admin':
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     include_inactive = request.args.get('include_inactive') == '1'
-    scope = admin_companies_scope()
-    q = ApprovalFlow.query.filter(ApprovalFlow.company.in_(scope))
+    q = ApprovalFlow.query
     if not include_inactive:
         q = q.filter(ApprovalFlow.is_active == True)
     flows = q.order_by(ApprovalFlow.company, ApprovalFlow.area).all()
@@ -27684,8 +27688,9 @@ def api_approval_flows_create():
     description = (data.get('description') or '').strip()
     if not area or not company:
         return jsonify({'success': False, 'error': 'area y company son obligatorios'}), 400
-    if company not in admin_companies_scope():
-        return jsonify({'success': False, 'error': 'Empresa fuera de scope'}), 403
+    valid_companies = [c.code for c in Company.query.filter_by(is_active=True).all()]
+    if company not in valid_companies:
+        return jsonify({'success': False, 'error': 'Empresa inválida'}), 400
     steps, ticket_email, err = _validate_flow_payload(data)
     if err:
         return jsonify({'success': False, 'error': err}), 400
@@ -27712,7 +27717,7 @@ def api_approval_flows_update(flow_id):
     if 'user_id' not in session or session.get('role') != 'admin':
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     f = ApprovalFlow.query.get(flow_id)
-    if not f or f.company not in admin_companies_scope():
+    if not f:
         return jsonify({'success': False, 'error': 'Flujo no encontrado'}), 404
     data = request.get_json() or {}
     if 'area' in data:
@@ -27750,7 +27755,7 @@ def api_approval_flows_delete(flow_id):
     if 'user_id' not in session or session.get('role') != 'admin':
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     f = ApprovalFlow.query.get(flow_id)
-    if not f or f.company not in admin_companies_scope():
+    if not f:
         return jsonify({'success': False, 'error': 'Flujo no encontrado'}), 404
     name = f.area
     db.session.delete(f)
