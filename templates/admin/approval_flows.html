@@ -97,6 +97,13 @@
                 </div>
             </div>
 
+            <div style="position:relative; margin-bottom:14px;">
+                <input type="text" id="searchFlows" placeholder="🔎 Buscar por área, empresa, descripción, aprobador o correo asignado…"
+                       oninput="filterFlows()"
+                       style="width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:13px;">
+                <div id="searchCount" style="font-size:11px; color:#6b7280; margin-top:4px;"></div>
+            </div>
+
             <div id="tableContainer">
                 <div class="empty">⏳ Cargando…</div>
             </div>
@@ -219,18 +226,43 @@
             const data = await r.json();
             if (!data.success) throw new Error(data.error);
             _flows = data.flows;
-            render();
+            filterFlows();
         } catch (e) {
             document.getElementById('tableContainer').innerHTML =
                 `<div class="empty" style="color:#dc2626;">❌ ${esc(e.message)}</div>`;
         }
     }
 
-    function render() {
+    function _flowSearchText(f) {
+        const stepBits = (f.steps || []).flatMap(s => [s.label, s.group_name, ...(stepEmails(s) || [])]);
+        return [f.company, f.area, f.description, f.ticket_assignee_email, ...stepBits]
+            .filter(Boolean).join(' ').toLowerCase();
+    }
+
+    function filterFlows() {
+        const q = (document.getElementById('searchFlows').value || '').trim().toLowerCase();
+        const countEl = document.getElementById('searchCount');
+        if (!q) {
+            countEl.textContent = '';
+            render(_flows);
+            return;
+        }
+        const filtered = _flows.filter(f => _flowSearchText(f).indexOf(q) !== -1);
+        countEl.textContent = `${filtered.length} de ${_flows.length} flujo(s)`;
+        render(filtered);
+    }
+
+    function render(list) {
+        list = list || _flows;
         document.getElementById('totalCount').textContent = _flows.filter(f => f.is_active).length;
         if (_flows.length === 0) {
             document.getElementById('tableContainer').innerHTML =
                 '<div class="empty">Sin flujos configurados. Creá uno con el botón "+ Nuevo flujo" para que los técnicos puedan usarlo al diligenciar solicitudes.</div>';
+            return;
+        }
+        if (list.length === 0) {
+            document.getElementById('tableContainer').innerHTML =
+                '<div class="empty">Sin resultados para esa búsqueda.</div>';
             return;
         }
         let html = `<table>
@@ -241,7 +273,7 @@
                 </tr>
             </thead>
             <tbody>`;
-        _flows.forEach(f => {
+        list.forEach(f => {
             const stepChips = (f.steps || []).map((s, i) => {
                 if (s.group_name) {
                     return `<span class="step-chip" title="Grupo: ${esc(s.group_name)}">${i+1}. ${esc(s.label)} — 👥 ${esc(s.group_name)}</span>`;
