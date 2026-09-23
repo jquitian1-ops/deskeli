@@ -3775,8 +3775,10 @@ def technician_subtask_detail(subtask_id):
     if not parent_ticket:
         return redirect(url_for('technician_dashboard'))
 
-    # Validar acceso: misma empresa (o admin master via scope)
-    if not can_user_access_ticket(User.query.get(session['user_id']), parent_ticket):
+    # Validar acceso: misma empresa (o admin master via scope), o que la
+    # SUBTAREA (no solo el ticket padre) esté asignada a una identidad
+    # espejo del usuario — ver can_user_access_subtask.
+    if not can_user_access_subtask(User.query.get(session['user_id']), subtask):
         return redirect(url_for('technician_dashboard'))
 
     # Resolver assignee y creador
@@ -11693,6 +11695,25 @@ def get_user_identity_ids(user):
     return ids
 
 
+def can_user_access_subtask(user, subtask):
+    """Como can_user_access_ticket, pero para una SUBTAREA: además de las
+    reglas del ticket padre, permite el acceso si la subtarea (no
+    necesariamente el ticket padre) está asignada a alguna identidad espejo
+    del usuario. Una subtarea puede estar asignada a un especialista
+    distinto del assignee del ticket padre (ej. varios controles de una
+    Solicitud de Usuario, cada uno con su propio responsable) — sin esto,
+    un técnico que entra a SU PROPIA subtarea desde otra empresa (identidad
+    espejo) era rebotado al dashboard sin ningún aviso."""
+    if not user or not subtask:
+        return False
+    ticket = subtask.ticket
+    if ticket and can_user_access_ticket(user, ticket):
+        return True
+    if subtask.assignee_id and subtask.assignee_id in get_user_identity_ids(user):
+        return True
+    return False
+
+
 def get_my_group_user_ids(user):
     """IDs de tecnicos/admins de la misma empresa que comparten AL MENOS 1 subrol
     con `user`. Incluye al propio user en el resultado. Si el user no tiene subroles,
@@ -16092,8 +16113,7 @@ def api_subtask_get(subtask_id):
     if 'user_id' not in session:
         return jsonify({'success': False}), 401
     subtask = Subtask.query.get_or_404(subtask_id)
-    ticket = Ticket.query.get(subtask.ticket_id)
-    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
+    if not can_user_access_subtask(User.query.get(session['user_id']), subtask):
         return jsonify({'success': False}), 403
     return jsonify({'success': True, 'subtask': _serialize_subtask(subtask)})
 
@@ -16103,7 +16123,7 @@ def api_subtask_get(subtask_id):
 def api_subtask_update(subtask_id):
     subtask = Subtask.query.get_or_404(subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id)
-    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
+    if not ticket or not can_user_access_subtask(User.query.get(session['user_id']), subtask):
         return jsonify({'success': False}), 403
 
     data = request.get_json() or {}
@@ -16201,7 +16221,7 @@ def api_subtask_update(subtask_id):
 def api_subtask_delete(subtask_id):
     subtask = Subtask.query.get_or_404(subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id)
-    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
+    if not ticket or not can_user_access_subtask(User.query.get(session['user_id']), subtask):
         return jsonify({'success': False}), 403
 
     ticket_id = subtask.ticket_id
@@ -16246,7 +16266,7 @@ def api_subtask_messages_list(subtask_id):
         return jsonify({'success': False, 'error': 'No autenticado'}), 401
     subtask = Subtask.query.get_or_404(subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id)
-    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
+    if not ticket or not can_user_access_subtask(User.query.get(session['user_id']), subtask):
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
 
     messages = Message.query.filter_by(subtask_id=subtask_id).order_by(Message.created_at.asc()).all()
@@ -16271,7 +16291,7 @@ def api_subtask_messages_create(subtask_id):
         return jsonify({'success': False, 'error': 'No autenticado'}), 401
     subtask = Subtask.query.get_or_404(subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id)
-    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
+    if not ticket or not can_user_access_subtask(User.query.get(session['user_id']), subtask):
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
 
     data = request.get_json() or {}
@@ -16332,7 +16352,7 @@ def api_subtask_attachments_list(subtask_id):
         return jsonify({'success': False}), 401
     subtask = Subtask.query.get_or_404(subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id)
-    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
+    if not ticket or not can_user_access_subtask(User.query.get(session['user_id']), subtask):
         return jsonify({'success': False}), 403
     attachments = SubtaskAttachment.query.filter_by(subtask_id=subtask_id).order_by(SubtaskAttachment.uploaded_at.desc()).all()
     return jsonify({
@@ -16347,7 +16367,7 @@ def api_subtask_attachments_upload(subtask_id):
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     subtask = Subtask.query.get_or_404(subtask_id)
     ticket = Ticket.query.get(subtask.ticket_id)
-    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
+    if not ticket or not can_user_access_subtask(User.query.get(session['user_id']), subtask):
         return jsonify({'success': False}), 403
 
     from werkzeug.utils import secure_filename
@@ -16412,8 +16432,7 @@ def api_subtask_attachment_download(att_id):
         return jsonify({'success': False}), 401
     att = SubtaskAttachment.query.get_or_404(att_id)
     subtask = Subtask.query.get(att.subtask_id)
-    ticket = Ticket.query.get(subtask.ticket_id) if subtask else None
-    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
+    if not subtask or not can_user_access_subtask(User.query.get(session['user_id']), subtask):
         return jsonify({'success': False}), 403
     path = os.path.join(app.config['UPLOAD_FOLDER'], att.stored_name)
     if not os.path.exists(path):
@@ -16427,8 +16446,7 @@ def api_subtask_attachment_delete(att_id):
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     att = SubtaskAttachment.query.get_or_404(att_id)
     subtask = Subtask.query.get(att.subtask_id)
-    ticket = Ticket.query.get(subtask.ticket_id) if subtask else None
-    if not ticket or not can_user_access_ticket(User.query.get(session['user_id']), ticket):
+    if not subtask or not can_user_access_subtask(User.query.get(session['user_id']), subtask):
         return jsonify({'success': False}), 403
 
     path = os.path.join(app.config['UPLOAD_FOLDER'], att.stored_name)
