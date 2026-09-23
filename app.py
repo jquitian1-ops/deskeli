@@ -1949,8 +1949,8 @@ def solicitud_can_view(user, solicitud):
 
 
 def solicitud_can_create(user):
-    """Solo technician + admin pueden crear (equivalen a Usuario Especialista + Administrador)."""
-    return bool(user) and user.role in ('admin', 'technician')
+    """Admin, technician (Usuario Especialista) y employee pueden crear."""
+    return bool(user) and user.role in ('admin', 'technician', 'employee')
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -28083,22 +28083,22 @@ def api_inf_aprobadores_import():
 
 @app.route('/solicitudes-usuarios', methods=['GET'])
 def solicitudes_list_page():
-    """Listado de solicitudes. Visible para technician + admin."""
+    """Listado de solicitudes. Visible para admin, technician y employee."""
     if 'user_id' not in session:
         return redirect(url_for('login'))
     role = session.get('role')
-    if role not in ('admin', 'technician'):
+    if role not in ('admin', 'technician', 'employee'):
         return redirect(url_for('login'))
     return render_template('solicitudes/list.html', session_role=role)
 
 
 @app.route('/solicitudes-usuarios/nueva', methods=['GET'])
 def solicitudes_new_page():
-    """Formulario de creación. Visible para technician + admin."""
+    """Formulario de creación. Visible para admin, technician y employee."""
     if 'user_id' not in session:
         return redirect(url_for('login'))
     role = session.get('role')
-    if role not in ('admin', 'technician'):
+    if role not in ('admin', 'technician', 'employee'):
         return redirect(url_for('login'))
     return render_template('solicitudes/create.html', session_role=role)
 
@@ -28109,7 +28109,7 @@ def solicitudes_detail_page(solicitud_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
     role = session.get('role')
-    if role not in ('admin', 'technician'):
+    if role not in ('admin', 'technician', 'employee'):
         return redirect(url_for('login'))
     return render_template('solicitudes/detail.html',
                            solicitud_id=solicitud_id,
