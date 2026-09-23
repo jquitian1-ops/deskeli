@@ -10618,7 +10618,7 @@ def _send_sla_alert(ticket, threshold_pct):
 
     subject, body = _sla_alert_email(ticket, threshold_pct, assignee)
     try:
-        sent = send_email(assignee.email, subject, body)
+        sent = send_email(assignee.email, subject, body, company=ticket.company)
     except Exception as e:
         print(f'[sla-alert] Error enviando email: {e}')
         sent = False
@@ -14047,10 +14047,21 @@ def api_admin_email_log():
         return jsonify({'success': False}), 401
 
     scope = admin_companies_scope()
-    q = EmailLog.query.filter(EmailLog.company.in_(scope))
+    is_master = is_master_admin()
+    # `EmailLog.company.in_(scope)` deja afuera para siempre las filas con
+    # company=NULL ("no se pudo determinar" — ej. un fallo de SMTP antes de
+    # resolver la empresa): en SQL, NULL IN (...) nunca es verdadero. Un admin
+    # master sí debe poder verlas (para poder diagnosticarlas); un admin de
+    # una sola empresa no, porque no se puede confirmar que sean suyas.
+    if is_master:
+        q = EmailLog.query.filter(db.or_(EmailLog.company.in_(scope), EmailLog.company.is_(None)))
+    else:
+        q = EmailLog.query.filter(EmailLog.company.in_(scope))
 
     company_filter = (request.args.get('company') or '').strip()
-    if company_filter and company_filter in scope:
+    if company_filter == '__sin_empresa__' and is_master:
+        q = q.filter(EmailLog.company.is_(None))
+    elif company_filter and company_filter in scope:
         q = q.filter(EmailLog.company == company_filter)
 
     direction = (request.args.get('direction') or '').strip()
@@ -14788,7 +14799,7 @@ def api_reopen_ticket(ticket_id):
                     </div>
                 </body></html>
                 """
-                send_email(assignee.email, subject, body)
+                send_email(assignee.email, subject, body, company=ticket.company)
     except Exception as e:
         print(f'[reopen] No se pudo enviar correo: {e}')
 
@@ -23782,6 +23793,8 @@ def api_email_test_send():
     if 'user_id' not in session or session['role'] != 'admin':
         return jsonify({'success': False}), 401
 
+    to_email = None
+    sender = None
     try:
         data = request.get_json()
         to_email = (data.get('to') or '').strip()
@@ -23841,8 +23854,15 @@ def api_email_test_send():
         server.quit()
 
         log_audit('email_test_sent', session['user_id'], 'email', None, f'Email de prueba enviado a {to_email}')
+        _log_email(session.get('company'), 'saliente', 'enviado', asunto=msg['Subject'],
+                   emisor=msg['From'], destinatario=to_email, codigo='EN100',
+                   referencia='Email de prueba (Configuración → Correo)')
         return jsonify({'success': True, 'message': f'Email enviado a {to_email}'})
     except Exception as e:
+        _log_email(session.get('company'), 'saliente', 'erroneo', asunto='DeskEli - Email de Prueba',
+                   emisor=(sender.value if sender else None), destinatario=to_email,
+                   codigo='ER104', error_message=str(e)[:500],
+                   referencia='Email de prueba (Configuración → Correo)')
         return jsonify({'success': False, 'error': str(e)[:200]}), 500
 
 

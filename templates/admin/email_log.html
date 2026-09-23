@@ -185,6 +185,13 @@ async function loadFiltersMeta() {
                 opt.textContent = c;
                 companySel.appendChild(opt);
             });
+            // Correos donde no se pudo determinar la empresa (company=NULL,
+            // ej. un fallo de SMTP antes de resolverla) — solo visibles para
+            // master admin, para poder diagnosticarlos igual.
+            const optSin = document.createElement('option');
+            optSin.value = '__sin_empresa__';
+            optSin.textContent = '⚠ Sin empresa determinada';
+            companySel.appendChild(optSin);
         }
 
         const codeSel = document.getElementById('f-codigo');
