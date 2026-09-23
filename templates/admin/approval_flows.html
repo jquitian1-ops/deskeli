@@ -110,7 +110,7 @@
 
             <div class="form-group">
                 <label>Empresa *</label>
-                <select id="f-company">
+                <select id="f-company" onchange="onFlowCompanyChange()">
                     <option value="eliot">Eliot</option>
                     <option value="pash">Pash</option>
                     <option value="primatela">Primatela</option>
@@ -183,10 +183,26 @@
     let _importFile = null;
 
     function esc(s) { return s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-    // Soporta pasos legacy {email,label} y el formato nuevo {emails:[...],label}
+    // Soporta pasos legacy {email,label}, el formato multi-aprobador
+    // {emails:[...],label} y el de grupo {group_name,label}
     function stepEmails(s) {
         if (Array.isArray(s.emails) && s.emails.length) return s.emails.filter(e => e);
         return s.email ? [s.email] : [];
+    }
+
+    let _groupsCache = {}; // por empresa
+    async function fetchGroupsForFlow(company) {
+        if (_groupsCache[company]) return _groupsCache[company];
+        try {
+            const r = await fetch(`/api/admin/subroles?company=${encodeURIComponent(company)}`);
+            const data = await r.json();
+            const list = (data.subroles || []).filter(s => s.is_active);
+            _groupsCache[company] = list;
+            return list;
+        } catch (e) {
+            _groupsCache[company] = [];
+            return [];
+        }
     }
     function toast(msg, ok=true) {
         const el = document.createElement('div');
@@ -227,6 +243,9 @@
             <tbody>`;
         _flows.forEach(f => {
             const stepChips = (f.steps || []).map((s, i) => {
+                if (s.group_name) {
+                    return `<span class="step-chip" title="Grupo: ${esc(s.group_name)}">${i+1}. ${esc(s.label)} — 👥 ${esc(s.group_name)}</span>`;
+                }
                 const emails = stepEmails(s);
                 const suffix = emails.length > 1 ? ` (${emails.length} aprobadores)` : '';
                 return `<span class="step-chip" title="${esc(emails.join(', '))}">${i+1}. ${esc(s.label)}${suffix}</span>`;
@@ -257,12 +276,14 @@
         return Array.from(document.querySelectorAll('.flow-check:checked')).map(c => c.value);
     }
 
-    function openModal(editing=null) {
+    async function openModal(editing=null) {
         _editingId = editing;
         document.getElementById('modalTitle').textContent = editing ? 'Editar flujo' : 'Nuevo flujo de aprobación';
+        let company;
         if (editing) {
             const f = _flows.find(x => x.id === editing);
             if (!f) return;
+            company = f.company;
             document.getElementById('f-id').value = f.id;
             document.getElementById('f-company').value = f.company;
             document.getElementById('f-company').disabled = true;
@@ -272,20 +293,24 @@
             document.getElementById('f-active').checked = f.is_active;
             _currentSteps = (f.steps || []).map(s => ({
                 label: s.label || '',
+                isGroup: !!s.group_name,
+                groupName: s.group_name || '',
                 emails: stepEmails(s).length ? stepEmails(s).slice() : [''],
             }));
         } else {
+            company = 'pash';
             document.getElementById('f-id').value = '';
-            document.getElementById('f-company').value = 'pash';
+            document.getElementById('f-company').value = company;
             document.getElementById('f-company').disabled = false;
             document.getElementById('f-area').value = '';
             document.getElementById('f-description').value = '';
             document.getElementById('f-ticket-assignee').value = '';
             document.getElementById('f-active').checked = true;
             _currentSteps = [
-                {label: '', emails: ['']},
+                {label: '', isGroup: false, groupName: '', emails: ['']},
             ];
         }
+        await fetchGroupsForFlow(company);
         renderSteps();
         document.getElementById('modal').style.display = 'flex';
     }
@@ -299,11 +324,32 @@
             container.innerHTML = '<div style="color:#6b7280; font-size:12px; text-align:center;">Sin pasos. Agregá al menos uno.</div>';
             return;
         }
-        container.innerHTML = _currentSteps.map((s, i) => `
+        const company = document.getElementById('f-company').value;
+        const groups = _groupsCache[company] || [];
+        container.innerHTML = _currentSteps.map((s, i) => {
+            const groupOpts = groups.map(g => `<option value="${esc(g.name)}" ${s.groupName === g.name ? 'selected' : ''}>${esc(g.icon || '👥')} ${esc(g.name)}</option>`).join('');
+            const approversHtml = s.isGroup ? `
+                    <select onchange="_currentSteps[${i}].groupName = this.value;" style="width:100%;">
+                        <option value="">— Elegí un grupo —</option>
+                        ${groupOpts}
+                    </select>
+                    <div style="font-size:11px; color:#6b7280; margin-top:4px;">Cualquier miembro activo del grupo puede decidir este paso. Si el grupo cambia de integrantes después, se resuelve solo.</div>` : `
+                    ${s.emails.map((email, j) => `
+                        <div class="approver-row">
+                            <input type="email" placeholder="correo@empresa.com" value="${esc(email)}" onchange="_currentSteps[${i}].emails[${j}] = this.value.trim().toLowerCase();">
+                            <button type="button" class="step-btn del" onclick="removeApprover(${i}, ${j})" ${s.emails.length<=1?'disabled':''}>✕</button>
+                        </div>
+                    `).join('')}
+                    <button type="button" class="add-approver" onclick="addApprover(${i})">+ Agregar aprobador a este paso (cualquiera puede aprobar)</button>`;
+            return `
             <div class="step-card">
                 <div class="step-card-header">
                     <span class="step-idx">${i+1}</span>
                     <input type="text" placeholder="Rol del paso (ej: Analista IT, Jefe de área)" value="${esc(s.label)}" onchange="_currentSteps[${i}].label = this.value.trim();">
+                    <select style="flex:0 0 auto; width:150px;" onchange="onStepTypeChange(${i}, this.value)">
+                        <option value="emails" ${!s.isGroup?'selected':''}>👤 Persona(s)</option>
+                        <option value="group" ${s.isGroup?'selected':''}>👥 Grupo</option>
+                    </select>
                     <div class="step-actions">
                         <button type="button" class="step-btn up" onclick="moveStep(${i}, -1)" ${i===0?'disabled':''}>↑</button>
                         <button type="button" class="step-btn down" onclick="moveStep(${i}, 1)" ${i===_currentSteps.length-1?'disabled':''}>↓</button>
@@ -311,20 +357,25 @@
                     </div>
                 </div>
                 <div class="step-approvers">
-                    ${s.emails.map((email, j) => `
-                        <div class="approver-row">
-                            <input type="email" placeholder="correo@empresa.com" value="${esc(email)}" onchange="_currentSteps[${i}].emails[${j}] = this.value.trim().toLowerCase();">
-                            <button type="button" class="step-btn del" onclick="removeApprover(${i}, ${j})" ${s.emails.length<=1?'disabled':''}>✕</button>
-                        </div>
-                    `).join('')}
-                    <button type="button" class="add-approver" onclick="addApprover(${i})">+ Agregar aprobador a este paso (cualquiera puede aprobar)</button>
+                    ${approversHtml}
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
+    }
+
+    function onStepTypeChange(i, type) {
+        _currentSteps[i].isGroup = (type === 'group');
+        renderSteps();
+    }
+
+    async function onFlowCompanyChange() {
+        await fetchGroupsForFlow(document.getElementById('f-company').value);
+        renderSteps();
     }
 
     function addStep() {
-        _currentSteps.push({label: '', emails: ['']});
+        _currentSteps.push({label: '', isGroup: false, groupName: '', emails: ['']});
         renderSteps();
     }
     function removeStep(i) {
@@ -353,22 +404,27 @@
         document.querySelectorAll('.step-card').forEach((card, i) => {
             const labelInput = card.querySelector('.step-card-header input');
             if (labelInput) _currentSteps[i].label = labelInput.value.trim();
-            const emailInputs = card.querySelectorAll('.approver-row input');
-            _currentSteps[i].emails = Array.from(emailInputs).map(inp => inp.value.trim().toLowerCase());
+            if (!_currentSteps[i].isGroup) {
+                const emailInputs = card.querySelectorAll('.approver-row input');
+                _currentSteps[i].emails = Array.from(emailInputs).map(inp => inp.value.trim().toLowerCase());
+            }
         });
         const payload = {
             company: document.getElementById('f-company').value,
             area: document.getElementById('f-area').value.trim(),
             description: document.getElementById('f-description').value.trim(),
             steps: _currentSteps
-                .map(s => ({label: s.label, emails: s.emails.filter(e => e)}))
-                .filter(s => s.label || s.emails.length > 0),
+                .map(s => s.isGroup
+                    ? {label: s.label, group_name: s.groupName || ''}
+                    : {label: s.label, emails: s.emails.filter(e => e)})
+                .filter(s => s.label || s.group_name || (s.emails && s.emails.length > 0)),
             ticket_assignee_email: document.getElementById('f-ticket-assignee').value.trim(),
             is_active: document.getElementById('f-active').checked,
         };
         if (!payload.area) { alert('El área es obligatoria'); return; }
         if (payload.steps.length === 0) { alert('Al menos un paso es obligatorio'); return; }
-        if (payload.steps.some(s => s.emails.length === 0)) { alert('Cada paso necesita al menos un aprobador con correo'); return; }
+        if (payload.steps.some(s => s.group_name === '')) { alert('Elegí un grupo para cada paso marcado como "Grupo"'); return; }
+        if (payload.steps.some(s => s.emails && s.emails.length === 0)) { alert('Cada paso necesita al menos un aprobador con correo (o elegir un grupo)'); return; }
         if (!payload.ticket_assignee_email) {
             if (!confirm('Sin "Ticket asignado a" el ticket generado quedará sin asignar. ¿Continuar así?')) return;
         }

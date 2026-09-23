@@ -1511,12 +1511,26 @@ class ControlListItem(db.Model):
         'list_items', cascade='all, delete-orphan', order_by='ControlListItem.sort_order'))
 
 
-def _step_emails(step):
+def _step_emails(step, company=None):
     """Normaliza un paso de ApprovalFlow a su lista de emails (lowercase).
-    Soporta el formato nuevo multi-aprobador {"label":..., "emails":[...]}
-    y el formato legacy de un solo aprobador {"label":..., "email": "..."}."""
+    Soporta:
+      - Grupo {"label":..., "group_name": "Mesa De Ayuda Pash"}: resuelve por
+        NOMBRE los miembros activos del grupo EN `company` (mismo patrón que
+        _resolve_group_approvers para ApprovalWorkflow) — cualquiera de ellos
+        puede decidir el paso, y si se agregan/quitan miembros del grupo
+        después, el paso se re-resuelve solo, no queda "congelado".
+      - Multi-aprobador nuevo {"label":..., "emails":[...]}.
+      - Legacy de un solo aprobador {"label":..., "email": "..."}.
+    `company` es obligatorio para que un step de grupo resuelva algo; sin
+    company (llamados legacy) los steps de grupo devuelven lista vacía."""
     if not isinstance(step, dict):
         return []
+    group_name = (step.get('group_name') or '').strip()
+    if group_name and company:
+        members = _resolve_group_approvers(group_name, company)
+        cleaned = [m.email.strip().lower() for m in members if m.email]
+        if cleaned:
+            return cleaned
     emails = step.get('emails')
     if isinstance(emails, list) and emails:
         cleaned = [(e or '').strip().lower() for e in emails if (e or '').strip()]
@@ -1632,8 +1646,9 @@ class SolicitudUsuario(db.Model):
     def current_flow_step_emails(self):
         """Lista de emails (lowercase) autorizados a decidir el paso actual.
         Soporta pasos con 1 o varios aprobadores (cualquiera de ellos puede
-        aprobar/devolver/rechazar — lógica OR)."""
-        return _step_emails(self.current_flow_step())
+        aprobar/devolver/rechazar — lógica OR) y pasos de grupo (se resuelven
+        por nombre en self.company)."""
+        return _step_emails(self.current_flow_step(), self.company)
 
     def jefe_gate_pending(self):
         """True si esta solicitud usa flujo dinámico y todavía está en el
@@ -27594,9 +27609,14 @@ def _serialize_approval_flow(f):
 
 def _validate_flow_payload(data):
     """Devuelve (steps_list, ticket_email, error_msg). error_msg=None si OK.
-    Cada paso admite 1 o varios aprobadores (emails): cualquiera de ellos
-    puede decidir ese paso (lógica OR). Acepta tanto el formato nuevo
-    {"label":..., "emails":[...]} como el legacy {"label":..., "email":...}."""
+    Cada paso es UNO de:
+      - Grupo: {"label":..., "group_name": "Mesa De Ayuda Pash"} — se resuelve
+        por nombre en la empresa de la solicitud (ver _step_emails), cualquier
+        miembro activo del grupo puede decidir, y si el grupo cambia de
+        integrantes después el paso se re-resuelve solo.
+      - Multi-aprobador: {"label":..., "emails":[...]} — cualquiera de ellos
+        puede decidir ese paso (lógica OR).
+      - Legacy de un solo aprobador: {"label":..., "email":...}."""
     steps = data.get('steps') or []
     if not isinstance(steps, list) or len(steps) < 1:
         return None, None, 'Debe haber al menos un paso de aprobación'
@@ -27607,6 +27627,12 @@ def _validate_flow_payload(data):
         if not isinstance(s, dict):
             return None, None, f'Paso {i}: formato inválido'
         label = (s.get('label') or '').strip()
+        if not label:
+            return None, None, f'Paso {i}: falta el rol/label'
+        group_name = (s.get('group_name') or '').strip()
+        if group_name:
+            clean_steps.append({'group_name': group_name[:100], 'label': label[:120]})
+            continue
         raw_emails = s.get('emails')
         if not isinstance(raw_emails, list) or not raw_emails:
             single = s.get('email')
@@ -27623,11 +27649,9 @@ def _validate_flow_payload(data):
                 seen.add(email)
                 emails.append(email)
         if not emails:
-            return None, None, f'Paso {i}: debe tener al menos un aprobador con correo'
+            return None, None, f'Paso {i}: debe tener al menos un aprobador con correo (o elegir un grupo)'
         if len(emails) > 10:
             return None, None, f'Paso {i}: máximo 10 aprobadores por paso'
-        if not label:
-            return None, None, f'Paso {i}: falta el rol/label'
         clean_steps.append({'emails': emails, 'label': label[:120]})
     ticket_email = (data.get('ticket_assignee_email') or '').strip().lower()
     if ticket_email and '@' not in ticket_email:
@@ -27752,7 +27776,7 @@ def _flow_export_rows(flows):
                 'is_active': 'Si' if f.is_active else 'No',
             })
         for i, s in enumerate(steps, start=1):
-            emails = _step_emails(s) or ['']
+            emails = _step_emails(s, f.company) or ['']
             for email in emails:
                 rows.append({
                     'company': f.company, 'area': f.area, 'description': f.description or '',
@@ -28452,10 +28476,12 @@ def _solicitud_approval_chain(s):
 
         chain.append({'label': 'Jefe Inmediato', 'name': jefe_name, 'email': jefe_email, 'status': _status_for(-1)})
         for i, step in enumerate(steps):
-            emails = _step_emails(step)
+            emails = _step_emails(step, s.company)
+            group_name = (step.get('group_name') or '').strip()
+            display = f'👥 Grupo: {group_name}' + (f' ({", ".join(emails)})' if emails else ' (sin miembros activos)') if group_name else (', '.join(emails) if emails else '—')
             chain.append({
                 'label': step.get('label') or f'Paso {i + 1}',
-                'name': ', '.join(emails) if emails else '—',
+                'name': display,
                 'email': ', '.join(emails) if emails else '—',
                 'status': _status_for(i),
             })
@@ -28682,7 +28708,7 @@ def _notify_next_approver(solicitud):
                 print(f'[notify] solicitud {solicitud.codigo}: flujo dinámico sin paso actual')
                 return
             approver_label = step.get('label') or 'Aprobador'
-            emails = _step_emails(step)
+            emails = _step_emails(step, solicitud.company)
             if not emails:
                 print(f'[notify] solicitud {solicitud.codigo}: paso sin emails de aprobador')
                 return
