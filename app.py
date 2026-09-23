@@ -11469,7 +11469,11 @@ def notify_subtask_assigned(subtask, assignee, assigned_by_name='Sistema'):
 
 def notify_subtask_assigned_async(subtask_id, assignee_id, assigned_by_name='Sistema'):
     """Versión no bloqueante de notify_subtask_assigned() — ver
-    notify_ticket_created_async() para el motivo."""
+    notify_ticket_created_async() para el motivo. Para varias subtareas a la
+    vez (ej. al generar el caso de una Solicitud) usar
+    notify_subtasks_assigned_batch_async en su lugar — llamar a esta función
+    en un loop abre N hilos que golpean el mismo mailbox SMTP en paralelo, y
+    Office 365 responde "432 4.3.2 Concurrent connections limit exceeded"."""
     def _run():
         with app.app_context():
             try:
@@ -11479,6 +11483,29 @@ def notify_subtask_assigned_async(subtask_id, assignee_id, assigned_by_name='Sis
                     notify_subtask_assigned(st, u, assigned_by_name=assigned_by_name)
             except Exception as e:
                 print(f'[async-email][subtask_assigned] error: {e}')
+    Thread(target=_run, daemon=True).start()
+
+
+def notify_subtasks_assigned_batch_async(notifications, assigned_by_name='Sistema'):
+    """Notifica VARIAS subtareas asignadas en UN solo hilo, de a una por vez
+    (una conexión SMTP se cierra antes de abrir la siguiente). Evita el 432
+    "Concurrent connections limit exceeded" de Office 365 que salía al
+    disparar un Thread por subtarea cuando una Solicitud generaba varias de
+    golpe (ver notify_subtask_assigned_async).
+    `notifications`: lista de (subtask_id, assignee_id)."""
+    if not notifications:
+        return
+
+    def _run():
+        with app.app_context():
+            for subtask_id, assignee_id in notifications:
+                try:
+                    st = Subtask.query.get(subtask_id)
+                    u = User.query.get(assignee_id)
+                    if st and u:
+                        notify_subtask_assigned(st, u, assigned_by_name=assigned_by_name)
+                except Exception as e:
+                    print(f'[async-email][subtask_assigned_batch] error (subtask {subtask_id}): {e}')
     Thread(target=_run, daemon=True).start()
 
 
@@ -26761,8 +26788,11 @@ def _generate_case_from_solicitud(solicitud, actor_user):
         # notify_ticket_assigned_async / _finalize_approval_chain).
         db.session.commit()
         actor_name = actor_user.name if actor_user else 'Aprobación de Solicitud'
-        for st_id, assignee_id in subtask_notifications:
-            notify_subtask_assigned_async(st_id, assignee_id, assigned_by_name=f'Solicitud {solicitud.codigo} ({actor_name})')
+        # Un solo hilo, de a un correo por vez (no un Thread por subtarea):
+        # varias subtareas asignadas de golpe abrían N conexiones SMTP en
+        # paralelo contra el mismo mailbox y Office 365 las rechazaba con
+        # "432 4.3.2 Concurrent connections limit exceeded".
+        notify_subtasks_assigned_batch_async(subtask_notifications, assigned_by_name=f'Solicitud {solicitud.codigo} ({actor_name})')
 
     return ticket
 
