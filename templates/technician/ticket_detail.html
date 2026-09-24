@@ -448,98 +448,6 @@
             font-size: 14px;
         }
 
-        .timeout-warning {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            z-index: 10001;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .timeout-warning.active {
-            display: flex;
-        }
-
-        .timeout-content {
-            background: white;
-            padding: 50px;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-            text-align: center;
-            max-width: 450px;
-        }
-
-        .timeout-icon {
-            font-size: 64px;
-            margin-bottom: 20px;
-            animation: pulse 1s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        .timeout-title {
-            font-size: 24px;
-            font-weight: bold;
-            color: #dc2626;
-            margin-bottom: 10px;
-        }
-
-        .timeout-text {
-            color: #666;
-            margin-bottom: 30px;
-            font-size: 14px;
-        }
-
-        .timeout-countdown {
-            font-size: 48px;
-            font-weight: bold;
-            color: #dc2626;
-            font-family: 'Courier New', monospace;
-            margin-bottom: 30px;
-            letter-spacing: 3px;
-        }
-
-        .timeout-buttons {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-        }
-
-        .timeout-buttons button {
-            padding: 14px 28px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 14px;
-            transition: all 0.3s;
-        }
-
-        .timeout-btn-extend {
-            background: #10b981;
-            color: white;
-        }
-
-        .timeout-btn-extend:hover {
-            background: #059669;
-        }
-
-        .timeout-btn-logout {
-            background: #e0e0e0;
-            color: #333;
-        }
-
-        .timeout-btn-logout:hover {
-            background: #d0d0d0;
-        }
     </style>
     <script src="/static/js/session_guard.js"></script>
     <script src="/static/js/polling.js"></script>
@@ -1127,24 +1035,6 @@
         });
     </script>
 
-<!-- MODAL TIMEOUT RF-01-13 -->
-<div class="timeout-warning" id="timeoutWarning">
-    <div class="timeout-content">
-        <div class="timeout-icon">⏰</div>
-        <div class="timeout-title">¡Tu sesión está por expirar!</div>
-        <div class="timeout-text">Por razones de seguridad, tu sesión se cerrará en:</div>
-
-        <div class="timeout-countdown" id="countdownDisplay">60</div>
-
-        <div class="timeout-text">segundos de inactividad</div>
-
-        <div class="timeout-buttons">
-            <button class="timeout-btn-extend" onclick="extendSession()">Continuar Trabajando</button>
-            <button class="timeout-btn-logout" onclick="window.location.href='/logout'">Cerrar Sesión</button>
-        </div>
-    </div>
-</div>
-
 <!-- MODAL RATING RF-01-09 -->
 <div class="modal-overlay" id="ratingModal">
     <div class="modal-content" style="max-width:560px;">
@@ -1177,7 +1067,6 @@
 
 {% include 'search_widget.html' %}
 
-<script src="/static/timeout.js"></script>
 <script>
     // Rol actual del usuario (para generar links dinámicos según admin/technician)
     window.__ROLE__ = "{{ session.role or 'technician' }}";

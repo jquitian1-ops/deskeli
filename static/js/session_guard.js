@@ -23,6 +23,100 @@
     const PING_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
     const TOAST_TIMEOUT = 5000;
 
+    // ─── Timeout por inactividad (admin, técnico y empleado) ──────────
+    // 10 minutos sin actividad del mouse/teclado/touch → logout automático,
+    // con aviso + cuenta regresiva durante el último minuto. Antes esto solo
+    // existía en una sola página (static/timeout.js, incluido nada más en
+    // technician/ticket_detail.html); se mueve acá porque session_guard.js
+    // ya se carga en todas las páginas autenticadas de las 3 empresas/roles.
+    const IDLE_TIMEOUT_MINUTES = 10;
+    const IDLE_WARNING_SECONDS = 60;
+    const IDLE_TIMEOUT_MS = IDLE_TIMEOUT_MINUTES * 60 * 1000;
+    const IDLE_WARNING_MS = IDLE_TIMEOUT_MS - (IDLE_WARNING_SECONDS * 1000);
+
+    let _lastActivity = Date.now();
+    let _idleWarningShown = false;
+    let _idleCountdownInterval = null;
+
+    function _resetIdleTimer() {
+        _lastActivity = Date.now();
+        // Si el usuario vuelve a interactuar mientras el aviso está visible,
+        // se cuenta como "Continuar Trabajando" implícito.
+        if (_idleWarningShown) hideIdleWarning();
+    }
+
+    function _idlePageExempt() {
+        // Mismo criterio que shouldPing(): no aplica en login ni páginas públicas.
+        const p = location.pathname || '';
+        return p === '/login' || p === '/' || p.startsWith('/static/') || p.startsWith('/kb/');
+    }
+
+    function showIdleWarning() {
+        if (_idleWarningShown || _idlePageExempt()) return;
+        _idleWarningShown = true;
+
+        const backdrop = document.createElement('div');
+        backdrop.id = '__deskeli_idle_modal';
+        backdrop.style.cssText =
+            'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:2147483001;' +
+            'display:flex;align-items:center;justify-content:center;padding:20px;' +
+            'font-family:"Segoe UI",Tahoma,sans-serif;';
+        backdrop.innerHTML = `
+            <div style="background:white;border-radius:12px;max-width:440px;width:100%;padding:40px 30px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.35);">
+                <div style="font-size:56px;margin-bottom:14px;animation:__deskeli_idle_pulse 1s infinite;">⏰</div>
+                <div style="font-size:22px;font-weight:800;color:#dc2626;margin-bottom:8px;">¡Tu sesión está por expirar!</div>
+                <div style="color:#6b7280;font-size:14px;margin-bottom:18px;">Por seguridad, tu sesión se cerrará por inactividad en:</div>
+                <div id="__deskeli_idle_countdown" style="font-size:48px;font-weight:800;color:#dc2626;font-family:'Courier New',monospace;letter-spacing:3px;margin-bottom:8px;">${IDLE_WARNING_SECONDS}</div>
+                <div style="color:#9ca3af;font-size:13px;margin-bottom:22px;">segundos</div>
+                <div style="display:flex;gap:10px;justify-content:center;">
+                    <button onclick="window.__deskeliExtendSession()" style="padding:12px 24px;border:none;border-radius:8px;background:#10b981;color:white;font-weight:700;font-size:14px;cursor:pointer;">Continuar Trabajando</button>
+                    <button onclick="location.href='/logout'" style="padding:12px 24px;border:none;border-radius:8px;background:#e5e7eb;color:#374151;font-weight:600;font-size:14px;cursor:pointer;">Cerrar Sesión</button>
+                </div>
+            </div>
+            <style>@keyframes __deskeli_idle_pulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }</style>
+        `;
+        document.body.appendChild(backdrop);
+
+        let remaining = IDLE_WARNING_SECONDS;
+        const display = document.getElementById('__deskeli_idle_countdown');
+        _idleCountdownInterval = setInterval(() => {
+            remaining--;
+            if (display) display.textContent = remaining;
+            if (remaining <= 0) {
+                clearInterval(_idleCountdownInterval);
+                location.href = '/logout';
+            }
+        }, 1000);
+    }
+
+    function hideIdleWarning() {
+        _idleWarningShown = false;
+        if (_idleCountdownInterval) {
+            clearInterval(_idleCountdownInterval);
+            _idleCountdownInterval = null;
+        }
+        const el = document.getElementById('__deskeli_idle_modal');
+        if (el) el.remove();
+    }
+
+    // Expuesto para el botón "Continuar Trabajando" del modal.
+    window.__deskeliExtendSession = _resetIdleTimer;
+
+    function _checkIdle() {
+        if (_idlePageExempt()) return;
+        const elapsed = Date.now() - _lastActivity;
+        if (elapsed >= IDLE_TIMEOUT_MS) {
+            location.href = '/logout';
+        } else if (elapsed >= IDLE_WARNING_MS) {
+            showIdleWarning();
+        }
+    }
+
+    document.addEventListener('mousedown', _resetIdleTimer);
+    document.addEventListener('keydown', _resetIdleTimer);
+    document.addEventListener('touchstart', _resetIdleTimer);
+    setInterval(_checkIdle, 5000);
+
     // ─── UI: modal de sesión expirada ────────────────────────────────
     let sessionExpiredShown = false;
     function showSessionExpiredModal(reason) {
@@ -151,7 +245,11 @@
         }
 
         // Analizar respuesta solo para llamadas a nuestra API
-        const url = typeof input === 'string' ? input : (input && input.url) || '';
+        // (BUG previo: `url` se volvía a declarar acá con `const`, mismo
+        // nombre que arriba en la misma función — SyntaxError que hacía
+        // fallar el parseo de TODO este archivo en el navegador, dejando
+        // sin efecto el manejo de 401/429/500+ y el keep-alive de sesión
+        // en todas las páginas.)
         const isOurApi = url.startsWith('/api/') || url.includes(location.host + '/api/');
 
         if (!isOurApi) return response;
