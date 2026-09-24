@@ -6602,6 +6602,51 @@ def api_approval_decision(token):
     return jsonify({'success': True, 'ticket_status': ticket.status, 'action': approval.status})
 
 
+@app.route('/api/admin/ticket/<int:ticket_id>/cancel-approval', methods=['POST'])
+def api_admin_cancel_ticket_approval(ticket_id):
+    """Libera un ticket que quedó 'pending_approval' por error (ej. un
+    workflow de aprobación con una condición de disparo demasiado amplia,
+    como "prioridad = Baja" sin categoría/plantilla, que atrapó tickets que
+    no debían pasar por ahí). Salteá los Approval pendientes (quedan
+    'skipped', no 'aprobados' — no es una aprobación real, es una liberación
+    administrativa) y sigue el mismo camino que una cadena 100% aprobada:
+    ticket a 'open', y en Pash auto-asignación al grupo por defecto si sigue
+    sin asignar."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    ticket = Ticket.query.get(ticket_id)
+    if not ticket or ticket.company not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Ticket no encontrado'}), 404
+    if ticket.status != 'pending_approval':
+        return jsonify({'success': False, 'error': f'El ticket no está pendiente de aprobación (está en "{ticket.status}")'}), 400
+
+    Approval.query.filter(
+        Approval.ticket_id == ticket.id,
+        Approval.status == 'pending',
+    ).update({'status': 'skipped'}, synchronize_session=False)
+    db.session.flush()
+
+    ticket.status = 'open'
+    ticket.updated_at = datetime.now()
+    if ticket.company == 'pash' and not ticket.assignee_id:
+        try:
+            assign_to_default_group(ticket)
+        except Exception as e:
+            print(f'[cancel-approval][default-group] Error: {e}')
+    db.session.commit()
+
+    if ticket.assignee_id:
+        notify_ticket_assigned_async(
+            ticket.id, ticket.assignee_id,
+            assigned_by_name=session.get('name', 'Admin'),
+            reason='Liberado de un flujo de aprobación que no le correspondía'
+        )
+
+    log_audit('ticket_approval_cancelled', session['user_id'], 'ticket', ticket.id,
+              f'Ticket {ticket.ticket_number} liberado manualmente de aprobación pendiente')
+    return jsonify({'success': True, 'ticket_status': ticket.status, 'assignee': ticket.assignee.name if ticket.assignee else None})
+
+
 @app.route('/api/approvals/pending')
 def api_approvals_my_pending():
     """Mis aprobaciones pendientes (widget en dashboards)."""
