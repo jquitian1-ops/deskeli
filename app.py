@@ -27376,11 +27376,13 @@ def api_solicitudes_devolver(solicitud_id):
     if not s or not solicitud_can_view(user, s):
         return jsonify({'success': False, 'error': 'Solicitud no encontrada'}), 404
     data = request.get_json() or {}
-    ok, error, next_estado = _apply_transition(s, user, 'devolver', (data.get('observacion') or '').strip() or None)
+    observacion = (data.get('observacion') or '').strip() or None
+    ok, error, next_estado = _apply_transition(s, user, 'devolver', observacion)
     if not ok:
         return jsonify({'success': False, 'error': error}), 400
     db.session.commit()
     log_audit('solicitud_devuelta', user.id, 'solicitud', s.id, f'{s.codigo}: devuelta')
+    _notify_solicitud_creator_devuelta(s, user, observacion)
     return jsonify({'success': True, 'estado': next_estado, 'estado_label': SOLICITUD_ESTADO_LABEL.get(next_estado)})
 
 
@@ -29224,6 +29226,65 @@ def _notify_next_approver(solicitud):
         print(f'[warn] _notify_next_approver: {e}')
 
 
+def _notify_solicitud_creator_devuelta(solicitud, actor_user, observacion):
+    """Avisa por correo a quien CREÓ la solicitud cuando la cadena de
+    aprobación se devuelve en cualquier paso, para que sepa que tiene que
+    corregir algo y reenviarla. Best-effort: silencia errores."""
+    try:
+        creator = solicitud.creator
+        if not creator or not creator.email:
+            print(f'[notify] solicitud {solicitud.codigo} devuelta: creador sin email, no se notifica')
+            return False
+
+        try:
+            base_url = get_public_base_url() or (request.host_url.rstrip('/') if request else '')
+        except Exception:
+            base_url = request.host_url.rstrip('/') if request else ''
+        detail_url = f"{base_url}/solicitudes-usuarios/{solicitud.id}"
+
+        role_label = _role_label_for_solicitud_state(solicitud.estado) or 'un aprobador'
+        subject = f"[DeskEli] Tu solicitud {solicitud.codigo} fue devuelta"
+
+        body = f"""
+        <html><body style="font-family:Segoe UI,sans-serif;color:#1f2937;background:#f5f7fa;padding:20px;">
+        <div style="max-width:640px;margin:0 auto;padding:26px;background:white;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+            <h2 style="color:#f59e0b;margin:0 0 12px;">↩ Tu solicitud fue devuelta</h2>
+            <p>Hola <strong>{creator.name}</strong>,</p>
+            <p>La solicitud <strong>{solicitud.codigo}</strong> ({solicitud.tipo_solicitud}) fue devuelta por <strong>{actor_user.name if actor_user else role_label}</strong> ({role_label}) y necesita que la corrijas antes de que la cadena de aprobación pueda continuar.</p>
+
+            <div style="background:#fffbeb;padding:16px;border-radius:8px;margin:14px 0;border-left:4px solid #f59e0b;">
+                <p style="margin:6px 0;"><strong>Empleado:</strong> {solicitud.nombre} · Doc {solicitud.documento}</p>
+                <p style="margin:12px 0 6px;"><strong>Motivo de la devolución:</strong></p>
+                <div style="background:white;padding:8px 10px;border-radius:4px;font-size:13px;color:#374151;">
+                    {(observacion or '(sin observación)')[:500]}
+                </div>
+            </div>
+
+            <div style="text-align:center;margin:20px 0;">
+                <a href="{detail_url}"
+                   style="display:inline-block;padding:12px 24px;background:#7c3aed;color:white;text-decoration:none;border-radius:6px;font-weight:700;">
+                    Ver y corregir la solicitud
+                </a>
+            </div>
+            <p style="font-size:12px;color:#6b7280;">
+                Una vez corregida, reenviala desde esa misma pantalla para que retome el flujo en el mismo paso donde quedó.
+            </p>
+            <p style="font-size:12px;color:#9ca3af;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:12px;">
+                Enviado automáticamente por DeskEli — no responder a este correo.
+            </p>
+        </div>
+        </body></html>
+        """
+        ok = send_email(to_email=creator.email, subject=subject, body=body, company=solicitud.company)
+        if not ok:
+            log_audit('solicitud_email_fallido', None, 'solicitud', solicitud.id,
+                      f'{solicitud.codigo}: no se pudo notificar al creador ({creator.email}) de la devolución')
+        return ok
+    except Exception as e:
+        print(f'[warn] _notify_solicitud_creator_devuelta: {e}')
+        return False
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Endpoints públicos: aprobar solicitud desde el link del correo
 # ─────────────────────────────────────────────────────────────────────────────
@@ -29348,6 +29409,8 @@ def api_solicitudes_decidir(token):
     # Notificar al siguiente si hubo transición a otro estado pendiente
     if accion == 'aprobar':
         _notify_next_approver(s)
+    elif accion == 'devolver':
+        _notify_solicitud_creator_devuelta(s, user, obs)
 
     return jsonify({
         'success': True,
