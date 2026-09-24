@@ -26733,6 +26733,15 @@ def api_solicitudes_detail(solicitud_id):
     return jsonify({'success': True, 'solicitud': _serialize_solicitud_detail(s, viewer=user)})
 
 
+# Regla fija de negocio: en Eliot, el caso (ticket padre) generado por
+# cualquier flujo de Solicitudes de Usuario SIEMPRE va a este usuario, sin
+# excepción — pisa cualquier "Ticket asignado a" que tenga configurado el
+# flujo. Análogo a la regla de Pash (Mesa de Ayuda) en assign_to_default_group,
+# pero incondicional en vez de solo-si-no-hay-asignación-explícita.
+ELIOT_FORCED_CASE_ASSIGNEE_COMPANY = 'eliot'
+ELIOT_FORCED_CASE_ASSIGNEE_EMAIL = 'cat@patprimo.com.co'
+
+
 def _generate_case_from_solicitud(solicitud, actor_user):
     """Al aprobar el Gerente IT, genera automáticamente:
       - 1 Ticket categoría Accesos con toda la info de la solicitud
@@ -26791,6 +26800,22 @@ def _generate_case_from_solicitud(solicitud, actor_user):
         else:
             print(f'[case-gen] flow_ticket_assignee_email "{solicitud.flow_ticket_assignee_email}" '
                   f'no matchea con un user activo de {solicitud.company}; ticket queda sin asignar')
+
+    # Eliot: regla fija de negocio — TODO caso generado por un flujo de
+    # Solicitudes va siempre a cat@patprimo.com.co, sin excepción, sin
+    # importar el "Ticket asignado a" configurado en el flujo (a diferencia
+    # de Pash, acá SÍ pisa cualquier asignación explícita del flujo).
+    if solicitud.company == ELIOT_FORCED_CASE_ASSIGNEE_COMPANY:
+        forced = User.query.filter(
+            db.func.lower(User.email) == ELIOT_FORCED_CASE_ASSIGNEE_EMAIL.lower(),
+            User.company == ELIOT_FORCED_CASE_ASSIGNEE_COMPANY,
+            User.is_active == True,
+        ).first()
+        if forced:
+            ticket_assignee_id = forced.id
+        else:
+            print(f'[case-gen] Usuario forzado de Eliot "{ELIOT_FORCED_CASE_ASSIGNEE_EMAIL}" '
+                  f'no existe o está inactivo; el ticket sigue la resolución normal')
 
     initial_status = 'in_progress' if ticket_assignee_id else 'open'
     ticket = Ticket(
