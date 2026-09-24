@@ -27221,10 +27221,10 @@ def _apply_transition(s, user, accion, observacion):
     if accion in ('aprobar', 'devolver', 'rechazar'):
         if user.role != 'admin' and not s.is_current_approver(user):
             return False, 'No es el aprobador de este nivel', None
-        # REGLA: el creador NO puede aprobar su propia solicitud (conflicto de
-        # interés) aunque figure como aprobador. Admins pueden hacer override.
-        if user.role != 'admin' and user.id == s.creator_id:
-            return False, 'No podés aprobar/rechazar tu propia solicitud (sos el creador)', None
+        # Sin restricción de "el creador no puede aprobar su propia solicitud":
+        # un Jefe Inmediato o Gerente de Área frecuentemente es quien carga la
+        # solicitud Y quien debe aprobarla en su propio paso — a pedido
+        # explícito, esto ya no bloquea.
         if not dynamic and estado_actual not in SOLICITUD_APROBAR_SIGUIENTE:
             # Está en un DEVUELTO_*: no puede aprobar/rechazar directamente
             return False, f'La solicitud está en estado "{estado_actual}", no admite {accion}', None
