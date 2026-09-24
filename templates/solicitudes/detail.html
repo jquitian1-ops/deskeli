@@ -23,6 +23,13 @@
         .field-ro { display:flex; flex-direction:column; }
         .field-ro label { font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:0.3px; font-weight:700; margin-bottom:3px; }
         .field-ro .val { font-size:14px; color:#111827; padding:6px 10px; background:#f9fafb; border-radius:4px; border:1px solid #e5e7eb; min-height:32px; }
+        .field-ro input, .field-ro select {
+            font-size:14px; color:#111827; padding:6px 10px; background:white; border-radius:4px;
+            border:1px solid #a78bfa; min-height:32px; font-family:inherit; width:100%;
+        }
+        .field-ro input:focus, .field-ro select:focus { outline:none; border-color:#7c3aed; box-shadow:0 0 0 3px rgba(124,58,237,0.15); }
+        .edit-banner { padding:10px 14px; background:#faf5ff; border-left:4px solid #7c3aed; border-radius:4px; font-size:12.5px; color:#5b21b6; margin-bottom:14px; }
+        .controles-edit-input { width:100%; padding:5px 8px; border:1px solid #a78bfa; border-radius:4px; font-family:inherit; font-size:12px; }
         .badge { display:inline-block; padding:4px 12px; border-radius:14px; font-size:12px; font-weight:800; }
         .badge-pending { background:#fef3c7; color:#92400e; }
         .badge-approved { background:#d1fae5; color:#065f46; }
@@ -105,7 +112,7 @@
         <!-- Datos del empleado -->
         <div class="card">
             <div class="section-title">👤 Datos del empleado</div>
-            <div class="grid-3">
+            <div class="grid-3" id="empleadoFieldsGrid">
                 <div class="field-ro"><label>Tipo</label><div class="val" id="tipo">—</div></div>
                 <div class="field-ro"><label>Unidad de negocio</label><div class="val" id="unidad_negocio">—</div></div>
                 <div class="field-ro"><label>Documento</label><div class="val" id="documento">—</div></div>
@@ -191,6 +198,7 @@
     const CURRENT_ROLE = "{{ current_role }}";
     let _solicitud = null;
     let _pendingAction = null;
+    let _editMode = false;
 
     function esc(s) { return s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -239,34 +247,8 @@
         document.getElementById('fechaCreada').textContent = s.created_at ? new Date(s.created_at).toLocaleString('es-CO') : '—';
         document.getElementById('estadoBadge').innerHTML = `<span class="badge ${badgeClass(s.estado, s.anulado)}">${esc(s.anulado ? 'ANULADA' : s.estado_label)}</span>`;
 
-        // Datos empleado
-        document.getElementById('tipo').textContent = s.tipo_solicitud;
-        document.getElementById('unidad_negocio').textContent = s.unidad_negocio || '—';
-        document.getElementById('documento').textContent = s.documento;
-        document.getElementById('nombre').textContent = s.nombre;
-        document.getElementById('cargo').textContent = s.cargo || '—';
-        document.getElementById('numero_contacto').textContent = s.numero_contacto || '—';
-        document.getElementById('ubicacion').textContent = s.ubicacion || '—';
-        document.getElementById('centro_costo').textContent = s.centro_costo || '—';
-        document.getElementById('tipo_contrato').textContent = s.tipo_contrato || '—';
-
-        if (s.tipo_solicitud === 'INGRESO') {
-            document.getElementById('fldFechaIngreso').style.display = '';
-            document.getElementById('fecha_ingreso').textContent = s.fecha_ingreso || '—';
-            document.getElementById('fldReemplazo').style.display = '';
-            document.getElementById('es_reemplazo').textContent = s.es_reemplazo === true ? 'Sí' : (s.es_reemplazo === false ? 'No' : '—');
-            if (s.es_reemplazo) {
-                document.getElementById('fldNombreReempl').style.display = '';
-                document.getElementById('nombre_reemplazo').textContent = s.nombre_reemplazo || '—';
-            }
-        } else if (s.usuario_red) {
-            document.getElementById('fldUsuarioRed').style.display = '';
-            document.getElementById('usuario_red').textContent = s.usuario_red;
-        }
-        if (s.caso_externo) {
-            document.getElementById('fldCasoExterno').style.display = '';
-            document.getElementById('caso_externo').textContent = s.caso_externo;
-        }
+        // Datos empleado (modo lectura o edición, ver renderEmpleadoFields)
+        renderEmpleadoFields();
 
         // Cadena de aprobación: Jefe Inmediato siempre primero, luego el
         // flujo legacy (Analista TI → Gerente TI) o los pasos del flujo
@@ -297,20 +279,11 @@
                 </div>`;
         }).join('') || '<div style="color:#9ca3af;font-size:13px;">Sin datos de aprobadores.</div>';
 
-        // Justificación
-        document.getElementById('justificacion').textContent = s.justificacion;
+        // Justificación (modo lectura o edición)
+        renderJustificacion();
 
-        // Controles
-        const ctlRows = s.controles.map((c, i) => `
-            <tr>
-                <td>${i + 1}</td>
-                <td><strong>${esc(c.control_name)}</strong></td>
-                <td>${esc(c.descripcion_detalle || '—')}</td>
-                <td>${esc(c.usuario_espejo || (c.needs_espejo ? '⚠ Falta' : '—'))}</td>
-                <td style="text-align:right;">${c.costo != null ? '$' + c.costo.toFixed(2) : '—'}</td>
-            </tr>
-        `).join('');
-        document.getElementById('controlesTbody').innerHTML = ctlRows || '<tr><td colspan="5" style="text-align:center; padding:20px;">Sin controles</td></tr>';
+        // Controles (modo lectura o edición — ver renderControlesTable)
+        renderControlesTable();
         document.getElementById('costoTotal').textContent = '$' + (s.costo_total || 0).toFixed(2);
 
         // Adjuntos
@@ -351,6 +324,163 @@
         renderActions();
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    // Edición de la solicitud cuando quedó "Devuelta" — antes esta
+    // pantalla era 100% de solo lectura y "Reenviar" solo re-mandaba los
+    // mismos datos que motivaron la devolución, sin forma de corregirlos.
+    // ─────────────────────────────────────────────────────────────────
+    function renderEmpleadoFields() {
+        const s = _solicitud;
+        const grid = document.getElementById('empleadoFieldsGrid');
+        if (!_editMode) {
+            grid.innerHTML = `
+                <div class="field-ro"><label>Tipo</label><div class="val">${esc(s.tipo_solicitud)}</div></div>
+                <div class="field-ro"><label>Unidad de negocio</label><div class="val">${esc(s.unidad_negocio || '—')}</div></div>
+                <div class="field-ro"><label>Documento</label><div class="val">${esc(s.documento)}</div></div>
+                <div class="field-ro"><label>Nombre</label><div class="val">${esc(s.nombre)}</div></div>
+                <div class="field-ro"><label>Cargo</label><div class="val">${esc(s.cargo || '—')}</div></div>
+                <div class="field-ro"><label>Número de contacto</label><div class="val">${esc(s.numero_contacto || '—')}</div></div>
+                <div class="field-ro"><label>Ubicación</label><div class="val">${esc(s.ubicacion || '—')}</div></div>
+                <div class="field-ro"><label>Centro de costo</label><div class="val">${esc(s.centro_costo || '—')}</div></div>
+                <div class="field-ro"><label>Tipo de contrato</label><div class="val">${esc(s.tipo_contrato || '—')}</div></div>
+                ${s.tipo_solicitud === 'INGRESO' ? `
+                    <div class="field-ro"><label>Fecha de ingreso</label><div class="val">${esc(s.fecha_ingreso || '—')}</div></div>
+                    <div class="field-ro"><label>¿Es reemplazo?</label><div class="val">${s.es_reemplazo === true ? 'Sí' : (s.es_reemplazo === false ? 'No' : '—')}</div></div>
+                    ${s.es_reemplazo ? `<div class="field-ro"><label>Nombre a reemplazar</label><div class="val">${esc(s.nombre_reemplazo || '—')}</div></div>` : ''}
+                ` : (s.usuario_red ? `<div class="field-ro"><label>Usuario de red</label><div class="val">${esc(s.usuario_red)}</div></div>` : '')}
+                ${s.caso_externo ? `<div class="field-ro"><label>Caso externo</label><div class="val">${esc(s.caso_externo)}</div></div>` : ''}
+            `;
+            return;
+        }
+        // Modo edición
+        grid.innerHTML = `
+            <div class="field-ro"><label>Tipo</label><div class="val">${esc(s.tipo_solicitud)}</div></div>
+            <div class="field-ro"><label>Unidad de negocio</label><input id="edit_unidad_negocio" value="${esc(s.unidad_negocio || '')}"></div>
+            <div class="field-ro"><label>Documento *</label><input id="edit_documento" value="${esc(s.documento || '')}"></div>
+            <div class="field-ro"><label>Nombre *</label><input id="edit_nombre" value="${esc(s.nombre || '')}"></div>
+            <div class="field-ro"><label>Cargo</label><input id="edit_cargo" value="${esc(s.cargo || '')}"></div>
+            <div class="field-ro"><label>Número de contacto</label><input id="edit_numero_contacto" value="${esc(s.numero_contacto || '')}"></div>
+            <div class="field-ro"><label>Ubicación</label><input id="edit_ubicacion" value="${esc(s.ubicacion || '')}"></div>
+            <div class="field-ro"><label>Centro de costo</label><input id="edit_centro_costo" value="${esc(s.centro_costo || '')}"></div>
+            <div class="field-ro"><label>Tipo de contrato</label>
+                <select id="edit_tipo_contrato">
+                    <option value="">— Seleccionar —</option>
+                    ${['Indefinido','Fijo','Aprendiz','Prestación de servicios','Temporal'].map(o =>
+                        `<option ${s.tipo_contrato === o ? 'selected' : ''}>${o}</option>`).join('')}
+                </select>
+            </div>
+            ${s.tipo_solicitud === 'INGRESO' ? `
+                <div class="field-ro"><label>Fecha de ingreso</label><input type="date" id="edit_fecha_ingreso" value="${esc(s.fecha_ingreso || '')}"></div>
+                <div class="field-ro"><label>¿Es reemplazo?</label>
+                    <select id="edit_es_reemplazo" onchange="document.getElementById('fldEditNombreReempl').style.display = this.value === 'true' ? '' : 'none';">
+                        <option value="">— Seleccionar —</option>
+                        <option value="false" ${s.es_reemplazo === false ? 'selected' : ''}>No</option>
+                        <option value="true" ${s.es_reemplazo === true ? 'selected' : ''}>Sí</option>
+                    </select>
+                </div>
+                <div class="field-ro" id="fldEditNombreReempl" style="${s.es_reemplazo ? '' : 'display:none;'}">
+                    <label>Nombre a reemplazar</label><input id="edit_nombre_reemplazo" value="${esc(s.nombre_reemplazo || '')}">
+                </div>
+            ` : `<div class="field-ro"><label>Usuario de red</label><input id="edit_usuario_red" value="${esc(s.usuario_red || '')}"></div>`}
+        `;
+    }
+
+    function renderJustificacion() {
+        const s = _solicitud;
+        const el = document.getElementById('justificacion');
+        if (!_editMode) {
+            el.textContent = s.justificacion;
+        } else {
+            el.innerHTML = `<textarea id="edit_justificacion" style="width:100%;min-height:90px;padding:10px;border:1px solid #a78bfa;border-radius:6px;font-family:inherit;font-size:14px;">${esc(s.justificacion || '')}</textarea>`;
+        }
+    }
+
+    function renderControlesTable() {
+        const s = _solicitud;
+        const ctlRows = s.controles.map((c, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td><strong>${esc(c.control_name)}</strong></td>
+                <td>${_editMode
+                    ? `<textarea class="controles-edit-input" rows="2" data-ctl-id="${c.id}" data-field="descripcion_detalle">${esc(c.descripcion_detalle || '')}</textarea>`
+                    : esc(c.descripcion_detalle || '—')}</td>
+                <td>${_editMode
+                    ? `<input class="controles-edit-input" data-ctl-id="${c.id}" data-field="usuario_espejo" value="${esc(c.usuario_espejo || '')}" placeholder="${c.needs_espejo ? 'Requerido' : 'Opcional'}">`
+                    : esc(c.usuario_espejo || (c.needs_espejo ? '⚠ Falta' : '—'))}</td>
+                <td style="text-align:right;">${c.costo != null ? '$' + c.costo.toFixed(2) : '—'}</td>
+            </tr>
+        `).join('');
+        document.getElementById('controlesTbody').innerHTML = ctlRows || '<tr><td colspan="5" style="text-align:center; padding:20px;">Sin controles</td></tr>';
+    }
+
+    function enterEditMode() {
+        _editMode = true;
+        renderEmpleadoFields();
+        renderJustificacion();
+        renderControlesTable();
+        renderActions();
+    }
+
+    function cancelEditMode() {
+        _editMode = false;
+        renderEmpleadoFields();
+        renderJustificacion();
+        renderControlesTable();
+        renderActions();
+    }
+
+    async function saveAndResend() {
+        const val = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : undefined; };
+        const cambios = {
+            unidad_negocio: val('edit_unidad_negocio'),
+            documento: val('edit_documento'),
+            nombre: val('edit_nombre'),
+            cargo: val('edit_cargo'),
+            numero_contacto: val('edit_numero_contacto'),
+            ubicacion: val('edit_ubicacion'),
+            centro_costo: val('edit_centro_costo'),
+            tipo_contrato: val('edit_tipo_contrato'),
+            justificacion: val('edit_justificacion'),
+        };
+        if (document.getElementById('edit_fecha_ingreso')) cambios.fecha_ingreso = val('edit_fecha_ingreso');
+        if (document.getElementById('edit_es_reemplazo')) {
+            const v = val('edit_es_reemplazo');
+            cambios.es_reemplazo = v === '' ? null : (v === 'true');
+        }
+        if (document.getElementById('edit_nombre_reemplazo')) cambios.nombre_reemplazo = val('edit_nombre_reemplazo');
+        if (document.getElementById('edit_usuario_red')) cambios.usuario_red = val('edit_usuario_red');
+
+        if (!cambios.documento || !cambios.nombre || !cambios.justificacion) {
+            alert('Documento, Nombre y Justificación son obligatorios.');
+            return;
+        }
+
+        const controlesCambios = [];
+        document.querySelectorAll('#controlesTbody [data-ctl-id]').forEach(el => {
+            const id = parseInt(el.getAttribute('data-ctl-id'));
+            const field = el.getAttribute('data-field');
+            let entry = controlesCambios.find(c => c.id === id);
+            if (!entry) { entry = {id}; controlesCambios.push(entry); }
+            entry[field] = el.value.trim();
+        });
+        cambios.controles = controlesCambios;
+
+        try {
+            const r = await fetch(`/api/solicitudes-usuarios/${SOLICITUD_ID}/reenviar`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({cambios, observacion: 'Reenviado tras corrección'})
+            });
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error);
+            _editMode = false;
+            toast('✓ Corregida y reenviada', true);
+            await loadSolicitud();
+        } catch (e) {
+            toast('❌ ' + e.message, false);
+        }
+    }
+
     function renderActions() {
         const s = _solicitud;
         const box = document.getElementById('actionButtons');
@@ -369,23 +499,25 @@
             return;
         }
 
-        // Aprobador puede aprobar/devolver/rechazar cuando está PENDIENTE en su nivel
-        // REGLA ADICIONAL: si es el creador de la solicitud, NO puede aprobar
-        // aunque figure como aprobador (conflicto de interés). Se le muestra
-        // solo el estado. Los admins mantienen la capacidad de override.
-        if (isPending && isResponsable && !(isCreator && CURRENT_ROLE !== 'admin')) {
+        // Aprobador puede aprobar/devolver/rechazar cuando está PENDIENTE en su
+        // nivel — ya no importa si además es el creador de la solicitud (a
+        // pedido explícito, se quitó esa restricción tanto acá como en el
+        // backend).
+        if (isPending && isResponsable) {
             buttons.push(`<button class="btn btn-approve" onclick="doAction('aprobar')">✓ Aprobar</button>`);
             buttons.push(`<button class="btn btn-return" onclick="askObs('devolver', 'Devolver al solicitante')">↩ Devolver</button>`);
             buttons.push(`<button class="btn btn-reject" onclick="askObs('rechazar', 'Rechazar solicitud')">✕ Rechazar</button>`);
-        } else if (isPending && isCreator && CURRENT_ROLE !== 'admin') {
-            // Aviso visible para el creador que también aparece como aprobador
-            buttons.push(`<div style="padding:10px 14px; background:#fef3c7; border-left:4px solid #f59e0b; border-radius:4px; font-size:12.5px; color:#78350f;">
-                ⚠ Sos el creador de esta solicitud, por eso no podés aprobarla vos mismo aunque figures en la cadena de aprobación. Esperá a que otro aprobador la mueva.
-            </div>`);
         }
-        // Creador puede reenviar cuando está DEVUELTO
+        // Creador puede corregir y reenviar cuando está DEVUELTO. En modo
+        // edición se muestran Guardar/Cancelar en vez del botón inicial.
         if (isReturned && (isCreator || CURRENT_ROLE === 'admin')) {
-            buttons.push(`<button class="btn btn-resend" onclick="doAction('reenviar')">↪ Reenviar tras corrección</button>`);
+            if (_editMode) {
+                buttons.push(`<div class="edit-banner">✏️ Corrigiendo la solicitud — los campos y el detalle de los controles ya se pueden editar arriba.</div>`);
+                buttons.push(`<button class="btn btn-approve" onclick="saveAndResend()">💾 Guardar y Reenviar</button>`);
+                buttons.push(`<button class="btn" style="background:#e5e7eb;color:#374151;" onclick="cancelEditMode()">Cancelar</button>`);
+            } else {
+                buttons.push(`<button class="btn btn-resend" onclick="enterEditMode()">✏️ Editar y Reenviar</button>`);
+            }
         }
         // Aprobado por Gerente TI: admin/técnico marca en trámite o cierra
         if (s.estado === 'APROBADO_POR_GERENTE_DE_TI' && (CURRENT_ROLE === 'admin' || CURRENT_ROLE === 'technician')) {

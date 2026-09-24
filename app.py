@@ -27420,18 +27420,64 @@ def api_solicitudes_anular(solicitud_id):
 
 @app.route('/api/solicitudes-usuarios/<int:solicitud_id>/reenviar', methods=['POST'])
 def api_solicitudes_reenviar(solicitud_id):
-    """El creador reenvía la solicitud tras corregir por una devolución."""
+    """El creador reenvía la solicitud tras corregir por una devolución.
+
+    Acepta un dict opcional `cambios` con los campos editables para aplicar
+    la corrección justo antes de reenviar — antes el botón "Reenviar" solo
+    volvía a mandar los mismos datos que motivaron la devolución, sin forma
+    de corregir nada (el detalle del portal era 100% de solo lectura)."""
     user, err = _current_user_or_401()
     if err: return err
     s = SolicitudUsuario.query.get(solicitud_id)
     if not s or not solicitud_can_view(user, s):
         return jsonify({'success': False, 'error': 'Solicitud no encontrada'}), 404
     data = request.get_json() or {}
+
+    cambios = data.get('cambios') or {}
+    if cambios:
+        EDITABLE_TEXT_FIELDS = (
+            'unidad_negocio', 'documento', 'nombre', 'cargo', 'numero_contacto',
+            'ubicacion', 'centro_costo', 'tipo_contrato', 'justificacion',
+            'nombre_reemplazo', 'usuario_red',
+        )
+        for field in EDITABLE_TEXT_FIELDS:
+            if field in cambios:
+                val = cambios[field]
+                setattr(s, field, (val or '').strip()[:2000] or None if isinstance(val, str) else val)
+        if 'fecha_ingreso' in cambios:
+            raw = cambios['fecha_ingreso']
+            if raw:
+                try:
+                    setattr(s, 'fecha_ingreso', datetime.strptime(raw, '%Y-%m-%d').date())
+                except ValueError:
+                    return jsonify({'success': False, 'error': 'Fecha de ingreso inválida'}), 400
+            else:
+                s.fecha_ingreso = None
+        if 'es_reemplazo' in cambios:
+            raw = cambios['es_reemplazo']
+            s.es_reemplazo = bool(raw) if raw is not None and raw != '' else None
+        # Correcciones a los controles YA marcados (detalle / usuario espejo) —
+        # esto no agrega ni quita controles, solo corrige texto de los existentes.
+        for cc in (cambios.get('controles') or []):
+            sc = next((x for x in s.controles if x.id == cc.get('id')), None)
+            if not sc:
+                continue
+            if 'descripcion_detalle' in cc:
+                sc.descripcion_detalle = (cc.get('descripcion_detalle') or '').strip() or None
+            if 'usuario_espejo' in cc:
+                sc.usuario_espejo = (cc.get('usuario_espejo') or '').strip() or None
+
+        if not s.documento or not s.nombre or not s.justificacion:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': 'Documento, nombre y justificación no pueden quedar vacíos'}), 400
+
     ok, error, next_estado = _apply_transition(s, user, 'reenviar', (data.get('observacion') or 'Reenviado tras corrección').strip())
     if not ok:
+        db.session.rollback()
         return jsonify({'success': False, 'error': error}), 400
     db.session.commit()
-    log_audit('solicitud_reenviada', user.id, 'solicitud', s.id, f'{s.codigo}: reenviada')
+    log_audit('solicitud_reenviada', user.id, 'solicitud', s.id,
+              f'{s.codigo}: reenviada' + (' con correcciones' if cambios else ''))
     _notify_next_approver(s)
     return jsonify({'success': True, 'estado': next_estado, 'estado_label': SOLICITUD_ESTADO_LABEL.get(next_estado)})
 
