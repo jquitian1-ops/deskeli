@@ -11859,6 +11859,29 @@ def _user_is_in_mesa_ayuda_pash(user):
     ).first() is not None
 
 
+def _assignee_groups_map(user_ids, company):
+    """{user_id: 'Grupo A, Grupo B'} para los subroles (Subrole) de `company`
+    de cada user_id dado — en un solo query, para no hacer N+1 al listar
+    tickets/subtareas con su grupo. Usuarios sin ningún subrol no aparecen
+    en el dict (el caller debe mostrar '— Sin grupo —' por default)."""
+    if not user_ids:
+        return {}
+    rows = (
+        db.session.query(UserSubrole.user_id, Subrole.name)
+        .join(Subrole, Subrole.id == UserSubrole.subrole_id)
+        .filter(
+            UserSubrole.user_id.in_(user_ids),
+            Subrole.company == company,
+            Subrole.is_active == True,
+        )
+        .all()
+    )
+    result = {}
+    for uid, name in rows:
+        result.setdefault(uid, []).append(name)
+    return {uid: ', '.join(sorted(names)) for uid, names in result.items()}
+
+
 def get_ticket_assignment_info(ticket):
     """Devuelve un dict {by, source, when} describiendo quién/qué hizo la última asignación.
     Busca primero en audit_logs (manual o auto_assign), luego en agent_actions (orchestrator IA)."""
@@ -16484,6 +16507,78 @@ def api_technician_flow_cases():
         })
 
     return jsonify({'success': True, 'cases': cases, 'total': len(cases)})
+
+
+@app.route('/api/technician/pash-tickets', methods=['GET'])
+def api_technician_pash_tickets():
+    """TODOS los tickets de Pash, sin importar de qué grupo/técnico sea el
+    asignado — vista de supervisión completa para Mesa De Ayuda Pash (a
+    diferencia de "De mis grupos", que solo trae los de técnicos que
+    comparten un subrol con quien mira el dashboard). Incluye el/los grupo(s)
+    del asignado para que el especialista pueda filtrar por grupo en el
+    frontend.
+
+    Solo visible para miembros de Mesa De Ayuda Pash (_user_is_in_mesa_ayuda_pash).
+    """
+    if 'user_id' not in session or session.get('role') not in ('technician', 'admin'):
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    user = User.query.get(session['user_id'])
+    if not _user_is_in_mesa_ayuda_pash(user):
+        return jsonify({'success': False, 'error': 'Sin acceso — esta vista es solo para Mesa De Ayuda Pash'}), 403
+
+    INTERNAL_PREFIXES = ('DM-', 'CHAT-')
+    tickets = Ticket.query.filter(Ticket.company == 'pash').all()
+    tickets = [t for t in tickets if not (t.ticket_number or '').startswith(INTERNAL_PREFIXES)]
+    tickets.sort(key=lambda t: t.created_at or datetime.min, reverse=True)
+
+    assignee_ids = {t.assignee_id for t in tickets if t.assignee_id}
+    groups_map = _assignee_groups_map(assignee_ids, 'pash')
+
+    now = datetime.now()
+    result = []
+    for t in tickets:
+        result.append({
+            'id': t.id,
+            'ticket_number': t.ticket_number,
+            'title': t.title,
+            'category': t.category,
+            'status': t.status,
+            'priority': t.priority,
+            'assignee_name': t.assignee.name if t.assignee else None,
+            'group': groups_map.get(t.assignee_id) or ('— Sin grupo —' if t.assignee_id else None),
+            'sla_remaining': t.sla_remaining,
+            'sla_expired': bool(t.sla_deadline and t.sla_deadline < now and t.status not in ('resolved', 'closed')),
+            'created_at': t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else None,
+        })
+    return jsonify({'success': True, 'tickets': result, 'total': len(result)})
+
+
+@app.route('/api/technician/pash-subtasks', methods=['GET'])
+def api_technician_pash_subtasks():
+    """TODAS las subtareas de tickets de Pash, sin importar el grupo del
+    asignado — misma idea que api_technician_pash_tickets pero para
+    subtareas. Solo visible para Mesa De Ayuda Pash."""
+    if 'user_id' not in session or session.get('role') not in ('technician', 'admin'):
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    user = User.query.get(session['user_id'])
+    if not _user_is_in_mesa_ayuda_pash(user):
+        return jsonify({'success': False, 'error': 'Sin acceso — esta vista es solo para Mesa De Ayuda Pash'}), 403
+
+    subtasks = Subtask.query.join(Ticket, Subtask.ticket_id == Ticket.id).filter(
+        Ticket.company == 'pash'
+    ).all()
+
+    assignee_ids = {s.assignee_id for s in subtasks if s.assignee_id}
+    groups_map = _assignee_groups_map(assignee_ids, 'pash')
+
+    subtasks.sort(key=lambda s: s.created_at or datetime.min, reverse=True)
+
+    result = []
+    for s in subtasks:
+        row = _serialize_subtask(s)
+        row['group'] = groups_map.get(s.assignee_id) or ('— Sin grupo —' if s.assignee_id else None)
+        result.append(row)
+    return jsonify({'success': True, 'subtasks': result, 'total': len(result)})
 
 
 @app.route('/api/subtask/<int:subtask_id>', methods=['GET'])

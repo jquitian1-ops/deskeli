@@ -492,9 +492,17 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                 </button>
 
                 {% if is_mesa_ayuda_pash %}
-                <div class="side-nav-group-title">🗂️ Flujos (Pash)</div>
+                <div class="side-nav-group-title">🗂️ Mesa De Ayuda Pash</div>
+                <button class="side-nav-btn" id="navPashTickets" onclick="switchView('pashtickets')" title="Todos los tickets de Pash, de cualquier grupo — con columna de Grupo para filtrar">
+                    <span style="padding-left:8px;">🎫 Tickets PASH</span>
+                    <span class="side-nav-count" id="countPashTickets">…</span>
+                </button>
+                <button class="side-nav-btn" id="navPashSubtasks" onclick="switchView('pashsubtasks')" title="Todas las subtareas de Pash, de cualquier grupo — con columna de Grupo para filtrar">
+                    <span style="padding-left:8px;">✅ Subtareas PASH</span>
+                    <span class="side-nav-count" id="countPashSubtasks">…</span>
+                </button>
                 <button class="side-nav-btn" id="navFlowCases" onclick="switchView('flowcases')" title="Todos los casos generados por Solicitudes de Usuario en Pash, sin importar a quién estén asignados hoy">
-                    <span style="padding-left:8px;">📋 Todos los casos</span>
+                    <span style="padding-left:8px;">📋 Casos por flujos</span>
                     <span class="side-nav-count" id="countFlowCases">…</span>
                 </button>
                 {% endif %}
@@ -718,6 +726,50 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
             </div>
 
             {% if is_mesa_ayuda_pash %}
+            <!-- VISTA: TICKETS PASH (todos los grupos) -->
+            <div id="viewPashTickets" class="queue-section" style="display:none;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                    <div class="section-title" style="margin:0;">🎫 Todos los Tickets de Pash</div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <select id="pashTicketsGroupFilter" onchange="filterPashTickets()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="">Todos los grupos</option>
+                        </select>
+                        <input type="text" id="pashTicketsSearch" placeholder="🔍 Buscar por ticket, título, asignado..."
+                               onkeyup="filterPashTickets()"
+                               style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;min-width:260px;font-size:14px;">
+                        <span id="pashTicketsSearchCount" style="font-size:12px;color:#6b7280;"></span>
+                    </div>
+                </div>
+                <div class="callout" style="background:#eff6ff;border-left:4px solid #3b82f6;padding:10px 14px;border-radius:4px;font-size:12px;color:#1e40af;margin-bottom:14px;">
+                    Todos los tickets de Pash, de cualquier grupo — usá el filtro de Grupo para ver los de un equipo puntual.
+                </div>
+                <div id="pashTicketsList">
+                    <p style="text-align:center;color:#999;padding:30px;">Cargando tickets...</p>
+                </div>
+            </div>
+
+            <!-- VISTA: SUBTAREAS PASH (todos los grupos) -->
+            <div id="viewPashSubtasks" class="queue-section" style="display:none;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                    <div class="section-title" style="margin:0;">✅ Todas las Subtareas de Pash</div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <select id="pashSubtasksGroupFilter" onchange="filterPashSubtasks()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="">Todos los grupos</option>
+                        </select>
+                        <input type="text" id="pashSubtasksSearch" placeholder="🔍 Buscar por sub-caso, título, asignado..."
+                               onkeyup="filterPashSubtasks()"
+                               style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;min-width:260px;font-size:14px;">
+                        <span id="pashSubtasksSearchCount" style="font-size:12px;color:#6b7280;"></span>
+                    </div>
+                </div>
+                <div class="callout" style="background:#eff6ff;border-left:4px solid #3b82f6;padding:10px 14px;border-radius:4px;font-size:12px;color:#1e40af;margin-bottom:14px;">
+                    Todas las subtareas de Pash, de cualquier grupo — usá el filtro de Grupo para ver las de un equipo puntual.
+                </div>
+                <div id="pashSubtasksList">
+                    <p style="text-align:center;color:#999;padding:30px;">Cargando subtareas...</p>
+                </div>
+            </div>
+
             <!-- VISTA: CASOS POR FLUJOS (PASH) -->
             <div id="viewFlowCases" class="queue-section" style="display:none;">
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
@@ -748,16 +800,22 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
         function switchView(view, scope) {
             scope = scope || 'mine';
             const isTickets = view === 'tickets';
+            const isSubtasks = view === 'subtasks';
             const isFlowCases = view === 'flowcases';
-            const flowCasesEl = document.getElementById('viewFlowCases');
+            const isPashTickets = view === 'pashtickets';
+            const isPashSubtasks = view === 'pashsubtasks';
 
-            // Mostrar/ocultar paneles principales
-            document.getElementById('viewTickets').style.display = isTickets ? '' : 'none';
-            document.getElementById('viewSubtasks').style.display = (!isTickets && !isFlowCases) ? '' : 'none';
-            if (flowCasesEl) flowCasesEl.style.display = isFlowCases ? '' : 'none';
+            // Mostrar/ocultar paneles principales (los de Mesa De Ayuda Pash
+            // pueden no existir en el DOM si el usuario no es de ese grupo).
+            const setDisplay = (id, show) => { const el = document.getElementById(id); if (el) el.style.display = show ? '' : 'none'; };
+            setDisplay('viewTickets', isTickets);
+            setDisplay('viewSubtasks', isSubtasks);
+            setDisplay('viewFlowCases', isFlowCases);
+            setDisplay('viewPashTickets', isPashTickets);
+            setDisplay('viewPashSubtasks', isPashSubtasks);
 
             // Quitar active de todos los botones del sidebar
-            ['navTicketsMine','navTicketsTeam','navSubtasksMine','navSubtasksTeam','navFlowCases'].forEach(id => {
+            ['navTicketsMine','navTicketsTeam','navSubtasksMine','navSubtasksTeam','navFlowCases','navPashTickets','navPashSubtasks'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.remove('active');
             });
@@ -773,7 +831,13 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
             } else if (isFlowCases) {
                 document.getElementById('navFlowCases').classList.add('active');
                 loadFlowCases();
-            } else {
+            } else if (isPashTickets) {
+                document.getElementById('navPashTickets').classList.add('active');
+                loadPashTickets();
+            } else if (isPashSubtasks) {
+                document.getElementById('navPashSubtasks').classList.add('active');
+                loadPashSubtasks();
+            } else if (isSubtasks) {
                 document.getElementById(scope === 'mine' ? 'navSubtasksMine' : 'navSubtasksTeam').classList.add('active');
                 _currentSubtaskScope = scope;
                 loadMySubtasks(scope);
@@ -1020,6 +1084,202 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
             renderFlowCases(filtered);
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // TICKETS / SUBTAREAS PASH (todos los grupos) — solo Mesa De Ayuda Pash
+        // ═══════════════════════════════════════════════════════════════
+        let _allPashTickets = [];
+        let _allPashSubtasks = [];
+
+        function _populateGroupFilter(selectId, list) {
+            const sel = document.getElementById(selectId);
+            if (!sel) return;
+            const current = sel.value;
+            const groups = Array.from(new Set(list.map(x => x.group).filter(Boolean))).sort();
+            sel.innerHTML = '<option value="">Todos los grupos</option>' +
+                groups.map(g => `<option value="${escSub(g)}">${escSub(g)}</option>`).join('');
+            if (groups.includes(current)) sel.value = current;
+        }
+
+        function loadPashTickets() {
+            const listEl = document.getElementById('pashTicketsList');
+            if (!listEl) return;
+            listEl.innerHTML = '<p style="text-align:center;color:#999;padding:30px;">Cargando tickets...</p>';
+            fetch('/api/technician/pash-tickets')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) {
+                        listEl.innerHTML = `<p style="text-align:center;color:#dc2626;padding:30px;">${escSub(data.error || 'Error al cargar')}</p>`;
+                        return;
+                    }
+                    _allPashTickets = data.tickets || [];
+                    const countEl = document.getElementById('countPashTickets');
+                    if (countEl) countEl.textContent = _countActiveSubtasks(_allPashTickets);
+                    _populateGroupFilter('pashTicketsGroupFilter', _allPashTickets);
+                    renderPashTickets(_allPashTickets);
+                })
+                .catch(() => { listEl.innerHTML = '<p style="text-align:center;color:#dc2626;padding:30px;">Error de conexión</p>'; });
+        }
+
+        function renderPashTickets(list) {
+            const container = document.getElementById('pashTicketsList');
+            if (!container) return;
+            if (!list || list.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:40px;color:#999;background:#f9fafb;border-radius:8px;">No hay tickets para mostrar.</div>';
+                return;
+            }
+            const rows = list.map(t => {
+                const terminal = t.status === 'resolved' || t.status === 'closed';
+                const rowBg = (t.sla_expired && !terminal) ? 'background:#fef2f2;' : (terminal ? 'background:#f9fafb;' : '');
+                const titleTruncated = t.title.length > 60 ? t.title.slice(0,60)+'…' : t.title;
+                return `
+                    <tr onclick="window.location='/technician/ticket/${t.id}'" style="cursor:pointer;border-bottom:1px solid #f0f0f0;${rowBg}" title="Ver detalle del ticket">
+                        <td style="padding:10px;font-weight:700;color:#7c3aed;font-size:12px;">${escSub(t.ticket_number)}</td>
+                        <td style="padding:10px;">
+                            <div style="font-weight:600;color:#111827;">${escSub(titleTruncated)}</div>
+                            ${t.category ? `<div style="font-size:11px;color:#6b7280;">📁 ${escSub(t.category)}</div>` : ''}
+                        </td>
+                        <td style="padding:10px;text-align:center;">${statusPill(t.status)}</td>
+                        <td style="padding:10px;text-align:center;">${priorityPill(t.priority)}</td>
+                        <td style="padding:10px;font-size:12px;color:#374151;">${t.group ? escSub(t.group) : '<span style="color:#999;">—</span>'}</td>
+                        <td style="padding:10px;font-size:12px;color:#374151;">${t.assignee_name ? '👤 ' + escSub(t.assignee_name) : '<span style="color:#999;">Sin asignar</span>'}</td>
+                        <td style="padding:10px;font-size:11px;color:#374151;">${escSub(t.created_at || '—')}</td>
+                        <td style="padding:10px;text-align:center;">${slaText(t)}</td>
+                    </tr>
+                `;
+            }).join('');
+            container.innerHTML = `
+                <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-size:13px;">
+                    <thead>
+                        <tr style="background:#f9fafb;">
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Ticket</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asunto</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Estado</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Prioridad</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Grupo</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asignado a</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Creado</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">SLA</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                </div>
+            `;
+        }
+
+        function filterPashTickets() {
+            const searchEl = document.getElementById('pashTicketsSearch');
+            const groupEl = document.getElementById('pashTicketsGroupFilter');
+            const countEl = document.getElementById('pashTicketsSearchCount');
+            if (!searchEl) return;
+            const q = (searchEl.value || '').trim().toLowerCase();
+            const g = groupEl ? groupEl.value : '';
+            let filtered = _allPashTickets;
+            if (g) filtered = filtered.filter(t => t.group === g);
+            if (q) {
+                filtered = filtered.filter(t => {
+                    const text = [t.ticket_number, t.title, t.priority, t.status, t.category, t.assignee_name, t.group]
+                        .filter(Boolean).join(' ').toLowerCase();
+                    return text.indexOf(q) !== -1;
+                });
+            }
+            if (countEl) countEl.textContent = (q || g) ? (filtered.length + ' de ' + _allPashTickets.length) : '';
+            renderPashTickets(filtered);
+        }
+
+        function loadPashSubtasks() {
+            const listEl = document.getElementById('pashSubtasksList');
+            if (!listEl) return;
+            listEl.innerHTML = '<p style="text-align:center;color:#999;padding:30px;">Cargando subtareas...</p>';
+            fetch('/api/technician/pash-subtasks')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) {
+                        listEl.innerHTML = `<p style="text-align:center;color:#dc2626;padding:30px;">${escSub(data.error || 'Error al cargar')}</p>`;
+                        return;
+                    }
+                    _allPashSubtasks = data.subtasks || [];
+                    const countEl = document.getElementById('countPashSubtasks');
+                    if (countEl) countEl.textContent = _countActiveSubtasks(_allPashSubtasks);
+                    _populateGroupFilter('pashSubtasksGroupFilter', _allPashSubtasks);
+                    renderPashSubtasks(_allPashSubtasks);
+                })
+                .catch(() => { listEl.innerHTML = '<p style="text-align:center;color:#dc2626;padding:30px;">Error de conexión</p>'; });
+        }
+
+        function renderPashSubtasks(list) {
+            const container = document.getElementById('pashSubtasksList');
+            if (!container) return;
+            if (!list || list.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:40px;color:#999;background:#f9fafb;border-radius:8px;">No hay subtareas para mostrar.</div>';
+                return;
+            }
+            const rows = list.map(s => {
+                const terminal = s.status === 'resolved' || s.status === 'closed';
+                const rowBg = (s.sla_expired && !terminal) ? 'background:#fef2f2;' : (terminal ? 'background:#f9fafb;' : '');
+                const titleTruncated = s.title.length > 60 ? s.title.slice(0,60)+'…' : s.title;
+                return `
+                    <tr onclick="window.location='/technician/subtask/${s.id}'" style="cursor:pointer;border-bottom:1px solid #f0f0f0;${rowBg}" title="Ver detalle de la subtarea">
+                        <td style="padding:10px;font-weight:700;color:#7c3aed;font-size:12px;">${escSub(s.subtask_number || '#'+s.id)}</td>
+                        <td style="padding:10px;font-size:11px;">
+                            <a href="/technician/ticket/${s.ticket_id}" onclick="event.stopPropagation();" style="color:#2563eb;text-decoration:none;" title="Ir al ticket padre">${escSub(s.parent_number || '—')}</a>
+                        </td>
+                        <td style="padding:10px;">
+                            <div style="font-weight:600;color:#111827;">${escSub(titleTruncated)}</div>
+                            ${s.category ? `<div style="font-size:11px;color:#6b7280;">📁 ${escSub(s.category)}</div>` : ''}
+                        </td>
+                        <td style="padding:10px;text-align:center;">${statusPill(s.status)}</td>
+                        <td style="padding:10px;text-align:center;">${priorityPill(s.priority)}</td>
+                        <td style="padding:10px;font-size:12px;color:#374151;">${s.group ? escSub(s.group) : '<span style="color:#999;">—</span>'}</td>
+                        <td style="padding:10px;font-size:12px;color:#374151;">${s.assignee_name ? '👤 ' + escSub(s.assignee_name) : '<span style="color:#999;">Sin asignar</span>'}</td>
+                        <td style="padding:10px;font-size:11px;color:#374151;">${escSub(s.created_at || '—')}</td>
+                        <td style="padding:10px;text-align:center;">${slaText(s)}</td>
+                    </tr>
+                `;
+            }).join('');
+            container.innerHTML = `
+                <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-size:13px;">
+                    <thead>
+                        <tr style="background:#f9fafb;">
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">N° Sub-caso</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Ticket Padre</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asunto</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Estado</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Prioridad</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Grupo</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asignado a</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Creado</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">SLA</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                </div>
+            `;
+        }
+
+        function filterPashSubtasks() {
+            const searchEl = document.getElementById('pashSubtasksSearch');
+            const groupEl = document.getElementById('pashSubtasksGroupFilter');
+            const countEl = document.getElementById('pashSubtasksSearchCount');
+            if (!searchEl) return;
+            const q = (searchEl.value || '').trim().toLowerCase();
+            const g = groupEl ? groupEl.value : '';
+            let filtered = _allPashSubtasks;
+            if (g) filtered = filtered.filter(s => s.group === g);
+            if (q) {
+                filtered = filtered.filter(s => {
+                    const text = [s.subtask_number, s.parent_number, s.title, s.priority, s.status, s.category, s.assignee_name, s.group]
+                        .filter(Boolean).join(' ').toLowerCase();
+                    return text.indexOf(q) !== -1;
+                });
+            }
+            if (countEl) countEl.textContent = (q || g) ? (filtered.length + ' de ' + _allPashSubtasks.length) : '';
+            renderPashSubtasks(filtered);
+        }
+
         // Pre-cargar contadores de subtareas (mine + team) al abrir la página.
         // Solo cuentan subtareas ACTIVAS (open + in_progress). Las resueltas y
         // cerradas no aportan al badge — así el técnico ve de un vistazo lo pendiente.
@@ -1047,7 +1307,7 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                     document.getElementById('countSubtasksTeam').textContent = '0';
                 });
 
-            // Solo existe en el DOM si is_mesa_ayuda_pash (ver template)
+            // Solo existen en el DOM si is_mesa_ayuda_pash (ver template)
             if (document.getElementById('countFlowCases')) {
                 fetch('/api/technician/flow-cases')
                     .then(r => r.json())
@@ -1057,6 +1317,28 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                         }
                     }).catch(() => {
                         document.getElementById('countFlowCases').textContent = '0';
+                    });
+            }
+            if (document.getElementById('countPashTickets')) {
+                fetch('/api/technician/pash-tickets')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('countPashTickets').textContent = _countActiveSubtasks(data.tickets);
+                        }
+                    }).catch(() => {
+                        document.getElementById('countPashTickets').textContent = '0';
+                    });
+            }
+            if (document.getElementById('countPashSubtasks')) {
+                fetch('/api/technician/pash-subtasks')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('countPashSubtasks').textContent = _countActiveSubtasks(data.subtasks);
+                        }
+                    }).catch(() => {
+                        document.getElementById('countPashSubtasks').textContent = '0';
                     });
             }
         });
