@@ -13,6 +13,11 @@
  *
  * Keep-alive: ping cada 5 min a /api/session/ping para renovar la cookie
  * mientras el usuario tenga la pestaña abierta.
+ *
+ * Timeout por inactividad: técnico/empleado 10 min, admin 30 min (se sabe
+ * el rol vía el mismo /api/session/ping). La actividad se comparte entre
+ * pestañas por localStorage para que una pestaña olvidada en segundo plano
+ * no cierre la sesión de las demás antes de tiempo.
  */
 (function () {
     'use strict';
@@ -23,27 +28,63 @@
     const PING_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
     const TOAST_TIMEOUT = 5000;
 
-    // ─── Timeout por inactividad (admin, técnico y empleado) ──────────
-    // 10 minutos sin actividad del mouse/teclado/touch → logout automático,
-    // con aviso + cuenta regresiva durante el último minuto. Antes esto solo
-    // existía en una sola página (static/timeout.js, incluido nada más en
+    // ─── Timeout por inactividad (técnico y empleado: 10 min · admin: 30 min) ──
+    // Sin actividad del mouse/teclado/touch → logout automático, con aviso +
+    // cuenta regresiva durante el último minuto. Antes esto solo existía en
+    // una sola página (static/timeout.js, incluido nada más en
     // technician/ticket_detail.html); se mueve acá porque session_guard.js
     // ya se carga en todas las páginas autenticadas de las 3 empresas/roles.
-    const IDLE_TIMEOUT_MINUTES = 10;
     const IDLE_WARNING_SECONDS = 60;
-    const IDLE_TIMEOUT_MS = IDLE_TIMEOUT_MINUTES * 60 * 1000;
-    const IDLE_WARNING_MS = IDLE_TIMEOUT_MS - (IDLE_WARNING_SECONDS * 1000);
+    let IDLE_TIMEOUT_MINUTES = 10; // default hasta saber el rol (ver _loadIdleTimeoutForRole)
 
-    let _lastActivity = Date.now();
+    function _idleTimeoutMs() { return IDLE_TIMEOUT_MINUTES * 60 * 1000; }
+    function _idleWarningMs() { return _idleTimeoutMs() - (IDLE_WARNING_SECONDS * 1000); }
+
+    // La actividad se comparte entre TODAS las pestañas/ventanas de la misma
+    // sesión vía localStorage (mismo origin). Sin esto, una pestaña olvidada
+    // en segundo plano (ej. un ticket abierto hace rato y no cerrado) llega a
+    // su propio límite de inactividad ANTES de los 10/30 min reales y cierra
+    // la sesión de TODAS las pestañas (es la misma cookie de servidor),
+    // aunque el usuario esté activo en otra — se veía como "me saca en menos
+    // del tiempo configurado".
+    const IDLE_STORAGE_KEY = '__deskeli_last_activity';
+
+    function _lastActivity() {
+        try {
+            const stored = parseInt(localStorage.getItem(IDLE_STORAGE_KEY), 10);
+            if (!isNaN(stored)) return stored;
+        } catch (e) { /* localStorage bloqueado (modo privado, etc.) */ }
+        return _lastActivityFallback;
+    }
+
+    let _lastActivityFallback = Date.now();
     let _idleWarningShown = false;
     let _idleCountdownInterval = null;
 
     function _resetIdleTimer() {
-        _lastActivity = Date.now();
+        const now = Date.now();
+        _lastActivityFallback = now;
+        try { localStorage.setItem(IDLE_STORAGE_KEY, String(now)); } catch (e) {}
         // Si el usuario vuelve a interactuar mientras el aviso está visible,
         // se cuenta como "Continuar Trabajando" implícito.
         if (_idleWarningShown) hideIdleWarning();
     }
+
+    // Rol conocido recién después de este fetch — hasta entonces se usa el
+    // default de 10 min (más conservador) para no dejar a nadie sin timeout
+    // mientras se resuelve.
+    (function _loadIdleTimeoutForRole() {
+        if (_idlePageExempt()) return;
+        // Nota: usa el fetch nativo directamente (todavía no está reemplazado
+        // acá abajo) — no depende de originalFetch, que se declara más abajo
+        // en este mismo archivo y no está disponible todavía en este punto.
+        window.fetch('/api/session/ping', {method: 'GET', credentials: 'same-origin'})
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.role === 'admin') IDLE_TIMEOUT_MINUTES = 30;
+            })
+            .catch(() => {});
+    })();
 
     function _idlePageExempt() {
         // Mismo criterio que shouldPing(): no aplica en login ni páginas públicas.
@@ -77,10 +118,17 @@
         `;
         document.body.appendChild(backdrop);
 
-        let remaining = IDLE_WARNING_SECONDS;
         const display = document.getElementById('__deskeli_idle_countdown');
         _idleCountdownInterval = setInterval(() => {
-            remaining--;
+            // Recalcula desde la actividad COMPARTIDA (localStorage) en cada
+            // tick — si hubo actividad en OTRA pestaña mientras ésta mostraba
+            // el aviso, se cancela solo en vez de cerrar sesión igual.
+            const elapsed = Date.now() - _lastActivity();
+            if (elapsed < _idleWarningMs()) {
+                hideIdleWarning();
+                return;
+            }
+            const remaining = Math.max(0, Math.ceil((_idleTimeoutMs() - elapsed) / 1000));
             if (display) display.textContent = remaining;
             if (remaining <= 0) {
                 clearInterval(_idleCountdownInterval);
@@ -104,17 +152,26 @@
 
     function _checkIdle() {
         if (_idlePageExempt()) return;
-        const elapsed = Date.now() - _lastActivity;
-        if (elapsed >= IDLE_TIMEOUT_MS) {
+        const elapsed = Date.now() - _lastActivity();
+        if (elapsed >= _idleTimeoutMs()) {
             location.href = '/logout';
-        } else if (elapsed >= IDLE_WARNING_MS) {
+        } else if (elapsed >= _idleWarningMs()) {
             showIdleWarning();
+        } else if (_idleWarningShown) {
+            // Hubo actividad (en esta pestaña u otra) que bajó el elapsed
+            // por debajo del umbral de aviso — cancelar el aviso mostrado.
+            hideIdleWarning();
         }
     }
 
     document.addEventListener('mousedown', _resetIdleTimer);
     document.addEventListener('keydown', _resetIdleTimer);
     document.addEventListener('touchstart', _resetIdleTimer);
+    // Otra pestaña/ventana registró actividad → si ésta está mostrando el
+    // aviso de expiración, se cancela sin esperar al próximo tick.
+    window.addEventListener('storage', (e) => {
+        if (e.key === IDLE_STORAGE_KEY && _idleWarningShown) _checkIdle();
+    });
     setInterval(_checkIdle, 5000);
 
     // ─── UI: modal de sesión expirada ────────────────────────────────
