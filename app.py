@@ -16338,6 +16338,48 @@ def api_my_subtasks():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/technician/sidebar-counts', methods=['GET'])
+def api_technician_sidebar_counts():
+    """Conteos del sidebar del Portal de Técnicos (tickets/subtareas mías y
+    de mis grupos), para refrescarlos en vivo por WebSocket sin recargar la
+    página entera. Misma lógica que technician_dashboard() (server-render
+    inicial) y api_my_subtasks (conteo activo), para que el número no
+    quede desalineado según de dónde se lo consulte."""
+    if 'user_id' not in session or session.get('role') not in ('technician', 'admin'):
+        return jsonify({'success': False}), 401
+    user = User.query.get(session['user_id'])
+
+    INTERNAL_PREFIXES = ('DM-', 'CHAT-')
+    identity_ids = get_user_identity_ids(user)
+    group_ids = get_my_group_user_ids(user)
+
+    tickets_mine = Ticket.query.filter(Ticket.assignee_id.in_(identity_ids)).all()
+    tickets_mine = [t for t in tickets_mine if not (t.ticket_number or '').startswith(INTERNAL_PREFIXES)]
+    tickets_team = Ticket.query.filter(
+        Ticket.company == user.company,
+        Ticket.assignee_id.in_(group_ids),
+    ).all()
+    tickets_team = [t for t in tickets_team if not (t.ticket_number or '').startswith(INTERNAL_PREFIXES)]
+
+    active_mine = Subtask.query.filter(
+        Subtask.assignee_id.in_(identity_ids),
+        Subtask.status.in_(['open', 'in_progress']),
+    ).count()
+    active_team = Subtask.query.join(Ticket, Subtask.ticket_id == Ticket.id).filter(
+        Ticket.company == user.company,
+        Subtask.assignee_id.in_(group_ids),
+        Subtask.status.in_(['open', 'in_progress']),
+    ).count()
+
+    return jsonify({
+        'success': True,
+        'tickets_mine': len(tickets_mine),
+        'tickets_team': len(tickets_team),
+        'subtasks_mine': active_mine,
+        'subtasks_team': active_team,
+    })
+
+
 @app.route('/api/technician/flow-cases', methods=['GET'])
 def api_technician_flow_cases():
     """Todos los tickets generados automáticamente por un flujo de
