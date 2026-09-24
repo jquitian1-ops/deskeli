@@ -30,6 +30,13 @@
         .field-ro input:focus, .field-ro select:focus { outline:none; border-color:#7c3aed; box-shadow:0 0 0 3px rgba(124,58,237,0.15); }
         .edit-banner { padding:10px 14px; background:#faf5ff; border-left:4px solid #7c3aed; border-radius:4px; font-size:12.5px; color:#5b21b6; margin-bottom:14px; }
         .controles-edit-input { width:100%; padding:5px 8px; border:1px solid #a78bfa; border-radius:4px; font-family:inherit; font-size:12px; }
+        .extra-control-card { background:white; border:1px solid #e5e7eb; border-radius:6px; padding:10px 12px; margin-bottom:8px; }
+        .extra-control-card .title { font-weight:700; color:#1e3a8a; font-size:13px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; }
+        .ms-search { width:100%; padding:4px 7px; border:1px solid #d1d5db; border-radius:4px; font-size:11px; margin-bottom:5px; font-family:inherit; box-sizing:border-box; }
+        .ms-list { max-height:140px; overflow-y:auto; border:1px solid #d1d5db; border-radius:4px; padding:6px 8px; background:#f9fafb; }
+        .ms-list label { display:flex; align-items:flex-start; gap:6px; font-size:11px; font-weight:400; padding:3px 2px; line-height:1.3; }
+        .ms-list label[hidden] { display:none; }
+        .ms-list input[type="checkbox"] { width:14px; height:14px; padding:0; margin:1px 0 0; border:1px solid #9ca3af; border-radius:2px; flex:0 0 auto; }
         .badge { display:inline-block; padding:4px 12px; border-radius:14px; font-size:12px; font-weight:800; }
         .badge-pending { background:#fef3c7; color:#92400e; }
         .badge-approved { background:#d1fae5; color:#065f46; }
@@ -165,6 +172,15 @@
                     </tr>
                 </tfoot>
             </table>
+            <div id="addControlBox" style="display:none;margin-top:14px;padding:12px 14px;background:#faf5ff;border:2px dashed #c4b5fd;border-radius:8px;">
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <select id="addControlSelect" style="flex:1;min-width:220px;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                        <option value="">⏳ Cargando catálogo…</option>
+                    </select>
+                    <button type="button" class="btn" style="background:#7c3aed;color:white;" onclick="addExtraControl()">+ Agregar control</button>
+                </div>
+                <div id="extraControlesList" style="margin-top:10px;"></div>
+            </div>
         </div>
 
         <!-- Adjuntos -->
@@ -413,20 +429,113 @@
         document.getElementById('controlesTbody').innerHTML = ctlRows || '<tr><td colspan="5" style="text-align:center; padding:20px;">Sin controles</td></tr>';
     }
 
+    // ── Agregar un control de más (además de editar los ya marcados) ────
+    let _catalogoControles = [];
+    let _catalogoLoaded = false;
+    let _extraControles = []; // [{control, detalle, espejo, selectedItems: Set}]
+
+    async function loadCatalogoForEdit() {
+        try {
+            const r = await fetch('/api/controles');
+            const data = await r.json();
+            if (data.success) _catalogoControles = data.controles || [];
+        } catch (e) { /* silencioso */ }
+        _catalogoLoaded = true;
+        populateAddControlSelect();
+    }
+
+    function populateAddControlSelect() {
+        const sel = document.getElementById('addControlSelect');
+        if (!sel) return;
+        const usedIds = new Set([
+            ..._solicitud.controles.map(c => c.control_id),
+            ..._extraControles.map(x => x.control.id),
+        ]);
+        const disponibles = _catalogoControles.filter(c => !usedIds.has(c.id));
+        sel.innerHTML = disponibles.length
+            ? '<option value="">— Elegí un control —</option>' + disponibles.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')
+            : '<option value="">— No hay más controles disponibles —</option>';
+    }
+
+    function addExtraControl() {
+        const sel = document.getElementById('addControlSelect');
+        const id = parseInt(sel.value);
+        if (!id) return;
+        const control = _catalogoControles.find(c => c.id === id);
+        if (!control) return;
+        _extraControles.push({control, detalle: '', espejo: '', selectedItems: new Set()});
+        populateAddControlSelect();
+        renderExtraControles();
+    }
+
+    function removeExtraControl(idx) {
+        _extraControles.splice(idx, 1);
+        populateAddControlSelect();
+        renderExtraControles();
+    }
+
+    function toggleExtraItem(idx, label, checked) {
+        const set = _extraControles[idx].selectedItems;
+        if (checked) set.add(label); else set.delete(label);
+    }
+
+    function filterExtraSearch(idx, query) {
+        const q = query.trim().toLowerCase();
+        document.querySelectorAll(`[data-extra-item-row="${idx}"]`).forEach(row => {
+            row.hidden = !(!q || row.getAttribute('data-item-text').includes(q));
+        });
+    }
+
+    function renderExtraControles() {
+        const box = document.getElementById('extraControlesList');
+        if (!box) return;
+        box.innerHTML = _extraControles.map((x, idx) => {
+            const c = x.control;
+            const items = c.list_items || [];
+            const multiHtml = (c.is_multi_select && items.length) ? `
+                ${items.length > 8 ? `<input type="text" class="ms-search" placeholder="🔎 Buscar…" oninput="filterExtraSearch(${idx}, this.value)">` : ''}
+                <div class="ms-list">
+                    ${items.map(li => `
+                        <label data-extra-item-row="${idx}" data-item-text="${esc(li.label.toLowerCase())}">
+                            <input type="checkbox" ${x.selectedItems.has(li.label) ? 'checked' : ''} onchange="toggleExtraItem(${idx}, ${JSON.stringify(li.label)}, this.checked)">
+                            <span>${esc(li.label)}</span>
+                        </label>`).join('')}
+                </div>
+            ` : '';
+            return `
+                <div class="extra-control-card">
+                    <div class="title">
+                        <span>➕ ${esc(c.name)}</span>
+                        <button type="button" class="btn" style="background:#fee2e2;color:#991b1b;padding:3px 10px;font-size:11px;" onclick="removeExtraControl(${idx})">✕ Quitar</button>
+                    </div>
+                    ${multiHtml}
+                    <textarea class="controles-edit-input" rows="2" placeholder="${c.is_multi_select ? 'Notas adicionales (opcional)…' : 'Detalle del control…'}" oninput="_extraControles[${idx}].detalle = this.value;" style="margin-top:6px;">${esc(x.detalle)}</textarea>
+                    ${c.needs_espejo ? `<input class="controles-edit-input" placeholder="Usuario Espejo (requerido)" value="${esc(x.espejo)}" oninput="_extraControles[${idx}].espejo = this.value;" style="margin-top:6px;">` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+
     function enterEditMode() {
         _editMode = true;
         renderEmpleadoFields();
         renderJustificacion();
         renderControlesTable();
         renderActions();
+        document.getElementById('addControlBox').style.display = '';
+        if (!_catalogoLoaded) loadCatalogoForEdit(); else populateAddControlSelect();
+        renderExtraControles();
     }
 
     function cancelEditMode() {
         _editMode = false;
+        _extraControles = [];
         renderEmpleadoFields();
         renderJustificacion();
         renderControlesTable();
         renderActions();
+        document.getElementById('addControlBox').style.display = 'none';
+        document.getElementById('extraControlesList').innerHTML = '';
     }
 
     async function saveAndResend() {
@@ -465,6 +574,23 @@
         });
         cambios.controles = controlesCambios;
 
+        // Controles agregados de más durante la corrección
+        const nuevos = [];
+        for (const x of _extraControles) {
+            const itemsTxt = Array.from(x.selectedItems).join(', ');
+            const detalle = itemsTxt ? (itemsTxt + (x.detalle ? '\n' + x.detalle : '')) : x.detalle;
+            if (x.control.is_multi_select && (x.control.list_items || []).length && !itemsTxt && !x.detalle.trim()) {
+                alert(`"${x.control.name}" es un control con lista de opciones — marcá al menos una antes de guardar.`);
+                return;
+            }
+            if (x.control.needs_espejo && !x.espejo.trim()) {
+                alert(`"${x.control.name}" requiere Usuario Espejo antes de guardar.`);
+                return;
+            }
+            nuevos.push({control_id: x.control.id, descripcion_detalle: detalle, usuario_espejo: x.espejo.trim() || null});
+        }
+        cambios.nuevos_controles = nuevos;
+
         try {
             const r = await fetch(`/api/solicitudes-usuarios/${SOLICITUD_ID}/reenviar`, {
                 method: 'POST',
@@ -474,6 +600,7 @@
             const data = await r.json();
             if (!data.success) throw new Error(data.error);
             _editMode = false;
+            _extraControles = [];
             toast('✓ Corregida y reenviada', true);
             await loadSolicitud();
         } catch (e) {

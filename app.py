@@ -27467,6 +27467,27 @@ def api_solicitudes_reenviar(solicitud_id):
             if 'usuario_espejo' in cc:
                 sc.usuario_espejo = (cc.get('usuario_espejo') or '').strip() or None
 
+        # Controles NUEVOS agregados durante la corrección (no reemplaza ni
+        # quita los existentes, solo suma) — mismo criterio de validación que
+        # la creación original: debe ser un control activo de la propia empresa.
+        for nc in (cambios.get('nuevos_controles') or []):
+            cid = nc.get('control_id')
+            if not cid:
+                continue
+            ctrl = Control.query.get(cid)
+            if not ctrl or not ctrl.is_active or ctrl.company != s.company:
+                continue
+            if ctrl.needs_espejo and not (nc.get('usuario_espejo') or '').strip():
+                db.session.rollback()
+                return jsonify({'success': False, 'error': f'"{ctrl.name}" requiere Usuario Espejo'}), 400
+            db.session.add(SolicitudControl(
+                solicitud_id=s.id,
+                control_id=ctrl.id,
+                descripcion_detalle=(nc.get('descripcion_detalle') or '').strip() or None,
+                usuario_espejo=(nc.get('usuario_espejo') or '').strip() or None,
+                costo=ctrl.costo_referencia,
+            ))
+
         if not s.documento or not s.nombre or not s.justificacion:
             db.session.rollback()
             return jsonify({'success': False, 'error': 'Documento, nombre y justificación no pueden quedar vacíos'}), 400
