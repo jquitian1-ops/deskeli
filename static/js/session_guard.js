@@ -40,20 +40,29 @@
     function _idleTimeoutMs() { return IDLE_TIMEOUT_MINUTES * 60 * 1000; }
     function _idleWarningMs() { return _idleTimeoutMs() - (IDLE_WARNING_SECONDS * 1000); }
 
-    // La actividad se comparte entre TODAS las pestañas/ventanas de la misma
-    // sesión vía localStorage (mismo origin). Sin esto, una pestaña olvidada
-    // en segundo plano (ej. un ticket abierto hace rato y no cerrado) llega a
-    // su propio límite de inactividad ANTES de los 10/30 min reales y cierra
-    // la sesión de TODAS las pestañas (es la misma cookie de servidor),
-    // aunque el usuario esté activo en otra — se veía como "me saca en menos
-    // del tiempo configurado".
-    const IDLE_STORAGE_KEY = '__deskeli_last_activity';
+    // La actividad se comparte entre TODAS las pestañas/ventanas del mismo
+    // USUARIO vía localStorage (mismo origin), en una key propia por user_id.
+    // Sin esto, una pestaña olvidada en segundo plano (ej. un ticket abierto
+    // hace rato y no cerrado) llega a su propio límite de inactividad ANTES
+    // de los 10/30 min reales y cierra la sesión de TODAS las pestañas (es
+    // la misma cookie de servidor), aunque el usuario esté activo en otra.
+    //
+    // IMPORTANTE: la key debe ser por-usuario, no genérica — en un equipo
+    // compartido (ej. Portal de Empleados en una terminal común de planta),
+    // un valor genérico hace que el segundo empleado que entra herede el
+    // reloj de inactividad del que usó el equipo antes y quede desde el
+    // principio "ya casi vencido", cerrándole la sesión casi al instante.
+    // Por eso no se toca localStorage hasta saber el user_id (se usa el
+    // fallback en memoria mientras tanto).
+    let _idleStorageKey = null;
 
     function _lastActivity() {
-        try {
-            const stored = parseInt(localStorage.getItem(IDLE_STORAGE_KEY), 10);
-            if (!isNaN(stored)) return stored;
-        } catch (e) { /* localStorage bloqueado (modo privado, etc.) */ }
+        if (_idleStorageKey) {
+            try {
+                const stored = parseInt(localStorage.getItem(_idleStorageKey), 10);
+                if (!isNaN(stored)) return stored;
+            } catch (e) { /* localStorage bloqueado (modo privado, etc.) */ }
+        }
         return _lastActivityFallback;
     }
 
@@ -64,15 +73,18 @@
     function _resetIdleTimer() {
         const now = Date.now();
         _lastActivityFallback = now;
-        try { localStorage.setItem(IDLE_STORAGE_KEY, String(now)); } catch (e) {}
+        if (_idleStorageKey) {
+            try { localStorage.setItem(_idleStorageKey, String(now)); } catch (e) {}
+        }
         // Si el usuario vuelve a interactuar mientras el aviso está visible,
         // se cuenta como "Continuar Trabajando" implícito.
         if (_idleWarningShown) hideIdleWarning();
     }
 
-    // Rol conocido recién después de este fetch — hasta entonces se usa el
-    // default de 10 min (más conservador) para no dejar a nadie sin timeout
-    // mientras se resuelve.
+    // Rol y user_id recién conocidos después de este fetch — hasta entonces
+    // se usa el default de 10 min y solo el reloj en memoria de esta pestaña
+    // (más conservador, para no dejar a nadie sin timeout ni mezclar
+    // actividad de otro usuario mientras se resuelve).
     (function _loadIdleTimeoutForRole() {
         if (_idlePageExempt()) return;
         // Nota: usa el fetch nativo directamente (todavía no está reemplazado
@@ -81,7 +93,19 @@
         window.fetch('/api/session/ping', {method: 'GET', credentials: 'same-origin'})
             .then(r => r.json())
             .then(data => {
-                if (data && data.role === 'admin') IDLE_TIMEOUT_MINUTES = 30;
+                if (!data || !data.user_id) return;
+                if (data.role === 'admin') IDLE_TIMEOUT_MINUTES = 30;
+                _idleStorageKey = '__deskeli_last_activity_u' + data.user_id;
+                // "Poner al día" la key recién creada con la actividad más
+                // reciente conocida hasta ahora (o la de otra pestaña de este
+                // mismo usuario, si ya existía), para no perder actividad que
+                // haya ocurrido mientras esta respuesta estaba en camino.
+                try {
+                    const existing = parseInt(localStorage.getItem(_idleStorageKey), 10);
+                    if (isNaN(existing) || existing < _lastActivityFallback) {
+                        localStorage.setItem(_idleStorageKey, String(_lastActivityFallback));
+                    }
+                } catch (e) {}
             })
             .catch(() => {});
     })();
@@ -170,7 +194,7 @@
     // Otra pestaña/ventana registró actividad → si ésta está mostrando el
     // aviso de expiración, se cancela sin esperar al próximo tick.
     window.addEventListener('storage', (e) => {
-        if (e.key === IDLE_STORAGE_KEY && _idleWarningShown) _checkIdle();
+        if (e.key === _idleStorageKey && _idleWarningShown) _checkIdle();
     });
     setInterval(_checkIdle, 5000);
 
