@@ -2706,10 +2706,10 @@ def _sync_password_to_mirrors(user):
     """Si el usuario tiene espejos (o es un espejo), propagar password_hash y
     must_change_password al origen y a los demas espejos para mantener login unificado."""
     try:
-        # Encontrar el "origen" (el usuario en Eliot)
+        # Encontrar el "origen" (usuario en una empresa origen de MIRROR_RULES)
         if user.mirrored_from_id:
             source = User.query.get(user.mirrored_from_id)
-        elif user.company == MIRROR_SOURCE_COMPANY and user.role == 'technician':
+        elif user.role == 'technician' and _mirror_targets_for(user.company):
             source = user
         else:
             return
@@ -4259,10 +4259,7 @@ def admin_config_old():
     theme_name = get_company_theme(session.get('company'))
 
     # Un admin de pash/primatela puede sincronizar tecnicos desde eliot (master)
-    can_sync_from_master = (
-        session.get('company') != MIRROR_SOURCE_COMPANY
-        and session.get('company') in MIRROR_TARGET_COMPANIES
-    )
+    can_sync_from_master = session.get('company') in MIRROR_RULES.get(MASTER_COMPANY, ())
 
     return render_template('admin/config.html',
                            sla_config=sla_config,
@@ -22328,31 +22325,45 @@ def api_admin_team_import():
     })
 
 
-# ─── Mirroring de técnicos Eliot → Pash/Primatela ───────────────────────────
-# Regla: si un técnico se crea en la empresa master (eliot), automáticamente
-# se replica en pash y primatela con el mismo hash de contraseña, para que
-# pueda loguear a las 3 empresas con la misma credencial y aparezca en la
-# lista de técnicos disponibles de cada una. Los admins de pash/primatela
-# siguen pudiendo crear sus propios técnicos locales (mirrored_from_id NULL).
+# ─── Mirroring de técnicos entre empresas ───────────────────────────────────
+# Regla: si un técnico se crea/actualiza en una empresa "origen" (ver
+# MIRROR_RULES), automáticamente se replica en las empresas "destino" con el
+# mismo hash de contraseña, para que pueda loguear a esas empresas con la
+# misma credencial y aparezca en la lista de técnicos disponibles de cada
+# una (asignable a casos ahí). Los admins de las empresas destino siguen
+# pudiendo crear sus propios técnicos locales (mirrored_from_id NULL).
+#
+# Eliot (master) siempre se replicó hacia pash/primatela. Se agrega Pash
+# como segundo origen, replicando hacia eliot/primatela, para que los
+# técnicos de Pash también puedan recibir casos en esas dos empresas.
+MIRROR_RULES = {
+    'eliot': ('pash', 'primatela'),
+    'pash': ('eliot', 'primatela'),
+}
 
-MIRROR_SOURCE_COMPANY = 'eliot'
-MIRROR_TARGET_COMPANIES = ('pash', 'primatela')
+
+def _mirror_targets_for(company):
+    """Empresas destino donde debe replicarse un técnico de `company`.
+    Tupla vacía si esa empresa no es origen de ningún espejo."""
+    return MIRROR_RULES.get(company, ())
 
 
 def mirror_technician_to_other_companies(src_user):
-    """Crea o actualiza espejos del técnico Eliot en pash/primatela.
-    - Solo aplica si src_user.company == 'eliot' y src_user.role == 'technician'.
+    """Crea o actualiza espejos del técnico en las empresas destino de
+    MIRROR_RULES para su empresa.
+    - Solo aplica si src_user.company es una empresa origen y src_user.role == 'technician'.
     - Idempotente: si el espejo ya existe, sincroniza name/email/password/is_active.
     - Si el usuario destino existía como local (mirrored_from_id=NULL), NO lo pisa
       — respeta ese registro local.
     """
-    if src_user.company != MIRROR_SOURCE_COMPANY:
+    targets = _mirror_targets_for(src_user.company)
+    if not targets:
         return 0
     if src_user.role != 'technician':
         return 0
 
     created_or_updated = 0
-    for target_co in MIRROR_TARGET_COMPANIES:
+    for target_co in targets:
         # Buscar espejo existente por mirrored_from_id
         mirror = User.query.filter_by(
             mirrored_from_id=src_user.id,
@@ -22409,13 +22420,34 @@ def mirror_technician_to_other_companies(src_user):
 
 
 def delete_technician_mirrors(src_user):
-    """Elimina los espejos cuando se elimina el técnico origen en Eliot."""
-    if src_user.company != MIRROR_SOURCE_COMPANY:
+    """Elimina los espejos cuando se elimina el técnico origen."""
+    if not _mirror_targets_for(src_user.company):
         return 0
     mirrors = User.query.filter_by(mirrored_from_id=src_user.id).all()
     for m in mirrors:
         db.session.delete(m)
     return len(mirrors)
+
+
+def _backfill_mirror_technicians():
+    """Corre mirror_technician_to_other_companies() para todos los técnicos
+    de cada empresa origen (ver MIRROR_RULES) — idempotente, se llama en
+    cada arranque. Necesario para que los técnicos que YA existían antes de
+    agregar una regla nueva (ej. Pash → eliot/primatela) queden replicados
+    sin depender de que alguien los edite manualmente uno por uno."""
+    try:
+        with app.app_context():
+            total = 0
+            for source_co in MIRROR_RULES:
+                techs = User.query.filter_by(company=source_co, role='technician').all()
+                for t in techs:
+                    total += mirror_technician_to_other_companies(t)
+            if total:
+                db.session.commit()
+                print(f"[mirror] Backfill: {total} espejo(s) de técnicos creados/actualizados")
+    except Exception as e:
+        db.session.rollback()
+        print(f"[mirror] Error en backfill de espejos: {e}")
 
 
 @app.route('/api/admin/team/sync-from-master', methods=['POST'])
@@ -22427,17 +22459,17 @@ def api_admin_team_sync_from_master():
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
 
     admin_company = session.get('company')
-    if admin_company == MIRROR_SOURCE_COMPANY:
+    if admin_company == MASTER_COMPANY:
         return jsonify({
             'success': False,
             'error': 'Este boton es solo para empresas target (pash/primatela). Eliot es la fuente.'
         }), 400
-    if admin_company not in MIRROR_TARGET_COMPANIES:
+    if admin_company not in MIRROR_RULES.get(MASTER_COMPANY, ()):
         return jsonify({'success': False, 'error': 'Empresa no configurada como target de sincronizacion.'}), 400
 
     # Iterar sobre todos los tecnicos de Eliot y disparar el mirror
     eliot_techs = User.query.filter_by(
-        company=MIRROR_SOURCE_COMPANY, role='technician'
+        company=MASTER_COMPANY, role='technician'
     ).all()
 
     stats = {'created': 0, 'updated': 0, 'skipped_conflict': 0}
@@ -22613,8 +22645,9 @@ def api_admin_team_update(user_id):
             password_changed = True
         db.session.commit()
 
-        # Sincronizar espejos si el usuario origen es un tecnico de Eliot
-        if u.company == MIRROR_SOURCE_COMPANY and u.role == 'technician':
+        # Sincronizar espejos si el usuario origen es un tecnico de una empresa
+        # configurada como origen (ver MIRROR_RULES)
+        if u.role == 'technician' and _mirror_targets_for(u.company):
             mirror_technician_to_other_companies(u)
             db.session.commit()
 
@@ -22750,11 +22783,13 @@ def api_admin_team_delete(user_id):
         }), 400
 
     name = u.name
+    mirror_targets = _mirror_targets_for(u.company) if u.role == 'technician' else ()
 
-    # Si es tecnico de Eliot, tambien eliminar sus espejos en pash/primatela.
-    # Solo si los espejos no tienen tickets propios asignados.
+    # Si es tecnico de una empresa origen (ver MIRROR_RULES), tambien eliminar
+    # sus espejos en las empresas destino. Solo si los espejos no tienen
+    # tickets propios asignados.
     mirrors_deleted = 0
-    if u.company == MIRROR_SOURCE_COMPANY and u.role == 'technician':
+    if mirror_targets:
         mirrors = User.query.filter_by(mirrored_from_id=u.id).all()
         for m in mirrors:
             m_assigned = Ticket.query.filter_by(assignee_id=m.id).count()
@@ -22774,7 +22809,7 @@ def api_admin_team_delete(user_id):
     db.session.commit()
     audit_msg = f'Usuario eliminado: {name}'
     if mirrors_deleted:
-        audit_msg += f' (+ {mirrors_deleted} espejo(s) en pash/primatela)'
+        audit_msg += f' (+ {mirrors_deleted} espejo(s) en {"/".join(mirror_targets)})'
     log_audit('delete_user', session['user_id'], 'user', user_id, audit_msg)
     return jsonify({'success': True, 'message': 'Usuario eliminado'})
 
@@ -29281,6 +29316,7 @@ def bootstrap_app():
     app.config['_bootstrapped'] = True
 
     init_db()
+    _backfill_mirror_technicians()
     _seed_kb_articles_if_empty()
     _seed_controles_catalogo_if_empty()
     start_server_monitoring()
