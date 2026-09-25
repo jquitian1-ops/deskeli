@@ -936,8 +936,8 @@
             document.getElementById('reassignModal').style.display = 'flex';
 
             try {
-                // Excluir al usuario actual (el que reasigna) para no reasignarse a sí mismo
-                const r = await fetch('/api/team-by-groups');
+                // Incluir al usuario actual: puede reasignarse el caso a sí mismo (ej. tomar un caso del grupo)
+                const r = await fetch('/api/team-by-groups?include_self=1');
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 const data = await r.json();
                 if (!data.success) throw new Error(data.error || 'Error');
