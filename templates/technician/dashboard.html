@@ -545,7 +545,19 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                         <th style="padding:6px;"><input type="text" data-filter="number" data-table="mine" placeholder="🔍 N°..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
                         <th style="padding:6px;"><select data-filter="company" data-table="mine" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"><option value="">Todas</option></select></th>
                         <th style="padding:6px;"><input type="text" data-filter="title" data-table="mine" placeholder="🔍 Asunto/categoría..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
-                        <th style="padding:6px;"><select data-filter="status" data-table="mine" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"><option value="">Todos</option><option value="open">📂 Abierto</option><option value="in_progress">🔄 En Progreso</option><option value="resolved">✅ Resuelto</option><option value="closed">🔒 Cerrado</option></select></th>
+                        <th style="padding:6px;position:relative;">
+                            <div class="status-ms-wrap" data-table="mine">
+                                <button type="button" class="status-ms-btn" onclick="toggleStatusMenu(this, event)" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;background:white;text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:4px;">
+                                    <span class="status-ms-label">Todos</span><span style="color:#9ca3af;">▾</span>
+                                </button>
+                                <div class="status-ms-menu" onclick="event.stopPropagation()" style="display:none;position:absolute;z-index:60;background:white;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,.15);padding:6px;min-width:150px;top:100%;left:0;">
+                                    <label style="display:flex;align-items:center;gap:5px;font-size:11px;padding:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="open" onchange="onStatusMsChange('mine')"> 📂 Abierto</label>
+                                    <label style="display:flex;align-items:center;gap:5px;font-size:11px;padding:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="in_progress" onchange="onStatusMsChange('mine')"> 🔄 En Progreso</label>
+                                    <label style="display:flex;align-items:center;gap:5px;font-size:11px;padding:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="resolved" onchange="onStatusMsChange('mine')"> ✅ Resuelto</label>
+                                    <label style="display:flex;align-items:center;gap:5px;font-size:11px;padding:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="closed" onchange="onStatusMsChange('mine')"> 🔒 Cerrado</label>
+                                </div>
+                            </div>
+                        </th>
                         <th style="padding:6px;"><select data-filter="priority" data-table="mine" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"><option value="">Todas</option><option value="critical">🔴 Crítica</option><option value="high">🟠 Alta</option><option value="medium">🟡 Media</option><option value="low">🟢 Baja</option></select></th>
                         <th style="padding:6px;"><input type="text" data-filter="date" data-table="mine" placeholder="🔍 Fecha..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
                         <th style="padding:6px;"><input type="text" data-filter="assigner" data-table="mine" placeholder="🔍 Asignado por..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
@@ -633,7 +645,19 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                         <th style="padding:6px;"><input type="text" data-filter="number" data-table="team" placeholder="🔍 N°..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
                         <th style="padding:6px;"><select data-filter="company" data-table="team" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"><option value="">Todas</option></select></th>
                         <th style="padding:6px;"><input type="text" data-filter="title" data-table="team" placeholder="🔍 Asunto..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
-                        <th style="padding:6px;"><select data-filter="status" data-table="team" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"><option value="">Todos</option><option value="open">📂 Abierto</option><option value="in_progress">🔄 En Progreso</option><option value="resolved">✅ Resuelto</option><option value="closed">🔒 Cerrado</option></select></th>
+                        <th style="padding:6px;position:relative;">
+                            <div class="status-ms-wrap" data-table="team">
+                                <button type="button" class="status-ms-btn" onclick="toggleStatusMenu(this, event)" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;background:white;text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:4px;">
+                                    <span class="status-ms-label">Todos</span><span style="color:#9ca3af;">▾</span>
+                                </button>
+                                <div class="status-ms-menu" onclick="event.stopPropagation()" style="display:none;position:absolute;z-index:60;background:white;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,.15);padding:6px;min-width:150px;top:100%;left:0;">
+                                    <label style="display:flex;align-items:center;gap:5px;font-size:11px;padding:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="open" onchange="onStatusMsChange('team')"> 📂 Abierto</label>
+                                    <label style="display:flex;align-items:center;gap:5px;font-size:11px;padding:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="in_progress" onchange="onStatusMsChange('team')"> 🔄 En Progreso</label>
+                                    <label style="display:flex;align-items:center;gap:5px;font-size:11px;padding:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="resolved" onchange="onStatusMsChange('team')"> ✅ Resuelto</label>
+                                    <label style="display:flex;align-items:center;gap:5px;font-size:11px;padding:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="closed" onchange="onStatusMsChange('team')"> 🔒 Cerrado</label>
+                                </div>
+                            </div>
+                        </th>
                         <th style="padding:6px;"><select data-filter="priority" data-table="team" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"><option value="">Todas</option><option value="critical">🔴 Crítica</option><option value="high">🟠 Alta</option><option value="medium">🟡 Media</option><option value="low">🟢 Baja</option></select></th>
                         <th style="padding:6px;"><input type="text" data-filter="assignee" data-table="team" placeholder="🔍 Técnico..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
                         <th style="padding:6px;"><input type="text" data-filter="assigner" data-table="team" placeholder="🔍 Por..." style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;"></th>
@@ -1378,12 +1402,20 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                 // Filtros por columna
                 if (show) {
                     for (const col in filters) {
+                        if (col === 'status') {
+                            // Multi-select: array de estados permitidos (vacío = sin filtro)
+                            const arr = Array.isArray(filters[col]) ? filters[col] : (filters[col] ? [filters[col]] : []);
+                            if (arr.length === 0) continue;
+                            const val = (row.getAttribute('data-status') || '').toLowerCase();
+                            if (!arr.map(v => v.toLowerCase()).includes(val)) { show = false; break; }
+                            continue;
+                        }
                         const fval = (filters[col] || '').trim().toLowerCase();
                         if (!fval) continue;
                         if (col === 'sla') {
                             const slaRaw = row.getAttribute('data-sla') || '';
                             if (!_matchSlaFilter(slaRaw, fval)) { show = false; break; }
-                        } else if (col === 'status' || col === 'priority' || col === 'company') {
+                        } else if (col === 'priority' || col === 'company') {
                             // Match exacto (selects)
                             const val = (row.getAttribute('data-' + col) || '').toLowerCase();
                             if (val !== fval) { show = false; break; }
@@ -1401,7 +1433,7 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
             const countEl = document.getElementById('queueSearchCount');
             const emptyEl = document.getElementById('queueEmpty');
             const total = rows.length;
-            const anyFilter = q || Object.values(filters).some(v => v && v.trim());
+            const anyFilter = q || Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : (v && v.trim()));
             if (anyFilter) {
                 countEl.textContent = visible + ' de ' + total;
                 emptyEl.style.display = visible === 0 ? 'block' : 'none';
@@ -1437,6 +1469,34 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                 });
                 select.innerHTML = html;
             });
+        }
+
+        // ===== Filtro de Estado (multi-select) por columna =====
+        const _statusMsLabels = { open: '📂 Abierto', in_progress: '🔄 En Progreso', resolved: '✅ Resuelto', closed: '🔒 Cerrado' };
+
+        function toggleStatusMenu(btn, ev) {
+            if (ev) ev.stopPropagation();
+            const wrap = btn.closest('.status-ms-wrap');
+            const menu = wrap.querySelector('.status-ms-menu');
+            const willOpen = menu.style.display !== 'block';
+            document.querySelectorAll('.status-ms-menu').forEach(m => m.style.display = 'none');
+            menu.style.display = willOpen ? 'block' : 'none';
+        }
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.status-ms-menu').forEach(m => m.style.display = 'none');
+        });
+
+        function onStatusMsChange(tableKey) {
+            const wrap = document.querySelector('.status-ms-wrap[data-table="' + tableKey + '"]');
+            if (!wrap) return;
+            const checked = Array.from(wrap.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
+            if (!_colFilters[tableKey]) _colFilters[tableKey] = {};
+            _colFilters[tableKey]['status'] = checked;
+            const label = wrap.querySelector('.status-ms-label');
+            if (checked.length === 0) label.textContent = 'Todos';
+            else if (checked.length === 1) label.textContent = _statusMsLabels[checked[0]] || checked[0];
+            else label.textContent = checked.length + ' seleccionados';
+            applyAllFilters();
         }
 
         // Conectar todos los inputs/selects de filtros por columna
