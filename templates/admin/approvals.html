@@ -402,11 +402,12 @@ async function saveWorkflow() {
 async function deleteWorkflow() {
     const id = document.getElementById('wfId').value;
     if (!id) return;
-    if (!confirm('¿Eliminar este workflow? Las aprobaciones ya emitidas quedan pero no se disparan nuevas.')) return;
+    if (!confirm('¿Eliminar este workflow?\n\nSi ya generó aprobaciones sobre tickets reales, no se puede borrar sin perder ese historial — en ese caso se desactiva en su lugar (deja de aplicar a tickets nuevos).')) return;
     try {
         const r = await fetch(`/api/admin/approval-workflows/${id}`, {method: 'DELETE'});
         const data = await r.json();
         if (!data.success) throw new Error(data.error);
+        if (data.deactivated_instead) alert('ℹ ' + data.message);
         closeModal();
         loadWorkflows();
     } catch (e) { alert('Error: ' + e.message); }

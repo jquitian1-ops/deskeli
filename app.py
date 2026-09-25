@@ -6485,6 +6485,24 @@ def api_admin_workflow_delete(wid):
     if w.company not in admin_companies_scope():
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
     name = w.name
+
+    # Si ya generó Approval (tickets que pasaron o están pasando por este
+    # workflow), no se puede borrar la fila sin romper la FK de approvals —
+    # esos registros son el historial real de aprobaciones y no se destruyen.
+    # En ese caso se desactiva en su lugar: deja de aplicar a tickets nuevos,
+    # sin perder el rastro de lo ya decidido.
+    has_approvals = Approval.query.filter_by(workflow_id=wid).first() is not None
+    if has_approvals:
+        w.is_active = False
+        db.session.commit()
+        log_audit('approval_workflow_deactivated', session['user_id'], 'approval_workflow', wid,
+                  f"Workflow desactivado (no se pudo eliminar, tiene aprobaciones históricas): {name}")
+        return jsonify({
+            'success': True,
+            'deactivated_instead': True,
+            'message': f'"{name}" ya generó aprobaciones sobre tickets reales, así que no se puede borrar sin perder ese historial. Se desactivó en su lugar: no va a aplicar a tickets nuevos.'
+        })
+
     db.session.delete(w)
     db.session.commit()
     log_audit('approval_workflow_deleted', session['user_id'], 'approval_workflow', wid, f"Workflow eliminado: {name}")
