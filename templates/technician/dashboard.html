@@ -550,7 +550,7 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                                 <button type="button" class="status-ms-btn" onclick="toggleStatusMenu(this, event)" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;background:white;text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:4px;">
                                     <span class="status-ms-label">Todos</span><span style="color:#9ca3af;">▾</span>
                                 </button>
-                                <div class="status-ms-menu" onclick="event.stopPropagation()" style="display:none;position:absolute;z-index:60;background:white;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,.15);padding:6px;min-width:150px;top:100%;left:0;">
+                                <div class="status-ms-menu" onclick="event.stopPropagation()" style="display:none;position:fixed;z-index:9999;background:white;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,.15);padding:6px;min-width:150px;">
                                     <label style="display:flex;align-items:center;gap:5px;font-size:11px;padding:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="open" onchange="onStatusMsChange('mine')"> 📂 Abierto</label>
                                     <label style="display:flex;align-items:center;gap:5px;font-size:11px;padding:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="in_progress" onchange="onStatusMsChange('mine')"> 🔄 En Progreso</label>
                                     <label style="display:flex;align-items:center;gap:5px;font-size:11px;padding:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="resolved" onchange="onStatusMsChange('mine')"> ✅ Resuelto</label>
@@ -650,7 +650,7 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                                 <button type="button" class="status-ms-btn" onclick="toggleStatusMenu(this, event)" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;background:white;text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:4px;">
                                     <span class="status-ms-label">Todos</span><span style="color:#9ca3af;">▾</span>
                                 </button>
-                                <div class="status-ms-menu" onclick="event.stopPropagation()" style="display:none;position:absolute;z-index:60;background:white;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,.15);padding:6px;min-width:150px;top:100%;left:0;">
+                                <div class="status-ms-menu" onclick="event.stopPropagation()" style="display:none;position:fixed;z-index:9999;background:white;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,.15);padding:6px;min-width:150px;">
                                     <label style="display:flex;align-items:center;gap:5px;font-size:11px;padding:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="open" onchange="onStatusMsChange('team')"> 📂 Abierto</label>
                                     <label style="display:flex;align-items:center;gap:5px;font-size:11px;padding:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="in_progress" onchange="onStatusMsChange('team')"> 🔄 En Progreso</label>
                                     <label style="display:flex;align-items:center;gap:5px;font-size:11px;padding:4px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="resolved" onchange="onStatusMsChange('team')"> ✅ Resuelto</label>
@@ -1480,11 +1480,29 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
             const menu = wrap.querySelector('.status-ms-menu');
             const willOpen = menu.style.display !== 'block';
             document.querySelectorAll('.status-ms-menu').forEach(m => m.style.display = 'none');
-            menu.style.display = willOpen ? 'block' : 'none';
+            if (willOpen) {
+                // position:fixed calculado por JS: así el menú no queda recortado
+                // por el overflow-x:auto del contenedor de la tabla al filtrarse las filas.
+                const r = btn.getBoundingClientRect();
+                menu.style.top = (r.bottom + 2) + 'px';
+                menu.style.left = r.left + 'px';
+                menu.style.display = 'block';
+            }
         }
-        document.addEventListener('click', () => {
-            document.querySelectorAll('.status-ms-menu').forEach(m => m.style.display = 'none');
+        document.addEventListener('click', (e) => {
+            // Cerrar solo los menús cuyo dropdown NO contiene el click (no cerrar
+            // al tildar un checkbox adentro, sin depender de stopPropagation).
+            document.querySelectorAll('.status-ms-wrap').forEach(wrap => {
+                if (!wrap.contains(e.target)) {
+                    const m = wrap.querySelector('.status-ms-menu');
+                    if (m) m.style.display = 'none';
+                }
+            });
         });
+        // Cerrar si se hace scroll (el menú es fixed y dejaría de coincidir con el botón)
+        window.addEventListener('scroll', () => {
+            document.querySelectorAll('.status-ms-menu').forEach(m => m.style.display = 'none');
+        }, true);
 
         function onStatusMsChange(tableKey) {
             const wrap = document.querySelector('.status-ms-wrap[data-table="' + tableKey + '"]');
