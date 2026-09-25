@@ -758,6 +758,20 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                         <select id="pashTicketsGroupFilter" onchange="filterPashTickets()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
                             <option value="">Todos los grupos</option>
                         </select>
+                        <select id="pashTicketsStatusFilter" onchange="filterPashTickets()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="">Todos los estados</option>
+                            <option value="open">📂 Abierto</option>
+                            <option value="in_progress">🔄 En Progreso</option>
+                            <option value="resolved">✅ Resuelto</option>
+                            <option value="closed">🔒 Cerrado</option>
+                        </select>
+                        <select id="pashTicketsPriorityFilter" onchange="filterPashTickets()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="">Todas las prioridades</option>
+                            <option value="critical">🔴 Crítica</option>
+                            <option value="high">🟠 Alta</option>
+                            <option value="medium">🟡 Media</option>
+                            <option value="low">🟢 Baja</option>
+                        </select>
                         <input type="text" id="pashTicketsSearch" placeholder="🔍 Buscar por ticket, título, asignado..."
                                onkeyup="filterPashTickets()"
                                style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;min-width:260px;font-size:14px;">
@@ -780,6 +794,20 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                         <select id="pashSubtasksGroupFilter" onchange="filterPashSubtasks()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
                             <option value="">Todos los grupos</option>
                         </select>
+                        <select id="pashSubtasksStatusFilter" onchange="filterPashSubtasks()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="">Todos los estados</option>
+                            <option value="open">📂 Abierto</option>
+                            <option value="in_progress">🔄 En Progreso</option>
+                            <option value="resolved">✅ Resuelto</option>
+                            <option value="closed">🔒 Cerrado</option>
+                        </select>
+                        <select id="pashSubtasksPriorityFilter" onchange="filterPashSubtasks()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="">Todas las prioridades</option>
+                            <option value="critical">🔴 Crítica</option>
+                            <option value="high">🟠 Alta</option>
+                            <option value="medium">🟡 Media</option>
+                            <option value="low">🟢 Baja</option>
+                        </select>
                         <input type="text" id="pashSubtasksSearch" placeholder="🔍 Buscar por sub-caso, título, asignado..."
                                onkeyup="filterPashSubtasks()"
                                style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;min-width:260px;font-size:14px;">
@@ -799,6 +827,20 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
                     <div class="section-title" style="margin:0;">📋 Todos los Casos Generados por Flujos (Pash)</div>
                     <div style="display:flex;align-items:center;gap:8px;">
+                        <select id="flowCasesStatusFilter" onchange="filterFlowCases()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="">Todos los estados</option>
+                            <option value="open">📂 Abierto</option>
+                            <option value="in_progress">🔄 En Progreso</option>
+                            <option value="resolved">✅ Resuelto</option>
+                            <option value="closed">🔒 Cerrado</option>
+                        </select>
+                        <select id="flowCasesPriorityFilter" onchange="filterFlowCases()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="">Todas las prioridades</option>
+                            <option value="critical">🔴 Crítica</option>
+                            <option value="high">🟠 Alta</option>
+                            <option value="medium">🟡 Media</option>
+                            <option value="low">🟢 Baja</option>
+                        </select>
                         <input type="text" id="flowCasesSearch" placeholder="🔍 Buscar por ticket, solicitud, título..."
                                onkeyup="filterFlowCases()"
                                style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;min-width:280px;font-size:14px;">
@@ -1089,22 +1131,27 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
 
         function filterFlowCases() {
             const searchEl = document.getElementById('flowCasesSearch');
+            const statusEl = document.getElementById('flowCasesStatusFilter');
+            const priorityEl = document.getElementById('flowCasesPriorityFilter');
             const countEl = document.getElementById('flowCasesSearchCount');
             if (!searchEl) return;
             const q = (searchEl.value || '').trim().toLowerCase();
-            if (!q) {
-                renderFlowCases(_allFlowCases);
-                if (countEl) countEl.textContent = '';
-                return;
+            const st = statusEl ? statusEl.value : '';
+            const pr = priorityEl ? priorityEl.value : '';
+            let filtered = _allFlowCases;
+            if (st) filtered = filtered.filter(c => c.status === st);
+            if (pr) filtered = filtered.filter(c => c.priority === pr);
+            if (q) {
+                filtered = filtered.filter(c => {
+                    const text = [
+                        c.ticket_number, c.title, c.priority, c.status, c.category,
+                        c.assignee_name, c.solicitud_codigo, c.solicitud_nombre
+                    ].filter(Boolean).join(' ').toLowerCase();
+                    return text.indexOf(q) !== -1;
+                });
             }
-            const filtered = _allFlowCases.filter(c => {
-                const text = [
-                    c.ticket_number, c.title, c.priority, c.status, c.category,
-                    c.assignee_name, c.solicitud_codigo, c.solicitud_nombre
-                ].filter(Boolean).join(' ').toLowerCase();
-                return text.indexOf(q) !== -1;
-            });
-            if (countEl) countEl.textContent = filtered.length + ' de ' + _allFlowCases.length;
+            const anyFilter = q || st || pr;
+            if (countEl) countEl.textContent = anyFilter ? (filtered.length + ' de ' + _allFlowCases.length) : '';
             renderFlowCases(filtered);
         }
 
@@ -1195,12 +1242,18 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
         function filterPashTickets() {
             const searchEl = document.getElementById('pashTicketsSearch');
             const groupEl = document.getElementById('pashTicketsGroupFilter');
+            const statusEl = document.getElementById('pashTicketsStatusFilter');
+            const priorityEl = document.getElementById('pashTicketsPriorityFilter');
             const countEl = document.getElementById('pashTicketsSearchCount');
             if (!searchEl) return;
             const q = (searchEl.value || '').trim().toLowerCase();
             const g = groupEl ? groupEl.value : '';
+            const st = statusEl ? statusEl.value : '';
+            const pr = priorityEl ? priorityEl.value : '';
             let filtered = _allPashTickets;
             if (g) filtered = filtered.filter(t => t.group === g);
+            if (st) filtered = filtered.filter(t => t.status === st);
+            if (pr) filtered = filtered.filter(t => t.priority === pr);
             if (q) {
                 filtered = filtered.filter(t => {
                     const text = [t.ticket_number, t.title, t.priority, t.status, t.category, t.assignee_name, t.group]
@@ -1208,7 +1261,8 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                     return text.indexOf(q) !== -1;
                 });
             }
-            if (countEl) countEl.textContent = (q || g) ? (filtered.length + ' de ' + _allPashTickets.length) : '';
+            const anyFilter = q || g || st || pr;
+            if (countEl) countEl.textContent = anyFilter ? (filtered.length + ' de ' + _allPashTickets.length) : '';
             renderPashTickets(filtered);
         }
 
@@ -1287,12 +1341,18 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
         function filterPashSubtasks() {
             const searchEl = document.getElementById('pashSubtasksSearch');
             const groupEl = document.getElementById('pashSubtasksGroupFilter');
+            const statusEl = document.getElementById('pashSubtasksStatusFilter');
+            const priorityEl = document.getElementById('pashSubtasksPriorityFilter');
             const countEl = document.getElementById('pashSubtasksSearchCount');
             if (!searchEl) return;
             const q = (searchEl.value || '').trim().toLowerCase();
             const g = groupEl ? groupEl.value : '';
+            const st = statusEl ? statusEl.value : '';
+            const pr = priorityEl ? priorityEl.value : '';
             let filtered = _allPashSubtasks;
             if (g) filtered = filtered.filter(s => s.group === g);
+            if (st) filtered = filtered.filter(s => s.status === st);
+            if (pr) filtered = filtered.filter(s => s.priority === pr);
             if (q) {
                 filtered = filtered.filter(s => {
                     const text = [s.subtask_number, s.parent_number, s.title, s.priority, s.status, s.category, s.assignee_name, s.group]
@@ -1300,7 +1360,8 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                     return text.indexOf(q) !== -1;
                 });
             }
-            if (countEl) countEl.textContent = (q || g) ? (filtered.length + ' de ' + _allPashSubtasks.length) : '';
+            const anyFilter = q || g || st || pr;
+            if (countEl) countEl.textContent = anyFilter ? (filtered.length + ' de ' + _allPashSubtasks.length) : '';
             renderPashSubtasks(filtered);
         }
 
