@@ -783,6 +783,7 @@ class Category(db.Model):
     is_system = db.Column(db.Boolean, default=False)  # las pre-seed no se pueden borrar
     is_active = db.Column(db.Boolean, default=True, index=True)
     sort_order = db.Column(db.Integer, default=0)
+    sla_minutes = db.Column(db.Integer)  # SLA manual (minutos); NULL = usa el SLA por prioridad
     created_at = db.Column(db.DateTime, default=datetime.now)
     __table_args__ = (db.UniqueConstraint('name', 'company', 'parent_id', name='_category_company_parent_uc'),)
 
@@ -808,6 +809,12 @@ class CategoryCompanyState(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=False, index=True)
     company = db.Column(db.String(20), nullable=False, index=True)
     is_active = db.Column(db.Boolean, default=True)
+    # SLA manual (minutos) de esta empresa para una categoría GLOBAL — mismo
+    # motivo que is_active: la fila de Category es compartida por las 3
+    # empresas, así que el SLA de una categoría del sistema también necesita
+    # poder pisarse por empresa sin afectar a las otras dos. NULL = sin
+    # override (usa Category.sla_minutes si lo tuviera, si no por prioridad).
+    sla_minutes = db.Column(db.Integer)
     __table_args__ = (db.UniqueConstraint('category_id', 'company', name='_category_company_state_uc'),)
 
 
@@ -3217,9 +3224,8 @@ def employee_create():
         if priority not in ['low', 'medium', 'high', 'critical']:
             priority = 'medium'
 
-        # Obtener SLA de configuración
-        sla_config = Config.query.filter_by(key=f"sla_{priority}").first()
-        sla_minutes = int(sla_config.value) if sla_config else 120
+        # SLA: manual por categoría si está configurado, si no por prioridad
+        sla_minutes = get_sla_minutes(priority, category, user.company)
 
         ticket = Ticket(
             ticket_number=get_next_ticket_number(user.company),
@@ -3475,8 +3481,7 @@ def technician_create():
             else:
                 behalf_user = None  # inválido, lo ignoramos
 
-        sla_config = Config.query.filter_by(key=f'sla_{priority}').first()
-        sla_minutes = int(sla_config.value) if sla_config else 120
+        sla_minutes = get_sla_minutes(priority, category, tech.company)
 
         # Si el técnico marca auto-asignar, lo asigna a sí mismo
         assignee_id = tech.id if auto_assign else None
@@ -7645,9 +7650,8 @@ def api_bot_ticket_from_chat():
                         assignee_id = best_tech.id
                         assignee_name = best_tech.name
 
-        # SLA por prioridad
-        sla_map = {'low': 1440, 'medium': 480, 'high': 240, 'critical': 60}
-        sla_min = sla_map.get(priority, 480)
+        # SLA: manual por categoría si está configurado, si no por prioridad
+        sla_min = get_sla_minutes(priority, category, company)
 
         # Descripción con la conversación
         description = (
@@ -10411,7 +10415,7 @@ def fetch_emails_from_mailbox(mailbox_id):
                     continue
 
                 # Crear ticket
-                sla_min = get_sla_minutes_for_priority(mb.default_priority)
+                sla_min = get_sla_minutes(mb.default_priority, mb.default_category, mb.company)
                 ticket = Ticket(
                     ticket_number=get_next_ticket_number(mb.company),
                     title=subject[:200],
@@ -12130,6 +12134,40 @@ def get_sla_minutes_for_priority(priority):
     return defaults.get(priority, 120)
 
 
+def get_sla_minutes(priority, category=None, company=None):
+    """Minutos de SLA para un ticket/subtarea nuevo: si la categoría tiene un
+    SLA manual configurado tiene prioridad sobre el SLA por prioridad.
+
+    Busca primero la categoría propia de la empresa (Category.sla_minutes,
+    ya está scoped por diseño). Si no hay, busca la categoría GLOBAL con ese
+    nombre — pero como las categorías del sistema son una única fila
+    compartida por las 3 empresas, el override de SLA de una categoría
+    global se guarda por empresa en CategoryCompanyState (mismo patrón que
+    el override de activo/inactivo), nunca en la fila compartida."""
+    if category and company:
+        own = Category.query.filter(
+            Category.name == category,
+            Category.company == company,
+            Category.sla_minutes.isnot(None),
+        ).first()
+        if own and own.sla_minutes:
+            return own.sla_minutes
+
+        global_cat = Category.query.filter(
+            Category.name == category,
+            Category.company.is_(None),
+        ).first()
+        if global_cat:
+            override = CategoryCompanyState.query.filter_by(
+                category_id=global_cat.id, company=company
+            ).first()
+            if override and override.sla_minutes:
+                return override.sla_minutes
+            if global_cat.sla_minutes:
+                return global_cat.sla_minutes
+    return get_sla_minutes_for_priority(priority)
+
+
 def get_next_subtask_number(ticket):
     """Genera próximo código de subtarea independiente: SUB-ELIOT-00001"""
     company = (ticket.company or 'GEN').upper()
@@ -12591,6 +12629,33 @@ def migrate_solicitudes_jefe_manual():
             print(f"[migrate_jefe_manual] Columna {col_name} agregada")
         except Exception as e:
             print(f"[migrate_jefe_manual] error agregando {col_name}: {e}")
+
+
+def migrate_categories_sla():
+    """Agrega sla_minutes a categories (SLA manual opcional por categoría;
+    si está seteado, pisa el SLA por prioridad al crear tickets/subtareas) y
+    a category_company_state (override por empresa del SLA de una categoría
+    GLOBAL, mismo patrón que el override de activo/inactivo)."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'categories' in inspector.get_table_names():
+        existing_cols = {c['name'] for c in inspector.get_columns('categories')}
+        if 'sla_minutes' not in existing_cols:
+            try:
+                with db.engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE categories ADD COLUMN sla_minutes INTEGER"))
+                print("[migrate_categories_sla] Columna categories.sla_minutes agregada")
+            except Exception as e:
+                print(f"[migrate_categories_sla] error agregando categories.sla_minutes: {e}")
+    if 'category_company_state' in inspector.get_table_names():
+        existing_cols = {c['name'] for c in inspector.get_columns('category_company_state')}
+        if 'sla_minutes' not in existing_cols:
+            try:
+                with db.engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE category_company_state ADD COLUMN sla_minutes INTEGER"))
+                print("[migrate_categories_sla] Columna category_company_state.sla_minutes agregada")
+            except Exception as e:
+                print(f"[migrate_categories_sla] error agregando category_company_state.sla_minutes: {e}")
 
 
 def migrate_categories_parent_id():
@@ -13659,6 +13724,11 @@ def init_db():
             migrate_categories_parent_id()
         except Exception as _e:
             print(f"[migrate] categories_parent_id: {_e}")
+        # SLA manual por categoría
+        try:
+            migrate_categories_sla()
+        except Exception as _e:
+            print(f"[migrate] categories_sla: {_e}")
         try:
             migrate_templates_reference_doc()
         except Exception as _e:
@@ -13905,8 +13975,7 @@ def api_admin_create_ticket():
     if not subcategory and category_requires_subcategory(category, user.company):
         return jsonify({'success': False, 'error': f'La categoría "{category}" tiene subcategorías: debes elegir una'}), 400
 
-    sla_config = Config.query.filter_by(key=f"sla_{data.get('priority', 'medium')}").first()
-    sla_minutes = int(sla_config.value) if sla_config else 120
+    sla_minutes = get_sla_minutes(data.get('priority', 'medium'), category, user.company)
 
     ticket = Ticket(
         ticket_number=get_next_ticket_number(user.company),
@@ -16350,7 +16419,7 @@ def api_subtasks_create(ticket_id):
     if priority not in ['low', 'medium', 'high', 'critical']:
         priority = 'medium'
     category = (data.get('category') or ticket.category or 'General')[:100]
-    sla_minutes = get_sla_minutes_for_priority(priority)
+    sla_minutes = get_sla_minutes(priority, category, ticket.company)
 
     last = Subtask.query.filter_by(ticket_id=ticket_id).order_by(Subtask.order_idx.desc()).first()
     next_idx = (last.order_idx + 1) if last else 0
@@ -16730,7 +16799,7 @@ def api_subtask_update(subtask_id):
             return jsonify({'success': False, 'error': 'Prioridad inválida'}), 400
         if new_priority != subtask.priority:
             subtask.priority = new_priority
-            subtask.sla_minutes = get_sla_minutes_for_priority(new_priority)
+            subtask.sla_minutes = get_sla_minutes(new_priority, subtask.category, ticket.company)
             subtask.sla_deadline = datetime.now() + timedelta(minutes=subtask.sla_minutes)
     if 'time_worked_seconds' in data:
         try:
@@ -19811,6 +19880,7 @@ def api_admin_categories_list():
             'company': c.company,
             'is_system': bool(c.is_system),
             'is_active': effective_category_active(c, company),
+            'sla_minutes': effective_category_sla(c, company),
             'is_global': c.company is None,
             'parent_id': c.parent_id,
             'parent_name': names_by_id.get(c.parent_id),
@@ -19857,6 +19927,7 @@ def api_admin_categories_create():
         is_system=False,
         is_active=True,
         sort_order=100,
+        sla_minutes=_parse_sla_minutes(data.get('sla_minutes')),
     )
     db.session.add(c)
     db.session.commit()
@@ -19879,6 +19950,33 @@ def effective_category_active(category, company):
         if override is not None:
             return bool(override.is_active)
     return bool(category.is_active)
+
+
+def effective_category_sla(category, company):
+    """sla_minutes efectivo de `category` para `company` (o None si no hay
+    override manual y debe usarse el SLA por prioridad). Mismo mecanismo que
+    effective_category_active: las categorías globales resuelven su SLA vía
+    CategoryCompanyState, no en la fila compartida."""
+    if category.company is None:
+        override = CategoryCompanyState.query.filter_by(
+            category_id=category.id, company=company
+        ).first()
+        if override is not None and override.sla_minutes:
+            return override.sla_minutes
+    return category.sla_minutes
+
+
+def _parse_sla_minutes(raw):
+    """Convierte el valor de SLA manual del payload a minutos (int) o None
+    (sin override, usa el SLA por prioridad). Acepta '', None, 0 como "sin
+    override" para poder borrar un SLA manual ya configurado."""
+    if raw in (None, '', 0, '0'):
+        return None
+    try:
+        minutes = int(raw)
+    except (ValueError, TypeError):
+        return None
+    return minutes if minutes > 0 else None
 
 
 @app.route('/api/admin/categories/<int:category_id>', methods=['PUT'])
@@ -19909,6 +20007,19 @@ def api_admin_categories_update(category_id):
                 db.session.add(CategoryCompanyState(
                     category_id=c.id, company=company, is_active=new_active
                 ))
+        if 'sla_minutes' in data:
+            # Mismo motivo que is_active: el SLA de una categoría global es
+            # POR EMPRESA (CategoryCompanyState), nunca se toca c.sla_minutes.
+            new_sla = _parse_sla_minutes(data['sla_minutes'])
+            override = CategoryCompanyState.query.filter_by(
+                category_id=c.id, company=company
+            ).first()
+            if override:
+                override.sla_minutes = new_sla
+            else:
+                db.session.add(CategoryCompanyState(
+                    category_id=c.id, company=company, sla_minutes=new_sla
+                ))
     else:
         if 'parent_id' in data:
             new_parent_id = data['parent_id']
@@ -19935,6 +20046,7 @@ def api_admin_categories_update(category_id):
                 c.name = new_name[:100]
         if 'icon' in data: c.icon = (data['icon'] or '📌').strip()[:10]
         if 'is_active' in data: c.is_active = bool(data['is_active'])
+        if 'sla_minutes' in data: c.sla_minutes = _parse_sla_minutes(data['sla_minutes'])
     db.session.commit()
     log_audit('update_category', session['user_id'], 'category', c.id, f'Categoría "{c.name}" actualizada')
     return jsonify({'success': True, 'message': 'Categoría actualizada'})
@@ -25017,9 +25129,8 @@ def api_v1_external_create_ticket():
                 meta_lines.append(f'   - {name}: {value}')
         description = description + '\n\n---\n' + '\n'.join(meta_lines)
 
-    # SLA en minutos según prioridad
-    sla_map = {'critical': 120, 'high': 240, 'medium': 480, 'low': 1440}
-    sla_minutes = sla_map.get(priority, 480)
+    # SLA: manual por categoría si está configurado, si no por prioridad
+    sla_minutes = get_sla_minutes(priority, category, api_key.company)
 
     # Generar número de ticket
     ticket_number = generate_ticket_number(api_key.company) if 'generate_ticket_number' in globals() else \
@@ -25123,7 +25234,8 @@ def api_v1_external_create_ticket():
                 st_priority = (gs.priority or priority).lower()
                 if st_priority not in ('low', 'medium', 'high', 'critical'):
                     st_priority = 'medium'
-                sla_min = sla_map.get(st_priority, 480)
+                st_category = gs.category or category
+                sla_min = get_sla_minutes(st_priority, st_category, ticket.company)
 
                 # 1º: técnico fijo válido de la subtarea del guion
                 # 2º: pool de especialistas del guion
@@ -25150,7 +25262,7 @@ def api_v1_external_create_ticket():
                     subtask_number=f'{ticket.ticket_number}-S{(idx+1):02d}',
                     title=st_title,
                     description=st_desc,
-                    category=gs.category or category,
+                    category=st_category,
                     status='open',
                     priority=st_priority,
                     sla_minutes=sla_min,
@@ -25322,7 +25434,7 @@ def api_v1_external_create_ticket():
                             _per_subtask_stats['unassigned'] += 1
 
                     st_num = f'{ticket.ticket_number}-S{(idx+1):02d}'
-                    sla_min = sla_map.get(st_priority, 480)
+                    sla_min = get_sla_minutes(st_priority, st_category, api_key.company)
                     st = Subtask(
                         ticket_id=ticket.id,
                         subtask_number=st_num,
@@ -27007,17 +27119,8 @@ def _generate_case_from_solicitud(solicitud, actor_user):
     Devuelve el Ticket generado. Levanta excepción si algo crítico falla.
     """
     from datetime import timedelta as _td
-    sla_map = {'low': 480, 'medium': 240, 'high': 120, 'critical': 60}
-    for p in ('low', 'medium', 'high', 'critical'):
-        cfg = Config.query.filter_by(key=f'sla_{p}').first()
-        if cfg:
-            try:
-                sla_map[p] = int(cfg.value)
-            except (ValueError, TypeError):
-                pass
-
     priority = 'medium'
-    sla_min = sla_map.get(priority, 240)
+    sla_min = get_sla_minutes(priority, 'Accesos', solicitud.company)
 
     # ── 1. Crear Ticket base ─────────────────────────────────────────────
     controles_txt = '\n'.join(
@@ -27200,7 +27303,8 @@ def _generate_case_from_solicitud(solicitud, actor_user):
                 st_priority = (gs.priority or priority).lower()
                 if st_priority not in ('low', 'medium', 'high', 'critical'):
                     st_priority = 'medium'
-                st_sla = sla_map.get(st_priority, 240)
+                st_category = gs.category or 'Accesos'
+                st_sla = get_sla_minutes(st_priority, st_category, solicitud.company)
 
                 # Assignee: 1º fijo válido, 2º del pool, 3º sin asignar
                 assignee = None
@@ -27217,7 +27321,7 @@ def _generate_case_from_solicitud(solicitud, actor_user):
                     subtask_number=f'{ticket.ticket_number}-S{subtask_counter:02d}',
                     title=_interp(gs.title or f'{control_name}')[:255],
                     description=(_interp(gs.description or '') + '\n\n' + control_detail).strip(),
-                    category=gs.category or 'Accesos',
+                    category=st_category,
                     status='open',
                     priority=st_priority,
                     sla_minutes=st_sla,

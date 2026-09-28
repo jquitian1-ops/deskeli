@@ -1100,6 +1100,11 @@
                             <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#374151;margin-bottom:12px;">
                                 <input type="checkbox" id="catEditActive"> Activa
                             </label>
+                            <div style="margin-bottom:12px;">
+                                <label style="font-size:11px;color:#6b7280;display:block;margin-bottom:3px;">SLA manual (minutos) — vacío = usa el SLA por prioridad</label>
+                                <input id="catEditSla" type="number" min="1" placeholder="Ej: 240"
+                                       style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            </div>
                             <div id="catEditStatus" style="font-size:12px;margin-top:6px;"></div>
                             <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:14px;">
                                 <button onclick="catCloseEdit()" style="padding:9px 16px;background:#e5e7eb;color:#111827;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Cancelar</button>
@@ -1118,11 +1123,12 @@
                                 <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Pertenece a</th>
                                 <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Tipo</th>
                                 <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Estado</th>
+                                <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">SLA</th>
                                 <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280;">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="catTbody">
-                            <tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">Cargando categorías...</td></tr>
+                            <tr><td colspan="7" style="padding:20px;text-align:center;color:#999;">Cargando categorías...</td></tr>
                         </tbody>
                     </table>
                     </div>
@@ -3562,12 +3568,12 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
             const r = await fetch('/api/admin/categories');
             const data = await r.json();
             if (!data.success) {
-                tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#dc2626;">Error</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#dc2626;">Error</td></tr>';
                 return;
             }
             _categories = data.categories;
             if (!_categories.length) {
-                tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">No hay categorías. Agregá una arriba ⬆</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#999;">No hay categorías. Agregá una arriba ⬆</td></tr>';
                 catPopulateParentSelects([]);
                 return;
             }
@@ -3597,6 +3603,9 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                     : '';
                 const nameCell = isSub ? `<span style="color:#9ca3af;margin-right:4px;">↳</span>${escC(c.name)}` : `<strong>${escC(c.name)}</strong>`;
                 const parentCell = isSub ? escC(c.parent_name || '—') : '<span style="color:#9ca3af;">— nivel superior —</span>';
+                const slaCell = c.sla_minutes
+                    ? `<span style="background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700;" title="SLA manual configurado para esta categoría">⏱ ${c.sla_minutes} min</span>`
+                    : `<span style="color:#9ca3af;font-size:11px;">Por prioridad</span>`;
                 return `
                     <tr style="border-bottom:1px solid #f0f0f0;${isSub ? 'background:#fafafa;' : ''}">
                         <td style="padding:10px;text-align:center;font-size:22px;${isSub ? 'padding-left:24px;' : ''}">${escC(c.icon)}</td>
@@ -3604,6 +3613,7 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                         <td style="padding:10px;color:#6b7280;font-size:12px;">${parentCell}</td>
                         <td style="padding:10px;text-align:center;">${sysTag}</td>
                         <td style="padding:10px;text-align:center;">${stateTag}</td>
+                        <td style="padding:10px;text-align:center;">${slaCell}</td>
                         <td style="padding:10px;text-align:center;white-space:nowrap;">${tplBtn}${editBtn}${toggleBtn}${delBtn}</td>
                     </tr>
                 `;
@@ -3616,6 +3626,7 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                         <td style="padding:10px;color:#111827;padding-left:12px;"><span style="color:#9ca3af;margin-right:4px;">↳</span>${escC(tpl.name)}</td>
                         <td style="padding:10px;color:#6b7280;font-size:12px;">${escC(categoryName)}</td>
                         <td style="padding:10px;text-align:center;"><span style="background:#dbeafe;color:#1e40af;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700;" title="Plantilla existente sin Subcategoría formal creada">📋 Plantilla</span></td>
+                        <td style="padding:10px;text-align:center;">—</td>
                         <td style="padding:10px;text-align:center;">—</td>
                         <td style="padding:10px;text-align:center;white-space:nowrap;">
                             <button onclick="catGoToTemplate('${escC(categoryName).replace(/'/g,'&#39;')}', null, ${tpl.template_id})" style="padding:5px 10px;background:#7c3aed;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">📋 Editar plantilla</button>
@@ -3647,7 +3658,7 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
             });
             tbody.innerHTML = html;
         } catch (e) {
-            tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#dc2626;">' + e.message + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#dc2626;">' + e.message + '</td></tr>';
         }
     };
 
@@ -3716,6 +3727,7 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
         document.getElementById('catEditName').value = c.name;
         document.getElementById('catEditName').disabled = !!c.is_system;
         document.getElementById('catEditActive').checked = !!c.is_active;
+        document.getElementById('catEditSla').value = c.sla_minutes || '';
         document.getElementById('catEditSysWarn').style.display = c.is_system ? 'block' : 'none';
         const hasSubs = _categories.some(x => x.parent_id === c.id);
         const parentGroup = document.getElementById('catEditParentGroup');
@@ -3735,9 +3747,11 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
 
     window.catSaveEdit = async function() {
         const id = document.getElementById('catEditId').value;
+        const slaRaw = document.getElementById('catEditSla').value.trim();
         const payload = {
             icon: document.getElementById('catEditIcon').value.trim() || '📌',
             is_active: document.getElementById('catEditActive').checked,
+            sla_minutes: slaRaw ? parseInt(slaRaw) : '',
         };
         if (!document.getElementById('catEditName').disabled) {
             payload.name = document.getElementById('catEditName').value.trim();
