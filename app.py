@@ -16833,7 +16833,14 @@ def api_subtask_update(subtask_id):
             return jsonify({'success': False, 'error': 'Prioridad inválida'}), 400
         if new_priority != subtask.priority:
             subtask.priority = new_priority
-            subtask.sla_minutes = get_sla_minutes(new_priority, subtask.category, ticket.company)
+            # OJO: NO usar get_sla_minutes() acá — si la categoría tiene un
+            # SLA manual configurado, ese override pisa cualquier prioridad y
+            # el cambio de prioridad no movería el tiempo (bug reportado: "le
+            # cambio la prioridad y no se le cambian los tiempos"). Un cambio
+            # de prioridad es una decisión explícita del técnico sobre ESTA
+            # subtarea puntual; debe reflejarse siempre, aunque la categoría
+            # tenga un SLA fijo configurado (ese fijo solo aplica al crearla).
+            subtask.sla_minutes = get_sla_minutes_for_priority(new_priority)
             subtask.sla_deadline = datetime.now() + timedelta(minutes=subtask.sla_minutes)
     if 'time_worked_seconds' in data:
         try:
@@ -27273,6 +27280,23 @@ def _generate_case_from_solicitud(solicitud, actor_user):
         except Exception as e:
             print(f'[case-gen] No se pudo adjuntar PDF al ticket: {e}')
 
+    # Copiar el mismo PDF a la carpeta de adjuntos de SUBTAREAS (carpeta
+    # distinta de la del ticket — api_subtask_attachment_download lee de
+    # app.config['UPLOAD_FOLDER'], no de TICKET_UPLOAD_FOLDER). Se escribe una
+    # sola vez y cada SubtaskAttachment reutiliza el mismo stored_name, igual
+    # que el patrón ya usado en la API pública (ver api_v1_external_create_ticket).
+    subtask_pdf_stored = None
+    if pdf_bytes:
+        try:
+            import uuid as _uuid2
+            import os as _os2
+            subtask_pdf_stored = f'{_uuid2.uuid4().hex}.pdf'
+            with open(_os2.path.join(app.config['UPLOAD_FOLDER'], subtask_pdf_stored), 'wb') as fh:
+                fh.write(pdf_bytes)
+        except Exception as e:
+            print(f'[case-gen] No se pudo preparar el PDF para subtareas: {e}')
+            subtask_pdf_stored = None
+
     # ── 3. Subtasks por control (clonando del guion vinculado) ───────────
     subtask_counter = 0
     # (subtask_id, assignee_id) a notificar por email DESPUÉS de commitear —
@@ -27374,14 +27398,14 @@ def _generate_case_from_solicitud(solicitud, actor_user):
                 db.session.flush()
                 if assignee:
                     subtask_notifications.append((st.id, assignee))
-                if pdf_bytes:
+                if subtask_pdf_stored:
                     try:
                         db.session.add(SubtaskAttachment(
                             subtask_id=st.id,
                             original_name=f'{solicitud.codigo}.pdf',
+                            stored_name=subtask_pdf_stored,
                             mime_type='application/pdf',
                             size_bytes=len(pdf_bytes),
-                            file_data=pdf_bytes,
                             uploaded_by_id=actor_user.id if actor_user else None,
                         ))
                     except Exception as e:
@@ -27419,14 +27443,14 @@ def _generate_case_from_solicitud(solicitud, actor_user):
             db.session.flush()
             if resolved_assignee:
                 subtask_notifications.append((st.id, resolved_assignee))
-            if pdf_bytes:
+            if subtask_pdf_stored:
                 try:
                     db.session.add(SubtaskAttachment(
                         subtask_id=st.id,
                         original_name=f'{solicitud.codigo}.pdf',
+                        stored_name=subtask_pdf_stored,
                         mime_type='application/pdf',
                         size_bytes=len(pdf_bytes),
-                        file_data=pdf_bytes,
                         uploaded_by_id=actor_user.id if actor_user else None,
                     ))
                 except Exception as e:
