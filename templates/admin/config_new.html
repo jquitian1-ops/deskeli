@@ -1732,6 +1732,37 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                     <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:14px;margin-top:20px;font-size:12px;color:#991b1b;">
                         ⚠️ <strong>Restaurar es peligroso:</strong> sobrescribe la BD actual. Antes de restaurar, el sistema crea un backup de seguridad automáticamente. Después de restaurar, recarga el navegador y verifica el estado de los datos.
                     </div>
+
+                    {% if session.company == 'pash' or is_master %}
+                    <!-- ===== ZONA DE PELIGRO: reseteo de datos de prueba Pash (salida en vivo) ===== -->
+                    <div style="background:#fff7ed;border:2px solid #fb923c;border-radius:8px;padding:18px;margin-top:24px;">
+                        <h3 style="margin:0 0 8px 0;color:#9a3412;font-size:16px;">🚨 Zona de Peligro — Reseteo de datos de prueba (Pash)</h3>
+                        <p style="color:#7c2d12;font-size:13px;margin-bottom:14px;">
+                            Para la salida en vivo de Pash: borra <strong>todos</strong> los tickets, subtareas y solicitudes de usuario de Pash (datos de prueba),
+                            para que la numeración arranque de nuevo en <strong>TKT-PASH-00001</strong> / <strong>SUB-PASH-00001</strong>.
+                            Esta acción es <strong>irreversible</strong> — hacé un backup completo (arriba) antes de continuar. No afecta a Eliot ni a Primatela.
+                        </p>
+                        <button onclick="pashResetPreview()" id="pashResetPreviewBtn"
+                                style="padding:10px 18px;background:#ea580c;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;">
+                            🔍 Ver qué se borraría (no borra nada todavía)
+                        </button>
+
+                        <div id="pashResetPreviewBox" style="display:none;margin-top:16px;">
+                            <div id="pashResetCounts" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));gap:10px;margin-bottom:16px;"></div>
+                            <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:14px;margin-bottom:14px;font-size:13px;color:#991b1b;">
+                                Esto borra TODO lo de arriba, de forma DEFINITIVA (sin papelera). Para confirmar, escribí exactamente esta frase:
+                                <div id="pashResetPhrase" style="font-family:monospace;background:white;border:1px solid #fca5a5;border-radius:4px;padding:8px;margin:8px 0;font-weight:700;"></div>
+                            </div>
+                            <input type="text" id="pashResetConfirmInput" placeholder="Escribí la frase de confirmación..."
+                                   style="padding:10px 12px;border:1px solid #d1d5db;border-radius:6px;width:100%;max-width:420px;margin-bottom:12px;font-size:14px;display:block;">
+                            <button onclick="pashResetExecute()" id="pashResetExecuteBtn"
+                                    style="padding:10px 20px;background:#dc2626;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;">
+                                🗑️ Borrar definitivamente
+                            </button>
+                            <span id="pashResetStatus" style="font-size:13px;color:#6b7280;margin-left:10px;"></span>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <!-- =========== PLANTILLAS =========== -->
@@ -2827,6 +2858,87 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
             bkpShow('✗ ' + e.message, false);
         }
     };
+
+    // ===== Zona de Peligro: reseteo de datos de prueba Pash =====
+    function pashResetPreview() {
+        const btn = document.getElementById('pashResetPreviewBtn');
+        if (!btn) return;
+        btn.disabled = true;
+        const originalText = btn.textContent;
+        btn.textContent = 'Consultando...';
+        fetch('/api/admin/pash/reset-preview')
+            .then(r => r.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.textContent = originalText;
+                if (!data.success) {
+                    alert(data.error || 'Error al consultar');
+                    return;
+                }
+                const labels = {
+                    tickets: 'Tickets', subtasks: 'Subtareas', messages: 'Comentarios',
+                    agent_actions: 'Acciones del agente IA', approvals: 'Aprobaciones de tickets',
+                    ticket_attachments: 'Adjuntos de tickets', time_entries: 'Tiempo trabajado (registros)',
+                    mailbox_emails_a_desvincular: 'Correos a desvincular (no se borran)',
+                    solicitudes: 'Solicitudes de usuario', solicitud_controles: 'Controles de solicitudes',
+                    solicitud_historial: 'Historial de solicitudes', solicitud_adjuntos: 'Adjuntos de solicitudes',
+                    solicitud_tokens_aprobacion: 'Tokens de aprobación'
+                };
+                const box = document.getElementById('pashResetCounts');
+                box.innerHTML = Object.keys(labels).map(k => `
+                    <div style="background:white;border:1px solid #fed7aa;border-radius:6px;padding:10px;">
+                        <div style="font-size:11px;color:#9a3412;text-transform:uppercase;">${labels[k]}</div>
+                        <div style="font-size:20px;font-weight:700;color:#7c2d12;">${data.counts[k]}</div>
+                    </div>
+                `).join('');
+                document.getElementById('pashResetPhrase').textContent = data.confirm_phrase;
+                document.getElementById('pashResetPreviewBox').style.display = 'block';
+            })
+            .catch(() => {
+                btn.disabled = false;
+                btn.textContent = originalText;
+                alert('Error de conexión');
+            });
+    }
+    window.pashResetPreview = pashResetPreview;
+
+    function pashResetExecute() {
+        const phraseEl = document.getElementById('pashResetPhrase');
+        const inputEl = document.getElementById('pashResetConfirmInput');
+        const phrase = (phraseEl.textContent || '').trim();
+        const input = (inputEl.value || '').trim();
+        if (!input || input !== phrase) {
+            alert('La frase no coincide. Copiala exactamente como aparece arriba.');
+            return;
+        }
+        if (!confirm('Última confirmación: esto borra TODO de forma DEFINITIVA, sin vuelta atrás. ¿Continuar?')) return;
+        const btn = document.getElementById('pashResetExecuteBtn');
+        btn.disabled = true;
+        btn.textContent = 'Borrando...';
+        fetch('/api/admin/pash/reset-confirm', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({confirm: input})
+        })
+            .then(r => r.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.textContent = '🗑️ Borrar definitivamente';
+                if (!data.success) {
+                    alert(data.error || 'Error al borrar');
+                    return;
+                }
+                alert('Listo. Se borraron ' + data.deleted.tickets + ' tickets y ' + data.deleted.solicitudes + ' solicitudes de Pash. La numeración vuelve a empezar en 00001.');
+                document.getElementById('pashResetPreviewBox').style.display = 'none';
+                inputEl.value = '';
+            })
+            .catch(() => {
+                btn.disabled = false;
+                btn.textContent = '🗑️ Borrar definitivamente';
+                alert('Error de conexión');
+            });
+    }
+    window.pashResetExecute = pashResetExecute;
 
     // Cargar al entrar al tab Backup
     document.addEventListener('click', function(e) {

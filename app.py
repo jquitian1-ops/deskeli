@@ -14033,12 +14033,105 @@ def api_admin_delete_ticket(ticket_id):
         return jsonify({'success': False}), 403
 
     ticket_num = ticket.ticket_number
+    # Limpiar dependencias sin cascada ORM antes del hard delete (evita
+    # ForeignKeyViolation en Postgres — mismo patrón que ApprovalWorkflow).
+    AgentAction.query.filter_by(ticket_id=ticket.id).delete(synchronize_session=False)
+    MailboxEmail.query.filter_by(ticket_id=ticket.id).update({'ticket_id': None}, synchronize_session=False)
     db.session.delete(ticket)
     db.session.commit()
 
     log_audit('delete_ticket', session['user_id'], 'ticket', ticket_id, f"Ticket {ticket_num} eliminado")
 
     return jsonify({'success': True})
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# RESETEO DE DATOS DE PRUEBA — PASH (previo a salida en vivo)
+# ═════════════════════════════════════════════════════════════════════════════
+_PASH_RESET_CONFIRM_PHRASE = 'BORRAR DATOS DE PRUEBA PASH'
+
+
+def _pash_reset_counts():
+    """Cuenta (solo lectura) todo lo que el reseteo de Pash borraría."""
+    ticket_ids = [t.id for t in Ticket.query.filter_by(company='pash').with_entities(Ticket.id).all()]
+    solicitud_ids = [s.id for s in SolicitudUsuario.query.filter_by(company='pash').with_entities(SolicitudUsuario.id).all()]
+    return {
+        'tickets': len(ticket_ids),
+        'subtasks': Subtask.query.filter(Subtask.ticket_id.in_(ticket_ids)).count() if ticket_ids else 0,
+        'messages': Message.query.filter(Message.ticket_id.in_(ticket_ids)).count() if ticket_ids else 0,
+        'agent_actions': AgentAction.query.filter(AgentAction.ticket_id.in_(ticket_ids)).count() if ticket_ids else 0,
+        'approvals': Approval.query.filter(Approval.ticket_id.in_(ticket_ids)).count() if ticket_ids else 0,
+        'ticket_attachments': TicketAttachment.query.filter(TicketAttachment.ticket_id.in_(ticket_ids)).count() if ticket_ids else 0,
+        'time_entries': TimeEntry.query.filter(TimeEntry.ticket_id.in_(ticket_ids)).count() if ticket_ids else 0,
+        'mailbox_emails_a_desvincular': MailboxEmail.query.filter(MailboxEmail.ticket_id.in_(ticket_ids)).count() if ticket_ids else 0,
+        'solicitudes': len(solicitud_ids),
+        'solicitud_controles': SolicitudControl.query.filter(SolicitudControl.solicitud_id.in_(solicitud_ids)).count() if solicitud_ids else 0,
+        'solicitud_historial': SolicitudHistorial.query.filter(SolicitudHistorial.solicitud_id.in_(solicitud_ids)).count() if solicitud_ids else 0,
+        'solicitud_adjuntos': SolicitudAdjunto.query.filter(SolicitudAdjunto.solicitud_id.in_(solicitud_ids)).count() if solicitud_ids else 0,
+        'solicitud_tokens_aprobacion': SolicitudApprovalToken.query.filter(SolicitudApprovalToken.solicitud_id.in_(solicitud_ids)).count() if solicitud_ids else 0,
+    }
+
+
+@app.route('/api/admin/pash/reset-preview', methods=['GET'])
+def api_admin_pash_reset_preview():
+    """Vista previa de solo lectura: cuántos tickets/subtareas/solicitudes de
+    Pash se borrarían con el reseteo previo a la salida en vivo. No borra nada."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+    if 'pash' not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+
+    return jsonify({'success': True, 'counts': _pash_reset_counts(), 'confirm_phrase': _PASH_RESET_CONFIRM_PHRASE})
+
+
+@app.route('/api/admin/pash/reset-confirm', methods=['POST'])
+def api_admin_pash_reset_confirm():
+    """Borra DEFINITIVAMENTE todos los tickets, subtareas y solicitudes de
+    usuario de Pash (datos de prueba), para que la numeración arranque de
+    nuevo en 00001 al salir en vivo. Requiere la frase de confirmación exacta
+    — no hay vuelta atrás, no hay papelera."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False}), 401
+    if 'pash' not in admin_companies_scope():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+
+    data = request.get_json() or {}
+    if (data.get('confirm') or '').strip() != _PASH_RESET_CONFIRM_PHRASE:
+        return jsonify({
+            'success': False,
+            'error': f'Frase de confirmación incorrecta. Escribí exactamente: "{_PASH_RESET_CONFIRM_PHRASE}"'
+        }), 400
+
+    counts_before = _pash_reset_counts()
+
+    tickets = Ticket.query.filter_by(company='pash').all()
+    ticket_ids = [t.id for t in tickets]
+    if ticket_ids:
+        # AgentAction y MailboxEmail no tienen cascada ORM definida en Ticket
+        # (a diferencia de subtasks/messages/attachments/time_entries/approvals,
+        # que sí cascadean vía db.session.delete()) — limpiar antes para evitar
+        # ForeignKeyViolation en Postgres.
+        AgentAction.query.filter(AgentAction.ticket_id.in_(ticket_ids)).delete(synchronize_session=False)
+        MailboxEmail.query.filter(MailboxEmail.ticket_id.in_(ticket_ids)).update({'ticket_id': None}, synchronize_session=False)
+        for t in tickets:
+            db.session.delete(t)
+
+    solicitudes = SolicitudUsuario.query.filter_by(company='pash').all()
+    solicitud_ids = [s.id for s in solicitudes]
+    if solicitud_ids:
+        # SolicitudApprovalToken no tiene cascada ORM (a diferencia de
+        # controles/historial/adjuntos) — limpiar antes.
+        SolicitudApprovalToken.query.filter(SolicitudApprovalToken.solicitud_id.in_(solicitud_ids)).delete(synchronize_session=False)
+        for s in solicitudes:
+            db.session.delete(s)
+
+    db.session.commit()
+
+    log_audit('pash_reset_test_data', session['user_id'], 'company', None,
+              f"Reseteo de datos de prueba Pash previo a salida en vivo: "
+              f"{len(ticket_ids)} tickets, {len(solicitud_ids)} solicitudes eliminadas")
+
+    return jsonify({'success': True, 'deleted': counts_before})
 
 # ═════════════════════════════════════════════════════════════════════════════
 # PLANTILLAS
@@ -16717,6 +16810,9 @@ def api_subtask_delete(subtask_id):
 
     ticket_id = subtask.ticket_id
     subtask_num = subtask.subtask_number
+    # Message.subtask_id no tiene cascada ORM (a diferencia de Ticket.messages) —
+    # limpiar primero los comentarios de la subtarea para evitar FK violation.
+    Message.query.filter_by(subtask_id=subtask.id).delete(synchronize_session=False)
     db.session.delete(subtask)
     db.session.commit()
 
