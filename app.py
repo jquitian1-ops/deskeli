@@ -1785,6 +1785,16 @@ class SolicitudHistorial(db.Model):
     solicitud_id = db.Column(db.Integer, db.ForeignKey('solicitudes_usuarios.id'), nullable=False, index=True)
     estado_anterior = db.Column(db.String(60))
     estado_nuevo = db.Column(db.String(60), nullable=False)
+    # Snapshot del label REAL del paso del flujo dinámico en el momento de la
+    # transición (ej. "Gerente de Área", "Analista TI"). estado_anterior/
+    # estado_nuevo reutilizan una constante genérica ("PENDIENTE_APROBACION_
+    # JEFE_INMEDIATO") mientras queden pasos dinámicos por aprobar, así que
+    # sin este snapshot varias aprobaciones seguidas de pasos DISTINTOS se ven
+    # idénticas en el historial ("Pendiente Jefe Inmediato → Pendiente Jefe
+    # Inmediato" repetido). NULL = usar el label genérico de siempre (flujo
+    # legacy, o transición no ambigua como devolver/rechazar/cerrar).
+    paso_anterior_label = db.Column(db.String(160))
+    paso_nuevo_label = db.Column(db.String(160))
     aprobador_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     accion = db.Column(db.String(30))  # aprobar|devolver|rechazar|anular|reenviar|crear
     observacion = db.Column(db.Text)
@@ -12631,6 +12641,26 @@ def migrate_solicitudes_jefe_manual():
             print(f"[migrate_jefe_manual] error agregando {col_name}: {e}")
 
 
+def migrate_solicitudes_historial_paso_label():
+    """Agrega paso_anterior_label/paso_nuevo_label a solicitudes_historial
+    (snapshot del label real del paso de flujo dinámico en cada transición,
+    para que el historial no muestre el mismo estado genérico "Pendiente
+    aprobación Jefe Inmediato" para pasos distintos)."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'solicitudes_historial' not in inspector.get_table_names():
+        return
+    existing_cols = {c['name'] for c in inspector.get_columns('solicitudes_historial')}
+    for col_name in ('paso_anterior_label', 'paso_nuevo_label'):
+        if col_name not in existing_cols:
+            try:
+                with db.engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE solicitudes_historial ADD COLUMN {col_name} VARCHAR(160)"))
+                print(f"[migrate_solicitudes_historial] Columna {col_name} agregada")
+            except Exception as e:
+                print(f"[migrate_solicitudes_historial] error agregando {col_name}: {e}")
+
+
 def migrate_categories_sla():
     """Agrega sla_minutes a categories (SLA manual opcional por categoría;
     si está seteado, pisa el SLA por prioridad al crear tickets/subtareas) y
@@ -13719,6 +13749,10 @@ def init_db():
             migrate_solicitudes_jefe_manual()
         except Exception as _e:
             print(f"[migrate] solicitudes_jefe_manual: {_e}")
+        try:
+            migrate_solicitudes_historial_paso_label()
+        except Exception as _e:
+            print(f"[migrate] solicitudes_historial_paso_label: {_e}")
         # Jerarquía Categoría -> Subcategoría
         try:
             migrate_categories_parent_id()
@@ -26618,9 +26652,15 @@ def _serialize_solicitud_detail(s, viewer=None):
             {
                 'id': h.id,
                 'estado_anterior': h.estado_anterior,
-                'estado_anterior_label': SOLICITUD_ESTADO_LABEL.get(h.estado_anterior, h.estado_anterior),
+                'estado_anterior_label': (
+                    f'Pendiente aprobación {h.paso_anterior_label}' if h.paso_anterior_label
+                    else SOLICITUD_ESTADO_LABEL.get(h.estado_anterior, h.estado_anterior)
+                ),
                 'estado_nuevo': h.estado_nuevo,
-                'estado_nuevo_label': SOLICITUD_ESTADO_LABEL.get(h.estado_nuevo, h.estado_nuevo),
+                'estado_nuevo_label': (
+                    f'Pendiente aprobación {h.paso_nuevo_label}' if h.paso_nuevo_label
+                    else SOLICITUD_ESTADO_LABEL.get(h.estado_nuevo, h.estado_nuevo)
+                ),
                 'aprobador': _u(h.aprobador),
                 'accion': h.accion,
                 'observacion': h.observacion,
@@ -27449,6 +27489,22 @@ def _apply_transition(s, user, accion, observacion):
         if dynamic and estado_actual in SOLICITUD_DEVUELTO_A_PENDIENTE:
             return False, f'La solicitud está devuelta, el creador debe reenviarla primero', None
 
+    # Snapshot del label real del paso dinámico decidido en esta transición
+    # (ver comentario en SolicitudHistorial) — None = usar el label genérico.
+    paso_anterior_label = None
+    paso_nuevo_label = None
+
+    def _dynamic_step_label(idx):
+        """Label real del paso `idx` de flow_steps_json, o 'Jefe Inmediato'
+        para la puerta previa al flujo (idx < 0). None si no se puede resolver."""
+        if idx < 0:
+            return 'Jefe Inmediato'
+        try:
+            steps_ = json.loads(s.flow_steps_json or '[]')
+        except Exception:
+            steps_ = []
+        return steps_[idx].get('label') if 0 <= idx < len(steps_) else None
+
     # Calcular next_estado
     if accion == 'aprobar':
         if dynamic:
@@ -27458,7 +27514,12 @@ def _apply_transition(s, user, accion, observacion):
             except Exception:
                 steps = []
             total = len(steps)
-            new_idx = (s.current_step_index or 0) + 1
+            old_idx = s.current_step_index or 0
+            # El paso que se acaba de decidir: la "puerta" del Jefe Inmediato
+            # (índice -1, previa al flujo configurado) o un paso real de
+            # flow_steps_json.
+            paso_anterior_label = _dynamic_step_label(old_idx)
+            new_idx = old_idx + 1
             # SIEMPRE avanzar el índice, incluido el último paso: si no, la
             # cadena de aprobación (_solicitud_approval_chain) sigue viendo
             # current_step_index apuntando al último paso y lo muestra como
@@ -27467,8 +27528,11 @@ def _apply_transition(s, user, accion, observacion):
             s.current_step_index = new_idx
             if new_idx >= total:
                 next_estado = SOLICITUD_ESTADO_APROBADO_GERENTE_TI  # marca "todos aprobaron"
+                # Sin snapshot: el label genérico "Aprobado por Gerente de TI"
+                # ya es un estado terminal claro, sin ambigüedad que resolver.
             else:
                 next_estado = SOLICITUD_ESTADO_PENDIENTE_JEFE  # reutilizamos como "pendiente próximo paso"
+                paso_nuevo_label = steps[new_idx].get('label')
         else:
             next_estado = SOLICITUD_APROBAR_SIGUIENTE[estado_actual]
     elif accion == 'devolver':
@@ -27476,12 +27540,14 @@ def _apply_transition(s, user, accion, observacion):
             return False, 'La devolución requiere observación', None
         if dynamic:
             next_estado = SOLICITUD_ESTADO_DEVUELTO_JEFE  # etiqueta genérica "devuelto"
+            paso_anterior_label = _dynamic_step_label(s.current_step_index or 0)
         else:
             next_estado = SOLICITUD_DEVOLVER_A[estado_actual]
     elif accion == 'rechazar':
         if not observacion:
             return False, 'El rechazo requiere observación', None
         if dynamic:
+            paso_anterior_label = _dynamic_step_label(s.current_step_index or 0)
             next_estado = SOLICITUD_ESTADO_RECHAZADO_JEFE  # etiqueta genérica "rechazado"
         else:
             next_estado = SOLICITUD_RECHAZAR_A[estado_actual]
@@ -27530,6 +27596,8 @@ def _apply_transition(s, user, accion, observacion):
         solicitud_id=s.id,
         estado_anterior=estado_actual,
         estado_nuevo=next_estado,
+        paso_anterior_label=paso_anterior_label,
+        paso_nuevo_label=paso_nuevo_label,
         aprobador_id=user.id,
         accion=accion,
         observacion=observacion,
@@ -28100,7 +28168,9 @@ def _generate_solicitud_pdf(solicitud):
         for h in solicitud.historial:
             fecha_h = h.created_at.strftime('%d/%m/%Y %H:%M') if h.created_at else '—'
             aprob = h.aprobador.name if h.aprobador else '—'
-            transicion = f'{SOLICITUD_ESTADO_LABEL.get(h.estado_anterior, "—")} → {SOLICITUD_ESTADO_LABEL.get(h.estado_nuevo, h.estado_nuevo)}'
+            label_ant = f'Pendiente aprobación {h.paso_anterior_label}' if h.paso_anterior_label else SOLICITUD_ESTADO_LABEL.get(h.estado_anterior, '—')
+            label_nvo = f'Pendiente aprobación {h.paso_nuevo_label}' if h.paso_nuevo_label else SOLICITUD_ESTADO_LABEL.get(h.estado_nuevo, h.estado_nuevo)
+            transicion = f'{label_ant} → {label_nvo}'
             hist_data.append([
                 Paragraph(fecha_h, body_style),
                 Paragraph(_esc(aprob), body_style),
