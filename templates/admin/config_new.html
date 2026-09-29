@@ -1137,6 +1137,10 @@
                 <!-- =========== SLA =========== -->
                 <div class="panel-content" id="panel-sla">
                     <h2 class="config-panel-title">⏱ Tiempos de SLA por Prioridad</h2>
+                    <p style="color:#6b7280;margin-bottom:14px;font-size:13px;">
+                        Estos tiempos son <strong>propios de tu empresa</strong> ({{ company_name }}) — cambiarlos acá no afecta a las otras empresas.
+                        Si una categoría tiene un SLA manual configurado (pestaña 🗂 Categorías), ese valor tiene prioridad sobre esto.
+                    </p>
                     <div class="form-group">
                         <label class="form-label">Baja (minutos)</label>
                         <input type="number" class="form-input" id="sla-low" value="{{ sla_config.low | default(480) }}">

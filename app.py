@@ -3241,6 +3241,12 @@ def employee_create():
     if 'user_id' not in session or session['role'] != 'employee':
         return redirect(url_for('login'))
 
+    # Tiempos reales de SLA por prioridad de ESTA empresa, para mostrar en las
+    # tarjetas de criticidad (antes eran horas fijas en el HTML que no
+    # reflejaban lo configurado en /admin/config).
+    sla_labels = {p: _format_sla_label(get_sla_minutes_for_priority(p, session.get('company')))
+                  for p in ('low', 'medium', 'high', 'critical')}
+
     if request.method == 'POST':
         user = User.query.get(session['user_id'])
 
@@ -3276,7 +3282,7 @@ def employee_create():
             # el usuario (antes se perdía todo sin aviso: el POST fallaba una
             # validación server-side, la página volvía a cargar en blanco y
             # el usuario creía que "no pasaba nada").
-            return render_template('employee/create.html', error=msg, user=user, form_prev={
+            return render_template('employee/create.html', error=msg, user=user, sla_labels=sla_labels, form_prev={
                 'title': title,
                 'description': description,
                 'category': category,
@@ -3511,7 +3517,7 @@ def employee_create():
 
     # GET: pasar el usuario para pre-llenar campos de contacto si ya los configuró antes
     user = User.query.get(session['user_id'])
-    return render_template('employee/create.html', user=user)
+    return render_template('employee/create.html', user=user, sla_labels=sla_labels)
 
 
 @app.route('/technician/create', methods=['GET', 'POST'])
@@ -3521,6 +3527,9 @@ def technician_create():
     o registrarlo en nombre de otro usuario (creado_para)."""
     if 'user_id' not in session or session['role'] not in ('technician', 'admin'):
         return redirect(url_for('login'))
+
+    sla_labels = {p: _format_sla_label(get_sla_minutes_for_priority(p, session.get('company')))
+                  for p in ('low', 'medium', 'high', 'critical')}
 
     if request.method == 'POST':
         tech = User.query.get(session['user_id'])
@@ -3545,7 +3554,7 @@ def technician_create():
             # Re-renderiza con el error visible y lo ya escrito (antes el POST
             # fallaba una validación server-side y la página volvía a cargar
             # en blanco sin ningún aviso).
-            return render_template('technician/create.html', error=msg, form_prev={
+            return render_template('technician/create.html', error=msg, sla_labels=sla_labels, form_prev={
                 'title': title,
                 'description': description,
                 'category': category,
@@ -3793,7 +3802,7 @@ def technician_create():
 
         return redirect(url_for('technician_ticket', ticket_id=ticket.id))
 
-    return render_template('technician/create.html')
+    return render_template('technician/create.html', sla_labels=sla_labels)
 
 
 @app.route('/api/technician/company-users', methods=['GET'])
@@ -4117,10 +4126,7 @@ def admin_dashboard():
     }
 
     # Obtener configuración actual
-    sla_config = {}
-    for priority in ['low', 'medium', 'high', 'critical']:
-        config = Config.query.filter_by(key=f'sla_{priority}').first()
-        sla_config[priority] = int(config.value) if config else {'low': 480, 'medium': 240, 'high': 120, 'critical': 60}[priority]
+    sla_config = {p: get_sla_minutes_for_priority(p, user.company) for p in ('low', 'medium', 'high', 'critical')}
 
     theme_name = get_company_theme(user.company)
 
@@ -4306,16 +4312,12 @@ def admin_config():
     if 'user_id' not in session or session['role'] != 'admin':
         return redirect(url_for('login'))
 
-    sla_config = {}
-    for priority in ['low', 'medium', 'high', 'critical']:
-        config = Config.query.filter_by(key=f'sla_{priority}').first()
-        defaults = {'low': 480, 'medium': 240, 'high': 120, 'critical': 60}
-        sla_config[priority] = int(config.value) if config else defaults[priority]
+    company = session.get('company', 'eliot')
+    sla_config = {p: get_sla_minutes_for_priority(p, company) for p in ('low', 'medium', 'high', 'critical')}
 
     theme_name = get_company_theme(session.get('company'))
 
     # Contadores para badges del sidebar
-    company = session.get('company', 'eliot')
     tickets_count = Ticket.query.filter(
         Ticket.company == company,
         Ticket.status.in_(['open', 'in_progress'])
@@ -4346,11 +4348,7 @@ def admin_config_old():
     if 'user_id' not in session or session['role'] != 'admin':
         return redirect(url_for('login'))
 
-    sla_config = {}
-    for priority in ['low', 'medium', 'high', 'critical']:
-        config = Config.query.filter_by(key=f'sla_{priority}').first()
-        defaults = {'low': 480, 'medium': 240, 'high': 120, 'critical': 60}
-        sla_config[priority] = int(config.value) if config else defaults[priority]
+    sla_config = {p: get_sla_minutes_for_priority(p, session.get('company')) for p in ('low', 'medium', 'high', 'critical')}
 
     theme_name = get_company_theme(session.get('company'))
 
@@ -8656,22 +8654,33 @@ def api_export_csv():
 
 @app.route('/api/config/sla', methods=['POST'])
 def api_config_sla():
-    """Configura SLA por prioridad"""
+    """Configura SLA por prioridad — POR EMPRESA (cada empresa guarda su
+    propio valor; ya no comparten una sola key global entre las 3)."""
     if 'user_id' not in session or session['role'] != 'admin':
         return jsonify({'success': False}), 401
 
-    data = request.get_json()
+    company = session.get('company')
+    data = request.get_json() or {}
 
     for priority, minutes in data.items():
-        config = Config.query.filter_by(key=f'sla_{priority}').first()
+        if priority not in ('low', 'medium', 'high', 'critical'):
+            continue
+        try:
+            minutes = int(minutes)
+        except (ValueError, TypeError):
+            continue
+        if minutes <= 0:
+            continue
+        key = f'sla_{priority}_{company}'
+        config = Config.query.filter_by(key=key).first()
         if config:
             config.value = str(minutes)
         else:
-            config = Config(key=f'sla_{priority}', value=str(minutes))
+            config = Config(key=key, value=str(minutes))
             db.session.add(config)
 
     db.session.commit()
-    log_audit('update_config', session['user_id'], 'config', None, 'Configuración de SLA actualizada')
+    log_audit('update_config', session['user_id'], 'config', None, f'Configuración de SLA actualizada ({company})')
 
     return jsonify({'success': True})
 
@@ -12213,12 +12222,27 @@ def compute_sla_deadline(start_dt, sla_minutes, company):
     return business_minutes_add(start_dt, sla_minutes, company)
 
 
-def get_sla_minutes_for_priority(priority):
-    """Lee minutos de SLA configurados para una prioridad (config admin)."""
-    sla_config = Config.query.filter_by(key=f"sla_{priority}").first()
-    if sla_config:
+def get_sla_minutes_for_priority(priority, company=None):
+    """Lee minutos de SLA configurados para una prioridad, POR EMPRESA.
+
+    Antes esto leía una sola key global (Config 'sla_{priority}') compartida
+    por las 3 empresas — cambiar el SLA "de Pash" en realidad cambiaba el de
+    Eliot y Primatela también. Ahora cada empresa guarda su propio valor en
+    'sla_{priority}_{company}'. Fallback a la key legacy global si la empresa
+    todavía no guardó un valor propio (así ninguna empresa pierde su SLA
+    actual solo por este cambio — recién diverge cuando alguien lo edita).
+    """
+    if company:
+        cfg = Config.query.filter_by(key=f"sla_{priority}_{company}").first()
+        if cfg:
+            try:
+                return int(cfg.value)
+            except (ValueError, TypeError):
+                pass
+    legacy_cfg = Config.query.filter_by(key=f"sla_{priority}").first()
+    if legacy_cfg:
         try:
-            return int(sla_config.value)
+            return int(legacy_cfg.value)
         except (ValueError, TypeError):
             pass
     defaults = {'critical': 60, 'high': 240, 'medium': 480, 'low': 1440}
@@ -12256,7 +12280,18 @@ def get_sla_minutes(priority, category=None, company=None):
                 return override.sla_minutes
             if global_cat.sla_minutes:
                 return global_cat.sla_minutes
-    return get_sla_minutes_for_priority(priority)
+    return get_sla_minutes_for_priority(priority, company)
+
+
+def _format_sla_label(minutes):
+    """Texto corto para mostrar un SLA (ej. '~8h', '~90min', '~1.5h')."""
+    if not minutes or minutes <= 0:
+        return '—'
+    if minutes < 60:
+        return f'~{minutes}min'
+    if minutes % 60 == 0:
+        return f'~{minutes // 60}h'
+    return f'~{round(minutes / 60, 1)}h'
 
 
 def get_next_subtask_number(ticket):
@@ -15006,7 +15041,7 @@ def api_simulate_server_outage(server_id):
         if not existing_ticket:
             # Crear ticket automáticamente
             priority = 'critical' if server.is_critical else 'high'
-            sla_minutes = get_sla_minutes_for_priority(priority)
+            sla_minutes = get_sla_minutes_for_priority(priority, server.company)
 
             new_ticket = Ticket(
                 ticket_number=get_next_ticket_number(server.company),
@@ -16334,8 +16369,8 @@ def api_escalate_priority(ticket_id):
 
     old_priority = ticket.priority
     ticket.priority = 'critical'
-    ticket.sla_minutes = 60  # SLA crítico: 1 hora
-    ticket.sla_deadline = datetime.now() + timedelta(minutes=60)
+    ticket.sla_minutes = get_sla_minutes_for_priority('critical', ticket.company)
+    ticket.sla_deadline = datetime.now() + timedelta(minutes=ticket.sla_minutes)
     ticket.updated_at = datetime.now()
 
     # Agregar motivo a la descripción
@@ -16921,7 +16956,7 @@ def api_subtask_update(subtask_id):
             # de prioridad es una decisión explícita del técnico sobre ESTA
             # subtarea puntual; debe reflejarse siempre, aunque la categoría
             # tenga un SLA fijo configurado (ese fijo solo aplica al crearla).
-            subtask.sla_minutes = get_sla_minutes_for_priority(new_priority)
+            subtask.sla_minutes = get_sla_minutes_for_priority(new_priority, ticket.company)
             subtask.sla_deadline = datetime.now() + timedelta(minutes=subtask.sla_minutes)
     if 'time_worked_seconds' in data:
         try:
@@ -17639,7 +17674,7 @@ def create_alarm_ticket(server, company):
     ).order_by(Ticket.created_at.desc()).first()
 
     priority = 'critical' if server.is_critical else 'high'
-    sla_minutes = get_sla_minutes_for_priority(priority)
+    sla_minutes = get_sla_minutes_for_priority(priority, company)
     ticket_number = get_next_ticket_number(company)
 
     ticket = Ticket(
