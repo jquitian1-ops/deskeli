@@ -477,6 +477,24 @@ COMPANY_COLORS = {
 }
 COMPANY_LOGOS = {code: cfg['logo'] for code, cfg in COMPANY_COLORS.items()}
 
+
+@app.context_processor
+def _inject_extra_ms_tenants():
+    """Tenants de Microsoft ADICIONALES activos, disponibles en todos los
+    templates (usado por login_v2.html para mostrar un botón extra de "entrar
+    directo" por cada tenant externo mapeado a una empresa). Defensivo: si la
+    tabla todavía no existe (deploy nuevo antes del primer db.create_all()) o
+    cualquier otra falla, no debe romper NINGÚN render de NINGUNA página."""
+    try:
+        tenants = CompanyMicrosoftTenant.query.filter_by(is_active=True).all()
+        return {'extra_ms_tenants': [
+            {'id': t.id, 'label': t.label, 'company_code': t.company_code,
+             'company_name': COMPANY_COLORS.get(t.company_code, {}).get('name', t.company_code)}
+            for t in tenants
+        ]}
+    except Exception:
+        return {'extra_ms_tenants': []}
+
 THEMES = {
     'blue':     {'primary': '#2563eb', 'name': 'Azul Profesional'},
     'indigo':   {'primary': '#4f46e5', 'name': 'Índigo'},
@@ -544,6 +562,33 @@ class Company(db.Model):
     smtp_security = db.Column(db.String(10))  # 'tls' o 'ssl'
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
+
+
+class CompanyMicrosoftTenant(db.Model):
+    """Tenant de Microsoft Entra ID ADICIONAL para una empresa — permite que
+    más de un directorio Azure AD haga login directo a la misma empresa
+    (ej. el tenant interno de Manufacturas Eliot + el tenant de un
+    proveedor/tercero externo que debe entrar normal y directo a Eliot).
+
+    Independiente de Company.microsoft_* (que sigue siendo el tenant
+    "principal"/interno de cada empresa, sin cambios): esta tabla es
+    estrictamente para tenants EXTRA, cada uno con su propia App
+    Registration en Azure (tenant_id/client_id/client_secret propios),
+    mapeado a una empresa existente."""
+    __tablename__ = 'company_microsoft_tenants'
+    id = db.Column(db.Integer, primary_key=True)
+    company_code = db.Column(db.String(20), db.ForeignKey('companies.code'), nullable=False, index=True)
+    label = db.Column(db.String(100), nullable=False)  # ej: "Externos / Proveedores"
+    tenant_id = db.Column(db.String(100), nullable=False)
+    client_id = db.Column(db.String(100), nullable=False)
+    client_secret = db.Column(db.String(500), nullable=False)  # cifrado, igual que Company.microsoft_client_secret
+    default_role = db.Column(db.String(20), default='employee')  # rol al auto-provisionar usuarios nuevos de este tenant
+    is_active = db.Column(db.Boolean, default=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    company = db.relationship('Company', foreign_keys=[company_code],
+                               primaryjoin='CompanyMicrosoftTenant.company_code==Company.code')
+
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -2806,38 +2851,60 @@ def logout():
 
 @app.route('/auth/microsoft/login', methods=['GET', 'POST'])
 def auth_microsoft_login():
-    """Inicia el flujo OAuth 2.0 con Microsoft. Recibe ?company=CODIGO."""
-    company_code = (request.args.get('company') or '').strip()
-    if not company_code:
-        return render_template('login_v2.html', companies=COMPANY_COLORS,
-                               error='Seleccioná la empresa antes de continuar con Microsoft.')
+    """Inicia el flujo OAuth 2.0 con Microsoft. Recibe ?company=CODIGO (tenant
+    principal de la empresa) o ?ext_tenant=ID (un tenant EXTRA de
+    CompanyMicrosoftTenant, ej. un proveedor externo que entra directo a esa
+    empresa con sus propias credenciales de Azure)."""
+    ext_tenant_id = (request.args.get('ext_tenant') or '').strip()
+    extra_tenant = None
+    if ext_tenant_id:
+        extra_tenant = CompanyMicrosoftTenant.query.filter_by(id=ext_tenant_id, is_active=True).first()
+        if not extra_tenant:
+            return render_template('login_v2.html', companies=COMPANY_COLORS,
+                                   error='Tenant externo no válido o desactivado.')
+        company = Company.query.filter_by(code=extra_tenant.company_code).first()
+        if not company:
+            return render_template('login_v2.html', companies=COMPANY_COLORS,
+                                   error='Empresa asociada al tenant externo no encontrada.')
+        tenant_id = extra_tenant.tenant_id
+        client_id = extra_tenant.client_id
+        client_secret = decrypt_secret(extra_tenant.client_secret) or ''
+        if not client_secret:
+            return render_template('login_v2.html', companies=COMPANY_COLORS,
+                                   error=f'Tenant "{extra_tenant.label}": falta el Client Secret.')
+    else:
+        company_code = (request.args.get('company') or '').strip()
+        if not company_code:
+            return render_template('login_v2.html', companies=COMPANY_COLORS,
+                                   error='Seleccioná la empresa antes de continuar con Microsoft.')
 
-    company = Company.query.filter_by(code=company_code).first()
-    if not company:
-        return render_template('login_v2.html', companies=COMPANY_COLORS,
-                               error='Empresa no válida.')
+        company = Company.query.filter_by(code=company_code).first()
+        if not company:
+            return render_template('login_v2.html', companies=COMPANY_COLORS,
+                                   error='Empresa no válida.')
 
-    if not company.microsoft_enabled or not company.microsoft_tenant_id or not company.microsoft_client_id:
-        return render_template('login_v2.html', companies=COMPANY_COLORS,
-                               error=f'{company.name} no tiene configurado Microsoft Entra ID. Contactá al administrador.')
+        if not company.microsoft_enabled or not company.microsoft_tenant_id or not company.microsoft_client_id:
+            return render_template('login_v2.html', companies=COMPANY_COLORS,
+                                   error=f'{company.name} no tiene configurado Microsoft Entra ID. Contactá al administrador.')
+
+        tenant_id = company.microsoft_tenant_id
+        client_id = company.microsoft_client_id
+        client_secret = decrypt_secret(company.microsoft_client_secret) or ''
+        if not client_secret:
+            return render_template('login_v2.html', companies=COMPANY_COLORS,
+                                   error=f'{company.name}: falta el Client Secret de Microsoft.')
 
     if not MSAL_AVAILABLE:
         return render_template('login_v2.html', companies=COMPANY_COLORS,
                                error='La librería MSAL no está disponible en el servidor.')
-
-    # Descifrar client secret
-    client_secret = decrypt_secret(company.microsoft_client_secret) or ''
-    if not client_secret:
-        return render_template('login_v2.html', companies=COMPANY_COLORS,
-                               error=f'{company.name}: falta el Client Secret de Microsoft.')
 
     # Redirect URI — debe coincidir exactamente con lo configurado en Azure App Registration
     redirect_uri = url_for('auth_microsoft_callback', _external=True, _scheme='https' if _IS_PRODUCTION else 'http')
 
     try:
         auth_url, state = ms_build_auth_url(
-            tenant_id=company.microsoft_tenant_id,
-            client_id=company.microsoft_client_id,
+            tenant_id=tenant_id,
+            client_id=client_id,
             client_secret=client_secret,
             redirect_uri=redirect_uri,
         )
@@ -2846,9 +2913,10 @@ def auth_microsoft_login():
         return render_template('login_v2.html', companies=COMPANY_COLORS,
                                error=f'Error iniciando login con Microsoft: {e}')
 
-    # Guardar state + company en session para validar en callback
+    # Guardar state + company (+ tenant extra, si aplica) en session para el callback
     session['ms_oauth_state'] = state
-    session['ms_oauth_company'] = company_code
+    session['ms_oauth_company'] = company.code
+    session['ms_oauth_ext_tenant_id'] = extra_tenant.id if extra_tenant else None
     return redirect(auth_url)
 
 
@@ -2895,21 +2963,33 @@ def auth_microsoft_callback():
                                error='Sesión OAuth inválida. Intentá de nuevo.')
 
     company_code = session.get('ms_oauth_company')
+    ext_tenant_id = session.get('ms_oauth_ext_tenant_id')
     session.pop('ms_oauth_state', None)
     session.pop('ms_oauth_company', None)
+    session.pop('ms_oauth_ext_tenant_id', None)
 
     company = Company.query.filter_by(code=company_code).first() if company_code else None
     if not company:
         return render_template('login_v2.html', companies=COMPANY_COLORS,
                                error='Empresa perdida durante el flow. Intentá de nuevo.')
 
-    client_secret = decrypt_secret(company.microsoft_client_secret) or ''
+    extra_tenant = CompanyMicrosoftTenant.query.get(ext_tenant_id) if ext_tenant_id else None
+    if extra_tenant:
+        tenant_id = extra_tenant.tenant_id
+        client_id = extra_tenant.client_id
+        client_secret = decrypt_secret(extra_tenant.client_secret) or ''
+        default_role = extra_tenant.default_role or 'employee'
+    else:
+        tenant_id = company.microsoft_tenant_id
+        client_id = company.microsoft_client_id
+        client_secret = decrypt_secret(company.microsoft_client_secret) or ''
+        default_role = 'employee'
     redirect_uri = url_for('auth_microsoft_callback', _external=True, _scheme='https' if _IS_PRODUCTION else 'http')
 
     try:
         token_result = ms_exchange_code(
-            tenant_id=company.microsoft_tenant_id,
-            client_id=company.microsoft_client_id,
+            tenant_id=tenant_id,
+            client_id=client_id,
             client_secret=client_secret,
             code=code,
             redirect_uri=redirect_uri,
@@ -2973,7 +3053,7 @@ def auth_microsoft_callback():
             username=username[:80],
             name=full_name[:120] or username,
             email=email[:120],
-            role='employee',  # Por default; el admin puede promover después
+            role=default_role,  # employee por default, o el rol configurado para el tenant externo
             company=company.code,
             microsoft_object_id=ms_oid,
             is_active=True,
@@ -2982,8 +3062,9 @@ def auth_microsoft_callback():
         db.session.add(user)
         try:
             db.session.commit()
+            origen = f'tenant externo "{extra_tenant.label}"' if extra_tenant else 'tenant principal'
             log_audit('ms_user_provisioned', None, 'user', user.id,
-                      f'Usuario auto-provisionado desde Microsoft: {email} ({company.code}) → username {username}')
+                      f'Usuario auto-provisionado desde Microsoft ({origen}): {email} ({company.code}) → username {username}, rol {default_role}')
         except Exception as e:
             db.session.rollback()
             return render_template('login_v2.html', companies=COMPANY_COLORS,
@@ -17929,6 +18010,120 @@ def api_admin_companies_delete(company_id):
     db.session.commit()
     log_audit('delete_company', session['user_id'], 'company', company_id, f'Empresa eliminada: {name}')
     return jsonify({'success': True, 'message': 'Empresa eliminada'})
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TENANTS DE MICROSOFT ADICIONALES (ej. proveedor/tercero externo con acceso
+# directo a una empresa existente, además del tenant interno de esa empresa)
+# ═════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/admin/microsoft-tenants', methods=['GET'])
+def api_admin_microsoft_tenants_list():
+    """Lista los tenants de Microsoft ADICIONALES configurados (solo admin master)."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False}), 401
+    if not is_master_admin():
+        return jsonify({'success': False, 'error': 'Solo el admin de la empresa master puede administrar tenants adicionales.'}), 403
+    tenants = CompanyMicrosoftTenant.query.order_by(CompanyMicrosoftTenant.company_code, CompanyMicrosoftTenant.label).all()
+    return jsonify({'success': True, 'tenants': [
+        {
+            'id': t.id,
+            'company_code': t.company_code,
+            'company_name': t.company.name if t.company else t.company_code,
+            'label': t.label,
+            'tenant_id': t.tenant_id,
+            'client_id': t.client_id,
+            'has_secret': bool(t.client_secret),
+            'default_role': t.default_role or 'employee',
+            'is_active': bool(t.is_active),
+        } for t in tenants
+    ]})
+
+
+@app.route('/api/admin/microsoft-tenants', methods=['POST'])
+def api_admin_microsoft_tenants_create():
+    """Crear un tenant de Microsoft adicional mapeado a una empresa (solo admin master)."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False}), 401
+    if not is_master_admin():
+        return jsonify({'success': False, 'error': 'Solo el admin de la empresa master puede administrar tenants adicionales.'}), 403
+    data = request.get_json() or {}
+    company_code = (data.get('company_code') or '').strip()
+    label = (data.get('label') or '').strip()
+    tenant_id = (data.get('tenant_id') or '').strip()
+    client_id = (data.get('client_id') or '').strip()
+    client_secret = (data.get('client_secret') or '').strip()
+    default_role = (data.get('default_role') or 'employee').strip()
+    if not company_code or not label or not tenant_id or not client_id or not client_secret:
+        return jsonify({'success': False, 'error': 'Empresa, etiqueta, Tenant ID, Client ID y Client Secret son requeridos'}), 400
+    if default_role not in ('employee', 'technician', 'admin'):
+        default_role = 'employee'
+    company = Company.query.filter_by(code=company_code).first()
+    if not company:
+        return jsonify({'success': False, 'error': 'Empresa no válida'}), 400
+    t = CompanyMicrosoftTenant(
+        company_code=company_code,
+        label=label[:100],
+        tenant_id=tenant_id[:100],
+        client_id=client_id[:100],
+        client_secret=encrypt_secret(client_secret),
+        default_role=default_role,
+        is_active=True,
+    )
+    db.session.add(t)
+    db.session.commit()
+    log_audit('create_microsoft_tenant', session['user_id'], 'company_microsoft_tenant', t.id,
+              f'Tenant Microsoft adicional creado: "{label}" → {company.name}')
+    return jsonify({'success': True, 'id': t.id, 'message': f'Tenant "{label}" creado para {company.name}'})
+
+
+@app.route('/api/admin/microsoft-tenants/<int:tenant_id>', methods=['PUT'])
+def api_admin_microsoft_tenants_update(tenant_id):
+    """Actualizar un tenant de Microsoft adicional (solo admin master)."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False}), 401
+    if not is_master_admin():
+        return jsonify({'success': False, 'error': 'Solo el admin de la empresa master puede administrar tenants adicionales.'}), 403
+    t = CompanyMicrosoftTenant.query.get(tenant_id)
+    if not t:
+        return jsonify({'success': False, 'error': 'No encontrado'}), 404
+    data = request.get_json() or {}
+    if 'company_code' in data:
+        company = Company.query.filter_by(code=(data['company_code'] or '').strip()).first()
+        if not company:
+            return jsonify({'success': False, 'error': 'Empresa no válida'}), 400
+        t.company_code = company.code
+    if 'label' in data: t.label = (data['label'] or '').strip()[:100]
+    if 'tenant_id' in data: t.tenant_id = (data['tenant_id'] or '').strip()[:100]
+    if 'client_id' in data: t.client_id = (data['client_id'] or '').strip()[:100]
+    if 'client_secret' in data and data['client_secret']:
+        t.client_secret = encrypt_secret(data['client_secret'].strip())
+    if 'default_role' in data:
+        role = (data['default_role'] or 'employee').strip()
+        t.default_role = role if role in ('employee', 'technician', 'admin') else 'employee'
+    if 'is_active' in data: t.is_active = bool(data['is_active'])
+    db.session.commit()
+    log_audit('update_microsoft_tenant', session['user_id'], 'company_microsoft_tenant', t.id,
+              f'Tenant Microsoft adicional actualizado: "{t.label}"')
+    return jsonify({'success': True, 'message': 'Tenant actualizado'})
+
+
+@app.route('/api/admin/microsoft-tenants/<int:tenant_id>', methods=['DELETE'])
+def api_admin_microsoft_tenants_delete(tenant_id):
+    """Eliminar un tenant de Microsoft adicional (solo admin master)."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False}), 401
+    if not is_master_admin():
+        return jsonify({'success': False, 'error': 'Solo el admin de la empresa master puede administrar tenants adicionales.'}), 403
+    t = CompanyMicrosoftTenant.query.get(tenant_id)
+    if not t:
+        return jsonify({'success': False, 'error': 'No encontrado'}), 404
+    label = t.label
+    db.session.delete(t)
+    db.session.commit()
+    log_audit('delete_microsoft_tenant', session['user_id'], 'company_microsoft_tenant', tenant_id,
+              f'Tenant Microsoft adicional eliminado: "{label}"')
+    return jsonify({'success': True, 'message': 'Tenant eliminado'})
 
 
 @app.route('/api/admin/tags', methods=['GET'])

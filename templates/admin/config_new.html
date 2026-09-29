@@ -1889,6 +1889,69 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
                     <div id="ms-companies-list" style="display:flex; flex-direction:column; gap:14px;">
                         <p style="color:#6b7280; font-style:italic;">Cargando empresas…</p>
                     </div>
+
+                    {% if is_master %}
+                    <div style="margin-top:28px;padding-top:20px;border-top:2px solid #e5e7eb;">
+                        <h3 style="margin:0 0 8px 0;color:#1f2937;font-size:16px;">🔗 Tenants externos adicionales</h3>
+                        <p style="color:#6b7280;margin-bottom:14px;font-size:13px;">
+                            Para cuando un tercero (proveedor, contratista) tiene su <strong>propio tenant de Microsoft Entra ID</strong> y sus usuarios
+                            deben entrar directo a una de tus empresas, sin tocar el tenant interno de esa empresa. Cada tenant externo tiene su propia
+                            App Registration en Azure (Tenant ID / Client ID / Client Secret propios) y aparece como un botón aparte en la pantalla de login.
+                        </p>
+                        <button onclick="msExtOpenCreate()" style="padding:9px 16px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;margin-bottom:14px;">+ Agregar tenant externo</button>
+                        <div id="msExtList" style="display:flex;flex-direction:column;gap:10px;">
+                            <p style="color:#6b7280;font-style:italic;">Cargando tenants externos…</p>
+                        </div>
+                    </div>
+
+                    <!-- Modal: crear/editar tenant externo -->
+                    <div id="msExtModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+                        <div style="background:white;max-width:560px;width:92%;padding:26px;border-radius:12px;max-height:90vh;overflow-y:auto;">
+                            <h3 style="margin:0 0 12px;color:#1f2937;">🔗 Tenant externo</h3>
+                            <input type="hidden" id="msExtId">
+                            <div style="display:grid;gap:12px;">
+                                <label>
+                                    <span style="font-size:13px;font-weight:600;color:#374151;">Empresa de destino</span>
+                                    <select id="msExtCompany" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;margin-top:4px;"></select>
+                                    <small style="color:#6b7280;font-size:11px;">A qué empresa entran directo los usuarios de este tenant externo</small>
+                                </label>
+                                <label>
+                                    <span style="font-size:13px;font-weight:600;color:#374151;">Etiqueta</span>
+                                    <input id="msExtLabel" type="text" placeholder="Ej: Proveedor XYZ / Externos" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;margin-top:4px;">
+                                </label>
+                                <label>
+                                    <span style="font-size:13px;font-weight:600;color:#374151;">Tenant ID (Directory ID)</span>
+                                    <input id="msExtTenantId" type="text" placeholder="c6a23a2c-8f6c-485f-a6a9-5e8058e998fd" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;margin-top:4px;font-family:monospace;font-size:12px;">
+                                </label>
+                                <label>
+                                    <span style="font-size:13px;font-weight:600;color:#374151;">Client ID (Application ID)</span>
+                                    <input id="msExtClientId" type="text" placeholder="5d5f8b5c-a4dd-4c5f-9f1b-f437163dadc1" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;margin-top:4px;font-family:monospace;font-size:12px;">
+                                </label>
+                                <label>
+                                    <span style="font-size:13px;font-weight:600;color:#374151;">Client Secret</span>
+                                    <input id="msExtClientSecret" type="password" placeholder="••••••••" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;margin-top:4px;">
+                                    <small style="color:#6b7280;font-size:11px;">Si dejás vacío al editar, se conserva el actual</small>
+                                </label>
+                                <label>
+                                    <span style="font-size:13px;font-weight:600;color:#374151;">Rol por defecto al auto-crear usuarios nuevos</span>
+                                    <select id="msExtDefaultRole" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;margin-top:4px;">
+                                        <option value="employee">Empleado</option>
+                                        <option value="technician">Técnico</option>
+                                        <option value="admin">Admin</option>
+                                    </select>
+                                </label>
+                                <label style="display:flex;align-items:center;gap:8px;font-size:14px;padding-top:6px;">
+                                    <input id="msExtActive" type="checkbox" checked>
+                                    <strong>Tenant activo</strong>
+                                </label>
+                            </div>
+                            <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">
+                                <button onclick="document.getElementById('msExtModal').style.display='none'" style="padding:8px 14px;background:#e5e7eb;border:none;border-radius:6px;cursor:pointer;">Cancelar</button>
+                                <button onclick="msExtSave()" style="padding:8px 14px;background:#10b981;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">💾 Guardar</button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <!-- Modal para configurar Microsoft -->
@@ -5366,11 +5429,158 @@ async function msSaveConfig() {
     }
 }
 
+// ===== Tenants externos adicionales de Microsoft =====
+let _msExtCompaniesCache = [];
+
+async function _msExtEnsureCompanies() {
+    if (_msExtCompaniesCache.length) return _msExtCompaniesCache;
+    try {
+        const res = await fetch('/api/admin/companies');
+        const data = await res.json();
+        if (data.success) _msExtCompaniesCache = data.companies || [];
+    } catch (e) { /* ignorar, el select queda vacío */ }
+    return _msExtCompaniesCache;
+}
+
+async function msExtLoad() {
+    const container = document.getElementById('msExtList');
+    if (!container) return;
+    try {
+        const res = await fetch('/api/admin/microsoft-tenants');
+        const data = await res.json();
+        if (!data.success) {
+            container.innerHTML = `<p style="color:#dc2626;">${data.error || 'Error cargando tenants externos'}</p>`;
+            return;
+        }
+        if (!data.tenants.length) {
+            container.innerHTML = '<p style="color:#9ca3af;font-style:italic;">No hay tenants externos configurados todavía.</p>';
+            return;
+        }
+        container.innerHTML = data.tenants.map(t => {
+            const statusColor = t.is_active ? '#059669' : '#9ca3af';
+            const statusLabel = t.is_active ? '✓ Activo' : '⏸ Desactivado';
+            const roleLabel = {employee:'Empleado', technician:'Técnico', admin:'Admin'}[t.default_role] || t.default_role;
+            return `
+                <div style="border:1px solid #e5e7eb;border-radius:8px;padding:14px;background:#fafafa;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                        <div>
+                            <strong style="font-size:15px;color:#111827;">🔗 ${escGN(t.label)} → ${escGN(t.company_name)}</strong>
+                            <div style="font-size:12px;color:${statusColor};margin-top:4px;font-weight:600;">${statusLabel} · usuarios nuevos entran como ${roleLabel}</div>
+                            <div style="font-size:11px;color:#6b7280;">Tenant: <code>${escGN(t.tenant_id)}</code></div>
+                            <div style="font-size:11px;color:#6b7280;">Client ID: <code>${escGN(t.client_id)}</code></div>
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <button onclick='msExtOpenEdit(${JSON.stringify(t)})' style="padding:6px 12px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">⚙️ Editar</button>
+                            <button onclick="msExtToggle(${t.id}, ${!t.is_active})" style="padding:6px 12px;background:${t.is_active?'#6b7280':'#16a34a'};color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">${t.is_active?'⏸ Desactivar':'▶ Activar'}</button>
+                            <button onclick="msExtDelete(${t.id}, '${escGN(t.label).replace(/'/g,"\\'")}')" style="padding:6px 12px;background:#dc2626;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">🗑</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        container.innerHTML = `<p style="color:#dc2626;">Error: ${e.message}</p>`;
+    }
+}
+
+async function _msExtPopulateCompanySelect(selectedCode) {
+    const sel = document.getElementById('msExtCompany');
+    if (!sel) return;
+    const companies = await _msExtEnsureCompanies();
+    sel.innerHTML = companies.map(c => `<option value="${c.code}">${c.icon || '🏢'} ${escGN(c.name)}</option>`).join('');
+    if (selectedCode) sel.value = selectedCode;
+}
+
+async function msExtOpenCreate() {
+    document.getElementById('msExtId').value = '';
+    document.getElementById('msExtLabel').value = '';
+    document.getElementById('msExtTenantId').value = '';
+    document.getElementById('msExtClientId').value = '';
+    document.getElementById('msExtClientSecret').value = '';
+    document.getElementById('msExtDefaultRole').value = 'employee';
+    document.getElementById('msExtActive').checked = true;
+    await _msExtPopulateCompanySelect();
+    document.getElementById('msExtModal').style.display = 'flex';
+}
+
+async function msExtOpenEdit(t) {
+    document.getElementById('msExtId').value = t.id;
+    document.getElementById('msExtLabel').value = t.label || '';
+    document.getElementById('msExtTenantId').value = t.tenant_id || '';
+    document.getElementById('msExtClientId').value = t.client_id || '';
+    document.getElementById('msExtClientSecret').value = '';
+    document.getElementById('msExtDefaultRole').value = t.default_role || 'employee';
+    document.getElementById('msExtActive').checked = !!t.is_active;
+    await _msExtPopulateCompanySelect(t.company_code);
+    document.getElementById('msExtModal').style.display = 'flex';
+}
+
+async function msExtSave() {
+    const id = document.getElementById('msExtId').value;
+    const payload = {
+        company_code: document.getElementById('msExtCompany').value,
+        label: document.getElementById('msExtLabel').value.trim(),
+        tenant_id: document.getElementById('msExtTenantId').value.trim(),
+        client_id: document.getElementById('msExtClientId').value.trim(),
+        default_role: document.getElementById('msExtDefaultRole').value,
+        is_active: document.getElementById('msExtActive').checked,
+    };
+    const secret = document.getElementById('msExtClientSecret').value;
+    if (secret) payload.client_secret = secret;
+    if (!id && !secret) {
+        alert('El Client Secret es requerido para crear un tenant nuevo.');
+        return;
+    }
+    try {
+        const res = await fetch(id ? `/api/admin/microsoft-tenants/${id}` : '/api/admin/microsoft-tenants', {
+            method: id ? 'PUT' : 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('msExtModal').style.display = 'none';
+            msExtLoad();
+        } else {
+            alert('Error guardando: ' + (data.error || 'desconocido'));
+        }
+    } catch (e) {
+        alert('Error de red: ' + e.message);
+    }
+}
+
+async function msExtToggle(id, newActive) {
+    try {
+        const res = await fetch(`/api/admin/microsoft-tenants/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({is_active: newActive}),
+        });
+        const data = await res.json();
+        if (data.success) msExtLoad();
+        else alert('Error: ' + (data.error || 'desconocido'));
+    } catch (e) {
+        alert('Error de red: ' + e.message);
+    }
+}
+
+async function msExtDelete(id, label) {
+    if (!confirm(`¿Eliminar el tenant externo "${label}"? Esta acción no se puede deshacer.`)) return;
+    try {
+        const res = await fetch(`/api/admin/microsoft-tenants/${id}`, {method: 'DELETE'});
+        const data = await res.json();
+        if (data.success) msExtLoad();
+        else alert('Error: ' + (data.error || 'desconocido'));
+    } catch (e) {
+        alert('Error de red: ' + e.message);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const tab = document.querySelector('.config-tab[data-tab="microsoft"]');
-    if (tab) tab.addEventListener('click', () => setTimeout(loadMsCompanies, 100));
+    if (tab) tab.addEventListener('click', () => setTimeout(() => { loadMsCompanies(); msExtLoad(); }, 100));
     const panel = document.getElementById('panel-microsoft');
-    if (panel && panel.classList.contains('active')) loadMsCompanies();
+    if (panel && panel.classList.contains('active')) { loadMsCompanies(); msExtLoad(); }
 });
 </script>
 
