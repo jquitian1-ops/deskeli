@@ -1730,14 +1730,19 @@
                         </a>
                         <input type="text" id="tickets-search" placeholder="🔍 Buscar..." oninput="filterTicketsTab()"
                             style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; width: 200px;">
-                        <select id="tickets-filter-status" onchange="filterTicketsTab()"
-                            style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
-                            <option value="">Todos los estados</option>
-                            <option value="open">Abierto</option>
-                            <option value="in_progress">En progreso</option>
-                            <option value="resolved">Resuelto</option>
-                            <option value="closed">Cerrado</option>
-                        </select>
+                        <div class="tix-ms-wrap" data-key="status" style="position:relative;">
+                            <button type="button" onclick="tixMsToggleMenu('status', this, event)"
+                                style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;background:white;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                                <span id="tixMs_status_label">Todos los estados</span><span style="color:#9ca3af;">▾</span>
+                            </button>
+                            <div id="tixMs_status_menu" class="tix-ms-menu" onclick="event.stopPropagation()"
+                                style="display:none;position:fixed;z-index:9999;background:white;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,.15);padding:6px;min-width:170px;">
+                                <label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:5px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="open" onchange="tixMsOnChange('status')"> Abierto</label>
+                                <label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:5px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="in_progress" onchange="tixMsOnChange('status')"> En progreso</label>
+                                <label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:5px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="resolved" onchange="tixMsOnChange('status')"> Resuelto</label>
+                                <label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:5px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="closed" onchange="tixMsOnChange('status')"> Cerrado</label>
+                            </div>
+                        </div>
                         <select id="tickets-filter-priority" onchange="filterTicketsTab()"
                             style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
                             <option value="">Todas las prioridades</option>
@@ -1746,6 +1751,14 @@
                             <option value="medium">🟡 Media</option>
                             <option value="low">🟢 Baja</option>
                         </select>
+                        <div class="tix-ms-wrap" data-key="assignee" style="position:relative;">
+                            <button type="button" onclick="tixMsToggleMenu('assignee', this, event)"
+                                style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;background:white;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                                <span id="tixMs_assignee_label">Todos los asignados</span><span style="color:#9ca3af;">▾</span>
+                            </button>
+                            <div id="tixMs_assignee_menu" class="tix-ms-menu" onclick="event.stopPropagation()"
+                                style="display:none;position:fixed;z-index:9999;background:white;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,.15);padding:6px;min-width:200px;max-height:320px;overflow-y:auto;"></div>
+                        </div>
                         <button onclick="loadTicketsTab()" style="padding: 8px 14px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px;">🔄</button>
                         <!-- Botones de descarga del reporte -->
                         <a href="/api/export/excel" class="dl-btn"
@@ -4383,6 +4396,7 @@
         // ============ TAB TICKETS ============
         let _allTickets = [];
         let _filteredTickets = null;  // Para filtros especiales como SLA vencido
+        let _tixMsFilters = { status: [], assignee: [] };  // Filtros multi-select de Estado y Asignado
 
         async function loadTicketsTab() {
             const tbody = document.getElementById('tickets-tbody');
@@ -4444,8 +4458,9 @@
         function renderTicketsTab() {
             const tbody = document.getElementById('tickets-tbody');
             const search = (document.getElementById('tickets-search').value || '').toLowerCase();
-            const fStatus = document.getElementById('tickets-filter-status').value;
             const fPrio = document.getElementById('tickets-filter-priority').value;
+
+            tixMsPopulateAssigneeOptions();
 
             // Si hay filtro especial activo (ej SLA vencido), usar esa lista
             let tickets = _filteredTickets !== null ? _filteredTickets : _allTickets;
@@ -4453,7 +4468,8 @@
                 (t.title || '').toLowerCase().includes(search) ||
                 (t.ticket_number || '').toLowerCase().includes(search)
             );
-            if (fStatus) tickets = tickets.filter(t => (t.status || '').includes(fStatus));
+            if (_tixMsFilters.status.length) tickets = tickets.filter(t => _tixMsFilters.status.includes(t.status));
+            if (_tixMsFilters.assignee.length) tickets = tickets.filter(t => _tixMsFilters.assignee.includes(t.assignee || 'Sin asignar'));
             if (fPrio) tickets = tickets.filter(t => (t.priority || '').includes(fPrio));
 
             // Stats — compara status con === para evitar que 'closed' cuente
@@ -4542,6 +4558,80 @@
             renderTicketsTab();
         }
 
+        // ===== Filtros multi-select: Estado y Asignado (Gestión de Tickets) =====
+        const _tixMsStatusLabels = {open: 'Abierto', in_progress: 'En progreso', resolved: 'Resuelto', closed: 'Cerrado'};
+
+        function tixMsToggleMenu(key, btn, ev) {
+            if (ev) ev.stopPropagation();
+            const menu = document.getElementById('tixMs_' + key + '_menu');
+            const willOpen = menu.style.display !== 'block';
+            document.querySelectorAll('.tix-ms-menu').forEach(m => m.style.display = 'none');
+            if (willOpen) {
+                const r = btn.getBoundingClientRect();
+                menu.style.top = (r.bottom + 2) + 'px';
+                menu.style.left = r.left + 'px';
+                menu.style.display = 'block';
+            }
+        }
+        document.addEventListener('click', (e) => {
+            document.querySelectorAll('.tix-ms-wrap').forEach(wrap => {
+                if (!wrap.contains(e.target)) {
+                    const m = wrap.querySelector('.tix-ms-menu');
+                    if (m) m.style.display = 'none';
+                }
+            });
+        });
+        window.addEventListener('scroll', () => {
+            document.querySelectorAll('.tix-ms-menu').forEach(m => m.style.display = 'none');
+        }, true);
+
+        function tixMsOnChange(key) {
+            const menu = document.getElementById('tixMs_' + key + '_menu');
+            const checked = Array.from(menu.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
+            _tixMsFilters[key] = checked;
+            const label = document.getElementById('tixMs_' + key + '_label');
+            const allLabel = key === 'status' ? 'Todos los estados' : 'Todos los asignados';
+            if (checked.length === 0) {
+                label.textContent = allLabel;
+            } else if (checked.length === 1) {
+                label.textContent = key === 'status' ? (_tixMsStatusLabels[checked[0]] || checked[0]) : checked[0];
+            } else {
+                label.textContent = checked.length + ' seleccionados';
+            }
+            renderTicketsTab();
+        }
+
+        // Limpia un filtro multi-select (usado por los filtros rápidos del sidebar)
+        function tixMsClear(key) {
+            _tixMsFilters[key] = [];
+            const menu = document.getElementById('tixMs_' + key + '_menu');
+            if (menu) menu.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = false; });
+            const label = document.getElementById('tixMs_' + key + '_label');
+            if (label) label.textContent = key === 'status' ? 'Todos los estados' : 'Todos los asignados';
+        }
+
+        // Selecciona un único valor en un filtro multi-select (usado por los
+        // filtros rápidos del sidebar, ej. "Solo En Progreso")
+        function tixMsSetSingle(key, value) {
+            _tixMsFilters[key] = [value];
+            const menu = document.getElementById('tixMs_' + key + '_menu');
+            if (menu) menu.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = (cb.value === value); });
+            const label = document.getElementById('tixMs_' + key + '_label');
+            if (label) label.textContent = key === 'status' ? (_tixMsStatusLabels[value] || value) : value;
+        }
+
+        // Repuebla el dropdown de Asignado con los nombres realmente presentes
+        // en los tickets cargados (preserva la selección actual).
+        function tixMsPopulateAssigneeOptions() {
+            const menu = document.getElementById('tixMs_assignee_menu');
+            if (!menu) return;
+            const names = Array.from(new Set(_allTickets.map(t => t.assignee || 'Sin asignar'))).sort((a, b) => a.localeCompare(b, 'es'));
+            menu.innerHTML = names.map(name => {
+                const checked = _tixMsFilters.assignee.includes(name);
+                return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:5px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="${escapeHtml(name)}" ${checked ? 'checked' : ''} onchange="tixMsOnChange('assignee')"> ${escapeHtml(name)}</label>`;
+            }).join('');
+        }
+
         async function cancelTicketApproval(ticketId, ticketNumber) {
             if (!confirm(`¿Liberar ${ticketNumber} de la aprobación pendiente?\n\nSe salta el/los aprobador(es) pendientes y el ticket pasa directo a la cola normal (en Pash, se auto-asigna a Mesa de Ayuda si sigue sin dueño). Usalo solo si este ticket no debería haber requerido aprobación.`)) return;
             try {
@@ -4566,7 +4656,7 @@
 
             // Limpiar otros filtros del UI
             document.getElementById('tickets-search').value = '';
-            document.getElementById('tickets-filter-status').value = '';
+            tixMsClear('status');
             document.getElementById('tickets-filter-priority').value = '';
             _filteredTickets = null;
 
@@ -4581,7 +4671,7 @@
                         ['open', 'in_progress'].includes((t.status || '').toLowerCase())
                     );
                 } else {
-                    document.getElementById('tickets-filter-status').value = filterValue;
+                    tixMsSetSingle('status', filterValue);
                 }
             }
 
@@ -4619,7 +4709,7 @@
         function clearSidebarFilter() {
             _filteredTickets = null;
             document.getElementById('tickets-search').value = '';
-            document.getElementById('tickets-filter-status').value = '';
+            tixMsClear('status');
             document.getElementById('tickets-filter-priority').value = '';
             const banner = document.querySelector('.filter-banner');
             if (banner) banner.remove();
