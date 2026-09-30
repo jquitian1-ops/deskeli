@@ -972,6 +972,24 @@ class UserSubrole(db.Model):
     subrole = db.relationship('Subrole')
 
 
+class MesaAyudaPashViewer(db.Model):
+    """Acceso de SOLO VISTA al panel de Mesa De Ayuda Pash (pestañas Tickets
+    PASH / Subtareas PASH / Casos por Flujos en el dashboard del técnico),
+    SIN hacer al usuario miembro real del grupo/Subrole "Mesa De Ayuda Pash".
+
+    Se separó a propósito de UserSubrole: ser miembro real del grupo lo hace
+    elegible para asignación automática de tickets (assign_to_default_group)
+    y lo muestra como grupo/candidato en el dropdown de Reasignar Ticket y en
+    el "asignar a un compañero de mi grupo" al crear un ticket — efectos que
+    NO se quieren acá, solo la visibilidad de las pestañas de consulta."""
+    __tablename__ = 'mesa_ayuda_pash_viewers'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    user = db.relationship('User')
+
+
 class MailboxConfig(db.Model):
     """Buzón IMAP del que el sistema lee correos para crear tickets automáticamente."""
     __tablename__ = 'mailbox_configs'
@@ -11972,12 +11990,21 @@ def get_my_group_user_ids(user):
 
 def _user_is_in_mesa_ayuda_pash(user):
     """True si `user` (o alguna de sus identidades espejo, ver
-    get_user_identity_ids) es miembro del grupo "Mesa de Ayuda" de Pash.
+    get_user_identity_ids) es miembro del grupo "Mesa de Ayuda" de Pash, O
+    tiene acceso de solo vista otorgado vía MesaAyudaPashViewer (sin ser
+    miembro real del grupo — ver docstring del modelo).
     Mismo match tolerante que assign_to_default_group (el nombre real puede
     ser "Mesa De Ayuda PASH", no exactamente "Mesa de Ayuda") — se resuelve
     por nombre, no por id, para no depender de mayúsculas/variantes."""
     if not user:
         return False
+    identity_ids = get_user_identity_ids(user)
+
+    if db.session.query(MesaAyudaPashViewer.id).filter(
+        MesaAyudaPashViewer.user_id.in_(identity_ids)
+    ).first() is not None:
+        return True
+
     group_ids = [
         s.id for s in Subrole.query.filter(
             Subrole.company == 'pash',
@@ -11987,7 +12014,6 @@ def _user_is_in_mesa_ayuda_pash(user):
     ]
     if not group_ids:
         return False
-    identity_ids = get_user_identity_ids(user)
     return db.session.query(UserSubrole.id).filter(
         UserSubrole.subrole_id.in_(group_ids),
         UserSubrole.user_id.in_(identity_ids),
@@ -19916,6 +19942,66 @@ def api_admin_subrole_members_set(subrole_id):
               f'{len(valid_ids)} miembro(s) asignado(s) al grupo "{subrole.name}"')
 
     return jsonify({'success': True, 'message': f'{len(valid_ids)} miembro(s) guardado(s) en "{subrole.name}"'})
+
+
+@app.route('/api/admin/mesa-ayuda-pash-viewers', methods=['GET'])
+def api_mesa_ayuda_pash_viewers_get():
+    """Lista los técnicos/admins de Pash, marcando cuáles tienen acceso de
+    SOLO VISTA a Mesa De Ayuda Pash (Tickets/Subtareas/Casos por Flujos)
+    sin ser miembros reales del grupo (ver MesaAyudaPashViewer)."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    if session.get('company') != 'pash' and not is_master_admin():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+
+    viewer_ids = {v.user_id for v in MesaAyudaPashViewer.query.all()}
+    users = User.query.filter(
+        User.company == 'pash',
+        User.is_active == True,
+        User.role.in_(['technician', 'admin']),
+    ).order_by(User.role.desc(), User.name).all()
+
+    return jsonify({
+        'success': True,
+        'users': [{
+            'id': u.id,
+            'name': u.name,
+            'username': u.username,
+            'role': u.role,
+            'is_viewer': u.id in viewer_ids,
+        } for u in users]
+    })
+
+
+@app.route('/api/admin/mesa-ayuda-pash-viewers', methods=['POST'])
+def api_mesa_ayuda_pash_viewers_set():
+    """Reemplaza completamente la lista de usuarios con acceso de solo vista.
+    Body: {user_ids: [1, 2, 3]}"""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    if session.get('company') != 'pash' and not is_master_admin():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+
+    data = request.get_json() or {}
+    new_ids = data.get('user_ids') or []
+    try:
+        new_ids = [int(x) for x in new_ids]
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'user_ids debe ser una lista de IDs'}), 400
+
+    valid_ids = {u.id for u in User.query.filter(
+        User.id.in_(new_ids), User.company == 'pash',
+        User.role.in_(['technician', 'admin']), User.is_active == True,
+    ).all()}
+
+    MesaAyudaPashViewer.query.delete()
+    for uid in valid_ids:
+        db.session.add(MesaAyudaPashViewer(user_id=uid))
+    db.session.commit()
+    log_audit('set_mesa_ayuda_pash_viewers', session['user_id'], 'company', None,
+              f'{len(valid_ids)} usuario(s) con acceso de solo vista a Mesa De Ayuda Pash')
+
+    return jsonify({'success': True, 'message': f'{len(valid_ids)} usuario(s) guardado(s)'})
 
 
 @app.route('/api/admin/subroles', methods=['POST'])
