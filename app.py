@@ -2045,7 +2045,9 @@ def _resolve_ti_approver(company, kind):
 
 def solicitud_can_view(user, solicitud):
     """Reglas de visibilidad. Admin: todo de sus empresas. Creator: propia.
-    Aprobador de cualquier nivel: la propia."""
+    Aprobador de cualquier nivel: la propia. Mesa De Ayuda Pash (miembro real
+    o solo vista): cualquier solicitud de Pash, para dar seguimiento a los
+    "Casos por Flujos" aunque todavía no le toque aprobar ni sea la creadora."""
     if not user or not solicitud:
         return False
     if solicitud.company != user.company and user.role != 'admin':
@@ -2061,6 +2063,8 @@ def solicitud_can_view(user, solicitud):
     # crearse la solicitud; si luego el usuario se creó con ese correo,
     # igual debe poder ver la solicitud.
     if solicitud.jefe_inmediato_email and (user.email or '').strip().lower() == solicitud.jefe_inmediato_email.strip().lower():
+        return True
+    if solicitud.company == 'pash' and _user_is_in_mesa_ayuda_pash(user):
         return True
     return False
 
