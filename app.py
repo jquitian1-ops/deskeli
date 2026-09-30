@@ -1808,6 +1808,19 @@ class SolicitudUsuario(db.Model):
                 return step.get('label') or 'Aprobador'
         return _role_label_for_solicitud_state(self.estado) if '_role_label_for_solicitud_state' in globals() else 'Aprobador'
 
+    def estado_actual_label(self):
+        """Label humano del ESTADO ACTUAL de la solicitud — a diferencia de
+        SOLICITUD_ESTADO_LABEL.get(self.estado), que para un flujo dinámico
+        en curso siempre devuelve el genérico "Pendiente aprobación Jefe
+        Inmediato" (self.estado reutiliza esa misma constante mientras
+        quede CUALQUIER paso pendiente, sin importar cuál). Acá se usa el
+        label REAL del paso pendiente (current_approver_label()), para que
+        una solicitud esperando por "Gerente IT" no siga mostrando "Jefe
+        Inmediato" en la pantalla."""
+        if self.uses_dynamic_flow() and self.estado == SOLICITUD_ESTADO_PENDIENTE_JEFE:
+            return f'Pendiente aprobación {self.current_approver_label()}'
+        return SOLICITUD_ESTADO_LABEL.get(self.estado, self.estado)
+
 
 class SolicitudControl(db.Model):
     """Detalle de cada control seleccionado en una Solicitud."""
@@ -26810,7 +26823,7 @@ def _serialize_solicitud_row(s):
         'centro_costo': s.centro_costo,
         'unidad_negocio': s.unidad_negocio,
         'estado': s.estado,
-        'estado_label': SOLICITUD_ESTADO_LABEL.get(s.estado, s.estado),
+        'estado_label': s.estado_actual_label(),
         'anulado': bool(s.anulado),
         'responsable_actual_id': s.responsable_actual_id(),
         'caso_externo': s.caso_externo,
@@ -26866,7 +26879,7 @@ def _serialize_solicitud_detail(s, viewer=None):
         'nombre_reemplazo': s.nombre_reemplazo,
         'usuario_red': s.usuario_red,
         'estado': s.estado,
-        'estado_label': SOLICITUD_ESTADO_LABEL.get(s.estado, s.estado),
+        'estado_label': s.estado_actual_label(),
         'caso_externo': s.caso_externo,
         'anulado': bool(s.anulado),
         'creator': _u(s.creator),
@@ -27305,7 +27318,7 @@ def api_solicitudes_mis_pendientes():
             'documento': s.documento,
             'cargo': s.cargo or '—',
             'estado': s.estado,
-            'estado_label': SOLICITUD_ESTADO_LABEL.get(s.estado, s.estado),
+            'estado_label': s.estado_actual_label(),
             'flow_area': s.flow_area,
             'approver_label': approver_label,
             'creator_name': s.creator.name if s.creator else '—',
@@ -27905,7 +27918,7 @@ def api_solicitudes_aprobar(solicitud_id):
     db.session.commit()
     log_audit('solicitud_aprobada', user.id, 'solicitud', s.id, f'{s.codigo}: aprobada, pasa a {next_estado}')
     _notify_next_approver(s)
-    return jsonify({'success': True, 'estado': next_estado, 'estado_label': SOLICITUD_ESTADO_LABEL.get(next_estado)})
+    return jsonify({'success': True, 'estado': next_estado, 'estado_label': s.estado_actual_label()})
 
 
 @app.route('/api/solicitudes-usuarios/<int:solicitud_id>/devolver', methods=['POST'])
@@ -27923,7 +27936,7 @@ def api_solicitudes_devolver(solicitud_id):
     db.session.commit()
     log_audit('solicitud_devuelta', user.id, 'solicitud', s.id, f'{s.codigo}: devuelta')
     _notify_solicitud_creator_devuelta(s, user, observacion)
-    return jsonify({'success': True, 'estado': next_estado, 'estado_label': SOLICITUD_ESTADO_LABEL.get(next_estado)})
+    return jsonify({'success': True, 'estado': next_estado, 'estado_label': s.estado_actual_label()})
 
 
 @app.route('/api/solicitudes-usuarios/<int:solicitud_id>/rechazar', methods=['POST'])
@@ -27939,7 +27952,7 @@ def api_solicitudes_rechazar(solicitud_id):
         return jsonify({'success': False, 'error': error}), 400
     db.session.commit()
     log_audit('solicitud_rechazada', user.id, 'solicitud', s.id, f'{s.codigo}: rechazada')
-    return jsonify({'success': True, 'estado': next_estado, 'estado_label': SOLICITUD_ESTADO_LABEL.get(next_estado)})
+    return jsonify({'success': True, 'estado': next_estado, 'estado_label': s.estado_actual_label()})
 
 
 @app.route('/api/solicitudes-usuarios/<int:solicitud_id>/anular', methods=['POST'])
@@ -28040,7 +28053,7 @@ def api_solicitudes_reenviar(solicitud_id):
     log_audit('solicitud_reenviada', user.id, 'solicitud', s.id,
               f'{s.codigo}: reenviada' + (' con correcciones' if cambios else ''))
     _notify_next_approver(s)
-    return jsonify({'success': True, 'estado': next_estado, 'estado_label': SOLICITUD_ESTADO_LABEL.get(next_estado)})
+    return jsonify({'success': True, 'estado': next_estado, 'estado_label': s.estado_actual_label()})
 
 
 @app.route('/api/solicitudes-usuarios/<int:solicitud_id>/cerrar', methods=['POST'])
@@ -28271,7 +28284,7 @@ def _generate_solicitud_pdf(solicitud):
     ))
 
     # Estado actual + banner
-    estado_label = SOLICITUD_ESTADO_LABEL.get(solicitud.estado, solicitud.estado)
+    estado_label = solicitud.estado_actual_label()
     estado_color = '#16A34A' if 'APROBADO' in solicitud.estado or solicitud.estado == 'CERRADO' else \
                    '#DC2626' if 'RECHAZADO' in solicitud.estado or solicitud.estado == 'ANULADO' else \
                    '#F59E0B' if 'DEVUELTO' in solicitud.estado else '#7C3AED'
@@ -29824,7 +29837,7 @@ def _notify_next_approver(solicitud):
                     'solicitud_id': solicitud.id,
                     'codigo': solicitud.codigo,
                     'estado': solicitud.estado,
-                    'estado_label': SOLICITUD_ESTADO_LABEL.get(solicitud.estado, solicitud.estado),
+                    'estado_label': solicitud.estado_actual_label(),
                     'approver_emails': [r[0] for r in recipients],
                 },
                 room=f'company_{solicitud.company}'
@@ -29984,7 +29997,7 @@ def api_solicitudes_decidir(token):
     if s.estado != tok.expected_state:
         return jsonify({
             'success': False,
-            'error': f'El estado de la solicitud cambió a "{SOLICITUD_ESTADO_LABEL.get(s.estado, s.estado)}". Este link ya no aplica.'
+            'error': f'El estado de la solicitud cambió a "{s.estado_actual_label()}". Este link ya no aplica.'
         }), 409
 
     user = _resolve_token_approver(tok)
@@ -30024,7 +30037,7 @@ def api_solicitudes_decidir(token):
     return jsonify({
         'success': True,
         'estado': next_estado,
-        'estado_label': SOLICITUD_ESTADO_LABEL.get(next_estado, next_estado),
+        'estado_label': s.estado_actual_label(),
     })
 
 
