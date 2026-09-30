@@ -11908,6 +11908,10 @@ def can_user_access_ticket(user, ticket):
     - Si el ticket esta asignado a cualquiera de las identidades espejo del user
       (misma persona replicada en otras empresas), si — para consolidar la vista
       del especialista al entrar a Eliot.
+    - Si el ticket es de Pash y el user tiene acceso de solo vista a Mesa De
+      Ayuda Pash (_user_is_in_mesa_ayuda_pash, incluye MesaAyudaPashViewer) —
+      mismo alcance que las listas de Tickets/Subtareas/Casos por Flujos PASH,
+      que ya permiten ver cualquier ticket de Pash sin importar asignación.
     """
     if not user or not ticket:
         return False
@@ -11916,6 +11920,8 @@ def can_user_access_ticket(user, ticket):
     if is_master_admin(user.company, user.role):
         return True
     if ticket.assignee_id in get_user_identity_ids(user):
+        return True
+    if ticket.company == 'pash' and _user_is_in_mesa_ayuda_pash(user):
         return True
     return False
 
@@ -16565,7 +16571,8 @@ def api_subtasks_list(ticket_id):
         return jsonify({'success': False}), 401
 
     ticket = Ticket.query.get_or_404(ticket_id)
-    if ticket.company != session['company']:
+    user = User.query.get(session['user_id'])
+    if not can_user_access_ticket(user, ticket):
         return jsonify({'success': False}), 403
 
     subtasks = Subtask.query.filter_by(ticket_id=ticket_id).order_by(Subtask.order_idx.asc(), Subtask.id.asc()).all()
@@ -17337,7 +17344,8 @@ def api_ticket_attachments_list(ticket_id):
     if 'user_id' not in session:
         return jsonify({'success': False}), 401
     ticket = Ticket.query.get_or_404(ticket_id)
-    if ticket.company != session['company']:
+    user = User.query.get(session['user_id'])
+    if not can_user_access_ticket(user, ticket):
         return jsonify({'success': False}), 403
     attachments = TicketAttachment.query.filter_by(ticket_id=ticket_id).order_by(TicketAttachment.uploaded_at.desc()).all()
     return jsonify({
