@@ -1085,6 +1085,32 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                 return;
             }
             const rows = list.map(c => {
+                if (!c.has_ticket) {
+                    // Solicitud todavía en la cadena de aprobación: no existe
+                    // Ticket real todavía, se linkea a la solicitud en su lugar.
+                    const titleTruncated = c.title.length > 60 ? c.title.slice(0,60)+'…' : c.title;
+                    return `
+                        <tr onclick="window.location='/solicitudes-usuarios/${c.solicitud_id}'"
+                            style="cursor:pointer;border-bottom:1px solid #f0f0f0;background:#fffbeb;"
+                            title="Ver la solicitud (todavía sin ticket generado)">
+                            <td style="padding:10px;font-size:11px;color:#9ca3af;">⏳ Sin ticket aún</td>
+                            <td style="padding:10px;font-size:11px;">
+                                ${c.solicitud_codigo ? `<div style="font-weight:600;color:#5b21b6;">${escSub(c.solicitud_codigo)}</div><div style="color:#6b7280;">${escSub(c.solicitud_nombre || '')}</div>` : '—'}
+                            </td>
+                            <td style="padding:10px;">
+                                <div style="font-weight:600;color:#111827;">${escSub(titleTruncated)}</div>
+                            </td>
+                            <td style="padding:10px;text-align:center;">
+                                <span class="pill" style="background:#fef3c7;color:#92400e;">${escSub(c.solicitud_estado_label || 'Pendiente')}</span>
+                                ${c.solicitud_anulado ? '<div style="font-size:10px;color:#991b1b;margin-top:2px;">Anulada</div>' : ''}
+                            </td>
+                            <td style="padding:10px;text-align:center;color:#9ca3af;">—</td>
+                            <td style="padding:10px;font-size:12px;color:#9ca3af;">—</td>
+                            <td style="padding:10px;font-size:11px;color:#374151;">${escSub(c.created_at || '—')}</td>
+                            <td style="padding:10px;text-align:center;color:#9ca3af;">—</td>
+                        </tr>
+                    `;
+                }
                 const terminal = c.status === 'resolved' || c.status === 'closed';
                 const rowBg = (c.sla_expired && !terminal) ? 'background:#fef2f2;' : (terminal ? 'background:#f9fafb;' : '');
                 const titleTruncated = c.title.length > 60 ? c.title.slice(0,60)+'…' : c.title;

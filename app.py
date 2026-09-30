@@ -16840,47 +16840,77 @@ def api_technician_flow_cases():
     if not _user_is_in_mesa_ayuda_pash(user):
         return jsonify({'success': False, 'error': 'Sin acceso — esta vista es solo para Mesa De Ayuda Pash'}), 403
 
+    # TODAS las solicitudes de Pash, estén o no aprobadas todavía — antes solo
+    # se mostraban las que ya llegaron a EN_TRAMITE/CERRADO (con un Ticket
+    # real generado); ahora Mesa De Ayuda Pash también ve las que siguen en
+    # la cadena de aprobación, para tener visibilidad completa desde que se
+    # crean, no recién cuando ya está todo aprobado.
+    solicitudes = SolicitudUsuario.query.filter(
+        SolicitudUsuario.company == 'pash',
+    ).order_by(SolicitudUsuario.created_at.desc()).all()
+    if not solicitudes:
+        return jsonify({'success': True, 'cases': [], 'total': 0})
+
     # caso_externo solo confirma un ticket REAL generado por el flujo una vez
     # que la solicitud llegó a EN_TRAMITE/CERRADO — antes de eso puede
     # contener un valor manual sin relación ("Ticket de soporte asociado"
-    # opcional cargado al crear la solicitud).
-    solicitudes = SolicitudUsuario.query.filter(
-        SolicitudUsuario.company == 'pash',
-        SolicitudUsuario.estado.in_([SOLICITUD_ESTADO_EN_TRAMITE, SOLICITUD_ESTADO_CERRADO]),
-        SolicitudUsuario.caso_externo.isnot(None),
-    ).all()
-    by_ticket_number = {s.caso_externo: s for s in solicitudes if s.caso_externo}
-    if not by_ticket_number:
-        return jsonify({'success': True, 'cases': [], 'total': 0})
-
-    tickets = Ticket.query.filter(Ticket.ticket_number.in_(list(by_ticket_number.keys()))).all()
-
-    estado_filter = (request.args.get('estado') or '').strip()
-    if estado_filter:
-        tickets = [t for t in tickets if t.status == estado_filter]
-
-    tickets.sort(key=lambda t: t.created_at or datetime.min, reverse=True)
+    # opcional cargado al crear la solicitud), así que solo se resuelve el
+    # ticket real para esas dos.
+    ticket_numbers = [
+        s.caso_externo for s in solicitudes
+        if s.caso_externo and s.estado in (SOLICITUD_ESTADO_EN_TRAMITE, SOLICITUD_ESTADO_CERRADO)
+    ]
+    tickets_by_number = {}
+    if ticket_numbers:
+        for t in Ticket.query.filter(Ticket.ticket_number.in_(ticket_numbers)).all():
+            tickets_by_number[t.ticket_number] = t
 
     now = datetime.now()
     cases = []
-    for t in tickets:
-        s = by_ticket_number.get(t.ticket_number)
-        cases.append({
-            'id': t.id,
-            'ticket_number': t.ticket_number,
-            'title': t.title,
-            'status': t.status,
-            'priority': t.priority,
-            'category': t.category,
-            'assignee_name': t.assignee.name if t.assignee else None,
-            'sla_remaining': t.sla_remaining,
-            'sla_expired': bool(t.sla_deadline and t.sla_deadline < now and t.status not in ('resolved', 'closed')),
-            'created_at': t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else None,
-            'solicitud_id': s.id if s else None,
-            'solicitud_codigo': s.codigo if s else None,
-            'solicitud_nombre': s.nombre if s else None,
-            'solicitud_tipo': s.tipo_solicitud if s else None,
+    for s in solicitudes:
+        t = tickets_by_number.get(s.caso_externo) if s.caso_externo else None
+        if t:
+            case = {
+                'has_ticket': True,
+                'id': t.id,
+                'ticket_number': t.ticket_number,
+                'title': t.title,
+                'status': t.status,
+                'priority': t.priority,
+                'category': t.category,
+                'assignee_name': t.assignee.name if t.assignee else None,
+                'sla_remaining': t.sla_remaining,
+                'sla_expired': bool(t.sla_deadline and t.sla_deadline < now and t.status not in ('resolved', 'closed')),
+                'created_at': t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else None,
+            }
+        else:
+            case = {
+                'has_ticket': False,
+                'id': None,
+                'ticket_number': None,
+                'title': f'{s.tipo_solicitud} — {s.nombre}',
+                'status': None,
+                'priority': None,
+                'category': None,
+                'assignee_name': None,
+                'sla_remaining': None,
+                'sla_expired': False,
+                'created_at': s.created_at.strftime('%Y-%m-%d %H:%M') if s.created_at else None,
+            }
+        case.update({
+            'solicitud_id': s.id,
+            'solicitud_codigo': s.codigo,
+            'solicitud_nombre': s.nombre,
+            'solicitud_tipo': s.tipo_solicitud,
+            'solicitud_estado': s.estado,
+            'solicitud_estado_label': s.estado_actual_label(),
+            'solicitud_anulado': bool(s.anulado),
         })
+        cases.append(case)
+
+    estado_filter = (request.args.get('estado') or '').strip()
+    if estado_filter:
+        cases = [c for c in cases if c['status'] == estado_filter]
 
     return jsonify({'success': True, 'cases': cases, 'total': len(cases)})
 
