@@ -508,6 +508,19 @@
         const tipo = document.getElementById('tipo_solicitud').value;
         const flowAreaVal = document.getElementById('flow_area').value;
         const useDynamicFlow = flowAreaVal && flowAreaVal !== '__none__';
+
+        // El Área del empleado es obligatoria: solo se admite continuar sin
+        // flujo si de verdad no hay NINGÚN flujo configurado en el sistema
+        // (ahí el select ya viene preseleccionado en "__none__" sin otras
+        // opciones — ver loadFlowAreas). Si hay áreas para elegir, no se
+        // puede dejar pasar "Sin flujo (usar aprobadores manuales)".
+        if (!useDynamicFlow && _flowAreas.length > 0) {
+            alert('Tenés que elegir el Área del empleado para cargar su flujo de aprobación. No se puede continuar sin seleccionar un flujo.');
+            document.getElementById('flow_area').focus();
+            btn.disabled = false;
+            btn.textContent = '✓ Registrar solicitud';
+            return;
+        }
         const jefeNombreEl = document.getElementById('jefe_inmediato_nombre');
         const jefeEmailEl = document.getElementById('jefe_inmediato_email');
         const payload = {

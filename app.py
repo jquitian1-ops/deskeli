@@ -27218,6 +27218,17 @@ def api_solicitudes_create():
     # queda como fallback legacy (solo flujos propios) para compatibilidad.
     flow_id = data.get('flow_id')
     flow_area = (data.get('flow_area') or '').strip()
+    if not flow_id and not flow_area:
+        # El Área del empleado es obligatoria salvo que NO exista ningún
+        # ApprovalFlow activo en el sistema — ahí sí se admite el modo legacy
+        # (Jefe Inmediato -> Analista TI -> Gerente TI) porque no hay nada
+        # entre qué elegir. Si SÍ hay flujos configurados, no se puede
+        # "saltar" el flujo eligiendo "Sin flujo (usar aprobadores manuales)".
+        if ApprovalFlow.query.filter_by(is_active=True).first() is not None:
+            return jsonify({
+                'success': False,
+                'error': 'Debés elegir el Área del empleado para cargar su flujo de aprobación. No se puede continuar sin seleccionar un flujo.'
+            }), 400
     approval_flow = None
     if flow_id or flow_area:
         approval_flow = _resolve_approval_flow_for_solicitud(user.company, flow_area, flow_id=flow_id)
