@@ -1268,10 +1268,14 @@
         document.getElementById('resolutionMessage').value = '';
         document.getElementById('resolutionError').style.display = 'none';
         document.getElementById('resolutionCount').textContent = '0 caracteres';
+        _resolutionPastedFiles = [];
         setTimeout(() => document.getElementById('resolutionMessage').focus(), 100);
     }
 
-    // Contador de caracteres en vivo + ocultar error al escribir
+    // Pegado de imágenes (Ctrl+V) en la descripción de la solución — se
+    // suben como adjunto del ticket (mismo endpoint que el botón de
+    // adjuntar archivos) junto con el marcador de texto en el mensaje.
+    let _resolutionPastedFiles = [];
     document.addEventListener('DOMContentLoaded', () => {
         const ta = document.getElementById('resolutionMessage');
         if (ta) {
@@ -1279,6 +1283,28 @@
                 document.getElementById('resolutionCount').textContent = ta.value.length + ' caracteres';
                 if (ta.value.trim().length >= 10) {
                     document.getElementById('resolutionError').style.display = 'none';
+                }
+            });
+            ta.addEventListener('paste', function(e) {
+                const items = (e.clipboardData || window.clipboardData).items;
+                if (!items) return;
+                let pastedImage = false;
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        const blob = items[i].getAsFile();
+                        if (blob) {
+                            const ts = Date.now();
+                            const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+                            _resolutionPastedFiles.push(new File([blob], `captura_${ts}.${ext}`, {type: blob.type}));
+                            pastedImage = true;
+                        }
+                    }
+                }
+                if (pastedImage) {
+                    e.preventDefault();
+                    const cursor = ta.selectionStart;
+                    ta.value = ta.value.slice(0, cursor) + `[📎 Imagen ${_resolutionPastedFiles.length} adjuntada al ticket]` + ta.value.slice(ta.selectionEnd);
+                    ta.dispatchEvent(new Event('input'));
                 }
             });
         }
@@ -1313,6 +1339,9 @@
             });
             const data = await r.json();
             if (data.success) {
+                if (_resolutionPastedFiles.length > 0) {
+                    try { await uploadTicketAttachments(_resolutionPastedFiles); } catch (e) { /* no bloquear el cierre por esto */ }
+                }
                 let msg = '✅ Ticket marcado como resuelto\n💡 Solución registrada en la conversación';
                 if (data.email_sent) msg += '\n📧 Correo enviado al usuario para que califique la solución';
                 alert(msg);

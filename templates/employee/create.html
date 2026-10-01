@@ -726,6 +726,10 @@ function renderDynamicFields(fields) {
 
     // Habilitar/deshabilitar los inputs de control_list según el checkbox
     _wireControlListCheckboxes(container);
+
+    // Pegado de imágenes también en los textareas de la plantilla (ver
+    // _enablePasteImages) — es donde el usuario realmente describe el problema.
+    container.querySelectorAll('textarea').forEach(_enablePasteImages);
 }
 
 function _renderControlList(fieldId, f) {
@@ -881,38 +885,46 @@ window.removeAttachment = function(idx) {
     renderAttachmentsPreview();
 };
 
+// Pegado de imágenes desde portapapeles en CUALQUIER textarea (el campo
+// "Descripción" de siempre, y también cada textarea que una plantilla
+// genere dinámicamente — antes solo funcionaba en #description, así que
+// al usar una plantilla (donde el usuario realmente escribe el detalle del
+// problema) pegar una imagen no hacía nada).
+function _enablePasteImages(textareaEl) {
+    if (!textareaEl || textareaEl.dataset.pasteImagesWired) return;
+    textareaEl.dataset.pasteImagesWired = '1';
+    textareaEl.addEventListener('paste', function(e) {
+        const items = (e.clipboardData || window.clipboardData).items;
+        if (!items) return;
+        let pastedImage = false;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const blob = items[i].getAsFile();
+                if (blob) {
+                    const ts = Date.now();
+                    const ext = (blob.type.split('/')[1] || 'png').replace('jpeg','jpg');
+                    const renamed = new File([blob], `captura_${ts}.${ext}`, {type: blob.type});
+                    _pastedFiles.push(renamed);
+                    pastedImage = true;
+                }
+            }
+        }
+        if (pastedImage) {
+            e.preventDefault();
+            renderAttachmentsPreview();
+            // Marcador en el texto
+            const cursor = textareaEl.selectionStart;
+            textareaEl.value = textareaEl.value.slice(0, cursor) + `[📎 Imagen ${_pastedFiles.length} adjuntada arriba]` + textareaEl.value.slice(textareaEl.selectionEnd);
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const inp = document.getElementById('attachmentsInput');
     if (inp) inp.addEventListener('change', renderAttachmentsPreview);
 
-    // Pegado de imágenes desde portapapeles en el campo de descripción
     const desc = document.getElementById('description');
-    if (desc) {
-        desc.addEventListener('paste', function(e) {
-            const items = (e.clipboardData || window.clipboardData).items;
-            if (!items) return;
-            let pastedImage = false;
-            for (let i = 0; i < items.length; i++) {
-                if (items[i].type.indexOf('image') !== -1) {
-                    const blob = items[i].getAsFile();
-                    if (blob) {
-                        const ts = Date.now();
-                        const ext = (blob.type.split('/')[1] || 'png').replace('jpeg','jpg');
-                        const renamed = new File([blob], `captura_${ts}.${ext}`, {type: blob.type});
-                        _pastedFiles.push(renamed);
-                        pastedImage = true;
-                    }
-                }
-            }
-            if (pastedImage) {
-                e.preventDefault();
-                renderAttachmentsPreview();
-                // Marcador en el texto
-                const cursor = desc.selectionStart;
-                desc.value = desc.value.slice(0, cursor) + `[📎 Imagen ${_pastedFiles.length} adjuntada arriba]` + desc.value.slice(desc.selectionEnd);
-            }
-        });
-    }
+    if (desc) _enablePasteImages(desc);
 });
 
 // Al enviar el formulario, construir la descripción desde los form_fields
