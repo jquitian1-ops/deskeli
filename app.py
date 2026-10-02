@@ -27773,7 +27773,7 @@ def _generate_case_from_solicitud(solicitud, actor_user):
                     sla_minutes=st_sla,
                     sla_deadline=datetime.now() + _td(minutes=st_sla),
                     assignee_id=assignee,
-                    created_by_id=actor_user.id if actor_user else None,
+                    created_by_id=solicitud.creator_id or (actor_user.id if actor_user else None),
                     order_idx=subtask_counter,
                 )
                 db.session.add(st)
@@ -27818,7 +27818,7 @@ def _generate_case_from_solicitud(solicitud, actor_user):
                 sla_minutes=sla_min,
                 sla_deadline=datetime.now() + _td(minutes=sla_min),
                 assignee_id=resolved_assignee,
-                created_by_id=actor_user.id if actor_user else None,
+                created_by_id=solicitud.creator_id or (actor_user.id if actor_user else None),
                 order_idx=subtask_counter,
             )
             db.session.add(st)
