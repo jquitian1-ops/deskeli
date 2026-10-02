@@ -1074,12 +1074,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (_pastedFiles.length === 0) return; // flujo normal HTML POST
         e.preventDefault();
 
-        // Construir FormData manual (incluye los pasted + los del input)
-        const fd = new FormData();
-        ['title','description','category','subcategory','priority'].forEach(name => {
-            const el = form.querySelector(`[name="${name}"]`);
-            if (el) fd.append(name, el.value);
-        });
+        // Construir FormData a partir del <form> completo (incluye TODOS los
+        // campos con name: title/description/category/subcategory/priority,
+        // user_area/user_location/user_phone, y el hidden template_form_data)
+        // — antes se armaba a mano con solo 5 campos, así que cualquier envío
+        // por esta rama (con imágenes pegadas) fallaba la validación server-side
+        // de "Área/Ubicación/Contacto obligatorios" y el servidor devolvía el
+        // HTML del formulario en vez de JSON (el fetch().json() tronaba con
+        // "Unexpected token '<'"). attachmentsInput no tiene atributo name,
+        // así que no se duplica acá — se sigue agregando a mano abajo.
+        const fd = new FormData(form);
         fd.append('_ajax', '1');
         // Archivos del input
         const inp = document.getElementById('attachmentsInput');

@@ -879,14 +879,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (_pastedFiles.length === 0) return; // flujo normal HTML POST
         e.preventDefault();
 
-        // Construir FormData manual (incluye los pasted + los del input)
-        const fd = new FormData();
-        ['title','description','category','subcategory','priority','behalf_of_user_id','assign_to_technician_id'].forEach(name => {
-            const el = form.querySelector(`[name="${name}"]`);
-            if (el) fd.append(name, el.value);
-        });
-        const autoAssignEl = form.querySelector('[name="auto_assign_me"]');
-        if (autoAssignEl && autoAssignEl.checked) fd.append('auto_assign_me', autoAssignEl.value);
+        // Construir FormData a partir del <form> completo (ver mismo fix en
+        // employee/create.html) — la lista manual de campos quedaba corta
+        // apenas se agregaba un campo nuevo al form, y el servidor devolvía
+        // el HTML de error en vez de JSON (fetch().json() fallaba con
+        // "Unexpected token '<'"). attachmentsInput no tiene name, así que
+        // no se duplica acá — se sigue agregando a mano abajo.
+        const fd = new FormData(form);
         fd.append('_ajax', '1');
         // Archivos del input
         const inp = document.getElementById('attachmentsInput');
