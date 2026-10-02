@@ -290,6 +290,24 @@
                 {% endif %}
             </div>
 
+            {% if control and control.report_by_email and subtask.status not in ('resolved', 'closed') %}
+            <!-- "Detalle para notificar por correo": solo aparece si el catálogo
+                 de controles tiene "Reportar por correo" habilitado para este
+                 control. Al resolver, este texto se envía automáticamente por
+                 correo a la dirección configurada, con el PDF de la solicitud
+                 adjunto. -->
+            <div class="card">
+                <h3>📧 Detalle para notificar por correo</h3>
+                <p style="font-size:12px; color:#6b7280; margin-bottom:8px;">
+                    Este control está configurado para avisar por correo al resolverse. Escribí acá la solución —
+                    al marcar la subtarea como resuelta se envía automáticamente a <strong>{{ control.report_email }}</strong>,
+                    con el formulario en PDF de la solicitud adjunto.
+                </p>
+                <textarea id="emailReportDetail" rows="4" placeholder="Describí la solución que se le va a notificar por correo..."
+                          style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:6px; font-family:inherit; font-size:13px; resize:vertical; box-sizing:border-box;">{{ subtask.email_report_detail or '' }}</textarea>
+            </div>
+            {% endif %}
+
             <!-- Acciones rápidas -->
             <div class="card">
                 <h3>⚡ Acciones</h3>
@@ -338,11 +356,26 @@
 </div>
 
 <script>
+    const CONTROL_REQUIRES_EMAIL_REPORT = {{ 'true' if (control and control.report_by_email) else 'false' }};
+
     async function changeStatus(newStatus) {
         const payload = {status: newStatus};
 
         // Al resolver: pedir justificacion obligatoria (min 5 chars)
         if (newStatus === 'resolved') {
+            // Si el control exige "Reportar por correo", el detalle a notificar
+            // es obligatorio ANTES de pedir la justificación — sin esto no se
+            // envía el correo automático al resolver.
+            if (CONTROL_REQUIRES_EMAIL_REPORT) {
+                const emailDetailEl = document.getElementById('emailReportDetail');
+                const emailDetail = (emailDetailEl ? emailDetailEl.value : '').trim();
+                if (emailDetail.length < 5) {
+                    alert('❌ Este control notifica por correo al resolverse — completá el "Detalle para notificar por correo" (mínimo 5 caracteres) antes de marcarla como resuelta.');
+                    if (emailDetailEl) emailDetailEl.focus();
+                    return;
+                }
+                payload.email_report_detail = emailDetail;
+            }
             const note = window.prompt(
                 '📋 Justificación de resolución (obligatoria):\n\n' +
                 'Describí brevemente cómo se resolvió esta subtarea (mínimo 5 caracteres).',

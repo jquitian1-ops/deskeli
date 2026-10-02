@@ -156,6 +156,15 @@
                     </div>
                 </div>
             </div>
+            <div class="form-group" style="background:#fdf2f8; padding:10px 12px; border-radius:6px; border-left:4px solid #db2777;">
+                <label><input type="checkbox" id="f-report-email" onchange="onReportByEmailChange()"> 📧 Reportar por correo</label>
+                <div style="font-size:11px; color:#6b7280; margin-top:4px;">
+                    Al resolverse una subtarea generada por este control, se envía automáticamente un correo a la dirección de abajo con el detalle que cargue el especialista y el PDF de la solicitud adjunto.
+                </div>
+                <div id="f-report-email-wrap" style="display:none; margin-top:8px;">
+                    <input type="email" id="f-report-email-address" placeholder="correo@empresa.com">
+                </div>
+            </div>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
                 <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
                 <button class="btn btn-primary" onclick="saveControl()">💾 Guardar</button>
@@ -229,6 +238,9 @@
             if (c.is_multi_select) {
                 guionCell += ` <span style="font-size:11px; padding:2px 6px; background:#fef3c7; color:#92400e; border-radius:6px; font-weight:600;" title="${c.list_items.length} ítems">📋 ${c.list_items.length}</span>`;
             }
+            if (c.report_by_email) {
+                guionCell += ` <span style="font-size:11px; padding:2px 6px; background:#fdf2f8; color:#9d174d; border-radius:6px; font-weight:600;" title="Reporta por correo a ${esc(c.report_email || '')}">📧</span>`;
+            }
             html += `
                 <tr>
                     <td><code style="background:#f3f4f6; padding:2px 6px; border-radius:3px; font-size:11px;">${esc(c.code)}</code></td>
@@ -300,6 +312,11 @@
             document.getElementById('f-multiselect').checked ? 'block' : 'none';
     }
 
+    function onReportByEmailChange() {
+        document.getElementById('f-report-email-wrap').style.display =
+            document.getElementById('f-report-email').checked ? 'block' : 'none';
+    }
+
     function openModal(editing=null) {
         _editingId = editing;
         document.getElementById('modalTitle').textContent = editing ? 'Editar control' : 'Nuevo control';
@@ -326,6 +343,9 @@
             document.getElementById('f-multiselect').checked = c.is_multi_select;
             document.getElementById('f-list-items').value = (c.list_items || []).map(li => li.label).join('\n');
             onMultiSelectChange();
+            document.getElementById('f-report-email').checked = c.report_by_email;
+            document.getElementById('f-report-email-address').value = c.report_email || '';
+            onReportByEmailChange();
         } else {
             document.getElementById('f-code').value = '';
             document.getElementById('f-code').disabled = false;
@@ -343,6 +363,9 @@
             document.getElementById('f-multiselect').checked = false;
             document.getElementById('f-list-items').value = '';
             onMultiSelectChange();
+            document.getElementById('f-report-email').checked = false;
+            document.getElementById('f-report-email-address').value = '';
+            onReportByEmailChange();
         }
         document.getElementById('modal').style.display = 'flex';
     }
@@ -355,6 +378,12 @@
         const guionSel = document.getElementById('f-guion').value;
         const responsibleType = document.getElementById('f-responsible-type').value;
         const isMultiSelect = document.getElementById('f-multiselect').checked;
+        const reportByEmail = document.getElementById('f-report-email').checked;
+        const reportEmail = document.getElementById('f-report-email-address').value.trim();
+        if (reportByEmail && !reportEmail) {
+            alert('Si habilitás "Reportar por correo" tenés que indicar la dirección de correo.');
+            return;
+        }
         const payload = {
             code: document.getElementById('f-code').value.trim().toLowerCase(),
             name: document.getElementById('f-name').value.trim(),
@@ -373,6 +402,8 @@
             list_items: isMultiSelect
                 ? document.getElementById('f-list-items').value.split('\n').map(s => s.trim()).filter(Boolean)
                 : [],
+            report_by_email: reportByEmail,
+            report_email: reportByEmail ? reportEmail : null,
         };
         if (!payload.code || !payload.name) { alert('code y nombre son obligatorios'); return; }
         try {

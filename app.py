@@ -1188,10 +1188,19 @@ class Subtask(db.Model):
     # Justificacion obligatoria al pasar a resolved (RF audit)
     resolution_note = db.Column(db.Text)
     resolved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    # Control del catálogo que generó esta subtask (ver _generate_case_from_solicitud).
+    # NULL para subtasks que no vienen de una Solicitud de Usuario.
+    control_id = db.Column(db.Integer, db.ForeignKey('controles_catalogo.id'), index=True)
+    # "Detalle para notificar por correo": solo se pide/usa si el Control
+    # vinculado tiene report_by_email=True. Al resolver la subtask con este
+    # campo completo, se envía por correo a Control.report_email junto con
+    # el PDF de la solicitud (ver api_subtask_update).
+    email_report_detail = db.Column(db.Text)
 
     assignee = db.relationship('User', foreign_keys=[assignee_id])
     created_by = db.relationship('User', foreign_keys=[created_by_id])
     resolved_by = db.relationship('User', foreign_keys=[resolved_by_id])
+    control = db.relationship('Control', foreign_keys=[control_id])
     ticket = db.relationship('Ticket', backref=db.backref('subtasks', cascade='all, delete-orphan', order_by='Subtask.order_idx'))
 
     __table_args__ = (
@@ -1562,6 +1571,12 @@ class Control(db.Model):
     # caso (mismo patrón usado para Mesa De Ayuda Pash).
     responsible_group_name = db.Column(db.String(100))
     responsible_user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    # "Reportar por correo": al resolverse una Subtask generada por este
+    # control, si el especialista completó el campo "Detalle para notificar
+    # por correo", se envía automáticamente un email a report_email con ese
+    # detalle y el PDF de la solicitud adjunto (ver api_subtask_update).
+    report_by_email = db.Column(db.Boolean, default=False)
+    report_email = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -3948,6 +3963,7 @@ def technician_subtask_detail(subtask_id):
     # Resolver assignee y creador
     assignee = User.query.get(subtask.assignee_id) if subtask.assignee_id else None
     creator = User.query.get(subtask.created_by_id) if subtask.created_by_id else None
+    control = Control.query.get(subtask.control_id) if subtask.control_id else None
 
     # Contar attachments de la subtarea
     attachments_count = SubtaskAttachment.query.filter_by(subtask_id=subtask.id).count()
@@ -3958,6 +3974,7 @@ def technician_subtask_detail(subtask_id):
         parent_ticket=parent_ticket,
         assignee=assignee,
         creator=creator,
+        control=control,
         attachments_count=attachments_count,
         company=COMPANY_COLORS.get(parent_ticket.company, {}),
     )
@@ -11696,6 +11713,46 @@ def notify_subtask_assigned_async(subtask_id, assignee_id, assigned_by_name='Sis
     Thread(target=_run, daemon=True).start()
 
 
+def _send_subtask_email_report_async(subtask_id):
+    """"Reportar por correo" de un Control del catálogo: al resolverse una
+    Subtask generada por un Control con report_by_email habilitado, envía
+    el "Detalle para notificar por correo" (cargado por el especialista) a
+    Control.report_email, con el PDF de la solicitud (ya adjunto a la
+    Subtask) como adjunto del correo. Best-effort — un fallo acá no debe
+    impedir que la subtarea quede resuelta (por eso corre después del
+    commit, en un hilo aparte)."""
+    def _run():
+        with app.app_context():
+            try:
+                st = Subtask.query.get(subtask_id)
+                if not st or not st.control_id or not st.email_report_detail:
+                    return
+                control = Control.query.get(st.control_id)
+                if not control or not control.report_by_email or not control.report_email:
+                    return
+                ticket = Ticket.query.get(st.ticket_id)
+                attachments = None
+                att = SubtaskAttachment.query.filter_by(subtask_id=st.id, mime_type='application/pdf').first()
+                if att:
+                    try:
+                        path = os.path.join(app.config['UPLOAD_FOLDER'], att.stored_name)
+                        with open(path, 'rb') as fh:
+                            pdf_bytes = fh.read()
+                        attachments = [(att.original_name, pdf_bytes, 'pdf')]
+                    except Exception as e:
+                        print(f'[async-email][subtask_report] no se pudo leer el PDF adjunto {att.id}: {e}')
+                send_email(
+                    control.report_email,
+                    st.title,
+                    st.email_report_detail,
+                    attachments=attachments,
+                    company=ticket.company if ticket else None,
+                )
+            except Exception as e:
+                print(f'[async-email][subtask_report] error: {e}')
+    Thread(target=_run, daemon=True).start()
+
+
 def notify_subtasks_assigned_batch_async(notifications, assigned_by_name='Sistema'):
     """Notifica VARIAS subtareas asignadas en UN solo hilo, de a una por vez
     (una conexión SMTP se cierra antes de abrir la siguiente). Evita el 432
@@ -12971,6 +13028,8 @@ def migrate_controles_catalogo_extra():
         ('responsible_type', 'VARCHAR(10)'),
         ('responsible_group_name', 'VARCHAR(100)'),
         ('responsible_user_id', 'INTEGER'),
+        ('report_by_email', f'BOOLEAN DEFAULT {"FALSE" if is_postgres else "0"}'),
+        ('report_email', 'VARCHAR(255)'),
     ):
         if col_name in existing_cols:
             continue
@@ -12980,6 +13039,32 @@ def migrate_controles_catalogo_extra():
             print(f"[migrate_controles] Columna {col_name} agregada")
         except Exception as e:
             print(f"[migrate_controles] error agregando {col_name}: {e}")
+
+
+def migrate_subtasks_control_report():
+    """Agrega a subtasks control_id (qué Control del catálogo la generó) y
+    email_report_detail (detalle para notificar por correo al resolver,
+    solo usado si ese Control tiene report_by_email habilitado)."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    if 'subtasks' not in inspector.get_table_names():
+        return
+    existing_cols = {c['name'] for c in inspector.get_columns('subtasks')}
+    if 'control_id' not in existing_cols:
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE subtasks ADD COLUMN control_id INTEGER REFERENCES controles_catalogo(id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_subtasks_control_id ON subtasks(control_id)"))
+            print("[migrate_subtasks_control_report] Columna control_id agregada")
+        except Exception as e:
+            print(f"[migrate_subtasks_control_report] error agregando control_id: {e}")
+    if 'email_report_detail' not in existing_cols:
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE subtasks ADD COLUMN email_report_detail TEXT"))
+            print("[migrate_subtasks_control_report] Columna email_report_detail agregada")
+        except Exception as e:
+            print(f"[migrate_subtasks_control_report] error agregando email_report_detail: {e}")
 
 
 def migrate_split_controles_por_empresa():
@@ -13944,6 +14029,10 @@ def init_db():
             migrate_controles_catalogo_extra()
         except Exception as _e:
             print(f"[migrate] controles_catalogo_extra: {_e}")
+        try:
+            migrate_subtasks_control_report()
+        except Exception as _e:
+            print(f"[migrate] subtasks_control_report: {_e}")
         try:
             migrate_split_controles_por_empresa()
         except Exception as _e:
@@ -17043,7 +17132,13 @@ def api_subtask_update(subtask_id):
             subtask.time_worked_seconds = max(0, int(data['time_worked_seconds']))
         except (ValueError, TypeError):
             pass
+    if 'email_report_detail' in data:
+        # Solo tiene efecto si el Control vinculado tiene "Reportar por
+        # correo" habilitado (ver _send_subtask_email_report_async) — se
+        # guarda igual aunque no aplique, por si se habilita después.
+        subtask.email_report_detail = (data['email_report_detail'] or '').strip() or None
     resolution_note_new = None
+    just_resolved = False
     if 'status' in data:
         new_status = data['status']
         if new_status not in ['open', 'in_progress', 'resolved']:
@@ -17081,6 +17176,7 @@ def api_subtask_update(subtask_id):
             subtask.completed_at = datetime.now()
             subtask.resolution_note = resolution_note_new
             subtask.resolved_by_id = session['user_id']
+            just_resolved = True
         elif new_status != 'resolved':
             subtask.resolved_at = None
             subtask.completed_at = None
@@ -17090,6 +17186,10 @@ def api_subtask_update(subtask_id):
 
     if subtask.assignee_id and subtask.assignee_id != old_assignee_id:
         notify_subtask_assigned_async(subtask.id, subtask.assignee_id, assigned_by_name=session.get('name', 'Sistema'))
+
+    # "Reportar por correo" del Control vinculado (ver _send_subtask_email_report_async)
+    if just_resolved and subtask.control_id and subtask.email_report_detail:
+        _send_subtask_email_report_async(subtask.id)
 
     audit_msg = f'Subtarea {subtask.subtask_number or subtask_id} actualizada'
     if resolution_note_new:
@@ -26932,6 +27032,8 @@ def _serialize_control(c):
         'responsible_group_name': c.responsible_group_name,
         'responsible_user_id': c.responsible_user_id,
         'responsible_user_name': (c.responsible_user.name if c.responsible_user else None),
+        'report_by_email': bool(c.report_by_email),
+        'report_email': c.report_email,
         'list_items': [
             {'id': li.id, 'label': li.label}
             for li in c.list_items if li.is_active
@@ -27095,6 +27197,13 @@ def _apply_control_extra_fields(c, data):
         c.responsible_group_name = (data.get('responsible_group_name') or '').strip() or None
     if 'responsible_user_id' in data:
         c.responsible_user_id = data['responsible_user_id'] or None
+    if 'report_email' in data:
+        email = (data.get('report_email') or '').strip()
+        c.report_email = email or None
+    if 'report_by_email' in data:
+        c.report_by_email = bool(data['report_by_email'])
+        if not c.report_by_email:
+            c.report_email = None  # al desactivar, no dejar un correo huérfano configurado
     if 'list_items' in data:
         items = data.get('list_items') or []
         # Reemplazo completo: borrar los existentes y crear de nuevo en orden.
@@ -27138,6 +27247,9 @@ def api_controles_create():
     db.session.add(c)
     db.session.flush()  # necesita c.id para ControlListItem
     _apply_control_extra_fields(c, data)
+    if c.report_by_email and not c.report_email:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': 'Si habilitás "Reportar por correo" debés indicar la dirección de correo'}), 400
     db.session.commit()
     log_audit('control_created', user.id, 'control', c.id, f'Control "{c.name}" creado')
     return jsonify({'success': True, 'control': _serialize_control(c)}), 201
@@ -27166,6 +27278,9 @@ def api_controles_update(control_id):
     if 'is_active' in data:
         c.is_active = bool(data['is_active'])
     _apply_control_extra_fields(c, data)
+    if c.report_by_email and not c.report_email:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': 'Si habilitás "Reportar por correo" debés indicar la dirección de correo'}), 400
     db.session.commit()
     log_audit('control_updated', user.id, 'control', c.id, f'Control "{c.name}" modificado')
     return jsonify({'success': True, 'control': _serialize_control(c)})
@@ -27774,6 +27889,7 @@ def _generate_case_from_solicitud(solicitud, actor_user):
                     sla_deadline=datetime.now() + _td(minutes=st_sla),
                     assignee_id=assignee,
                     created_by_id=solicitud.creator_id or (actor_user.id if actor_user else None),
+                    control_id=ctrl.id if ctrl else None,
                     order_idx=subtask_counter,
                 )
                 db.session.add(st)
@@ -27819,6 +27935,7 @@ def _generate_case_from_solicitud(solicitud, actor_user):
                 sla_deadline=datetime.now() + _td(minutes=sla_min),
                 assignee_id=resolved_assignee,
                 created_by_id=solicitud.creator_id or (actor_user.id if actor_user else None),
+                control_id=ctrl.id if ctrl else None,
                 order_idx=subtask_counter,
             )
             db.session.add(st)
