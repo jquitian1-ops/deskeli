@@ -16701,7 +16701,7 @@ def api_subtasks_create(ticket_id):
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
 
     ticket = Ticket.query.get_or_404(ticket_id)
-    if ticket.company != session['company']:
+    if not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False}), 403
 
     data = request.get_json() or {}
@@ -17498,7 +17498,7 @@ def api_ticket_attachments_upload(ticket_id):
     if 'user_id' not in session:
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     ticket = Ticket.query.get_or_404(ticket_id)
-    if ticket.company != session['company']:
+    if not can_user_access_ticket(User.query.get(session['user_id']), ticket):
         return jsonify({'success': False}), 403
 
     from werkzeug.utils import secure_filename
