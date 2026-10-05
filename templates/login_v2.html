@@ -152,6 +152,18 @@
             document.getElementById('company').value = companyId;
         }
 
+        // Ninguna empresa debe quedar pre-seleccionada al abrir el link — esto
+        // se dispara tanto en una carga normal como al volver con el botón
+        // "atrás" del navegador (bfcache), que restaura el DOM tal cual quedó
+        // (incluida la clase "selected" de un click anterior) sin volver a
+        // correr DOMContentLoaded.
+        function resetCompanySelection() {
+            document.querySelectorAll('.company-btn').forEach(b => b.classList.remove('selected'));
+            const companyInput = document.getElementById('company');
+            if (companyInput) companyInput.value = '';
+        }
+        window.addEventListener('pageshow', resetCompanySelection);
+
         function loginWithMicrosoft() {
             const company = document.getElementById('company').value;
             if (!company) {
@@ -160,6 +172,21 @@
             }
             window.location.href = '/auth/microsoft/login?company=' + encodeURIComponent(company);
         }
+
+        // Seleccionar empresa es obligatorio también para el login con correo —
+        // el input hidden tiene "required", pero los navegadores IGNORAN ese
+        // atributo en inputs type="hidden" (no se puede confiar en eso solo).
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.querySelector('form[method="POST"]');
+            if (!form) return;
+            form.addEventListener('submit', (e) => {
+                const company = document.getElementById('company').value;
+                if (!company) {
+                    e.preventDefault();
+                    alert('Seleccioná tu empresa arriba antes de ingresar.');
+                }
+            });
+        });
 
         // Cambiar tema visual del login (guardado en localStorage)
         const LOGIN_THEMES = {
