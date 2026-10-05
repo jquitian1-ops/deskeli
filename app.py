@@ -16276,11 +16276,16 @@ def api_reassign_ticket(ticket_id):
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket no encontrado'}), 404
 
-    scope = admin_companies_scope()
-    if ticket.company not in scope:
+    # Mismo criterio que para VER el ticket (can_user_access_ticket), no el
+    # scope de admin: un técnico puede quedar asignado a un ticket de OTRA
+    # empresa (ej. identidad espejo en grupos cross-empresa como "Procesos
+    # SAP - Módulo MM"), y hasta ahora podía ABRIR ese ticket pero no
+    # reasignarlo — quedaba bloqueado solo en este paso final.
+    actor = User.query.get(session['user_id'])
+    if not can_user_access_ticket(actor, ticket):
         return jsonify({
             'success': False,
-            'error': f'No puedes reasignar tickets de la empresa "{ticket.company}". Tu acceso está limitado a: {", ".join(scope)}.'
+            'error': f'No tenés acceso al ticket de la empresa "{ticket.company}".'
         }), 403
 
     # No permitir reasignar tickets cerrados o resueltos
