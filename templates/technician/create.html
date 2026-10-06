@@ -202,10 +202,15 @@
                             </div>
                             <div>
                                 <label for="user_location" style="font-size:12px;color:#5b21b6;font-weight:700;">📍 Sede <span style="color:#dc2626;">*</span></label>
-                                <input type="text" id="user_location" name="user_location" required maxlength="120"
-                                       value="{{ form_prev.user_location if form_prev else '' }}"
-                                       placeholder="Ej: Planta 1, Bodega, Oficinas..."
-                                       style="width:100%;padding:9px;border:1px solid #c4b5fd;border-radius:6px;font-size:13px;">
+                                {% set _sedes = ['AGENCIAS', 'CALLE 18', 'CALLE 80 BOD. 1', 'CALLE 80 BOD. 2', 'CALLE 80 BOD. 3', 'CALLE 80 BOD. 4', 'CALLE 80 BOD. 5', 'CALLE 80 BOD. 6', 'CALLE 80 BOD. 7', 'CALLE 80 BOD. 8', 'CALLE 80 BOD. 9', 'CALLE 80 BOD. 10', 'CALLE 80 BOD. 11', 'CALLE 80 BOD. 12', 'ECUADOR', 'ELIOT', 'ICOBORDADOS', 'MEXICO', 'PALASO / PLUSMODA', 'PANAMA U OTROS PAISES', 'PASH', 'PEPAL', 'PERU', 'PRIMATELA'] %}
+                                {% set _sede_prev = form_prev.user_location if form_prev else '' %}
+                                <select id="user_location" name="user_location" required
+                                        style="width:100%;padding:9px;border:1px solid #c4b5fd;border-radius:6px;font-size:13px;background:white;">
+                                    <option value="" {% if not _sede_prev %}selected{% endif %} disabled>— Seleccioná una sede —</option>
+                                    {% for _sede in _sedes %}
+                                    <option value="{{ _sede }}" {% if _sede_prev == _sede %}selected{% endif %}>{{ _sede }}</option>
+                                    {% endfor %}
+                                </select>
                             </div>
                         </div>
                         <p style="color:#6b21a8;font-size:11.5px;margin:8px 0 0;">Obligatorio para Manufacturas Eliot, incluso si usás una plantilla.</p>
