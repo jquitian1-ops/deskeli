@@ -4046,13 +4046,20 @@ def technician_ticket(ticket_id):
 
     assignment_info = get_ticket_assignment_info(ticket)
 
+    can_extend_sla = (
+        _is_sla_extension_user(user)
+        and ticket.assignee_id in get_user_identity_ids(user)
+        and ticket.status not in ('resolved', 'closed')
+    )
+
     return render_template('technician/ticket_detail.html',
                            ticket=ticket,
                            messages=messages,
                            bot_suggestion=bot_suggestion,
                            technicians=technicians,
                            user=user,
-                           assignment_info=assignment_info)
+                           assignment_info=assignment_info,
+                           can_extend_sla=can_extend_sla)
 
 @app.route('/technician/dashboard')
 def technician_dashboard():
@@ -12450,6 +12457,17 @@ def _format_sla_label(minutes):
     return f'~{round(minutes / 60, 1)}h'
 
 
+def _is_sla_extension_user(user):
+    """Pedido puntual del cliente: SOLO Kelly Giraldo puede agregar tiempo
+    extra al SLA de sus propios casos asignados, sin importar la categoría
+    del caso. Se resuelve por nombre (no por un id fijo de BD) para no
+    depender de un id que puede variar entre entornos/entidades espejo."""
+    if not user:
+        return False
+    name = (user.name or '').lower()
+    return 'kelly' in name and 'giraldo' in name
+
+
 def get_next_subtask_number(ticket):
     """Genera próximo código de subtarea independiente: SUB-ELIOT-00001"""
     company = (ticket.company or 'GEN').upper()
@@ -16606,6 +16624,70 @@ def api_escalate_priority(ticket_id):
         print(f'[WARN] WebSocket emit: {e}')
 
     return jsonify({'success': True, 'message': 'Ticket escalado a Crítico'})
+
+
+@app.route('/api/ticket/<int:ticket_id>/extend-sla', methods=['POST'])
+def api_extend_ticket_sla(ticket_id):
+    """Agrega tiempo extra al SLA de un caso. Pedido puntual: solo Kelly
+    Giraldo (_is_sla_extension_user), y solo sobre casos asignados a ella
+    misma, con justificación obligatoria."""
+    if 'user_id' not in session:
+        return jsonify({'success': False}), 401
+    user = User.query.get(session['user_id'])
+    if not _is_sla_extension_user(user):
+        return jsonify({'success': False, 'error': 'No tenés permiso para extender el SLA de este caso'}), 403
+
+    ticket = Ticket.query.get(ticket_id)
+    if not ticket:
+        return jsonify({'success': False, 'error': 'Ticket no encontrado'}), 404
+    if ticket.assignee_id not in get_user_identity_ids(user):
+        return jsonify({'success': False, 'error': 'Solo podés extender el SLA de casos asignados a vos'}), 403
+    if ticket.status in ('resolved', 'closed'):
+        return jsonify({'success': False, 'error': 'No se puede extender el SLA de un caso ya resuelto/cerrado'}), 400
+
+    data = request.json or {}
+    try:
+        extra_minutes = int(data.get('extra_minutes') or 0)
+    except (ValueError, TypeError):
+        extra_minutes = 0
+    justification = (data.get('justification') or '').strip()
+
+    if extra_minutes <= 0 or extra_minutes > 60 * 24 * 7:
+        return jsonify({'success': False, 'error': 'El tiempo extra debe ser entre 1 minuto y 7 días (10080 min)'}), 400
+    if len(justification) < 10:
+        return jsonify({'success': False, 'error': 'Debés justificar la extensión (mínimo 10 caracteres)'}), 400
+    justification = justification[:1000]
+
+    base = ticket.sla_deadline or datetime.now()
+    ticket.sla_deadline = base + timedelta(minutes=extra_minutes)
+    ticket.updated_at = datetime.now()
+
+    extra_label = _format_sla_label(extra_minutes)
+    db.session.add(Message(
+        ticket_id=ticket.id,
+        user_id=user.id,
+        text=f'⏱️ SLA extendido +{extra_label} por {user.name}. Motivo: {justification}'
+    ))
+    db.session.commit()
+
+    log_audit('ticket_sla_extended', user.id, 'ticket', ticket.id,
+              f"SLA extendido +{extra_minutes}min en {ticket.ticket_number}. Motivo: {justification[:200]}")
+
+    try:
+        emit_ticket_event(ticket.company, 'ticket_sla_extended', {
+            'ticket_number': ticket.ticket_number,
+            'extra_minutes': extra_minutes,
+        })
+    except Exception as e:
+        print(f'[WARN] WebSocket emit extend-sla: {e}')
+
+    return jsonify({
+        'success': True,
+        'message': f'SLA extendido +{extra_label}',
+        'sla_deadline': ticket.sla_deadline.isoformat(),
+        'sla_remaining': ticket.sla_remaining,
+    })
+
 
 @app.route('/api/ticket/<int:ticket_id>/status', methods=['PUT'])
 def api_update_ticket_status(ticket_id):

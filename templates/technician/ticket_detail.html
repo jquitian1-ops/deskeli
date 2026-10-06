@@ -711,6 +711,12 @@
                 <div class="sidebar-value" style="color: {% if ticket.sla_remaining < 30 %}#dc2626{% else %}#16a34a{% endif %};">
                     {{ ticket.sla_remaining }}m
                 </div>
+                {% if can_extend_sla %}
+                <button type="button" onclick="openExtendSlaModal()"
+                        style="margin-top:8px;width:100%;padding:7px 10px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">
+                    ⏱️ Agregar tiempo extra al SLA
+                </button>
+                {% endif %}
             </div>
 
             <div class="sidebar-item">
@@ -770,6 +776,32 @@
             </div>
         </div>
     </div>
+
+    {% if can_extend_sla %}
+    <!-- MODAL EXTENDER SLA -->
+    <div id="extendSlaModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:white;padding:30px;border-radius:12px;width:90%;max-width:500px;">
+            <h2 style="margin-bottom:15px;color:#7c3aed;">⏱️ Agregar tiempo extra al SLA</h2>
+            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">Tiempo extra a agregar:</label>
+            <div style="display:flex;gap:8px;margin-bottom:15px;">
+                <input type="number" id="extendSlaAmount" min="1" step="1" placeholder="Ej: 2" value="1"
+                       style="flex:1;padding:10px;border:1px solid #ddd;border-radius:6px;font-family:inherit;">
+                <select id="extendSlaUnit" style="padding:10px;border:1px solid #ddd;border-radius:6px;font-family:inherit;">
+                    <option value="hours" selected>Horas</option>
+                    <option value="minutes">Minutos</option>
+                    <option value="days">Días</option>
+                </select>
+            </div>
+            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">Justificación (obligatoria):</label>
+            <textarea id="extendSlaJustification" rows="3" placeholder="Explicá por qué se necesita el tiempo extra..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-family:inherit;margin-bottom:15px;"></textarea>
+            <div id="extendSlaError" style="color:#dc2626;font-size:12px;margin-bottom:10px;display:none;"></div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button onclick="closeExtendSlaModal()" style="padding:10px 20px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;">Cancelar</button>
+                <button onclick="confirmExtendSla()" style="padding:10px 20px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">⏱️ Confirmar extensión</button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- MODAL NOTIFICAR AL USUARIO -->
     <div id="requestInfoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
@@ -864,6 +896,62 @@
                 }
             } catch (e) {
                 alert('Error de conexión: ' + e.message);
+            }
+        }
+
+        // ========== EXTENDER SLA (solo Kelly Giraldo, ver can_extend_sla) ==========
+        function openExtendSlaModal() {
+            document.getElementById('extendSlaAmount').value = '1';
+            document.getElementById('extendSlaUnit').value = 'hours';
+            document.getElementById('extendSlaJustification').value = '';
+            document.getElementById('extendSlaError').style.display = 'none';
+            document.getElementById('extendSlaModal').style.display = 'flex';
+        }
+
+        function closeExtendSlaModal() {
+            document.getElementById('extendSlaModal').style.display = 'none';
+        }
+
+        async function confirmExtendSla() {
+            const errorEl = document.getElementById('extendSlaError');
+            errorEl.style.display = 'none';
+
+            const amount = parseInt(document.getElementById('extendSlaAmount').value, 10);
+            const unit = document.getElementById('extendSlaUnit').value;
+            const justification = document.getElementById('extendSlaJustification').value.trim();
+
+            if (!amount || amount <= 0) {
+                errorEl.textContent = 'Indicá una cantidad de tiempo válida.';
+                errorEl.style.display = 'block';
+                return;
+            }
+            if (justification.length < 10) {
+                errorEl.textContent = 'Justificá la extensión (mínimo 10 caracteres).';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            const multiplier = unit === 'days' ? 1440 : (unit === 'hours' ? 60 : 1);
+            const extraMinutes = amount * multiplier;
+
+            try {
+                const r = await fetch(`/api/ticket/${TICKET_ID}/extend-sla`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({extra_minutes: extraMinutes, justification: justification})
+                });
+                const data = await r.json();
+                if (data.success) {
+                    closeExtendSlaModal();
+                    showActionStatus('⏱️ ' + (data.message || 'SLA extendido'), 'success');
+                    setTimeout(() => location.reload(), 1200);
+                } else {
+                    errorEl.textContent = data.error || 'No se pudo extender el SLA';
+                    errorEl.style.display = 'block';
+                }
+            } catch (e) {
+                errorEl.textContent = 'Error de conexión: ' + e.message;
+                errorEl.style.display = 'block';
             }
         }
 
