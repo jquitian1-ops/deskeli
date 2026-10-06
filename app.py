@@ -10994,6 +10994,7 @@ def auto_close_resolved_tickets():
                 try:
                     t.status = 'closed'
                     t.updated_at = datetime.now()
+                    _stop_running_timers_for_ticket(t)
                     log_audit(
                         'ticket_auto_closed',
                         None,
@@ -15542,6 +15543,7 @@ def api_resolve_ticket(ticket_id):
     ticket.updated_at = datetime.now()
     ticket.resolution_note = resolution[:2000]
     ticket.resolved_by_id = session['user_id']
+    _stop_running_timers_for_ticket(ticket)
     db.session.commit()
 
     log_audit('ticket_resolved', session['user_id'], 'ticket', ticket_id,
@@ -15648,6 +15650,7 @@ def api_save_ticket_rating(ticket_id):
     if ticket.status != 'resolved':
         ticket.status = 'resolved'
         ticket.resolved_at = datetime.now()
+        _stop_running_timers_for_ticket(ticket)
     db.session.commit()
 
     log_audit('ticket_rated', session['user_id'], 'ticket', ticket_id,
@@ -15682,6 +15685,22 @@ def _sync_ticket_total_time(ticket):
     total = db.session.query(db.func.coalesce(db.func.sum(TimeEntry.duration_seconds), 0)) \
         .filter(TimeEntry.ticket_id == ticket.id, TimeEntry.ended_at.isnot(None)).scalar()
     ticket.time_worked_seconds = int(total or 0)
+
+
+def _stop_running_timers_for_ticket(ticket):
+    """Detiene cualquier cronómetro que haya quedado corriendo en este ticket.
+
+    Se llama al resolver/cerrar un ticket: si el técnico olvidó darle
+    "Detener" al cronómetro, el ticket quedaba marcado como Resuelto pero
+    el contador seguía corriendo indefinidamente en la UI (calculado en
+    vivo contra started_at en api_time_entries_list).
+    """
+    running = TimeEntry.query.filter_by(ticket_id=ticket.id, ended_at=None).all()
+    for entry in running:
+        entry.ended_at = datetime.now()
+        entry.duration_seconds = int((entry.ended_at - entry.started_at).total_seconds())
+    if running:
+        _sync_ticket_total_time(ticket)
 
 
 @app.route('/api/tickets/<int:ticket_id>/time-entries', methods=['GET'])
@@ -16591,6 +16610,11 @@ def api_update_ticket_status(ticket_id):
 
         if new_status == 'resolved':
             ticket.resolved_at = datetime.now()
+
+        # Si entra a resolved/closed, detener cualquier cronómetro que haya
+        # quedado corriendo (si no, el contador sigue sumando en la UI)
+        if new_status in ('resolved', 'closed') and old_status not in ('resolved', 'closed'):
+            _stop_running_timers_for_ticket(ticket)
 
         # Guardar justificacion si aplica
         if resolution_note_new:
@@ -30461,6 +30485,34 @@ def _seed_controles_catalogo_if_empty():
         print(f"  [WARN] No se pudo cargar Controles seed: {e}")
 
 
+def _backfill_stop_orphan_timers():
+    """Detiene cronómetros (TimeEntry) que quedaron corriendo en tickets ya
+    resueltos/cerrados antes de que existiera _stop_running_timers_for_ticket.
+    Corre una sola vez en cada arranque, es idempotente (no hace nada si no
+    hay entries huérfanas)."""
+    try:
+        with app.app_context():
+            orphans = TimeEntry.query.join(Ticket, TimeEntry.ticket_id == Ticket.id).filter(
+                TimeEntry.ended_at.is_(None),
+                Ticket.status.in_(['resolved', 'closed'])
+            ).all()
+            if not orphans:
+                return
+            tickets_to_sync = set()
+            for entry in orphans:
+                entry.ended_at = datetime.now()
+                entry.duration_seconds = int((entry.ended_at - entry.started_at).total_seconds())
+                tickets_to_sync.add(entry.ticket_id)
+            for tid in tickets_to_sync:
+                t = Ticket.query.get(tid)
+                if t:
+                    _sync_ticket_total_time(t)
+            db.session.commit()
+            print(f"  [OK] {len(orphans)} cronómetro(s) huérfano(s) detenido(s) en tickets ya resueltos/cerrados")
+    except Exception as e:
+        print(f"  [WARN] No se pudo correr backfill de cronómetros huérfanos: {e}")
+
+
 def bootstrap_app():
     """Inicializa BD + arranca todos los schedulers en background.
     Llamado desde __main__ (dev server) o desde wsgi.py (Gunicorn)."""
@@ -30470,6 +30522,7 @@ def bootstrap_app():
 
     init_db()
     _backfill_mirror_technicians()
+    _backfill_stop_orphan_timers()
     _seed_kb_articles_if_empty()
     _seed_controles_catalogo_if_empty()
     start_server_monitoring()
