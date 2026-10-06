@@ -1029,6 +1029,38 @@
                         </div>
                     </div>
                     {% endif %}
+
+                    {% if session.company == 'eliot' or is_master %}
+                    <div style="margin-top:28px;padding-top:20px;border-top:2px solid #e5e7eb;">
+                        <h3 style="margin:0 0 8px 0;color:#1f2937;font-size:16px;">👁️ Acceso de solo vista — Grupos de Especialistas (Eliot)</h3>
+                        <p style="color:#6b7280;margin-bottom:14px;font-size:13px;">
+                            Para técnicos que necesitan VER las pestañas "Tickets ELIOT" y "Subtareas ELIOT" en su portal (todos los casos
+                            de Manufacturas Eliot, de cualquier Grupo de Especialistas: Soporte calle 18, Soporte calle 80, Soporte calle 19,
+                            Soporte Agencias), sin ser miembros reales de esos grupos — así no entran al reparto automático de tickets
+                            ni aparecen como grupo/candidatos al reasignar o asignar a un compañero.
+                        </p>
+                        <button onclick="elvOpen()" style="padding:9px 16px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;">👁️ Administrar acceso de solo vista</button>
+                    </div>
+
+                    <!-- MODAL: acceso de solo vista a Eliot -->
+                    <div id="elvModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;align-items:center;justify-content:center;">
+                        <div style="background:white;border-radius:12px;padding:24px;max-width:480px;width:92%;max-height:80vh;overflow-y:auto;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                                <h2 style="margin:0;color:#111827;font-size:18px;">👁️ Solo vista — Eliot</h2>
+                                <button onclick="elvClose()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#6b7280;">×</button>
+                            </div>
+                            <p style="color:#6b7280;font-size:12px;margin:0 0 14px;">No los hace miembros de ningún Grupo de Especialistas — solo les habilita ver esas pestañas, con casos de Manufacturas Eliot únicamente.</p>
+                            <input type="text" id="elvSearch" placeholder="🔍 Buscar técnico o admin..." oninput="elvRenderList()"
+                                   style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-bottom:12px;">
+                            <div id="elvList" style="display:flex;flex-direction:column;gap:4px;max-height:320px;overflow-y:auto;margin-bottom:14px;"></div>
+                            <div id="elvStatus" style="font-size:12px;margin-bottom:10px;"></div>
+                            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                                <button onclick="elvClose()" style="padding:8px 14px;background:#e5e7eb;border:none;border-radius:6px;cursor:pointer;">Cancelar</button>
+                                <button onclick="elvSave()" style="padding:8px 14px;background:#10b981;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">💾 Guardar</button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <!-- MODAL: Miembros de un grupo de especialistas -->
@@ -3656,6 +3688,77 @@ Set-CASMailbox -Identity cat@patprimo.com.co -ImapEnabled $true</pre>
             }
         } catch (e) {
             document.getElementById('mapvStatus').innerHTML = '<span style="color:#dc2626;">✗ ' + e.message + '</span>';
+        }
+    };
+
+    // ─── Solo vista: Grupos de Especialistas Eliot (sin ser miembros) ──
+    let _elvUsers = [];
+    let _elvSelected = new Set();
+
+    window.elvOpen = async function() {
+        document.getElementById('elvSearch').value = '';
+        document.getElementById('elvStatus').textContent = '';
+        document.getElementById('elvList').innerHTML = '<p style="text-align:center;color:#999;padding:20px;">Cargando...</p>';
+        document.getElementById('elvModal').style.display = 'flex';
+        try {
+            const r = await fetch('/api/admin/eliot-viewers');
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error || 'Error');
+            _elvUsers = data.users || [];
+            _elvSelected = new Set(_elvUsers.filter(u => u.is_viewer).map(u => u.id));
+            elvRenderList();
+        } catch (e) {
+            document.getElementById('elvList').innerHTML = '<p style="text-align:center;color:#dc2626;padding:20px;">' + e.message + '</p>';
+        }
+    };
+
+    window.elvClose = function() {
+        document.getElementById('elvModal').style.display = 'none';
+    };
+
+    window.elvToggle = function(userId) {
+        if (_elvSelected.has(userId)) _elvSelected.delete(userId);
+        else _elvSelected.add(userId);
+    };
+
+    window.elvRenderList = function() {
+        const list = document.getElementById('elvList');
+        const q = (document.getElementById('elvSearch').value || '').toLowerCase();
+        const items = _elvUsers.filter(u =>
+            u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q)
+        );
+        if (!items.length) {
+            list.innerHTML = '<p style="text-align:center;color:#999;padding:20px;">No se encontraron usuarios</p>';
+            return;
+        }
+        list.innerHTML = items.map(u => {
+            const checked = _elvSelected.has(u.id);
+            const icon = u.role === 'admin' ? '👑' : '🔧';
+            return `
+                <label style="display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid #f3f4f6;cursor:pointer;">
+                    <input type="checkbox" ${checked?'checked':''} onchange="elvToggle(${u.id})" style="width:18px;height:18px;cursor:pointer;">
+                    <span>${icon} ${esc(u.name)} <span style="color:#9ca3af;font-size:12px;">(${esc(u.username)})</span></span>
+                </label>
+            `;
+        }).join('');
+    };
+
+    window.elvSave = async function() {
+        try {
+            const r = await fetch('/api/admin/eliot-viewers', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({user_ids: [..._elvSelected]})
+            });
+            const data = await r.json();
+            if (data.success) {
+                document.getElementById('elvStatus').innerHTML = '<span style="color:#16a34a;">✓ ' + data.message + '</span>';
+                setTimeout(elvClose, 900);
+            } else {
+                document.getElementById('elvStatus').innerHTML = '<span style="color:#dc2626;">✗ ' + (data.error || 'Error') + '</span>';
+            }
+        } catch (e) {
+            document.getElementById('elvStatus').innerHTML = '<span style="color:#dc2626;">✗ ' + e.message + '</span>';
         }
     };
 

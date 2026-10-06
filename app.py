@@ -987,6 +987,23 @@ class MesaAyudaPashViewer(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
 
+
+class EliotViewer(db.Model):
+    """Acceso de SOLO VISTA a los tickets/subtareas de TODA Manufacturas
+    Eliot (pestañas Tickets ELIOT / Subtareas ELIOT en el dashboard del
+    técnico), SIN hacer al usuario miembro real de ninguno de los Grupos de
+    Especialistas de Eliot (Soporte calle 18, Soporte calle 80, Soporte
+    calle 19, Soporte Agencias).
+
+    Mismo concepto que MesaAyudaPashViewer pero para Eliot: se separa de
+    UserSubrole a propósito, para no hacerlo elegible para asignación
+    automática ni aparecer como candidato al reasignar/asignar a un
+    compañero de grupo."""
+    __tablename__ = 'eliot_viewers'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
     user = db.relationship('User')
 
 
@@ -4160,7 +4177,8 @@ def technician_dashboard():
                            company=COMPANY_COLORS.get(session.get('company')),
                            theme_color=theme_color,
                            current_theme=theme_name,
-                           is_mesa_ayuda_pash=_user_is_in_mesa_ayuda_pash(user))
+                           is_mesa_ayuda_pash=_user_is_in_mesa_ayuda_pash(user),
+                           is_eliot_view_access=_user_is_in_eliot_view_access(user))
 
 @app.route('/admin/dashboard')
 def admin_dashboard():
@@ -11987,6 +12005,9 @@ def can_user_access_ticket(user, ticket):
       Ayuda Pash (_user_is_in_mesa_ayuda_pash, incluye MesaAyudaPashViewer) —
       mismo alcance que las listas de Tickets/Subtareas/Casos por Flujos PASH,
       que ya permiten ver cualquier ticket de Pash sin importar asignación.
+    - Si el ticket es de Eliot y el user tiene acceso de solo vista otorgado
+      vía EliotViewer — mismo concepto, para los Grupos de Especialistas de
+      Eliot (Soporte calle 18/80/19, Soporte Agencias).
     """
     if not user or not ticket:
         return False
@@ -11997,6 +12018,8 @@ def can_user_access_ticket(user, ticket):
     if ticket.assignee_id in get_user_identity_ids(user):
         return True
     if ticket.company == 'pash' and _user_is_in_mesa_ayuda_pash(user):
+        return True
+    if ticket.company == 'eliot' and _user_is_in_eliot_view_access(user):
         return True
     return False
 
@@ -12098,6 +12121,19 @@ def _user_is_in_mesa_ayuda_pash(user):
     return db.session.query(UserSubrole.id).filter(
         UserSubrole.subrole_id.in_(group_ids),
         UserSubrole.user_id.in_(identity_ids),
+    ).first() is not None
+
+
+def _user_is_in_eliot_view_access(user):
+    """True si `user` (o alguna de sus identidades espejo) tiene acceso de
+    SOLO VISTA a los tickets/subtareas de Eliot vía EliotViewer — a
+    diferencia de Mesa De Ayuda Pash, acá no hay match por nombre de grupo:
+    es un otorgamiento explícito por usuario (ver docstring del modelo)."""
+    if not user:
+        return False
+    identity_ids = get_user_identity_ids(user)
+    return db.session.query(EliotViewer.id).filter(
+        EliotViewer.user_id.in_(identity_ids)
     ).first() is not None
 
 
@@ -17122,6 +17158,76 @@ def api_technician_pash_subtasks():
     return jsonify({'success': True, 'subtasks': result, 'total': len(result)})
 
 
+@app.route('/api/technician/eliot-tickets', methods=['GET'])
+def api_technician_eliot_tickets():
+    """TODOS los tickets de Eliot, sin importar de qué Grupo de Especialistas
+    (Soporte calle 18/80/19, Soporte Agencias) sea el asignado — misma idea
+    que api_technician_pash_tickets pero para Eliot. Incluye el/los grupo(s)
+    del asignado para filtrar por grupo en el frontend.
+
+    Solo visible para usuarios con acceso de solo vista (_user_is_in_eliot_view_access).
+    """
+    if 'user_id' not in session or session.get('role') not in ('technician', 'admin'):
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    user = User.query.get(session['user_id'])
+    if not _user_is_in_eliot_view_access(user):
+        return jsonify({'success': False, 'error': 'Sin acceso — esta vista es solo para usuarios con acceso de solo vista a Eliot'}), 403
+
+    INTERNAL_PREFIXES = ('DM-', 'CHAT-')
+    tickets = Ticket.query.filter(Ticket.company == 'eliot').all()
+    tickets = [t for t in tickets if not (t.ticket_number or '').startswith(INTERNAL_PREFIXES)]
+    tickets.sort(key=lambda t: t.created_at or datetime.min, reverse=True)
+
+    assignee_ids = {t.assignee_id for t in tickets if t.assignee_id}
+    groups_map = _assignee_groups_map(assignee_ids, 'eliot')
+
+    now = datetime.now()
+    result = []
+    for t in tickets:
+        result.append({
+            'id': t.id,
+            'ticket_number': t.ticket_number,
+            'title': t.title,
+            'category': t.category,
+            'status': t.status,
+            'priority': t.priority,
+            'assignee_name': t.assignee.name if t.assignee else None,
+            'group': groups_map.get(t.assignee_id) or ('— Sin grupo —' if t.assignee_id else None),
+            'sla_remaining': t.sla_remaining,
+            'sla_expired': bool(t.sla_deadline and t.sla_deadline < now and t.status not in ('resolved', 'closed')),
+            'created_at': t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else None,
+        })
+    return jsonify({'success': True, 'tickets': result, 'total': len(result)})
+
+
+@app.route('/api/technician/eliot-subtasks', methods=['GET'])
+def api_technician_eliot_subtasks():
+    """TODAS las subtareas de tickets de Eliot, sin importar el grupo del
+    asignado — misma idea que api_technician_pash_subtasks pero para Eliot.
+    Solo visible para usuarios con acceso de solo vista a Eliot."""
+    if 'user_id' not in session or session.get('role') not in ('technician', 'admin'):
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    user = User.query.get(session['user_id'])
+    if not _user_is_in_eliot_view_access(user):
+        return jsonify({'success': False, 'error': 'Sin acceso — esta vista es solo para usuarios con acceso de solo vista a Eliot'}), 403
+
+    subtasks = Subtask.query.join(Ticket, Subtask.ticket_id == Ticket.id).filter(
+        Ticket.company == 'eliot'
+    ).all()
+
+    assignee_ids = {s.assignee_id for s in subtasks if s.assignee_id}
+    groups_map = _assignee_groups_map(assignee_ids, 'eliot')
+
+    subtasks.sort(key=lambda s: s.created_at or datetime.min, reverse=True)
+
+    result = []
+    for s in subtasks:
+        row = _serialize_subtask(s)
+        row['group'] = groups_map.get(s.assignee_id) or ('— Sin grupo —' if s.assignee_id else None)
+        result.append(row)
+    return jsonify({'success': True, 'subtasks': result, 'total': len(result)})
+
+
 @app.route('/api/subtask/<int:subtask_id>', methods=['GET'])
 def api_subtask_get(subtask_id):
     if 'user_id' not in session:
@@ -20184,6 +20290,67 @@ def api_mesa_ayuda_pash_viewers_set():
     db.session.commit()
     log_audit('set_mesa_ayuda_pash_viewers', session['user_id'], 'company', None,
               f'{len(valid_ids)} usuario(s) con acceso de solo vista a Mesa De Ayuda Pash')
+
+    return jsonify({'success': True, 'message': f'{len(valid_ids)} usuario(s) guardado(s)'})
+
+
+@app.route('/api/admin/eliot-viewers', methods=['GET'])
+def api_eliot_viewers_get():
+    """Lista los técnicos/admins de Eliot, marcando cuáles tienen acceso de
+    SOLO VISTA a los tickets/subtareas de toda la empresa (pestañas Tickets
+    ELIOT / Subtareas ELIOT) sin ser miembros reales de ninguno de los
+    Grupos de Especialistas (ver EliotViewer)."""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    if session.get('company') != 'eliot' and not is_master_admin():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+
+    viewer_ids = {v.user_id for v in EliotViewer.query.all()}
+    users = User.query.filter(
+        User.company == 'eliot',
+        User.is_active == True,
+        User.role.in_(['technician', 'admin']),
+    ).order_by(User.role.desc(), User.name).all()
+
+    return jsonify({
+        'success': True,
+        'users': [{
+            'id': u.id,
+            'name': u.name,
+            'username': u.username,
+            'role': u.role,
+            'is_viewer': u.id in viewer_ids,
+        } for u in users]
+    })
+
+
+@app.route('/api/admin/eliot-viewers', methods=['POST'])
+def api_eliot_viewers_set():
+    """Reemplaza completamente la lista de usuarios con acceso de solo vista
+    a Eliot. Body: {user_ids: [1, 2, 3]}"""
+    if 'user_id' not in session or session['role'] != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    if session.get('company') != 'eliot' and not is_master_admin():
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+
+    data = request.get_json() or {}
+    new_ids = data.get('user_ids') or []
+    try:
+        new_ids = [int(x) for x in new_ids]
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'user_ids debe ser una lista de IDs'}), 400
+
+    valid_ids = {u.id for u in User.query.filter(
+        User.id.in_(new_ids), User.company == 'eliot',
+        User.role.in_(['technician', 'admin']), User.is_active == True,
+    ).all()}
+
+    EliotViewer.query.delete()
+    for uid in valid_ids:
+        db.session.add(EliotViewer(user_id=uid))
+    db.session.commit()
+    log_audit('set_eliot_viewers', session['user_id'], 'company', None,
+              f'{len(valid_ids)} usuario(s) con acceso de solo vista a Eliot')
 
     return jsonify({'success': True, 'message': f'{len(valid_ids)} usuario(s) guardado(s)'})
 
