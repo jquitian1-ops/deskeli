@@ -189,6 +189,29 @@
                         <div id="behalf_warn" style="display:none;margin-top:8px;color:#92400e;background:#fef3c7;padding:6px 10px;border-radius:6px;font-size:12px;"></div>
                     </div>
 
+                    {% if session.get('company') == 'eliot' %}
+                    <!-- Área/Ubicación: obligatorio solo para Manufacturas Eliot, incluso usando plantillas -->
+                    <div style="background:white;border:2px solid #c4b5fd;border-radius:8px;padding:14px;margin-bottom:12px;">
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">
+                            <div>
+                                <label for="user_area" style="font-size:12px;color:#5b21b6;font-weight:700;">🏢 Área <span style="color:#dc2626;">*</span></label>
+                                <input type="text" id="user_area" name="user_area" required maxlength="120"
+                                       value="{{ form_prev.user_area if form_prev else '' }}"
+                                       placeholder="Ej: Producción, Mantenimiento, Calidad..."
+                                       style="width:100%;padding:9px;border:1px solid #c4b5fd;border-radius:6px;font-size:13px;">
+                            </div>
+                            <div>
+                                <label for="user_location" style="font-size:12px;color:#5b21b6;font-weight:700;">📍 Sede <span style="color:#dc2626;">*</span></label>
+                                <input type="text" id="user_location" name="user_location" required maxlength="120"
+                                       value="{{ form_prev.user_location if form_prev else '' }}"
+                                       placeholder="Ej: Planta 1, Bodega, Oficinas..."
+                                       style="width:100%;padding:9px;border:1px solid #c4b5fd;border-radius:6px;font-size:13px;">
+                            </div>
+                        </div>
+                        <p style="color:#6b21a8;font-size:11.5px;margin:8px 0 0;">Obligatorio para Manufacturas Eliot, incluso si usás una plantilla.</p>
+                    </div>
+                    {% endif %}
+
                     <!-- Auto-asignar -->
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:#5b21b6;padding:8px;background:white;border-radius:6px;border:1px solid #c4b5fd;">
                         <input type="checkbox" id="auto_assign_me" name="auto_assign_me" value="1" style="width:18px;height:18px;cursor:pointer;">

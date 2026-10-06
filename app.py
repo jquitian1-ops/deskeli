@@ -3590,6 +3590,10 @@ def technician_create():
         subcategory = (request.form.get('subcategory') or '').strip() or None
         priority = (request.form.get('priority') or 'medium').strip()
         auto_assign = request.form.get('auto_assign_me') in ('1', 'true', 'on')
+        # Área/Sede: obligatorio solo para Manufacturas Eliot (incluso usando
+        # plantillas) — el resto de empresas no lo exige en este portal.
+        user_area = (request.form.get('user_area') or '').strip()
+        user_location = (request.form.get('user_location') or '').strip()
         # Crear en nombre de otro usuario (opcional)
         behalf_id_raw = (request.form.get('behalf_of_user_id') or '').strip()
         # Asignar directo a un compañero del grupo "Mesa de Ayuda" (opcional,
@@ -3610,6 +3614,8 @@ def technician_create():
                 'category': category,
                 'subcategory': subcategory or '',
                 'priority': priority,
+                'user_area': user_area,
+                'user_location': user_location,
             })
 
         if not title or not description:
@@ -3620,6 +3626,11 @@ def technician_create():
             return _render_error('Descripción debe tener 10-5000 caracteres')
         if not subcategory and category_requires_subcategory(category, tech.company):
             return _render_error(f'La categoría "{category}" tiene subcategorías: debes elegir una')
+        if tech.company == 'eliot':
+            if not user_area or len(user_area) < 2:
+                return _render_error('El campo "Área" es obligatorio para Manufacturas Eliot')
+            if not user_location or len(user_location) < 2:
+                return _render_error('El campo "Sede" es obligatorio para Manufacturas Eliot')
 
         # Validar "creado para": debe ser usuario activo de la misma empresa
         creator_id = tech.id
@@ -3712,7 +3723,9 @@ def technician_create():
             status='in_progress' if assignee_id else 'open',
             company=tech.company,
             sla_minutes=sla_minutes,
-            sla_deadline=compute_sla_deadline(datetime.now(), sla_minutes, tech.company)
+            sla_deadline=compute_sla_deadline(datetime.now(), sla_minutes, tech.company),
+            user_area=user_area or None,
+            user_location=user_location or None,
         )
         db.session.add(ticket)
         db.session.commit()
