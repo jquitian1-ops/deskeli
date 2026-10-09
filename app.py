@@ -30421,6 +30421,80 @@ def _notify_next_approver(solicitud):
         print(f'[warn] _notify_next_approver: {e}')
 
 
+def check_solicitud_approval_reminders():
+    """Reenvía el correo de aprobación si una solicitud sigue pendiente 24h+
+    después del último aviso — para que no quede sin respuesta solo porque
+    el aprobador no vio/perdió el correo original.
+
+    Reusa _notify_next_approver(), que ya resuelve correctamente al/los
+    aprobador(es) del paso ACTUAL (legacy o flujo dinámico) y es idempotente
+    por (solicitud, estado, step_index, email) vía _create_or_get_solicitud_token
+    — reenviar no crea tokens duplicados, reutiliza el existente y solo
+    actualiza notified_at, por lo que después de este reenvío pasan otras
+    24h hasta el próximo recordatorio."""
+    with app.app_context():
+        try:
+            pendientes = {
+                SOLICITUD_ESTADO_PENDIENTE_JEFE,
+                SOLICITUD_ESTADO_PENDIENTE_ANALISTA_TI,
+                SOLICITUD_ESTADO_PENDIENTE_GERENTE_AREA,
+                SOLICITUD_ESTADO_PENDIENTE_GERENTE_TI,
+            }
+            cutoff = datetime.now() - timedelta(hours=24)
+            solicitudes = SolicitudUsuario.query.filter(
+                SolicitudUsuario.anulado == False,
+                SolicitudUsuario.estado.in_(pendientes),
+            ).all()
+
+            reminded = 0
+            for s in solicitudes:
+                step_idx = s.current_step_index if s.uses_dynamic_flow() else None
+                q = SolicitudApprovalToken.query.filter_by(
+                    solicitud_id=s.id,
+                    expected_state=s.estado,
+                    used=False,
+                )
+                if step_idx is not None:
+                    q = q.filter_by(step_index=step_idx)
+                tokens = q.all()
+
+                if not tokens:
+                    # Nunca se generó token para este paso (no debería pasar) —
+                    # mejor notificar ahora que dejarla huérfana en silencio.
+                    _notify_next_approver(s)
+                    reminded += 1
+                    continue
+
+                oldest_notified = min((t.notified_at or t.created_at or datetime.min) for t in tokens)
+                if oldest_notified <= cutoff:
+                    _notify_next_approver(s)
+                    log_audit(
+                        'solicitud_recordatorio_aprobacion', None, 'solicitud', s.id,
+                        f'{s.codigo}: recordatorio automático reenviado (pendiente desde {oldest_notified.strftime("%Y-%m-%d %H:%M")})'
+                    )
+                    reminded += 1
+
+            if reminded:
+                print(f'[solicitud-reminders] {reminded} recordatorio(s) de aprobación reenviado(s)')
+        except Exception as e:
+            print(f'[solicitud-reminders] Error: {e}')
+
+
+def start_solicitud_reminder_scheduler():
+    """Scheduler que revisa cada hora las solicitudes con aprobación
+    pendiente hace más de 24h y reenvía el correo al aprobador actual."""
+    def loop():
+        while True:
+            try:
+                check_solicitud_approval_reminders()
+            except Exception as e:
+                print(f'[solicitud-reminders-scheduler] Error: {e}')
+            time.sleep(3600)  # cada 1h (el recordatorio en sí respeta el umbral de 24h por token)
+    thread = Thread(target=loop, daemon=True)
+    thread.start()
+    print('[solicitud-reminders] Scheduler iniciado (revisión cada 1h, recordatorio a las 24h sin respuesta)')
+
+
 def _notify_solicitud_creator_devuelta(solicitud, actor_user, observacion):
     """Avisa por correo a quien CREÓ la solicitud cuando la cadena de
     aprobación se devuelve en cualquier paso, para que sepa que tiene que
@@ -30819,6 +30893,7 @@ def bootstrap_app():
     start_token_cleanup_scheduler()
     start_mailbox_poller()
     start_sla_alert_scheduler()
+    start_solicitud_reminder_scheduler()
     # NUEVO: Purga automática de AuditLog (12 meses retención)
     try:
         start_audit_log_purge_scheduler()
