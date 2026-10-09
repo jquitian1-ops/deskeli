@@ -2077,9 +2077,19 @@ def _resolve_ti_approver(company, kind):
 
 def solicitud_can_view(user, solicitud):
     """Reglas de visibilidad. Admin: todo de sus empresas. Creator: propia.
-    Aprobador de cualquier nivel: la propia. Mesa De Ayuda Pash (miembro real
+    Aprobador actual (is_current_approver, cubre flujo legacy Y dinámico) o
+    que ya decidió esta solicitud en algún momento (historial): la propia —
+    así el aprobador también puede consultar el histórico de lo que ya
+    aprobó/rechazó, no solo lo pendiente. Mesa De Ayuda Pash (miembro real
     o solo vista): cualquier solicitud de Pash, para dar seguimiento a los
-    "Casos por Flujos" aunque todavía no le toque aprobar ni sea la creadora."""
+    "Casos por Flujos" aunque todavía no le toque aprobar ni sea la creadora.
+
+    IMPORTANTE: antes esto solo chequeaba las columnas fijas del flujo
+    LEGACY (jefe_inmediato_id/gerente_area_id/analista_ti_id/gerente_ti_id)
+    + el correo del jefe inmediato — un aprobador de un paso de FLUJO
+    DINÁMICO (ApprovalFlow por área) nunca matcheaba ninguna de esas
+    columnas y recibía "Solicitud no encontrada" al entrar, aun teniendo una
+    decisión pendiente real (mismo caso que exponía api_solicitudes_list)."""
     if not user or not solicitud:
         return False
     if solicitud.company != user.company and user.role != 'admin':
@@ -2088,13 +2098,12 @@ def solicitud_can_view(user, solicitud):
         return True
     if solicitud.creator_id == user.id:
         return True
-    if user.id in (solicitud.jefe_inmediato_id, solicitud.gerente_area_id,
-                   solicitud.analista_ti_id, solicitud.gerente_ti_id):
+    if solicitud.is_current_approver(user):
         return True
-    # Jefe Inmediato manual: el correo puede no tener User asociado al
-    # crearse la solicitud; si luego el usuario se creó con ese correo,
-    # igual debe poder ver la solicitud.
-    if solicitud.jefe_inmediato_email and (user.email or '').strip().lower() == solicitud.jefe_inmediato_email.strip().lower():
+    if db.session.query(SolicitudHistorial.id).filter(
+        SolicitudHistorial.solicitud_id == solicitud.id,
+        SolicitudHistorial.aprobador_id == user.id,
+    ).first() is not None:
         return True
     if solicitud.company == 'pash' and _user_is_in_mesa_ayuda_pash(user):
         return True
@@ -27875,8 +27884,9 @@ def api_solicitudes_mis_pendientes():
 
 @app.route('/api/solicitudes-usuarios', methods=['GET'])
 def api_solicitudes_list():
-    """Listado con filtros (§5.1). Un usuario normal ve las suyas; admin ve todas
-    (con toggle visualiza_todo). Ver también las que le corresponden aprobar."""
+    """Listado con filtros (§5.1). Un usuario normal ve las suyas, las que le
+    corresponde aprobar (pendientes) y las que ya decidió (historial).
+    Admin ve todas (con toggle visualiza_todo)."""
     user, err = _current_user_or_401()
     if err: return err
 
@@ -27891,15 +27901,6 @@ def api_solicitudes_list():
     if user.role != 'admin':
         # Solo su empresa
         q = q.filter(SolicitudUsuario.company == user.company)
-        # Solo las suyas o las que le toca aprobar
-        q = q.filter(
-            (SolicitudUsuario.creator_id == user.id) |
-            (SolicitudUsuario.jefe_inmediato_id == user.id) |
-            (SolicitudUsuario.gerente_area_id == user.id) |
-            (SolicitudUsuario.analista_ti_id == user.id) |
-            (SolicitudUsuario.gerente_ti_id == user.id) |
-            (db.func.lower(SolicitudUsuario.jefe_inmediato_email) == (user.email or '').strip().lower())
-        )
     else:
         # Admin: por defecto su empresa; si visualiza_todo, todas las de su scope
         if not visualiza_todo:
@@ -27916,7 +27917,32 @@ def api_solicitudes_list():
         q = q.filter(SolicitudUsuario.anulado == False)
 
     q = q.order_by(SolicitudUsuario.created_at.desc())
-    solicitudes = q.limit(500).all()
+
+    if user.role == 'admin':
+        solicitudes = q.limit(500).all()
+    else:
+        # IMPORTANTE: antes esto filtraba en SQL por creator_id/jefe_inmediato_id/
+        # gerente_area_id/analista_ti_id/gerente_ti_id/jefe_inmediato_email —
+        # esas columnas solo cubren el flujo LEGACY de 4 niveles fijos. Un
+        # aprobador de un paso de FLUJO DINÁMICO (ApprovalFlow configurado por
+        # área, ver current_flow_step_emails) no aparecía en ninguna de esas
+        # columnas y la solicitud directamente desaparecía de su listado, aun
+        # cuando sí le tocaba decidirla — se detectó con un caso real donde la
+        # aprobadora no veía NADA en la plataforma pese a tener una pendiente.
+        # Ahora se usa is_current_approver() (misma fuente de verdad que
+        # /mis-pendientes y la página de detalle) + historial de lo que ya
+        # decidió, para que también vea el histórico de aprobadas/rechazadas.
+        candidates = q.limit(3000).all()
+        approved_ids = {
+            row[0] for row in db.session.query(SolicitudHistorial.solicitud_id).filter(
+                SolicitudHistorial.aprobador_id == user.id
+            ).all()
+        }
+        solicitudes = [
+            s for s in candidates
+            if s.creator_id == user.id or s.id in approved_ids or s.is_current_approver(user)
+        ][:500]
+
     return jsonify({
         'success': True,
         'solicitudes': [_serialize_solicitud_row(s) for s in solicitudes],
