@@ -29774,28 +29774,35 @@ def api_approval_flows_import():
 @app.route('/api/approval-flows/areas', methods=['GET'])
 def api_approval_flows_areas():
     """Endpoint público (para el form de solicitud): devuelve las áreas con
-    flujo activo disponibles para el usuario. Payload compacto.
+    flujo activo disponibles para la empresa indicada. Payload compacto.
 
-    Solo flujos de la PROPIA empresa del usuario — antes se mostraban
-    también los de las otras empresas ("visibilidad total entre empresas",
-    para reutilizar flujos ya armados), pero esto confundía al elegir área:
-    un técnico/admin de Pash veía áreas de Eliot mezcladas en el mismo
-    desplegable y podía terminar usando por error la cadena de aprobadores
-    de otra empresa."""
+    El form de Solicitud de Usuario tiene su propio selector "Unidad de
+    negocio" (independiente de la empresa de la sesión — ej. un TRASLADO
+    puede registrarse para otra empresa distinta a la del creador), así
+    que la empresa a filtrar viene por query param `?company=<code>`, no
+    de `user.company`. Antes mostraba TODAS las empresas mezcladas en el
+    mismo desplegable (confuso) o, en un intento anterior, solo la empresa
+    de sesión (rompía el caso de Unidad de negocio ≠ empresa de sesión).
+    Si no se manda `company` (u ese código no existe), cae a `user.company`
+    como default razonable."""
     user, err = _current_user_or_401()
     if err: return err
+    company_code = (request.args.get('company') or '').strip().lower()
+    if company_code and not Company.query.filter_by(code=company_code, is_active=True).first():
+        company_code = ''
+    target_company = company_code or user.company
     flows = ApprovalFlow.query.filter(
         ApprovalFlow.is_active == True,
-        ApprovalFlow.company == user.company,
+        ApprovalFlow.company == target_company,
     ).order_by(ApprovalFlow.area).all()
     return jsonify({
         'success': True,
+        'company': target_company,
         'areas': [
             {
                 'id': f.id,
                 'area': f.area,
                 'company': f.company,
-                'is_own_company': True,
                 'description': f.description or '',
                 'steps_count': len(f.steps()),
                 'steps_preview': [s.get('label', '') for s in f.steps()],
@@ -29807,10 +29814,12 @@ def api_approval_flows_areas():
 
 def _company_can_use_approval_flow_company(requester_company, flow_company):
     """True si un usuario de `requester_company` puede usar un ApprovalFlow
-    que pertenece a `flow_company`. Ya no hay visibilidad cruzada entre
-    empresas (ver api_approval_flows_areas): solo el flujo de la propia
-    empresa."""
-    return requester_company == flow_company
+    que pertenece a `flow_company`. El selector "Unidad de negocio" del form
+    permite elegir explícitamente cualquier empresa activa (caso real: un
+    TRASLADO a otra unidad de negocio), así que no se restringe por la
+    empresa de sesión del creador — la UI ya evita mezclar áreas de
+    distintas empresas en un mismo desplegable (ver api_approval_flows_areas)."""
+    return True
 
 
 def _resolve_approval_flow_for_solicitud(company, area, flow_id=None):

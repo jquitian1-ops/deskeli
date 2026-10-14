@@ -83,7 +83,7 @@
                     </div>
                     <div class="field">
                         <label>Unidad de negocio</label>
-                        <select id="unidad_negocio">
+                        <select id="unidad_negocio" onchange="loadFlowAreas()">
                             <option value="">⏳ Cargando empresas…</option>
                         </select>
                     </div>
@@ -506,6 +506,13 @@
         }
 
         const tipo = document.getElementById('tipo_solicitud').value;
+        if (!document.getElementById('unidad_negocio').value) {
+            alert('Tenés que seleccionar la Unidad de negocio antes de continuar.');
+            document.getElementById('unidad_negocio').focus();
+            btn.disabled = false;
+            btn.textContent = '✓ Registrar solicitud';
+            return;
+        }
         const flowAreaVal = document.getElementById('flow_area').value;
         const useDynamicFlow = flowAreaVal && flowAreaVal !== '__none__';
 
@@ -726,8 +733,11 @@
             }
             sel.innerHTML = '<option value="">— Selecciona una empresa —</option>' +
                 companies.map(c =>
-                    `<option value="${esc(c.name)}">${c.icon ? esc(c.icon) + ' ' : ''}${esc(c.name)}</option>`
+                    `<option value="${esc(c.name)}" data-code="${esc(c.code)}">${c.icon ? esc(c.icon) + ' ' : ''}${esc(c.name)}</option>`
                 ).join('');
+            // Ya con las opciones cargadas, refrescar "Elegí un área" por si
+            // el usuario ya había elegido algo antes de que esto terminara.
+            loadFlowAreas();
         } catch (e) {
             sel.innerHTML = `<option value="">❌ ${esc(e.message)}</option>`;
         }
@@ -740,31 +750,49 @@
 
     async function loadFlowAreas() {
         const sel = document.getElementById('flow_area');
+        const unidadSel = document.getElementById('unidad_negocio');
+        const selectedOpt = unidadSel ? unidadSel.options[unidadSel.selectedIndex] : null;
+        const companyCode = selectedOpt ? (selectedOpt.dataset.code || '') : '';
+
+        // El Área depende de qué empresa se eligió en "Unidad de negocio" —
+        // cada empresa tiene sus propios flujos configurados y no deben
+        // mezclarse (antes se mostraban todas las empresas juntas en el
+        // mismo desplegable, lo que generaba confusión al elegir).
+        if (!companyCode) {
+            _flowAreas = [];
+            sel.innerHTML = '<option value="">— Primero seleccioná la Unidad de negocio —</option>';
+            sel.disabled = true;
+            return;
+        }
+        sel.disabled = false;
+
         try {
-            const r = await fetch('/api/approval-flows/areas');
+            const r = await fetch('/api/approval-flows/areas?company=' + encodeURIComponent(companyCode));
             const data = await r.json();
             if (!data.success) throw new Error(data.error || 'Error');
             _flowAreas = data.areas || [];
+            const legacy = document.getElementById('legacyApprovers');
+            const existingWarn = document.getElementById('flowEmptyWarn');
             let html;
             if (_flowAreas.length === 0) {
-                // Sin áreas configuradas: preseleccionar "sin flujo" automáticamente
+                // Sin áreas configuradas para ESTA empresa: preseleccionar "sin flujo"
                 html = `<option value="__none__" selected>— Sin flujo configurado (usar aprobadores manuales) —</option>`;
                 sel.innerHTML = html;
                 onFlowAreaChange();
                 // Mostrar aviso arriba de los selects legacy
-                const legacy = document.getElementById('legacyApprovers');
-                if (legacy && !document.getElementById('flowEmptyWarn')) {
+                if (legacy && !existingWarn) {
                     const warn = document.createElement('div');
                     warn.id = 'flowEmptyWarn';
                     warn.style.cssText = 'padding:10px 14px; background:#fef3c7; border-left:4px solid #f59e0b; border-radius:4px; margin-bottom:12px; font-size:12px; color:#78350f;';
-                    warn.innerHTML = '⚠ <strong>No hay flujos de aprobación configurados.</strong> Pedile al admin que cree un flujo en <em>/admin/approval-flows</em> o corra <code>python scripts/seed_approval_flow_demo.py</code>.';
+                    warn.innerHTML = '⚠ <strong>Esta empresa no tiene flujos de aprobación configurados.</strong> Pedile al admin que cree un flujo en <em>/admin/approval-flows</em>.';
                     legacy.insertBefore(warn, legacy.firstChild);
                 }
                 return;
             }
+            if (existingWarn) existingWarn.remove();
             html = '<option value="">— Elegí un área —</option>';
-            // /api/approval-flows/areas ya filtra solo las áreas de la propia
-            // empresa del usuario (sin mezclar flujos de otras empresas).
+            // /api/approval-flows/areas ya filtra solo las áreas de la empresa
+            // elegida en "Unidad de negocio" (sin mezclar otras empresas).
             _flowAreas.forEach(a => {
                 html += `<option value="${a.id}">${esc(a.area)} — ${a.steps_count} aprobadores</option>`;
             });
