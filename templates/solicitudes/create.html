@@ -763,12 +763,10 @@
                 return;
             }
             html = '<option value="">— Elegí un área —</option>';
-            // Identificado por id (no por nombre): Pash puede ver la misma
-            // área definida tanto en Pash como en Eliot, cada una con su
-            // propia cadena de aprobadores — hay que poder elegir cuál.
+            // /api/approval-flows/areas ya filtra solo las áreas de la propia
+            // empresa del usuario (sin mezclar flujos de otras empresas).
             _flowAreas.forEach(a => {
-                const companyTag = a.is_own_company ? '' : ` (${esc(a.company)})`;
-                html += `<option value="${a.id}">${esc(a.area)}${companyTag} — ${a.steps_count} aprobadores</option>`;
+                html += `<option value="${a.id}">${esc(a.area)} — ${a.steps_count} aprobadores</option>`;
             });
             html += '<option value="__none__">— Sin flujo (usar aprobadores manuales) —</option>';
             sel.innerHTML = html;

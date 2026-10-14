@@ -27662,9 +27662,9 @@ def api_solicitudes_create():
             return jsonify({'success': False, 'error': f'Campo obligatorio faltante: {f}'}), 400
 
     # ── Modo de aprobación: dinámico (ApprovalFlow por área) o legacy (4 fijos) ──
-    # flow_id es la selección explícita del dropdown (soporta flujos de OTRA
-    # empresa cuando aplica, ej. Pash usando un flujo de Eliot). flow_area
-    # queda como fallback legacy (solo flujos propios) para compatibilidad.
+    # flow_id es la selección explícita del dropdown (siempre un flujo de la
+    # PROPIA empresa del usuario — ver api_approval_flows_areas). flow_area
+    # queda como fallback legacy para compatibilidad.
     flow_id = data.get('flow_id')
     flow_area = (data.get('flow_area') or '').strip()
     if not flow_id and not flow_area:
@@ -29776,15 +29776,17 @@ def api_approval_flows_areas():
     """Endpoint público (para el form de solicitud): devuelve las áreas con
     flujo activo disponibles para el usuario. Payload compacto.
 
-    Visibilidad total entre empresas: cualquier empresa ve (y puede usar)
-    los flujos configurados en cualquiera de las otras, no solo los
-    propios — se muestran identificados por empresa (incluso si comparten
-    el mismo nombre de área) para reutilizar flujos ya armados en vez de
-    duplicarlos a mano en cada empresa."""
+    Solo flujos de la PROPIA empresa del usuario — antes se mostraban
+    también los de las otras empresas ("visibilidad total entre empresas",
+    para reutilizar flujos ya armados), pero esto confundía al elegir área:
+    un técnico/admin de Pash veía áreas de Eliot mezcladas en el mismo
+    desplegable y podía terminar usando por error la cadena de aprobadores
+    de otra empresa."""
     user, err = _current_user_or_401()
     if err: return err
     flows = ApprovalFlow.query.filter(
         ApprovalFlow.is_active == True,
+        ApprovalFlow.company == user.company,
     ).order_by(ApprovalFlow.area).all()
     return jsonify({
         'success': True,
@@ -29793,7 +29795,7 @@ def api_approval_flows_areas():
                 'id': f.id,
                 'area': f.area,
                 'company': f.company,
-                'is_own_company': f.company == user.company,
+                'is_own_company': True,
                 'description': f.description or '',
                 'steps_count': len(f.steps()),
                 'steps_preview': [s.get('label', '') for s in f.steps()],
@@ -29805,9 +29807,10 @@ def api_approval_flows_areas():
 
 def _company_can_use_approval_flow_company(requester_company, flow_company):
     """True si un usuario de `requester_company` puede usar un ApprovalFlow
-    que pertenece a `flow_company`. Visibilidad total entre empresas: se
-    puede usar el flujo de cualquiera de las otras (ver api_approval_flows_areas)."""
-    return True
+    que pertenece a `flow_company`. Ya no hay visibilidad cruzada entre
+    empresas (ver api_approval_flows_areas): solo el flujo de la propia
+    empresa."""
+    return requester_company == flow_company
 
 
 def _resolve_approval_flow_for_solicitud(company, area, flow_id=None):
