@@ -761,7 +761,7 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
 
             <!-- VISTA: SUBTAREAS -->
             <div id="viewSubtasks" class="queue-section" style="display:none;">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:10px;">
                     <div class="section-title" style="margin:0;" id="subSubtaskTitle">✅ Subtareas Asignadas a Mí</div>
                     <div style="display:flex;align-items:center;gap:8px;">
                         <input type="text" id="subSearch" placeholder="🔍 Buscar subtareas..."
@@ -769,6 +769,16 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                                style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;min-width:280px;font-size:14px;">
                         <span id="subSearchCount" style="font-size:12px;color:#6b7280;"></span>
                     </div>
+                </div>
+                <div style="display:flex;gap:6px;margin-bottom:12px;">
+                    <button type="button" id="subStateTabOther" onclick="setSubStateTab('other')"
+                            style="padding:7px 14px;border:1px solid #7c3aed;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;background:#7c3aed;color:white;">
+                        Otros estados
+                    </button>
+                    <button type="button" id="subStateTabClosed" onclick="setSubStateTab('closed')"
+                            style="padding:7px 14px;border:1px solid #d1d5db;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;background:white;color:#6b7280;">
+                        🔒 Cerradas
+                    </button>
                 </div>
                 <div id="subtasksList">
                     <p style="text-align:center;color:#999;padding:30px;">Cargando subtareas...</p>
@@ -1033,6 +1043,28 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
             return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         }
 
+        // Pestaña de estado de las subtareas: "other" (todo menos cerradas,
+        // activa por defecto al entrar) / "closed" (solo cerradas, manual).
+        let _subStateTab = 'other';
+
+        function setSubStateTab(which) {
+            _subStateTab = which;
+            const otherBtn = document.getElementById('subStateTabOther');
+            const closedBtn = document.getElementById('subStateTabClosed');
+            if (which === 'closed') {
+                closedBtn.style.background = '#7c3aed'; closedBtn.style.color = 'white'; closedBtn.style.borderColor = '#7c3aed';
+                otherBtn.style.background = 'white'; otherBtn.style.color = '#6b7280'; otherBtn.style.borderColor = '#d1d5db';
+            } else {
+                otherBtn.style.background = '#7c3aed'; otherBtn.style.color = 'white'; otherBtn.style.borderColor = '#7c3aed';
+                closedBtn.style.background = 'white'; closedBtn.style.color = '#6b7280'; closedBtn.style.borderColor = '#d1d5db';
+            }
+            filterSubtasks();
+        }
+
+        function _applySubStateTab(list) {
+            return list.filter(s => _subStateTab === 'closed' ? s.status === 'closed' : s.status !== 'closed');
+        }
+
         function loadMySubtasks(scope) {
             scope = scope || _currentSubtaskScope || 'mine';
             document.getElementById('subtasksList').innerHTML = '<p style="text-align:center;color:#999;padding:30px;">Cargando subtareas...</p>';
@@ -1049,7 +1081,7 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
                     document.getElementById('subSubtaskTitle') &&
                         (document.getElementById('subSubtaskTitle').textContent =
                             scope === 'mine' ? '✅ Subtareas Asignadas a Mí' : '👥 Subtareas de Mis Grupos');
-                    renderMySubtasks(_allSubtasks);
+                    filterSubtasks();
                 })
                 .catch(() => {
                     document.getElementById('subtasksList').innerHTML = '<p style="text-align:center;color:#dc2626;padding:30px;">Error de conexión</p>';
@@ -1153,19 +1185,17 @@ document.addEventListener('DOMContentLoaded', _loadMyApprovals);
 
         function filterSubtasks() {
             const q = (document.getElementById('subSearch').value || '').trim().toLowerCase();
-            if (!q) {
-                renderMySubtasks(_allSubtasks);
-                document.getElementById('subSearchCount').textContent = '';
-                return;
+            let filtered = _applySubStateTab(_allSubtasks);
+            if (q) {
+                filtered = filtered.filter(s => {
+                    const text = [
+                        s.subtask_number, s.parent_number, s.title, s.description,
+                        s.priority, s.status, s.category,
+                        s.company_label, s.assignee_name, s.created_by_name
+                    ].filter(Boolean).join(' ').toLowerCase();
+                    return text.indexOf(q) !== -1;
+                });
             }
-            const filtered = _allSubtasks.filter(s => {
-                const text = [
-                    s.subtask_number, s.parent_number, s.title, s.description,
-                    s.priority, s.status, s.category,
-                    s.company_label, s.assignee_name, s.created_by_name
-                ].filter(Boolean).join(' ').toLowerCase();
-                return text.indexOf(q) !== -1;
-            });
             document.getElementById('subSearchCount').textContent = filtered.length + ' de ' + _allSubtasks.length;
             renderMySubtasks(filtered);
         }
