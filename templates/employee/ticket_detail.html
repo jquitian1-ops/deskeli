@@ -181,6 +181,7 @@
                             {% elif ticket.status == 'pending_approval' %}⏳ Pendiente de aprobación
                             {% elif ticket.status == 'rejected' %}❌ Rechazado
                             {% elif ticket.status == 'closed' %}Cerrado
+                            {% elif ticket.status == 'waiting_user' %}⏳ Esperando tu respuesta
                             {% else %}Resuelto
                             {% endif %}
                         </span>

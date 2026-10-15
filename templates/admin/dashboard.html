@@ -1739,6 +1739,7 @@
                                 style="display:none;position:fixed;z-index:9999;background:white;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,.15);padding:6px;min-width:170px;">
                                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:5px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="open" onchange="tixMsOnChange('status')"> Abierto</label>
                                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:5px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="in_progress" onchange="tixMsOnChange('status')"> En progreso</label>
+                                <label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:5px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="waiting_user" onchange="tixMsOnChange('status')"> ⏳ Esperando Usuario</label>
                                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:5px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="resolved" onchange="tixMsOnChange('status')"> Resuelto</label>
                                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:5px;cursor:pointer;white-space:nowrap;"><input type="checkbox" value="closed" onchange="tixMsOnChange('status')"> Cerrado</label>
                             </div>
@@ -4525,6 +4526,7 @@
             const statusColors = {
                 'open': {bg:'#dbeafe', color:'#1e40af', label:'Abierto'},
                 'in_progress': {bg:'#fed7aa', color:'#9a3412', label:'En Progreso'},
+                'waiting_user': {bg:'#ede9fe', color:'#5b21b6', label:'⏳ Esperando Usuario'},
                 'resolved': {bg:'#d1fae5', color:'#065f46', label:'Resuelto'},
                 'closed': {bg:'#f3f4f6', color:'#4b5563', label:'Cerrado'},
                 'pending_approval': {bg:'#ede9fe', color:'#5b21b6', label:'⏳ Pendiente de aprobación'},
@@ -4559,7 +4561,7 @@
         }
 
         // ===== Filtros multi-select: Estado y Asignado (Gestión de Tickets) =====
-        const _tixMsStatusLabels = {open: 'Abierto', in_progress: 'En progreso', resolved: 'Resuelto', closed: 'Cerrado'};
+        const _tixMsStatusLabels = {open: 'Abierto', in_progress: 'En progreso', waiting_user: 'Esperando Usuario', resolved: 'Resuelto', closed: 'Cerrado'};
 
         function tixMsToggleMenu(key, btn, ev) {
             if (ev) ev.stopPropagation();
