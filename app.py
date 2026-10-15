@@ -3293,7 +3293,7 @@ def employee_dashboard():
         return redirect(url_for('login'))
 
     user = User.query.get(session['user_id'])
-    tickets = Ticket.query.filter_by(creator_id=user.id).all()
+    tickets = Ticket.query.filter_by(creator_id=user.id).order_by(Ticket.created_at.desc()).all()
 
     stats = {
         'open': len([t for t in tickets if t.status == 'open']),
@@ -4087,7 +4087,8 @@ def technician_dashboard():
     group_user_ids = get_my_group_user_ids(user)
     team_queue_objs = sorted(
         [t for t in tickets if t.assignee_id in group_user_ids],
-        key=lambda x: x.sla_deadline or datetime.now()
+        key=lambda x: x.created_at or datetime.min,
+        reverse=True
     )
 
     # "Asignados a mi" — incluye tickets asignados a cualquiera de mis identidades
@@ -4105,7 +4106,7 @@ def technician_dashboard():
             if not (t.ticket_number or '').startswith(INTERNAL_PREFIXES)
         ]
         my_queue_objs.extend(cross_tickets)
-    my_queue_objs.sort(key=lambda x: x.sla_deadline or datetime.now())
+    my_queue_objs.sort(key=lambda x: x.created_at or datetime.min, reverse=True)
 
     # Enriquecer con info de asignación (quién asignó y cuándo) — evitar N+1 con cache
     _assign_cache = {}
@@ -4203,7 +4204,7 @@ def admin_dashboard():
 
     user = User.query.get(session['user_id'])
     scope = admin_companies_scope(user.company, user.role)
-    all_tickets = Ticket.query.filter(Ticket.company.in_(scope)).all()
+    all_tickets = Ticket.query.filter(Ticket.company.in_(scope)).order_by(Ticket.created_at.desc()).all()
 
     _sla_ok = len([t for t in all_tickets if not t.sla_deadline or t.sla_deadline > datetime.now()])
     _worked = [t for t in all_tickets if t.time_worked_seconds]
@@ -7946,7 +7947,7 @@ def api_search():
         (Ticket.title.ilike(f'%{query}%')) |
         (Ticket.description.ilike(f'%{query}%')) |
         (Ticket.ticket_number.ilike(f'%{query}%'))
-    ).limit(20).all()
+    ).order_by(Ticket.created_at.desc()).limit(20).all()
 
     results = [{
         'id': t.id,
@@ -17089,14 +17090,8 @@ def api_my_subtasks():
                 )
         subtasks = query.all()
 
-        # Orden: activas primero (in_progress, open), terminales al final (resolved, closed).
-        # Dentro de cada grupo por SLA ascendente (None al final).
-        status_rank = {'in_progress': 0, 'open': 1, 'resolved': 2, 'closed': 3}
-        far_future = datetime(2999, 12, 31)
-        subtasks.sort(key=lambda s: (
-            status_rank.get(s.status, 1),
-            s.sla_deadline or far_future
-        ))
+        # Orden: siempre de más nueva a más vieja (creación descendente).
+        subtasks.sort(key=lambda s: s.created_at or datetime.min, reverse=True)
 
         return jsonify({
             'success': True,
