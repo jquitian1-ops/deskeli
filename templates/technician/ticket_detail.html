@@ -698,12 +698,24 @@
 
             <div class="sidebar-item">
                 <div class="sidebar-label">Prioridad</div>
+                {% if ticket.status in ('resolved', 'closed') %}
                 <div class="sidebar-value">
-                    {% if ticket.priority == 'high' %}🔴 Alta
+                    {% if ticket.priority == 'critical' %}🔴 Crítica
+                    {% elif ticket.priority == 'high' %}🟠 Alta
                     {% elif ticket.priority == 'medium' %}🟡 Media
                     {% else %}🟢 Baja
                     {% endif %}
                 </div>
+                {% else %}
+                <select id="prioritySelect" data-current="{{ ticket.priority }}" onchange="changeTicketPriority(this.value)"
+                        style="width:100%;padding:7px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">
+                    <option value="low" {% if ticket.priority == 'low' %}selected{% endif %}>🟢 Baja</option>
+                    <option value="medium" {% if ticket.priority == 'medium' %}selected{% endif %}>🟡 Media</option>
+                    <option value="high" {% if ticket.priority == 'high' %}selected{% endif %}>🟠 Alta</option>
+                    <option value="critical" {% if ticket.priority == 'critical' %}selected{% endif %}>🔴 Crítica</option>
+                </select>
+                <div style="font-size:10.5px;color:#9ca3af;margin-top:3px;">Corregí la prioridad si el empleado la marcó mal. Recalcula el SLA.</div>
+                {% endif %}
             </div>
 
             <div class="sidebar-item">
@@ -896,6 +908,41 @@
                 }
             } catch (e) {
                 alert('Error de conexión: ' + e.message);
+            }
+        }
+
+        // ========== CAMBIAR PRIORIDAD ==========
+        const _priorityLabels = {low: '🟢 Baja', medium: '🟡 Media', high: '🟠 Alta', critical: '🔴 Crítica'};
+
+        async function changeTicketPriority(newPriority) {
+            const sel = document.getElementById('prioritySelect');
+            const current = sel.dataset.current;
+            if (newPriority === current) return;
+
+            const reason = prompt(`Cambiar prioridad de ${_priorityLabels[current]} a ${_priorityLabels[newPriority]}.\n\nMotivo (opcional):`);
+            if (reason === null) {
+                sel.value = current;
+                return;
+            }
+
+            try {
+                const r = await fetch(`/api/ticket/${TICKET_ID}/priority`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({priority: newPriority, reason: reason.trim()})
+                });
+                const data = await r.json();
+                if (data.success) {
+                    sel.dataset.current = newPriority;
+                    showActionStatus('✅ ' + (data.message || 'Prioridad actualizada'), 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    alert('Error: ' + (data.error || 'desconocido'));
+                    sel.value = current;
+                }
+            } catch (e) {
+                alert('Error de conexión: ' + e.message);
+                sel.value = current;
             }
         }
 

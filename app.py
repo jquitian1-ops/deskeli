@@ -16635,6 +16635,71 @@ def api_escalate_priority(ticket_id):
     return jsonify({'success': True, 'message': 'Ticket escalado a Crítico'})
 
 
+@app.route('/api/ticket/<int:ticket_id>/priority', methods=['PUT'])
+def api_update_ticket_priority(ticket_id):
+    """Técnico/admin corrige la prioridad de un ticket creado por un
+    empleado (RF: muchas veces el empleado la marca como Crítica sin que
+    corresponda). A diferencia de /escalate (solo sube a Crítico), acepta
+    cualquier valor — subir o bajar — y recalcula el SLA en consecuencia."""
+    if 'user_id' not in session or session['role'] not in ('technician', 'admin'):
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    ticket = Ticket.query.get(ticket_id)
+    if not ticket:
+        return jsonify({'success': False, 'error': 'Ticket no encontrado'}), 404
+    user_actor = User.query.get(session['user_id'])
+    if not can_user_access_ticket(user_actor, ticket):
+        return jsonify({'success': False, 'error': f'No tenés acceso a tickets de la empresa "{ticket.company}".'}), 403
+
+    if ticket.status in ('resolved', 'closed'):
+        status_label = 'cerrado' if ticket.status == 'closed' else 'resuelto'
+        return jsonify({'success': False, 'error': f'No se puede cambiar la prioridad de un ticket {status_label}.'}), 400
+
+    data = request.get_json(silent=True) or {}
+    new_priority = (data.get('priority') or '').strip().lower()
+    if new_priority not in ('low', 'medium', 'high', 'critical'):
+        return jsonify({'success': False, 'error': 'Prioridad inválida'}), 400
+
+    old_priority = ticket.priority
+    if new_priority == old_priority:
+        return jsonify({'success': False, 'error': f'El ticket ya tiene prioridad {new_priority}'}), 400
+
+    reason = (data.get('reason') or '').strip()[:500]
+
+    ticket.priority = new_priority
+    ticket.sla_minutes = get_sla_minutes(new_priority, ticket.category, ticket.company)
+    ticket.sla_deadline = compute_sla_deadline(datetime.now(), ticket.sla_minutes, ticket.company)
+    ticket.updated_at = datetime.now()
+
+    labels = {'low': 'Baja', 'medium': 'Media', 'high': 'Alta', 'critical': 'Crítica'}
+    note_text = f'⚙️ Prioridad cambiada de {labels.get(old_priority, old_priority)} a {labels.get(new_priority, new_priority)} por {user_actor.name}'
+    if reason:
+        note_text += f'. Motivo: {reason}'
+    db.session.add(Message(ticket_id=ticket.id, user_id=user_actor.id, text=note_text))
+
+    db.session.commit()
+
+    log_audit('ticket_priority_changed', session['user_id'], 'ticket', ticket_id,
+              f'{ticket.ticket_number}: prioridad {old_priority} → {new_priority}'
+              + (f' - Motivo: {reason}' if reason else ''))
+
+    try:
+        emit_ticket_event(ticket.company, 'ticket_priority_changed', {
+            'ticket_number': ticket.ticket_number,
+            'old_priority': old_priority,
+            'new_priority': new_priority,
+            'changed_by': user_actor.name,
+        })
+    except Exception as e:
+        print(f'[WARN] WebSocket emit priority: {e}')
+
+    return jsonify({
+        'success': True,
+        'message': f'Prioridad cambiada a {labels.get(new_priority, new_priority)}',
+        'sla_remaining': ticket.sla_remaining,
+    })
+
+
 @app.route('/api/ticket/<int:ticket_id>/extend-sla', methods=['POST'])
 def api_extend_ticket_sla(ticket_id):
     """Agrega tiempo extra al SLA de un caso. Pedido puntual: solo Kelly
