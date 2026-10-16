@@ -615,6 +615,14 @@ class User(db.Model):
     # Si el usuario es un ESPEJO de un tecnico de Eliot en pash/primatela,
     # aqui va el id del usuario origen en eliot. NULL = usuario local normal.
     mirrored_from_id = db.Column(db.Integer, index=True)
+    # Si True, el ROL de este espejo fue cambiado a mano por el admin de la
+    # empresa destino (ej. un tecnico de Eliot que en Primatela en realidad
+    # no hace soporte y lo pasaron a "empleado" ahi) — el sync de espejos
+    # (mirror_technician_to_other_companies / sync-from-master / backfill de
+    # arranque) deja de pisar el rol de este registro puntual, para que no
+    # vuelva a "technician" solo porque el tecnico origen se volvio a guardar
+    # o el servidor se reinicio.
+    mirror_role_locked = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
     __table_args__ = (db.UniqueConstraint('username', 'company', name='_user_company_uc'),)
 
@@ -12701,6 +12709,14 @@ def migrate_users_role_label():
             print("[migrate_users] Columna mirrored_from_id agregada")
         except Exception as e:
             print(f"[migrate_users] error agregando mirrored_from_id: {e}")
+    if 'mirror_role_locked' not in existing_cols:
+        try:
+            _bool_default = 'FALSE' if db.engine.dialect.name == 'postgresql' else '0'
+            with db.engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN mirror_role_locked BOOLEAN DEFAULT {_bool_default}"))
+            print("[migrate_users] Columna mirror_role_locked agregada")
+        except Exception as e:
+            print(f"[migrate_users] error agregando mirror_role_locked: {e}")
 
 
 def migrate_mailbox_oauth():
@@ -23654,7 +23670,12 @@ def mirror_technician_to_other_companies(src_user):
             # Sincronizar datos
             mirror.name = src_user.name
             mirror.email = src_user.email
-            mirror.role = src_user.role
+            # Si el admin de la empresa destino cambió a mano el rol de este
+            # espejo puntual (ej. un técnico de Eliot que en Primatela no
+            # hace soporte y lo pasaron a "empleado" ahí), no pisarlo en cada
+            # sync — ver mirror_role_locked.
+            if not mirror.mirror_role_locked:
+                mirror.role = src_user.role
             mirror.password_hash = src_user.password_hash
             mirror.is_active = src_user.is_active
             mirror.must_change_password = src_user.must_change_password
@@ -23761,7 +23782,10 @@ def api_admin_team_sync_from_master():
         if existing:
             existing.name = t.name
             existing.email = t.email
-            existing.role = t.role
+            # No pisar el rol si el admin de esta empresa lo bloqueó a mano
+            # (ver mirror_role_locked / mirror_technician_to_other_companies).
+            if not existing.mirror_role_locked:
+                existing.role = t.role
             existing.password_hash = t.password_hash
             existing.is_active = t.is_active
             existing.must_change_password = t.must_change_password
@@ -23909,6 +23933,14 @@ def api_admin_team_update(user_id):
                 return jsonify({'success': False, 'error': f'Ese email ya está usado por "{dup.username}" en esta empresa'}), 400
             u.email = new_email
         if 'role' in data and data['role'] in ['admin', 'technician', 'employee']:
+            # Si es un espejo (ver mirror_technician_to_other_companies) y el
+            # admin de ESTA empresa le cambia el rol a mano (ej. un técnico
+            # de Eliot que en Primatela no hace soporte, pasado a "empleado"
+            # ahí puntualmente), bloquear el rol para que el próximo sync
+            # (edición del técnico origen, "sincronizar desde master" o el
+            # backfill de arranque) no lo vuelva a pisar.
+            if u.mirrored_from_id and data['role'] != u.role:
+                u.mirror_role_locked = True
             u.role = data['role']
         if 'role_label' in data:
             lbl = (data.get('role_label') or '').strip()
