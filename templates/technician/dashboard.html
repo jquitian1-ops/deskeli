@@ -330,119 +330,124 @@
                 </a>
                 <a href="/logout" class="logout-btn">Salir</a>
             </div>
+        </div>
+    </div>
 
-            <!-- Modal para solicitudes de usuarios pendientes de aprobación -->
-            <div id="solicitudesModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;padding:20px;overflow-y:auto;" onclick="if(event.target===this)this.style.display='none'">
-                <div style="max-width:800px;margin:40px auto;background:white;border-radius:12px;padding:24px 28px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-                        <h2 style="color:#5b21b6;margin:0;">📋 Solicitudes por aprobar</h2>
-                        <a href="/solicitudes-usuarios" style="font-size:12px;color:#7c3aed;text-decoration:none;">Ver todas →</a>
-                    </div>
-                    <p style="color:#6b7280;font-size:13px;margin-bottom:14px;">Solicitudes de creación / modificación de usuarios que están esperando tu decisión.</p>
-                    <div id="solicitudesList"><div style="text-align:center;padding:20px;color:#9ca3af;">Cargando…</div></div>
-                    <button onclick="document.getElementById('solicitudesModal').style.display='none'" style="margin-top:14px;padding:8px 18px;background:#e5e7eb;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Cerrar</button>
-                </div>
+    <!-- Modal para solicitudes de usuarios pendientes de aprobación. OJO: va
+         FUERA de .header — ese contenedor tiene `filter:saturate(...)`, y un
+         filter en un ancestro convierte a sus descendientes position:fixed
+         en relativos a ÉL en vez de al viewport (containing block trap de
+         CSS), lo que dejaba este modal recortado/mal ubicado en vez de
+         cubrir toda la pantalla. -->
+    <div id="solicitudesModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;padding:20px;overflow-y:auto;" onclick="if(event.target===this)this.style.display='none'">
+        <div style="max-width:800px;margin:40px auto;background:white;border-radius:12px;padding:24px 28px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                <h2 style="color:#5b21b6;margin:0;">📋 Solicitudes por aprobar</h2>
+                <a href="/solicitudes-usuarios" style="font-size:12px;color:#7c3aed;text-decoration:none;">Ver todas →</a>
             </div>
+            <p style="color:#6b7280;font-size:13px;margin-bottom:14px;">Solicitudes de creación / modificación de usuarios que están esperando tu decisión.</p>
+            <div id="solicitudesList"><div style="text-align:center;padding:20px;color:#9ca3af;">Cargando…</div></div>
+            <button onclick="document.getElementById('solicitudesModal').style.display='none'" style="margin-top:14px;padding:8px 18px;background:#e5e7eb;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Cerrar</button>
+        </div>
+    </div>
 
-            <script>
-            async function _loadMySolicitudes() {
-                try {
-                    const r = await fetch('/api/solicitudes-usuarios/mis-pendientes');
-                    const data = await r.json();
-                    const btn = document.getElementById('solicitudesPendingBtn');
-                    const badge = document.getElementById('solicitudesBadge');
-                    if (data.success && data.count > 0) {
-                        btn.style.display = 'inline-block';
-                        badge.textContent = data.count;
-                        return data.pendientes || [];
-                    } else {
-                        btn.style.display = 'none';
-                        return [];
-                    }
-                } catch (e) { return []; }
+    <script>
+    async function _loadMySolicitudes() {
+        try {
+            const r = await fetch('/api/solicitudes-usuarios/mis-pendientes');
+            const data = await r.json();
+            const btn = document.getElementById('solicitudesPendingBtn');
+            const badge = document.getElementById('solicitudesBadge');
+            if (data.success && data.count > 0) {
+                btn.style.display = 'inline-block';
+                badge.textContent = data.count;
+                return data.pendientes || [];
+            } else {
+                btn.style.display = 'none';
+                return [];
             }
-            function _escSol(s) { return s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-            async function showMySolicitudes(ev) {
-                if (ev) ev.preventDefault();
-                document.getElementById('solicitudesModal').style.display = 'block';
-                document.getElementById('solicitudesList').innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af;">Cargando…</div>';
-                const pendientes = await _loadMySolicitudes();
-                if (!pendientes.length) {
-                    document.getElementById('solicitudesList').innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af;">🎉 Sin solicitudes pendientes de tu aprobación</div>';
-                    return;
-                }
-                document.getElementById('solicitudesList').innerHTML = pendientes.map(s => `
-                    <div style="background:#faf5ff;border:1px solid #c4b5fd;border-radius:8px;padding:14px 16px;margin-bottom:10px;">
-                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
-                            <div style="flex:1;min-width:0;">
-                                <div style="font-size:11px;color:#6b7280;text-transform:uppercase;font-weight:700;">${_escSol(s.codigo)} · ${_escSol(s.tipo_solicitud)}</div>
-                                <div style="font-size:15px;font-weight:700;color:#111827;margin-top:2px;">${_escSol(s.nombre)} <span style="font-weight:400;color:#6b7280;">(Doc ${_escSol(s.documento)})</span></div>
-                                <div style="font-size:12px;color:#4b5563;margin-top:4px;">${_escSol(s.cargo)} · ${s.controles_count} controles solicitados</div>
-                                <div style="margin-top:6px;">
-                                    <span style="display:inline-block;padding:2px 8px;background:#ede9fe;color:#5b21b6;border-radius:10px;font-size:11px;font-weight:700;">${_escSol(s.approver_label || 'Aprobador')}</span>
-                                    ${s.flow_area ? `<span style="display:inline-block;padding:2px 8px;background:#dbeafe;color:#1e40af;border-radius:10px;font-size:11px;font-weight:700;margin-left:4px;">${_escSol(s.flow_area)}</span>` : ''}
-                                </div>
-                            </div>
-                            <a href="/solicitudes-usuarios/${s.id}" style="padding:8px 16px;background:#7c3aed;color:white;text-decoration:none;border-radius:6px;font-size:13px;font-weight:700;white-space:nowrap;">Ver y decidir →</a>
+        } catch (e) { return []; }
+    }
+    function _escSol(s) { return s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    async function showMySolicitudes(ev) {
+        if (ev) ev.preventDefault();
+        document.getElementById('solicitudesModal').style.display = 'block';
+        document.getElementById('solicitudesList').innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af;">Cargando…</div>';
+        const pendientes = await _loadMySolicitudes();
+        if (!pendientes.length) {
+            document.getElementById('solicitudesList').innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af;">🎉 Sin solicitudes pendientes de tu aprobación</div>';
+            return;
+        }
+        document.getElementById('solicitudesList').innerHTML = pendientes.map(s => `
+            <div style="background:#faf5ff;border:1px solid #c4b5fd;border-radius:8px;padding:14px 16px;margin-bottom:10px;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;font-weight:700;">${_escSol(s.codigo)} · ${_escSol(s.tipo_solicitud)}</div>
+                        <div style="font-size:15px;font-weight:700;color:#111827;margin-top:2px;">${_escSol(s.nombre)} <span style="font-weight:400;color:#6b7280;">(Doc ${_escSol(s.documento)})</span></div>
+                        <div style="font-size:12px;color:#4b5563;margin-top:4px;">${_escSol(s.cargo)} · ${s.controles_count} controles solicitados</div>
+                        <div style="margin-top:6px;">
+                            <span style="display:inline-block;padding:2px 8px;background:#ede9fe;color:#5b21b6;border-radius:10px;font-size:11px;font-weight:700;">${_escSol(s.approver_label || 'Aprobador')}</span>
+                            ${s.flow_area ? `<span style="display:inline-block;padding:2px 8px;background:#dbeafe;color:#1e40af;border-radius:10px;font-size:11px;font-weight:700;margin-left:4px;">${_escSol(s.flow_area)}</span>` : ''}
                         </div>
                     </div>
-                `).join('');
-            }
-            // Carga inicial al abrir el dashboard
-            document.addEventListener('DOMContentLoaded', _loadMySolicitudes);
-            // Refresh cada 60 segundos
-            setInterval(_loadMySolicitudes, 60000);
-            </script>
-
-<!-- Modal simple para aprobaciones pendientes -->
-<div id="approvalsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;padding:20px;overflow-y:auto;" onclick="if(event.target===this)this.style.display='none'">
-    <div style="max-width:700px;margin:40px auto;background:white;border-radius:12px;padding:24px 28px;">
-        <h2 style="color:#7c3aed;margin-bottom:14px;">🔐 Aprobaciones pendientes de tu decisión</h2>
-        <div id="approvalsList"><div style="text-align:center;padding:20px;color:#9ca3af;">Cargando…</div></div>
-        <button onclick="document.getElementById('approvalsModal').style.display='none'" style="margin-top:14px;padding:8px 18px;background:#e5e7eb;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Cerrar</button>
-    </div>
-</div>
-
-<script>
-async function _loadMyApprovals() {
-    try {
-        const r = await fetch('/api/approvals/pending');
-        const data = await r.json();
-        const btn = document.getElementById('approvalsPendingBtn');
-        const badge = document.getElementById('approvalsBadge');
-        if (data.success && data.count > 0) {
-            btn.style.display = 'inline-block';
-            badge.textContent = data.count;
-            return data.approvals || [];
-        } else {
-            btn.style.display = 'none';
-            return [];
-        }
-    } catch (e) { return []; }
-}
-async function showMyApprovals(ev) {
-    if (ev) ev.preventDefault();
-    document.getElementById('approvalsModal').style.display = 'block';
-    document.getElementById('approvalsList').innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af;">Cargando…</div>';
-    const approvals = await _loadMyApprovals();
-    if (!approvals.length) {
-        document.getElementById('approvalsList').innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af;">🎉 No tenés aprobaciones pendientes</div>';
-        return;
+                    <a href="/solicitudes-usuarios/${s.id}" style="padding:8px 16px;background:#7c3aed;color:white;text-decoration:none;border-radius:6px;font-size:13px;font-weight:700;white-space:nowrap;">Ver y decidir →</a>
+                </div>
+            </div>
+        `).join('');
     }
-    document.getElementById('approvalsList').innerHTML = approvals.map(a => `
-        <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;margin-bottom:10px;">
-            <div style="font-weight:700;color:#1f2937;">${a.ticket_number}: ${a.ticket_title}</div>
-            <div style="font-size:12px;color:#6b7280;margin-top:4px;">Rol: ${a.approver_role_label || 'aprobador'} · Workflow: ${a.workflow_name}</div>
-            <a href="/approvals/decide/${a.token || ''}" style="display:inline-block;margin-top:8px;padding:6px 14px;background:#7c3aed;color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:13px;">Revisar y decidir →</a>
-        </div>
-    `).join('');
-}
-document.addEventListener('DOMContentLoaded', _loadMyApprovals);
-// smartInterval: pausa cuando la pestaña no está visible
-(window.smartInterval || setInterval)(_loadMyApprovals, 60000);
-</script>
+    // Carga inicial al abrir el dashboard
+    document.addEventListener('DOMContentLoaded', _loadMySolicitudes);
+    // Refresh cada 60 segundos
+    setInterval(_loadMySolicitudes, 60000);
+    </script>
+
+    <!-- Modal simple para aprobaciones pendientes (ver nota de .header arriba) -->
+    <div id="approvalsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;padding:20px;overflow-y:auto;" onclick="if(event.target===this)this.style.display='none'">
+        <div style="max-width:700px;margin:40px auto;background:white;border-radius:12px;padding:24px 28px;">
+            <h2 style="color:#7c3aed;margin-bottom:14px;">🔐 Aprobaciones pendientes de tu decisión</h2>
+            <div id="approvalsList"><div style="text-align:center;padding:20px;color:#9ca3af;">Cargando…</div></div>
+            <button onclick="document.getElementById('approvalsModal').style.display='none'" style="margin-top:14px;padding:8px 18px;background:#e5e7eb;border:none;border-radius:6px;font-weight:600;cursor:pointer;">Cerrar</button>
         </div>
     </div>
+
+    <script>
+    async function _loadMyApprovals() {
+        try {
+            const r = await fetch('/api/approvals/pending');
+            const data = await r.json();
+            const btn = document.getElementById('approvalsPendingBtn');
+            const badge = document.getElementById('approvalsBadge');
+            if (data.success && data.count > 0) {
+                btn.style.display = 'inline-block';
+                badge.textContent = data.count;
+                return data.approvals || [];
+            } else {
+                btn.style.display = 'none';
+                return [];
+            }
+        } catch (e) { return []; }
+    }
+    async function showMyApprovals(ev) {
+        if (ev) ev.preventDefault();
+        document.getElementById('approvalsModal').style.display = 'block';
+        document.getElementById('approvalsList').innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af;">Cargando…</div>';
+        const approvals = await _loadMyApprovals();
+        if (!approvals.length) {
+            document.getElementById('approvalsList').innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af;">🎉 No tenés aprobaciones pendientes</div>';
+            return;
+        }
+        document.getElementById('approvalsList').innerHTML = approvals.map(a => `
+            <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;margin-bottom:10px;">
+                <div style="font-weight:700;color:#1f2937;">${a.ticket_number}: ${a.ticket_title}</div>
+                <div style="font-size:12px;color:#6b7280;margin-top:4px;">Rol: ${a.approver_role_label || 'aprobador'} · Workflow: ${a.workflow_name}</div>
+                <a href="/approvals/decide/${a.token || ''}" style="display:inline-block;margin-top:8px;padding:6px 14px;background:#7c3aed;color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:13px;">Revisar y decidir →</a>
+            </div>
+        `).join('');
+    }
+    document.addEventListener('DOMContentLoaded', _loadMyApprovals);
+    // smartInterval: pausa cuando la pestaña no está visible
+    (window.smartInterval || setInterval)(_loadMyApprovals, 60000);
+    </script>
 
     <div class="container">
         <div class="stats">
