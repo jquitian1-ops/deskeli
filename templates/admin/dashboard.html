@@ -650,6 +650,9 @@
                 <a class="sidebar-link" data-tab="16" onclick="switchTab(16)">
                     <span><span class="sl-icon">🔄</span>Flujos de Solicitudes (por Área)</span>
                 </a>
+                <a class="sidebar-link" data-tab="20" onclick="switchTab(20)">
+                    <span><span class="sl-icon">📋</span>Casos por Flujos</span>
+                </a>
                 <a class="sidebar-link" data-tab="17" onclick="switchTab(17)">
                     <span><span class="sl-icon">🗂</span>Catálogo Controles</span>
                 </a>
@@ -1982,6 +1985,45 @@
             <iframe id="iframe-email-log" data-src="/admin/email-log?embed=1" style="width:100%; height:85vh; border:none; border-radius:8px; background:white;"></iframe>
         </div>
 
+        <!-- TAB 20: CASOS POR FLUJOS (Solicitudes de Usuario) -->
+        <div class="tab-content">
+            <div style="background: white; padding: 24px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                    <h2 style="color:#333;margin:0;">📋 Casos por Flujos</h2>
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <select id="fcCompanyFilter" onchange="loadAdminFlowCases()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="">Todas las empresas</option>
+                        </select>
+                        <select id="fcStatusFilter" onchange="filterAdminFlowCases()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="">Todos los estados</option>
+                            <option value="open">📂 Abierto</option>
+                            <option value="in_progress">🔄 En Progreso</option>
+                            <option value="waiting_user">⏳ Esperando Usuario</option>
+                            <option value="resolved">✅ Resuelto</option>
+                            <option value="closed">🔒 Cerrado</option>
+                        </select>
+                        <select id="fcPriorityFilter" onchange="filterAdminFlowCases()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="">Todas las prioridades</option>
+                            <option value="critical">🔴 Crítica</option>
+                            <option value="high">🟠 Alta</option>
+                            <option value="medium">🟡 Media</option>
+                            <option value="low">🟢 Baja</option>
+                        </select>
+                        <input type="text" id="fcSearch" placeholder="🔍 Buscar por ticket, solicitud, título..."
+                               onkeyup="filterAdminFlowCases()"
+                               style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;min-width:260px;font-size:14px;">
+                        <span id="fcSearchCount" style="font-size:12px;color:#6b7280;"></span>
+                    </div>
+                </div>
+                <div class="callout" style="background:#eff6ff;border-left:4px solid #3b82f6;padding:10px 14px;border-radius:4px;font-size:12px;color:#1e40af;margin-bottom:14px;">
+                    Todos los casos generados al aprobarse una Solicitud de Usuario (Flujos de Aprobación por área), estén o no ya aprobados del todo — antes esta vista solo existía en el Portal de Técnicos para Pash.
+                </div>
+                <div id="fcList">
+                    <p style="text-align:center;color:#999;padding:30px;">Cargando casos...</p>
+                </div>
+            </div>
+        </div>
+
         <!-- MODAL CREAR TICKET (ADMIN) -->
         <div id="createTicketModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
             <div style="background:white;border-radius:10px;padding:24px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
@@ -3104,6 +3146,7 @@
             if (index === 17) loadIframeOnce('iframe-controles');
             if (index === 18) loadIframeOnce('iframe-sessions');
             if (index === 19) loadIframeOnce('iframe-email-log');
+            if (index === 20) loadAdminFlowCases();
         };
 
         function loadIframeOnce(id) {
@@ -3111,6 +3154,190 @@
             if (ifr && !ifr.src && ifr.dataset.src) {
                 ifr.src = ifr.dataset.src;
             }
+        }
+
+        // ============ CASOS POR FLUJOS (Solicitudes de Usuario) ============
+        let _allFlowCasesAdmin = [];
+        let _fcCompanyOptionsLoaded = false;
+
+        function _fcStatusPill(s) {
+            const map = {
+                open:         {bg:'#dbeafe', fg:'#1e40af', label:'📂 Abierto'},
+                in_progress:  {bg:'#fef3c7', fg:'#92400e', label:'🔄 En Progreso'},
+                waiting_user: {bg:'#ede9fe', fg:'#5b21b6', label:'⏳ Esperando Usuario'},
+                resolved:     {bg:'#d1fae5', fg:'#065f46', label:'✅ Resuelto'},
+                closed:       {bg:'#e5e7eb', fg:'#374151', label:'🔒 Cerrado'}
+            };
+            const c = map[s];
+            if (!c) return `<span style="background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:10px;font-size:11px;" title="Estado desconocido">⚠️ ${escapeHtml(String(s || '?'))}</span>`;
+            return `<span style="background:${c.bg};color:${c.fg};padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">${c.label}</span>`;
+        }
+
+        function _fcPriorityPill(p) {
+            const map = {
+                critical: {bg:'#fee2e2', fg:'#991b1b', label:'🔴 Crítica'},
+                high:     {bg:'#ffedd5', fg:'#9a3412', label:'🟠 Alta'},
+                medium:   {bg:'#fef3c7', fg:'#92400e', label:'🟡 Media'},
+                low:      {bg:'#d1fae5', fg:'#065f46', label:'🟢 Baja'}
+            };
+            const c = map[p] || map.medium;
+            return `<span style="background:${c.bg};color:${c.fg};padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">${c.label}</span>`;
+        }
+
+        function _fcSlaText(c) {
+            if (c.status === 'resolved' || c.status === 'closed') {
+                return '<span style="color:#6b7280;font-size:12px;">' + (c.status === 'closed' ? 'Cerrada' : 'SLA cerrado') + '</span>';
+            }
+            if (c.sla_remaining === null || c.sla_remaining === undefined) return '<span style="color:#999;font-size:12px;">SLA sin definir</span>';
+            if (c.sla_expired) return '<span style="color:#dc2626;font-weight:700;font-size:12px;">⏰ SLA VENCIDO</span>';
+            const m = c.sla_remaining;
+            const color = m < 30 ? '#dc2626' : (m < 120 ? '#d97706' : '#16a34a');
+            const txt = m >= 60 ? `${Math.floor(m/60)}h ${m%60}m` : `${m}m`;
+            return `<span style="color:${color};font-weight:600;font-size:12px;">⏱ ${txt} restantes</span>`;
+        }
+
+        async function _fcPopulateCompanyFilter() {
+            if (_fcCompanyOptionsLoaded) return;
+            try {
+                const r = await fetch('/api/companies');
+                const data = await r.json();
+                if (!data.success) return;
+                const sel = document.getElementById('fcCompanyFilter');
+                if (!sel) return;
+                (data.companies || []).forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.code;
+                    opt.textContent = (c.icon ? c.icon + ' ' : '') + c.name;
+                    sel.appendChild(opt);
+                });
+                _fcCompanyOptionsLoaded = true;
+            } catch (e) { /* silencioso: el filtro de empresa queda solo con "Todas" */ }
+        }
+
+        async function loadAdminFlowCases() {
+            const listEl = document.getElementById('fcList');
+            if (!listEl) return;
+            await _fcPopulateCompanyFilter();
+            const company = document.getElementById('fcCompanyFilter').value;
+            listEl.innerHTML = '<p style="text-align:center;color:#999;padding:30px;">Cargando casos...</p>';
+            const url = '/api/admin/flow-cases' + (company ? '?company=' + encodeURIComponent(company) : '');
+            fetch(url)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) {
+                        listEl.innerHTML = `<p style="text-align:center;color:#dc2626;padding:30px;">${escapeHtml(data.error || 'Error al cargar')}</p>`;
+                        return;
+                    }
+                    _allFlowCasesAdmin = data.cases || [];
+                    renderAdminFlowCases(_allFlowCasesAdmin);
+                })
+                .catch(() => { listEl.innerHTML = '<p style="text-align:center;color:#dc2626;padding:30px;">Error de conexión</p>'; });
+        }
+
+        function renderAdminFlowCases(list) {
+            const container = document.getElementById('fcList');
+            if (!container) return;
+            if (!list || list.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:40px;color:#999;background:#f9fafb;border-radius:8px;">No hay casos generados por flujos todavía.</div>';
+                return;
+            }
+            const rows = list.map(c => {
+                const company = `${c.company_icon || '🏢'} ${escapeHtml(c.company_label || c.company || '')}`;
+                if (!c.has_ticket) {
+                    const titleTruncated = c.title.length > 60 ? c.title.slice(0,60)+'…' : c.title;
+                    return `
+                        <tr onclick="window.location='/solicitudes-usuarios/${c.solicitud_id}'"
+                            style="cursor:pointer;border-bottom:1px solid #f0f0f0;background:#fffbeb;"
+                            title="Ver la solicitud (todavía sin ticket generado)">
+                            <td style="padding:10px;font-size:11px;color:#9ca3af;">⏳ Sin ticket aún</td>
+                            <td style="padding:10px;font-size:12px;">${company}</td>
+                            <td style="padding:10px;font-size:11px;">
+                                ${c.solicitud_codigo ? `<div style="font-weight:600;color:#5b21b6;">${escapeHtml(c.solicitud_codigo)}</div><div style="color:#6b7280;">${escapeHtml(c.solicitud_nombre || '')}</div>` : '—'}
+                            </td>
+                            <td style="padding:10px;">
+                                <div style="font-weight:600;color:#111827;">${escapeHtml(titleTruncated)}</div>
+                            </td>
+                            <td style="padding:10px;text-align:center;">
+                                <span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">${escapeHtml(c.solicitud_estado_label || 'Pendiente')}</span>
+                                ${c.solicitud_anulado ? '<div style="font-size:10px;color:#991b1b;margin-top:2px;">Anulada</div>' : ''}
+                            </td>
+                            <td style="padding:10px;text-align:center;color:#9ca3af;">—</td>
+                            <td style="padding:10px;font-size:12px;color:#9ca3af;">—</td>
+                            <td style="padding:10px;font-size:11px;color:#374151;">${escapeHtml(c.created_at || '—')}</td>
+                            <td style="padding:10px;text-align:center;color:#9ca3af;">—</td>
+                        </tr>
+                    `;
+                }
+                const terminal = c.status === 'resolved' || c.status === 'closed';
+                const rowBg = (c.sla_expired && !terminal) ? 'background:#fef2f2;' : (terminal ? 'background:#f9fafb;' : '');
+                const titleTruncated = c.title.length > 60 ? c.title.slice(0,60)+'…' : c.title;
+                return `
+                    <tr onclick="window.location='/admin/ticket/${c.id}'"
+                        style="cursor:pointer;border-bottom:1px solid #f0f0f0;${rowBg}"
+                        title="Ver detalle del ticket">
+                        <td style="padding:10px;font-weight:700;color:#7c3aed;font-size:12px;">${escapeHtml(c.ticket_number)}</td>
+                        <td style="padding:10px;font-size:12px;">${company}</td>
+                        <td style="padding:10px;font-size:11px;">
+                            ${c.solicitud_codigo ? `<div style="font-weight:600;color:#5b21b6;">${escapeHtml(c.solicitud_codigo)}</div><div style="color:#6b7280;">${escapeHtml(c.solicitud_nombre || '')}</div>` : '—'}
+                        </td>
+                        <td style="padding:10px;">
+                            <div style="font-weight:600;color:#111827;">${escapeHtml(titleTruncated)}</div>
+                            ${c.category ? `<div style="font-size:11px;color:#6b7280;">📁 ${escapeHtml(c.category)}</div>` : ''}
+                        </td>
+                        <td style="padding:10px;text-align:center;">${_fcStatusPill(c.status)}</td>
+                        <td style="padding:10px;text-align:center;">${_fcPriorityPill(c.priority)}</td>
+                        <td style="padding:10px;font-size:12px;color:#374151;">${c.assignee_name ? '👤 ' + escapeHtml(c.assignee_name) : '<span style="color:#999;">Sin asignar</span>'}</td>
+                        <td style="padding:10px;font-size:11px;color:#374151;">${escapeHtml(c.created_at || '—')}</td>
+                        <td style="padding:10px;text-align:center;">${_fcSlaText(c)}</td>
+                    </tr>
+                `;
+            }).join('');
+            container.innerHTML = `
+                <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-size:13px;">
+                    <thead>
+                        <tr style="background:#f9fafb;">
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Ticket</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Empresa</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Solicitud</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asunto</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Estado</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Prioridad</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asignado a</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Creado</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">SLA</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                </div>
+            `;
+        }
+
+        function filterAdminFlowCases() {
+            const searchEl = document.getElementById('fcSearch');
+            const statusEl = document.getElementById('fcStatusFilter');
+            const priorityEl = document.getElementById('fcPriorityFilter');
+            const countEl = document.getElementById('fcSearchCount');
+            if (!searchEl) return;
+            const q = (searchEl.value || '').trim().toLowerCase();
+            const st = statusEl ? statusEl.value : '';
+            const pr = priorityEl ? priorityEl.value : '';
+            let filtered = _allFlowCasesAdmin;
+            if (st) filtered = filtered.filter(c => c.status === st);
+            if (pr) filtered = filtered.filter(c => c.priority === pr);
+            if (q) {
+                filtered = filtered.filter(c => {
+                    const text = [
+                        c.ticket_number, c.title, c.priority, c.status, c.category,
+                        c.assignee_name, c.solicitud_codigo, c.solicitud_nombre, c.company_label
+                    ].filter(Boolean).join(' ').toLowerCase();
+                    return text.indexOf(q) !== -1;
+                });
+            }
+            const anyFilter = q || st || pr;
+            if (countEl) countEl.textContent = anyFilter ? (filtered.length + ' de ' + _allFlowCasesAdmin.length) : '';
+            renderAdminFlowCases(filtered);
         }
 
         // ============ NAVEGACIÓN DE SECCIONES DE CONFIG ============

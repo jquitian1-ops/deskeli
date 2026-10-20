@@ -17253,6 +17253,95 @@ def api_technician_flow_cases():
     return jsonify({'success': True, 'cases': cases, 'total': len(cases)})
 
 
+@app.route('/api/admin/flow-cases', methods=['GET'])
+def api_admin_flow_cases():
+    """Panel Admin: todos los casos generados por Solicitudes de Usuario
+    (Flujos de Aprobación por área), de cualquier empresa dentro del
+    alcance del admin (admin_companies_scope — para Eliot, master, es
+    todas). Misma idea que api_technician_flow_cases (Mesa De Ayuda Pash,
+    solo Pash), generalizada: antes no existía ninguna vista en el Panel
+    Admin para ver estos casos, solo la pantalla de configuración de los
+    flujos (áreas/pasos), no los casos que generaron.
+
+    Filtro opcional ?company=<code> para acotar a una sola empresa dentro
+    del alcance (útil para master admin con varias empresas visibles)."""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    user = User.query.get(session['user_id'])
+
+    scope = admin_companies_scope(user.company, user.role)
+    company_filter = (request.args.get('company') or '').strip().lower()
+    if company_filter and company_filter in scope:
+        scope = [company_filter]
+
+    solicitudes = SolicitudUsuario.query.filter(
+        SolicitudUsuario.company.in_(scope),
+    ).order_by(SolicitudUsuario.created_at.desc()).all()
+    if not solicitudes:
+        return jsonify({'success': True, 'cases': [], 'total': 0})
+
+    ticket_numbers = [
+        s.caso_externo for s in solicitudes
+        if s.caso_externo and s.estado in (SOLICITUD_ESTADO_EN_TRAMITE, SOLICITUD_ESTADO_CERRADO)
+    ]
+    tickets_by_number = {}
+    if ticket_numbers:
+        for t in Ticket.query.filter(Ticket.ticket_number.in_(ticket_numbers)).all():
+            tickets_by_number[t.ticket_number] = t
+
+    now = datetime.now()
+    cases = []
+    for s in solicitudes:
+        t = tickets_by_number.get(s.caso_externo) if s.caso_externo else None
+        if t:
+            case = {
+                'has_ticket': True,
+                'id': t.id,
+                'ticket_number': t.ticket_number,
+                'title': t.title,
+                'status': t.status,
+                'priority': t.priority,
+                'category': t.category,
+                'assignee_name': t.assignee.name if t.assignee else None,
+                'sla_remaining': t.sla_remaining,
+                'sla_expired': bool(t.sla_deadline and t.sla_deadline < now and t.status not in ('resolved', 'closed')),
+                'created_at': t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else None,
+            }
+        else:
+            case = {
+                'has_ticket': False,
+                'id': None,
+                'ticket_number': None,
+                'title': f'{s.tipo_solicitud} — {s.nombre}',
+                'status': None,
+                'priority': None,
+                'category': None,
+                'assignee_name': None,
+                'sla_remaining': None,
+                'sla_expired': False,
+                'created_at': s.created_at.strftime('%Y-%m-%d %H:%M') if s.created_at else None,
+            }
+        case.update({
+            'company': s.company,
+            'company_label': COMPANY_COLORS.get(s.company, {}).get('name', s.company.title()) if s.company else '',
+            'company_icon': COMPANY_COLORS.get(s.company, {}).get('icon', '🏢') if s.company else '🏢',
+            'solicitud_id': s.id,
+            'solicitud_codigo': s.codigo,
+            'solicitud_nombre': s.nombre,
+            'solicitud_tipo': s.tipo_solicitud,
+            'solicitud_estado': s.estado,
+            'solicitud_estado_label': s.estado_actual_label(),
+            'solicitud_anulado': bool(s.anulado),
+        })
+        cases.append(case)
+
+    estado_filter = (request.args.get('estado') or '').strip()
+    if estado_filter:
+        cases = [c for c in cases if c['status'] == estado_filter]
+
+    return jsonify({'success': True, 'cases': cases, 'total': len(cases)})
+
+
 @app.route('/api/technician/pash-tickets', methods=['GET'])
 def api_technician_pash_tickets():
     """TODOS los tickets de Pash, sin importar de qué grupo/técnico sea el
