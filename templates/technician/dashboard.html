@@ -522,6 +522,10 @@
                     <span style="padding-left:8px;">✅ Subtareas ELIOT</span>
                     <span class="side-nav-count" id="countEliotSubtasks">…</span>
                 </button>
+                <button class="side-nav-btn" id="navEliotFlowCases" onclick="switchView('eliotflowcases')" title="Todos los casos generados por Solicitudes de Usuario en Eliot, sin importar a quién estén asignados hoy">
+                    <span style="padding-left:8px;">📋 Casos por flujos</span>
+                    <span class="side-nav-count" id="countEliotFlowCases">…</span>
+                </button>
                 {% endif %}
             </nav>
 
@@ -974,6 +978,40 @@
                     <p style="text-align:center;color:#999;padding:30px;">Cargando subtareas...</p>
                 </div>
             </div>
+
+            <!-- VISTA: CASOS POR FLUJOS (ELIOT) -->
+            <div id="viewEliotFlowCases" class="queue-section" style="display:none;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                    <div class="section-title" style="margin:0;">📋 Todos los Casos Generados por Flujos (Eliot)</div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <select id="eliotFlowCasesStatusFilter" onchange="filterEliotFlowCases()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="">Todos los estados</option>
+                            <option value="open">📂 Abierto</option>
+                            <option value="in_progress">🔄 En Progreso</option>
+                            <option value="waiting_user">⏳ Esperando Usuario</option>
+                            <option value="resolved">✅ Resuelto</option>
+                            <option value="closed">🔒 Cerrado</option>
+                        </select>
+                        <select id="eliotFlowCasesPriorityFilter" onchange="filterEliotFlowCases()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="">Todas las prioridades</option>
+                            <option value="critical">🔴 Crítica</option>
+                            <option value="high">🟠 Alta</option>
+                            <option value="medium">🟡 Media</option>
+                            <option value="low">🟢 Baja</option>
+                        </select>
+                        <input type="text" id="eliotFlowCasesSearch" placeholder="🔍 Buscar por ticket, solicitud, título..."
+                               onkeyup="filterEliotFlowCases()"
+                               style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;min-width:280px;font-size:14px;">
+                        <span id="eliotFlowCasesSearchCount" style="font-size:12px;color:#6b7280;"></span>
+                    </div>
+                </div>
+                <div class="callout" style="background:#eff6ff;border-left:4px solid #3b82f6;padding:10px 14px;border-radius:4px;font-size:12px;color:#1e40af;margin-bottom:14px;">
+                    Todos los casos generados al aprobarse una Solicitud de Usuario en Eliot, sin importar a quién estén asignados — incluye los que un flujo asignó a una persona puntual, no solo al grupo.
+                </div>
+                <div id="eliotFlowCasesList">
+                    <p style="text-align:center;color:#999;padding:30px;">Cargando casos...</p>
+                </div>
+            </div>
             {% endif %}
 
             </div><!-- /col contenido -->
@@ -992,6 +1030,7 @@
             const isPashSubtasks = view === 'pashsubtasks';
             const isEliotTickets = view === 'eliottickets';
             const isEliotSubtasks = view === 'eliotsubtasks';
+            const isEliotFlowCases = view === 'eliotflowcases';
 
             // Mostrar/ocultar paneles principales (los de Mesa De Ayuda Pash /
             // Grupos de Especialistas Eliot pueden no existir en el DOM si el
@@ -1004,9 +1043,10 @@
             setDisplay('viewPashSubtasks', isPashSubtasks);
             setDisplay('viewEliotTickets', isEliotTickets);
             setDisplay('viewEliotSubtasks', isEliotSubtasks);
+            setDisplay('viewEliotFlowCases', isEliotFlowCases);
 
             // Quitar active de todos los botones del sidebar
-            ['navTicketsMine','navTicketsTeam','navSubtasksMine','navSubtasksTeam','navFlowCases','navPashTickets','navPashSubtasks','navEliotTickets','navEliotSubtasks'].forEach(id => {
+            ['navTicketsMine','navTicketsTeam','navSubtasksMine','navSubtasksTeam','navFlowCases','navPashTickets','navPashSubtasks','navEliotTickets','navEliotSubtasks','navEliotFlowCases'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.remove('active');
             });
@@ -1036,6 +1076,9 @@
             } else if (isEliotSubtasks) {
                 document.getElementById('navEliotSubtasks').classList.add('active');
                 loadEliotSubtasks();
+            } else if (isEliotFlowCases) {
+                document.getElementById('navEliotFlowCases').classList.add('active');
+                loadEliotFlowCases();
             } else if (isSubtasks) {
                 document.getElementById(scope === 'mine' ? 'navSubtasksMine' : 'navSubtasksTeam').classList.add('active');
                 _currentSubtaskScope = scope;
@@ -1745,6 +1788,134 @@
             renderEliotSubtasks(filtered);
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // CASOS POR FLUJOS (ELIOT) — solo Grupos de Especialistas Eliot
+        // ═══════════════════════════════════════════════════════════════
+        let _allEliotFlowCases = [];
+
+        function loadEliotFlowCases() {
+            const listEl = document.getElementById('eliotFlowCasesList');
+            if (!listEl) return;
+            listEl.innerHTML = '<p style="text-align:center;color:#999;padding:30px;">Cargando casos...</p>';
+            fetch('/api/technician/eliot-flow-cases')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) {
+                        listEl.innerHTML = `<p style="text-align:center;color:#dc2626;padding:30px;">${escSub(data.error || 'Error al cargar')}</p>`;
+                        return;
+                    }
+                    _allEliotFlowCases = data.cases || [];
+                    const countEl = document.getElementById('countEliotFlowCases');
+                    if (countEl) countEl.textContent = _countActiveSubtasks(_allEliotFlowCases);
+                    renderEliotFlowCases(_allEliotFlowCases);
+                })
+                .catch(() => {
+                    listEl.innerHTML = '<p style="text-align:center;color:#dc2626;padding:30px;">Error de conexión</p>';
+                });
+        }
+
+        function renderEliotFlowCases(list) {
+            const container = document.getElementById('eliotFlowCasesList');
+            if (!container) return;
+            if (!list || list.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:40px;color:#999;background:#f9fafb;border-radius:8px;">No hay casos generados por flujos todavía.</div>';
+                return;
+            }
+            const rows = list.map(c => {
+                if (!c.has_ticket) {
+                    const titleTruncated = c.title.length > 60 ? c.title.slice(0,60)+'…' : c.title;
+                    return `
+                        <tr onclick="window.location='/solicitudes-usuarios/${c.solicitud_id}'"
+                            style="cursor:pointer;border-bottom:1px solid #f0f0f0;background:#fffbeb;"
+                            title="Ver la solicitud (todavía sin ticket generado)">
+                            <td style="padding:10px;font-size:11px;color:#9ca3af;">⏳ Sin ticket aún</td>
+                            <td style="padding:10px;font-size:11px;">
+                                ${c.solicitud_codigo ? `<div style="font-weight:600;color:#5b21b6;">${escSub(c.solicitud_codigo)}</div><div style="color:#6b7280;">${escSub(c.solicitud_nombre || '')}</div>` : '—'}
+                            </td>
+                            <td style="padding:10px;">
+                                <div style="font-weight:600;color:#111827;">${escSub(titleTruncated)}</div>
+                            </td>
+                            <td style="padding:10px;text-align:center;">
+                                <span class="pill" style="background:#fef3c7;color:#92400e;">${escSub(c.solicitud_estado_label || 'Pendiente')}</span>
+                                ${c.solicitud_anulado ? '<div style="font-size:10px;color:#991b1b;margin-top:2px;">Anulada</div>' : ''}
+                            </td>
+                            <td style="padding:10px;text-align:center;color:#9ca3af;">—</td>
+                            <td style="padding:10px;font-size:12px;color:#9ca3af;">—</td>
+                            <td style="padding:10px;font-size:11px;color:#374151;">${escSub(c.created_at || '—')}</td>
+                            <td style="padding:10px;text-align:center;color:#9ca3af;">—</td>
+                        </tr>
+                    `;
+                }
+                const terminal = c.status === 'resolved' || c.status === 'closed';
+                const rowBg = (c.sla_expired && !terminal) ? 'background:#fef2f2;' : (terminal ? 'background:#f9fafb;' : '');
+                const titleTruncated = c.title.length > 60 ? c.title.slice(0,60)+'…' : c.title;
+                return `
+                    <tr onclick="window.location='/technician/ticket/${c.id}'"
+                        style="cursor:pointer;border-bottom:1px solid #f0f0f0;${rowBg}"
+                        title="Ver detalle del ticket">
+                        <td style="padding:10px;font-weight:700;color:#7c3aed;font-size:12px;">${escSub(c.ticket_number)}</td>
+                        <td style="padding:10px;font-size:11px;">
+                            ${c.solicitud_codigo ? `<div style="font-weight:600;color:#5b21b6;">${escSub(c.solicitud_codigo)}</div><div style="color:#6b7280;">${escSub(c.solicitud_nombre || '')}</div>` : '—'}
+                        </td>
+                        <td style="padding:10px;">
+                            <div style="font-weight:600;color:#111827;">${escSub(titleTruncated)}</div>
+                            ${c.category ? `<div style="font-size:11px;color:#6b7280;">📁 ${escSub(c.category)}</div>` : ''}
+                        </td>
+                        <td style="padding:10px;text-align:center;">${statusPill(c.status)}</td>
+                        <td style="padding:10px;text-align:center;">${priorityPill(c.priority)}</td>
+                        <td style="padding:10px;font-size:12px;color:#374151;">${c.assignee_name ? '👤 ' + escSub(c.assignee_name) : '<span style="color:#999;">Sin asignar</span>'}</td>
+                        <td style="padding:10px;font-size:11px;color:#374151;">${escSub(c.created_at || '—')}</td>
+                        <td style="padding:10px;text-align:center;">${slaText(c)}</td>
+                    </tr>
+                `;
+            }).join('');
+            container.innerHTML = `
+                <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-size:13px;">
+                    <thead>
+                        <tr style="background:#f9fafb;">
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Ticket</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Solicitud</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asunto</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Estado</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Prioridad</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Asignado a</th>
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">Creado</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;">SLA</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                </div>
+            `;
+        }
+
+        function filterEliotFlowCases() {
+            const searchEl = document.getElementById('eliotFlowCasesSearch');
+            const statusEl = document.getElementById('eliotFlowCasesStatusFilter');
+            const priorityEl = document.getElementById('eliotFlowCasesPriorityFilter');
+            const countEl = document.getElementById('eliotFlowCasesSearchCount');
+            if (!searchEl) return;
+            const q = (searchEl.value || '').trim().toLowerCase();
+            const st = statusEl ? statusEl.value : '';
+            const pr = priorityEl ? priorityEl.value : '';
+            let filtered = _allEliotFlowCases;
+            if (st) filtered = filtered.filter(c => c.status === st);
+            if (pr) filtered = filtered.filter(c => c.priority === pr);
+            if (q) {
+                filtered = filtered.filter(c => {
+                    const text = [
+                        c.ticket_number, c.title, c.priority, c.status, c.category,
+                        c.assignee_name, c.solicitud_codigo, c.solicitud_nombre
+                    ].filter(Boolean).join(' ').toLowerCase();
+                    return text.indexOf(q) !== -1;
+                });
+            }
+            const anyFilter = q || st || pr;
+            if (countEl) countEl.textContent = anyFilter ? (filtered.length + ' de ' + _allEliotFlowCases.length) : '';
+            renderEliotFlowCases(filtered);
+        }
+
         // Pre-cargar contadores de subtareas (mine + team) al abrir la página.
         // Solo cuentan subtareas ACTIVAS (open + in_progress). Las resueltas y
         // cerradas no aportan al badge — así el técnico ve de un vistazo lo pendiente.
@@ -1827,6 +1998,17 @@
                         }
                     }).catch(() => {
                         document.getElementById('countEliotSubtasks').textContent = '0';
+                    });
+            }
+            if (document.getElementById('countEliotFlowCases')) {
+                fetch('/api/technician/eliot-flow-cases')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('countEliotFlowCases').textContent = _countActiveSubtasks(data.cases);
+                        }
+                    }).catch(() => {
+                        document.getElementById('countEliotFlowCases').textContent = '0';
                     });
             }
         });

@@ -17484,6 +17484,88 @@ def api_technician_eliot_subtasks():
     return jsonify({'success': True, 'subtasks': result, 'total': len(result)})
 
 
+@app.route('/api/technician/eliot-flow-cases', methods=['GET'])
+def api_technician_eliot_flow_cases():
+    """Todos los tickets generados automáticamente por un flujo de
+    Solicitudes de Usuario en Eliot, sin importar a quién estén asignados
+    hoy — misma idea que api_technician_flow_cases (Mesa De Ayuda Pash)
+    pero para los Grupos de Especialistas de Eliot (Soporte calle
+    18/80/19, Soporte Agencias).
+
+    Solo visible para usuarios con acceso de solo vista a Eliot
+    (_user_is_in_eliot_view_access).
+    """
+    if 'user_id' not in session or session.get('role') not in ('technician', 'admin'):
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    user = User.query.get(session['user_id'])
+    if not _user_is_in_eliot_view_access(user):
+        return jsonify({'success': False, 'error': 'Sin acceso — esta vista es solo para usuarios con acceso de solo vista a Eliot'}), 403
+
+    solicitudes = SolicitudUsuario.query.filter(
+        SolicitudUsuario.company == 'eliot',
+    ).order_by(SolicitudUsuario.created_at.desc()).all()
+    if not solicitudes:
+        return jsonify({'success': True, 'cases': [], 'total': 0})
+
+    ticket_numbers = [
+        s.caso_externo for s in solicitudes
+        if s.caso_externo and s.estado in (SOLICITUD_ESTADO_EN_TRAMITE, SOLICITUD_ESTADO_CERRADO)
+    ]
+    tickets_by_number = {}
+    if ticket_numbers:
+        for t in Ticket.query.filter(Ticket.ticket_number.in_(ticket_numbers)).all():
+            tickets_by_number[t.ticket_number] = t
+
+    now = datetime.now()
+    cases = []
+    for s in solicitudes:
+        t = tickets_by_number.get(s.caso_externo) if s.caso_externo else None
+        if t:
+            case = {
+                'has_ticket': True,
+                'id': t.id,
+                'ticket_number': t.ticket_number,
+                'title': t.title,
+                'status': t.status,
+                'priority': t.priority,
+                'category': t.category,
+                'assignee_name': t.assignee.name if t.assignee else None,
+                'sla_remaining': t.sla_remaining,
+                'sla_expired': bool(t.sla_deadline and t.sla_deadline < now and t.status not in ('resolved', 'closed')),
+                'created_at': t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else None,
+            }
+        else:
+            case = {
+                'has_ticket': False,
+                'id': None,
+                'ticket_number': None,
+                'title': f'{s.tipo_solicitud} — {s.nombre}',
+                'status': None,
+                'priority': None,
+                'category': None,
+                'assignee_name': None,
+                'sla_remaining': None,
+                'sla_expired': False,
+                'created_at': s.created_at.strftime('%Y-%m-%d %H:%M') if s.created_at else None,
+            }
+        case.update({
+            'solicitud_id': s.id,
+            'solicitud_codigo': s.codigo,
+            'solicitud_nombre': s.nombre,
+            'solicitud_tipo': s.tipo_solicitud,
+            'solicitud_estado': s.estado,
+            'solicitud_estado_label': s.estado_actual_label(),
+            'solicitud_anulado': bool(s.anulado),
+        })
+        cases.append(case)
+
+    estado_filter = (request.args.get('estado') or '').strip()
+    if estado_filter:
+        cases = [c for c in cases if c['status'] == estado_filter]
+
+    return jsonify({'success': True, 'cases': cases, 'total': len(cases)})
+
+
 @app.route('/api/subtask/<int:subtask_id>', methods=['GET'])
 def api_subtask_get(subtask_id):
     if 'user_id' not in session:
