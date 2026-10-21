@@ -551,7 +551,7 @@
                 </button>
                 <button type="button" id="stateTabClosed" onclick="setStateTab('closed')"
                         style="padding:7px 14px;border:1px solid #d1d5db;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;background:white;color:#6b7280;">
-                    🔒 Cerrados
+                    🔒 Resueltos/Cerrados
                 </button>
             </div>
 
@@ -786,7 +786,7 @@
                     </button>
                     <button type="button" id="subStateTabClosed" onclick="setSubStateTab('closed')"
                             style="padding:7px 14px;border:1px solid #d1d5db;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;background:white;color:#6b7280;">
-                        🔒 Cerradas
+                        🔒 Resueltas/Cerradas
                     </button>
                 </div>
                 <div id="subtasksList">
@@ -1110,7 +1110,10 @@
         }
 
         function _applySubStateTab(list) {
-            return list.filter(s => _subStateTab === 'closed' ? s.status === 'closed' : s.status !== 'closed');
+            return list.filter(s => {
+                const isClosedGroup = s.status === 'closed' || s.status === 'resolved';
+                return _subStateTab === 'closed' ? isClosedGroup : !isClosedGroup;
+            });
         }
 
         function loadMySubtasks(scope) {
@@ -2068,12 +2071,13 @@
             let visible = 0;
             rows.forEach(row => {
                 let show = true;
-                // Pestaña de estado: "closed" = solo cerrados, "other" = todo menos cerrados
+                // Pestaña de estado: "closed" = cerrados y resueltos, "other" = el resto
                 const rowStatus = (row.getAttribute('data-status') || '').toLowerCase();
+                const isClosedGroup = rowStatus === 'closed' || rowStatus === 'resolved';
                 if (stateTab === 'closed') {
-                    if (rowStatus !== 'closed') show = false;
+                    if (!isClosedGroup) show = false;
                 } else {
-                    if (rowStatus === 'closed') show = false;
+                    if (isClosedGroup) show = false;
                 }
                 // Búsqueda general
                 if (show && q) {
