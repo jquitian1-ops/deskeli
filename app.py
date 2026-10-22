@@ -16431,12 +16431,28 @@ def api_reassign_ticket(ticket_id):
     if not new_assignee:
         return jsonify({'success': False, 'error': f'Usuario con id={new_assignee_id} no existe'}), 404
 
-    # El nuevo asignado debe ser de la misma empresa que el TICKET (no del que reasigna)
+    # El nuevo asignado debe ser de la misma empresa que el TICKET (no del que
+    # reasigna). Si el id elegido es la identidad espejo de OTRA empresa (ej.
+    # un técnico de Eliot reasignando a un técnico de Pash: api_team_by_groups
+    # lista los grupos/miembros de la empresa de SESIÓN de quien reasigna, así
+    # que si el admin de Eliot agregó el espejo de un técnico de Pash a un
+    # grupo propio de Eliot, el dropdown envía ese id espejo de Eliot, no el
+    # original de Pash) — resolver automáticamente la identidad del MISMO
+    # especialista que sí pertenece a la empresa del ticket, en vez de
+    # rechazar de plano.
     if new_assignee.company != ticket.company:
-        return jsonify({
-            'success': False,
-            'error': f'El técnico "{new_assignee.name}" es de la empresa "{new_assignee.company}" y este ticket es de "{ticket.company}". No se puede asignar entre empresas.'
-        }), 400
+        same_company_match = User.query.filter(
+            User.id.in_(get_user_identity_ids(new_assignee)),
+            User.company == ticket.company,
+        ).first()
+        if same_company_match:
+            new_assignee = same_company_match
+            new_assignee_id = same_company_match.id
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'El técnico "{new_assignee.name}" es de la empresa "{new_assignee.company}" y este ticket es de "{ticket.company}". No se puede asignar entre empresas.'
+            }), 400
 
     # Debe ser técnico o admin (no asignar a un employee)
     if new_assignee.role not in ('technician', 'admin'):
