@@ -919,9 +919,15 @@ class TechnicianProfile(db.Model):
         return [s.strip() for s in self.skills.split(',') if s.strip()]
 
     def get_skill_level(self, skill_name):
+        """Busca el nivel de una habilidad sin importar mayúsculas/minúsculas
+        — el admin puede haber guardado "SAP" y el matching (agents.py)
+        compara contra la categoría del ticket en minúsculas; sin esto el
+        lookup fallaba siempre por diferencia de case y el nivel quedaba en
+        0 aunque estuviera configurado."""
         try:
             levels = json.loads(self.skill_levels or '{}')
-            return int(levels.get(skill_name, 0))
+            levels_ci = {k.strip().lower(): v for k, v in levels.items()}
+            return int(levels_ci.get((skill_name or '').strip().lower(), 0))
         except:
             return 0
 

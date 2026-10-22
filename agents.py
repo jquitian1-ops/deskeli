@@ -347,10 +347,18 @@ class AgentAssignor:
                 if active_load >= profile.max_tickets:
                     score += 999
 
-                skills = profile.get_skills_list()
-                if category in skills:
+                # Comparación case-insensitive: el admin guarda las
+                # habilidades con mayúsculas ("SAP", "Red", "Hardware") pero
+                # `category` ya viene en minúsculas — antes esto nunca
+                # matcheaba y el Perfil de IA quedaba sin efecto real en la
+                # asignación, sin importar la empresa.
+                skills_ci = {s.strip().lower() for s in profile.get_skills_list()}
+                if category in skills_ci:
                     level = profile.get_skill_level(category)
-                    skill_bonus = -int(level / 10)
+                    # Bonus base por tener la habilidad configurada (aunque
+                    # no se haya definido un nivel puntual, que hoy la UI de
+                    # Especialistas no pide) + extra si sí hay nivel cargado.
+                    skill_bonus = -10 - int(level / 10)
                     score += skill_bonus
                     details[tech.id] = f"habilidad={category}(niv:{level}), carga={active_load}"
                 else:
