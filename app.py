@@ -9532,14 +9532,34 @@ def assign_ticket_auto(ticket):
     if not available_technicians:
         return
 
+    # Igual que en el Orchestrator (agents.py AgentAssignor): un técnico sin
+    # Perfil de IA / sin habilidades cargadas queda afuera de la asignación
+    # automática. Si NINGUNO de la empresa tiene habilidades configuradas
+    # todavía, no se deja todo sin asignar — se cae a todos como antes.
+    profiles_by_tech = {
+        t.id: TechnicianProfile.query.filter_by(user_id=t.id).first()
+        for t in available_technicians
+    }
+    skilled_technicians = [
+        t for t in available_technicians
+        if profiles_by_tech[t.id] and profiles_by_tech[t.id].get_skills_list()
+    ]
+    eligible_technicians = skilled_technicians if skilled_technicians else available_technicians
+
+    category = (ticket.category or 'General').lower()
     technician_scores = {}
-    for technician in available_technicians:
+    for technician in eligible_technicians:
         active_ticket_count = len([
             t for t in technician.assigned_tickets
             if t.status in ['open', 'in_progress']
         ])
         base_score = active_ticket_count
-        category_bonus = -5 if ticket.category.lower() in technician.name.lower() else 0
+        profile = profiles_by_tech[technician.id]
+        if profile:
+            skills_ci = {s.strip().lower() for s in profile.get_skills_list()}
+            category_bonus = -10 if category in skills_ci else 0
+        else:
+            category_bonus = -5 if category in technician.name.lower() else 0
         technician_scores[technician.id] = base_score + category_bonus
 
     best_technician_id = min(technician_scores, key=technician_scores.get)

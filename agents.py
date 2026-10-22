@@ -331,12 +331,24 @@ class AgentAssignor:
                 'used_llm': False
             }
 
+        # Un técnico sin Perfil de IA (o con perfil pero sin ninguna habilidad
+        # cargada) queda FUERA de la asignación automática — pedido explícito:
+        # si no tiene habilidades configuradas, que no le lleguen casos por
+        # esta vía (sigue pudiendo recibir casos por asignación manual o
+        # reasignación). Salvedad: si NINGÚN técnico de la empresa tiene
+        # habilidades configuradas todavía, no se deja a todos los tickets
+        # sin asignar — se cae al comportamiento anterior (todos elegibles)
+        # para no bloquear la operación mientras se cargan los perfiles.
+        profiles_by_tech = {t.id: TechnicianProfile.query.filter_by(user_id=t.id).first() for t in techs}
+        skilled_techs = [t for t in techs if profiles_by_tech[t.id] and profiles_by_tech[t.id].get_skills_list()]
+        eligible_techs = skilled_techs if skilled_techs else techs
+
         category = (ticket.category or 'General').lower()
         scores = {}
         details = {}
 
-        for tech in techs:
-            profile = TechnicianProfile.query.filter_by(user_id=tech.id).first()
+        for tech in eligible_techs:
+            profile = profiles_by_tech[tech.id]
             active_load = len([t for t in tech.assigned_tickets
                                if t.status in ['open', 'in_progress']])
             score = active_load * 3
