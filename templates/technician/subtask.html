@@ -370,6 +370,9 @@
         <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">¿Qué querés notificarle?</label>
         <textarea id="subRiMessage" rows="5" maxlength="3000" placeholder="Ej: Para avanzar con este acceso necesitamos que nos confirmes: 1) El usuario de red exacto, 2) Si ya tiene instalado el cliente SAP. Podés responder desde el portal." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-family:inherit;margin-bottom:8px;font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>
         <div style="font-size:11px;color:#9ca3af;margin-bottom:14px;text-align:right;"><span id="subRiCharCount">0</span> / 3000</div>
+        <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">CC (opcional)</label>
+        <input type="text" id="subRiCc" placeholder="correo1@dominio.com, correo2@dominio.com"
+               style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-family:inherit;margin-bottom:16px;font-size:13px;box-sizing:border-box;">
         <div style="display:flex;gap:10px;justify-content:flex-end;">
             <button onclick="closeSubtaskRequestInfoModal()" style="padding:10px 20px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;">Cancelar</button>
             <button onclick="confirmSubtaskRequestInfo()" id="subRiConfirmBtn" style="padding:10px 20px;background:#3b82f6;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">📩 Enviar notificación</button>
@@ -503,6 +506,7 @@
         const ta = document.getElementById('subRiMessage');
         ta.value = '';
         document.getElementById('subRiCharCount').textContent = '0';
+        document.getElementById('subRiCc').value = '';
         document.getElementById('subtaskRequestInfoModal').style.display = 'flex';
         setTimeout(() => ta.focus(), 100);
     }
@@ -521,6 +525,8 @@
             alert('Escribí un mensaje de al menos 10 caracteres.');
             return;
         }
+        const ccRaw = document.getElementById('subRiCc').value.trim();
+        const ccExtra = ccRaw ? ccRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
         const btn = document.getElementById('subRiConfirmBtn');
         btn.disabled = true;
         btn.textContent = '⏳ Enviando...';
@@ -528,7 +534,7 @@
             const res = await fetch(`/api/subtask/${SUBTASK_ID}/request-info`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({message}),
+                body: JSON.stringify({message, cc_extra: ccExtra}),
             });
             const data = await res.json();
             if (data.success) {

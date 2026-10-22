@@ -16298,6 +16298,20 @@ def api_ticket_request_info(ticket_id):
         if current_user.email not in cc_list and current_user.email.lower() != creator.email.lower():
             cc_list.append(current_user.email)
 
+    # CC adicional, escrito a mano por el técnico en el modal — hasta 5,
+    # formato válido, sin duplicar al destinatario principal ni a los ya
+    # incluidos.
+    cc_extra = data.get('cc_extra') or []
+    if isinstance(cc_extra, list):
+        for raw in cc_extra[:5]:
+            email_candidate = (raw or '').strip().lower()
+            if not email_candidate or not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email_candidate):
+                continue
+            if email_candidate == creator.email.lower():
+                continue
+            if email_candidate not in [c.lower() for c in cc_list]:
+                cc_list.append(email_candidate)
+
     email_ok = False
     try:
         email_ok = send_email(
@@ -17966,6 +17980,20 @@ def api_subtask_request_info(subtask_id):
     if current_user and current_user.email and current_user.id != (assignee.id if assignee else None):
         if current_user.email not in cc_list and current_user.email.lower() != requester.email.lower():
             cc_list.append(current_user.email)
+
+    # CC adicional, escrito a mano por el técnico en el modal (ej. para copiar
+    # al usuario espejo real, a un compañero, etc.) — hasta 5, formato válido,
+    # sin duplicar al destinatario principal ni a los ya incluidos.
+    cc_extra = data.get('cc_extra') or []
+    if isinstance(cc_extra, list):
+        for raw in cc_extra[:5]:
+            email_candidate = (raw or '').strip().lower()
+            if not email_candidate or not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email_candidate):
+                continue
+            if email_candidate == requester.email.lower():
+                continue
+            if email_candidate not in [c.lower() for c in cc_list]:
+                cc_list.append(email_candidate)
 
     email_ok = False
     try:

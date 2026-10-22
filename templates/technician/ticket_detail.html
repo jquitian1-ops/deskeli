@@ -832,6 +832,9 @@
                     <span>Cambiar el estado del ticket a <strong>"esperando usuario"</strong> mientras espera respuesta (pausa el SLA)</span>
                 </label>
             </div>
+            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">CC (opcional)</label>
+            <input type="text" id="riCc" placeholder="correo1@dominio.com, correo2@dominio.com"
+                   style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-family:inherit;margin-bottom:16px;font-size:13px;box-sizing:border-box;">
             <div style="display:flex;gap:10px;justify-content:flex-end;">
                 <button onclick="closeRequestInfo()" style="padding:10px 20px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;">Cancelar</button>
                 <button onclick="confirmRequestInfo()" id="riConfirmBtn" style="padding:10px 20px;background:#3b82f6;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">📩 Enviar notificación</button>
@@ -1008,6 +1011,7 @@
             ta.value = '';
             document.getElementById('riCharCount').textContent = '0';
             document.getElementById('riChangeStatus').checked = true;
+            document.getElementById('riCc').value = '';
             document.getElementById('requestInfoModal').style.display = 'flex';
             setTimeout(() => ta.focus(), 100);
         }
@@ -1027,6 +1031,8 @@
                 alert('Escribí un mensaje de al menos 10 caracteres.');
                 return;
             }
+            const ccRaw = document.getElementById('riCc').value.trim();
+            const ccExtra = ccRaw ? ccRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
             const btn = document.getElementById('riConfirmBtn');
             btn.disabled = true;
             btn.textContent = '⏳ Enviando...';
@@ -1034,7 +1040,7 @@
                 const res = await fetch(`/api/ticket/${TICKET_ID}/request-info`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({message, change_status: changeStatus}),
+                    body: JSON.stringify({message, change_status: changeStatus, cc_extra: ccExtra}),
                 });
                 const data = await res.json();
                 if (data.success) {
