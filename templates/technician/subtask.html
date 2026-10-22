@@ -327,6 +327,9 @@
                     <button class="action-btn success" onclick="changeStatus('resolved')">
                         ✅ Marcar como resuelta
                     </button>
+                    <button class="action-btn secondary" onclick="openSubtaskRequestInfoModal()">
+                        📩 Notificar al usuario
+                    </button>
                 {% else %}
                     <button class="action-btn secondary" onclick="changeStatus('in_progress')">
                         🔄 Reabrir subtarea
@@ -352,6 +355,25 @@
             </div>
         </div>
 
+    </div>
+</div>
+
+<!-- MODAL NOTIFICAR AL USUARIO (subtarea) -->
+<div id="subtaskRequestInfoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:white;padding:30px;border-radius:12px;width:90%;max-width:560px;">
+        <h2 style="margin-bottom:8px;color:#2563eb;">📩 Notificar al usuario</h2>
+        <p style="color:#666;margin-bottom:16px;font-size:13px;">
+            Se guardará una <strong>nota pública</strong> en esta subtarea y se enviará un email a
+            <strong>{% if creator %}{{ creator.email }}{% else %}(sin email){% endif %}</strong>
+            con el contenido de la nota y un botón para acceder al portal.
+        </p>
+        <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;">¿Qué querés notificarle?</label>
+        <textarea id="subRiMessage" rows="5" maxlength="3000" placeholder="Ej: Para avanzar con este acceso necesitamos que nos confirmes: 1) El usuario de red exacto, 2) Si ya tiene instalado el cliente SAP. Podés responder desde el portal." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-family:inherit;margin-bottom:8px;font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>
+        <div style="font-size:11px;color:#9ca3af;margin-bottom:14px;text-align:right;"><span id="subRiCharCount">0</span> / 3000</div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button onclick="closeSubtaskRequestInfoModal()" style="padding:10px 20px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer;">Cancelar</button>
+            <button onclick="confirmSubtaskRequestInfo()" id="subRiConfirmBtn" style="padding:10px 20px;background:#3b82f6;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">📩 Enviar notificación</button>
+        </div>
     </div>
 </div>
 
@@ -473,6 +495,56 @@
         } finally {
             btn.disabled = false;
             btn.textContent = '📝 Guardar comentario';
+        }
+    }
+
+    // ========== NOTIFICAR AL USUARIO (pedir info / preguntar) ==========
+    function openSubtaskRequestInfoModal() {
+        const ta = document.getElementById('subRiMessage');
+        ta.value = '';
+        document.getElementById('subRiCharCount').textContent = '0';
+        document.getElementById('subtaskRequestInfoModal').style.display = 'flex';
+        setTimeout(() => ta.focus(), 100);
+    }
+    function closeSubtaskRequestInfoModal() {
+        document.getElementById('subtaskRequestInfoModal').style.display = 'none';
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+        const ta = document.getElementById('subRiMessage');
+        if (ta) ta.addEventListener('input', () => {
+            document.getElementById('subRiCharCount').textContent = ta.value.length;
+        });
+    });
+    async function confirmSubtaskRequestInfo() {
+        const message = document.getElementById('subRiMessage').value.trim();
+        if (message.length < 10) {
+            alert('Escribí un mensaje de al menos 10 caracteres.');
+            return;
+        }
+        const btn = document.getElementById('subRiConfirmBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Enviando...';
+        try {
+            const res = await fetch(`/api/subtask/${SUBTASK_ID}/request-info`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({message}),
+            });
+            const data = await res.json();
+            if (data.success) {
+                closeSubtaskRequestInfoModal();
+                const emoji = data.email_sent ? '✓' : '⚠';
+                const cc = data.cc && data.cc.length ? ` (CC: ${data.cc.join(', ')})` : '';
+                alert(`${emoji} ${data.message} → ${data.to}${cc}`);
+                loadNotes();
+            } else {
+                alert('Error: ' + (data.error || 'no se pudo enviar'));
+            }
+        } catch (e) {
+            alert('Error de red: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '📩 Enviar notificación';
         }
     }
 

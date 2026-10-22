@@ -17867,6 +17867,138 @@ def api_subtask_messages_create(subtask_id):
     })
 
 
+@app.route('/api/subtask/<int:subtask_id>/request-info', methods=['POST'])
+def api_subtask_request_info(subtask_id):
+    """Notificar al usuario que pidió esta subtarea (control puntual) con una
+    nota pública + email — análogo a /api/ticket/<id>/request-info pero a
+    nivel subtarea, para pedir información faltante o hacer una pregunta
+    sobre ESE control sin mezclarlo con el resto del ticket padre.
+
+    Destinatario: subtask.created_by (el solicitante real — ver el fix de
+    _generate_case_from_solicitud que setea created_by_id=solicitud.creator_id,
+    no el aprobador). A diferencia del ticket, la subtarea no tiene un estado
+    'waiting_user' propio, así que no pausa nada — es solo nota + email."""
+    if 'user_id' not in session or session.get('role') not in ('technician', 'admin'):
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    subtask = Subtask.query.get_or_404(subtask_id)
+    if not can_user_access_subtask(User.query.get(session['user_id']), subtask):
+        return jsonify({'success': False, 'error': 'Sin acceso'}), 403
+
+    if subtask.status in ('resolved', 'closed'):
+        return jsonify({'success': False, 'error': 'No se puede notificar sobre una subtarea ya resuelta/cerrada.'}), 400
+
+    data = request.get_json() or {}
+    message = (data.get('message') or '').strip()
+    if not message or len(message) < 10:
+        return jsonify({'success': False, 'error': 'Escribí un mensaje (mínimo 10 caracteres)'}), 400
+    if len(message) > 3000:
+        return jsonify({'success': False, 'error': 'Mensaje demasiado largo (máx 3000 caracteres)'}), 400
+
+    safe_message = sanitize_html(message) if 'sanitize_html' in globals() else message
+
+    ticket = subtask.ticket
+    requester = subtask.created_by
+    if not requester or not requester.email:
+        return jsonify({'success': False, 'error': 'El solicitante de esta subtarea no tiene email registrado'}), 400
+
+    assignee = subtask.assignee
+    current_user = User.query.get(session['user_id'])
+
+    # 1) Nota pública en el hilo DE LA SUBTAREA (visible también en el ticket padre)
+    try:
+        msg = Message(
+            ticket_id=subtask.ticket_id,
+            subtask_id=subtask.id,
+            user_id=session['user_id'],
+            text=f'📩 Nota pública para el usuario (enviada también por email):\n\n{safe_message}',
+        )
+        db.session.add(msg)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f'[subtask-request-info] No pude guardar la nota: {e}')
+
+    # 2) Email con la nota + botón para acceder al portal
+    base_url = get_public_base_url()
+    ticket_url = f'{base_url}/employee/ticket/{ticket.id}'
+    subject = f'[DeskEli] Notificación sobre tu solicitud · {subtask.subtask_number or ticket.ticket_number} · {subtask.title[:60]}'
+    message_html = safe_message.replace('\n', '<br>')
+
+    body = f"""
+    <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+        <div style="background:#2563eb;color:white;padding:18px;border-radius:8px 8px 0 0;">
+            <h2 style="margin:0;">📩 Tenés una notificación sobre tu solicitud</h2>
+        </div>
+        <div style="padding:22px;background:#f9fafb;border:1px solid #e5e7eb;border-top:none;">
+            <p>Hola <strong>{requester.name or requester.username}</strong>,</p>
+            <p>El equipo de soporte agregó una <strong>nota pública</strong> sobre
+            <strong>{subtask.title}</strong> (parte del caso <strong>{ticket.ticket_number}</strong>):</p>
+
+            <div style="background:white;border-left:4px solid #2563eb;padding:14px 18px;margin:16px 0;border-radius:4px;">
+                {message_html}
+            </div>
+
+            <p style="margin:16px 0;">Podés responder al equipo directamente desde el portal web.</p>
+
+            <p style="text-align:center;margin:24px 0;">
+                <a href="{ticket_url}" style="display:inline-block;background:#2563eb;color:white;padding:14px 32px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:15px;">
+                    🌐 Acceder al portal
+                </a>
+            </p>
+
+            <div style="font-size:12px;color:#6b7280;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:12px;">
+                <strong>Detalles:</strong><br>
+                Caso: {ticket.ticket_number}<br>
+                Subtarea: {subtask.subtask_number or ('#' + str(subtask.id))}<br>
+                Enviado por: {current_user.name if current_user else 'Equipo TI'}<br>
+                {f'Técnico asignado: {assignee.name}' if assignee else ''}
+            </div>
+
+            <p style="font-size:11px;color:#9ca3af;margin-top:14px;">
+                Este es un mensaje automático de DeskEli. Todo lo que respondas queda registrado en el caso.
+            </p>
+        </div>
+    </body></html>
+    """
+
+    cc_list = [assignee.email] if assignee and assignee.email and assignee.id != session['user_id'] else []
+    if current_user and current_user.email and current_user.id != (assignee.id if assignee else None):
+        if current_user.email not in cc_list and current_user.email.lower() != requester.email.lower():
+            cc_list.append(current_user.email)
+
+    email_ok = False
+    try:
+        email_ok = send_email(
+            to_email=requester.email,
+            subject=subject,
+            body=body,
+            company=ticket.company,
+            cc_emails=cc_list,
+        )
+    except Exception as e:
+        print(f'[subtask-request-info] Error enviando email: {e}')
+
+    log_audit(
+        'notify_user_subtask',
+        session['user_id'],
+        'subtask',
+        subtask.id,
+        f'Notificación al usuario enviada por {current_user.email if current_user else "?"} '
+        f'a {requester.email} (CC: {", ".join(cc_list) or "—"}) para subtarea '
+        f'{subtask.subtask_number or subtask.id}. Email: {"OK" if email_ok else "FALLO"}'
+    )
+
+    return jsonify({
+        'success': True,
+        'email_sent': email_ok,
+        'to': requester.email,
+        'cc': cc_list,
+        'message': ('✓ Notificación enviada al usuario (nota + email)' if email_ok
+                    else '⚠ Nota guardada en el caso pero el email no pudo enviarse (revisar config SMTP)')
+    })
+
+
 @app.route('/api/subtask/<int:subtask_id>/attachments', methods=['GET'])
 def api_subtask_attachments_list(subtask_id):
     if 'user_id' not in session:
