@@ -18175,11 +18175,24 @@ def _serialize_ticket_attachment(a):
 @app.route('/api/ticket/<int:ticket_id>/attachments', methods=['GET'])
 def api_ticket_attachments_list(ticket_id):
     if 'user_id' not in session:
-        return jsonify({'success': False}), 401
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
     ticket = Ticket.query.get_or_404(ticket_id)
     user = User.query.get(session['user_id'])
-    if not can_user_access_ticket(user, ticket):
-        return jsonify({'success': False}), 403
+    has_access = can_user_access_ticket(user, ticket)
+    if not has_access:
+        # Un técnico puede tener asignada una SUBTAREA de este ticket sin
+        # tener acceso al ticket padre en sí (identidad espejo cross-empresa,
+        # ver can_user_access_subtask) — igual debe poder ver, de solo
+        # lectura, los adjuntos del caso padre para contexto (ej. el PDF de
+        # la solicitud). Antes esto devolvía 403 sin mensaje y en la
+        # subtarea se veía "Error: Error" en vez de los adjuntos.
+        identity_ids = get_user_identity_ids(user)
+        has_access = db.session.query(Subtask.id).filter(
+            Subtask.ticket_id == ticket_id,
+            Subtask.assignee_id.in_(identity_ids),
+        ).first() is not None
+    if not has_access:
+        return jsonify({'success': False, 'error': f'No tenés acceso a tickets de la empresa "{ticket.company}".'}), 403
     attachments = TicketAttachment.query.filter_by(ticket_id=ticket_id).order_by(TicketAttachment.uploaded_at.desc()).all()
     return jsonify({
         'success': True,
