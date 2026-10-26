@@ -3983,9 +3983,13 @@ def employee_ticket(ticket_id):
     # Obtener mensajes con usuario cargado
     messages = Message.query.filter_by(ticket_id=ticket_id)\
         .order_by(Message.created_at.asc()).all()
+    # Separar las alertas automáticas ([ALERTA], generadas por el Escalator)
+    # del resto — el empleado no necesita ver ruido técnico interno.
+    agent_messages = [m for m in messages if not (m.text or '').startswith('[ALERTA]')]
 
     assignment_info = get_ticket_assignment_info(ticket)
-    return render_template('employee/ticket_detail.html', ticket=ticket, messages=messages, assignment_info=assignment_info)
+    return render_template('employee/ticket_detail.html', ticket=ticket, messages=messages,
+                           agent_messages=agent_messages, assignment_info=assignment_info)
 
 @app.route('/admin/ticket/<int:ticket_id>')
 def admin_ticket_detail(ticket_id):
@@ -4050,6 +4054,11 @@ def technician_ticket(ticket_id):
     # Obtener mensajes con usuario cargado (para msg.user.name)
     messages = Message.query.filter_by(ticket_id=ticket_id)\
         .order_by(Message.created_at.asc()).all()
+    # Separar las alertas automáticas ([ALERTA], generadas por el Escalator)
+    # del resto — se siguen guardando igual, pero se muestran en la pestaña
+    # Log en vez de mezclarse con las notas reales de Conversación.
+    agent_messages = [m for m in messages if not (m.text or '').startswith('[ALERTA]')]
+    alert_messages = [m for m in messages if (m.text or '').startswith('[ALERTA]')]
 
     # Bot suggestion dummy (no depende de Claude API real)
     bot_suggestion = {
@@ -4078,6 +4087,8 @@ def technician_ticket(ticket_id):
     return render_template('technician/ticket_detail.html',
                            ticket=ticket,
                            messages=messages,
+                           agent_messages=agent_messages,
+                           alert_messages=alert_messages,
                            bot_suggestion=bot_suggestion,
                            technicians=technicians,
                            user=user,

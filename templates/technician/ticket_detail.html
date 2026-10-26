@@ -509,12 +509,13 @@
                     <button class="tab-btn active" onclick="switchTab('conversation')">💬 Conversación</button>
                     <button class="tab-btn" onclick="switchTab('subtasks')">✅ Subtareas <span id="subtaskBadge" style="background:#e5e7eb;color:#374151;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:4px;">0</span></button>
                     <button class="tab-btn" onclick="switchTab('history')">📋 Historial</button>
+                    <button class="tab-btn" onclick="switchTab('log')">🗄 Log</button>
                 </div>
 
                 <div id="conversation" class="tab-content active">
-                    {% if ticket.messages %}
+                    {% if agent_messages %}
                         <div class="messages">
-                            {% for msg in messages %}
+                            {% for msg in agent_messages %}
                                 <div class="message">
                                     <div class="message-author">{{ msg.user.name if msg.user else 'Usuario' }}</div>
                                     <div class="message-text" style="white-space:normal;word-wrap:break-word;line-height:1.6;">{{ msg.text | ticket_md }}</div>
@@ -583,6 +584,31 @@
                 <div id="history" class="tab-content">
                     <div id="historyContainer">
                         <p style="color: #999; text-align: center; padding: 20px;">Cargando historial...</p>
+                    </div>
+                </div>
+
+                <!-- LOG: alertas automáticas [ALERTA] + eventos técnicos (AGENT_ESCALATE,
+                     ESCALATE_PRIORITY, VIEW_TICKET, SLA_ALERT_SENT) que se sacaron de
+                     Conversación/Historial para no ensuciar la lectura, pero sin perder
+                     el dato por si hace falta consultarlo. -->
+                <div id="log" class="tab-content">
+                    <div class="section-title" style="margin-top:0;">🔔 Alertas automáticas</div>
+                    {% if alert_messages %}
+                        <div class="messages">
+                            {% for msg in alert_messages %}
+                                <div class="message">
+                                    <div class="message-author">{{ msg.user.name if msg.user else 'Sistema' }}</div>
+                                    <div class="message-text" style="white-space:normal;word-wrap:break-word;line-height:1.6;">{{ msg.text | ticket_md }}</div>
+                                    <div class="message-time">{{ msg.created_at.strftime('%H:%M') if msg.created_at else '' }}</div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p style="color: #999; text-align: center; padding: 10px;">Sin alertas automáticas</p>
+                    {% endif %}
+                    <div class="section-title">⚙️ Eventos técnicos</div>
+                    <div id="logHistoryContainer">
+                        <p style="color: #999; text-align: center; padding: 20px;">Cargando...</p>
                     </div>
                 </div>
 
@@ -1525,7 +1551,7 @@
         event.target.classList.add('active');
 
         // Cargar historial si es necesario
-        if (tabName === 'history') {
+        if (tabName === 'history' || tabName === 'log') {
             loadHistory();
         } else if (tabName === 'subtasks') {
             loadSubtasks();
@@ -2025,22 +2051,36 @@
         }
     }
 
+    // Eventos técnicos/automáticos que se sacan de Historial y se muestran
+    // solo en Log — generan ruido (sobre todo VIEW_TICKET, que se registra
+    // cada vez que alguien abre el ticket) y tapan las notas relevantes.
+    const HISTORY_HIDDEN_ACTIONS = ['AGENT_ESCALATE', 'ESCALATE_PRIORITY', 'VIEW_TICKET', 'SLA_ALERT_SENT'];
+
+    function _renderHistoryItems(container, items, emptyMsg) {
+        if (items.length > 0) {
+            container.innerHTML = items.map(h => `
+                <div class="history-item">
+                    <div class="history-time">📅 ${new Date(h.created_at).toLocaleString('es-ES')}</div>
+                    <div class="history-action">🔄 ${h.action}</div>
+                    <div class="history-description">${h.description}</div>
+                </div>
+            `).join('');
+        } else {
+            container.innerHTML = `<p style="color: #999; text-align: center; padding: 20px;">${emptyMsg}</p>`;
+        }
+    }
+
     function loadHistory() {
         fetch(`/api/ticket/${ticketId}/history`)
             .then(r => r.json())
             .then(data => {
-                const container = document.getElementById('historyContainer');
-                if (data.success && data.history.length > 0) {
-                    container.innerHTML = data.history.map(h => `
-                        <div class="history-item">
-                            <div class="history-time">📅 ${new Date(h.created_at).toLocaleString('es-ES')}</div>
-                            <div class="history-action">🔄 ${h.action}</div>
-                            <div class="history-description">${h.description}</div>
-                        </div>
-                    `).join('');
-                } else {
-                    container.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">Sin historial</p>';
-                }
+                const historyContainer = document.getElementById('historyContainer');
+                const logContainer = document.getElementById('logHistoryContainer');
+                const all = (data.success && data.history) ? data.history : [];
+                const visible = all.filter(h => !HISTORY_HIDDEN_ACTIONS.includes(h.action));
+                const hidden = all.filter(h => HISTORY_HIDDEN_ACTIONS.includes(h.action));
+                _renderHistoryItems(historyContainer, visible, 'Sin historial');
+                if (logContainer) _renderHistoryItems(logContainer, hidden, 'Sin eventos técnicos');
             });
     }
 </script>

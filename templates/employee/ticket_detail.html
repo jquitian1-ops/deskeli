@@ -215,10 +215,10 @@
             <div class="section-title">Descripción</div>
             <div class="description">{{ ticket.description | ticket_md }}</div>
 
-            {% if messages %}
+            {% if agent_messages %}
                 <div class="section-title">Conversación</div>
                 <div class="messages">
-                    {% for msg in messages %}
+                    {% for msg in agent_messages %}
                         <div class="message">
                             <div class="message-author">{{ msg.user.name if msg.user else 'Usuario' }}</div>
                             <div class="message-text" style="white-space:normal;word-wrap:break-word;line-height:1.6;">{{ msg.text | ticket_md }}</div>
