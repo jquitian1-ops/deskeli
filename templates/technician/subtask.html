@@ -222,7 +222,7 @@
                 <div id="notesArea" class="notes-area">
                     <p style="color:#9ca3af; font-style:italic; text-align:center; padding:20px;">Cargando…</p>
                 </div>
-                <textarea id="noteInput" placeholder="Agregar un comentario / nota de trabajo..." onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))addNote()"></textarea>
+                <textarea id="noteInput" placeholder="Agregar un comentario / nota de trabajo... (podés pegar una imagen con Ctrl+V)" onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))addNote()"></textarea>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
                     <small style="color:#9ca3af; font-size:11px;">Tip: Ctrl+Enter para enviar rápido.</small>
                     <button class="action-btn" style="margin:0; width:auto; padding:8px 16px;" onclick="addNote()" id="btnSaveNote">📝 Guardar comentario</button>
@@ -473,6 +473,36 @@
         }
     }
 
+    // Pegado de imágenes (Ctrl+V) en el comentario — se suben como adjunto
+    // de la subtarea (mismo endpoint que "+ Adjuntar") junto con el marcador
+    // de texto en el comentario.
+    let _notePastedFiles = [];
+    document.addEventListener('DOMContentLoaded', () => {
+        const input = document.getElementById('noteInput');
+        if (!input) return;
+        input.addEventListener('paste', function(e) {
+            const items = (e.clipboardData || window.clipboardData).items;
+            if (!items) return;
+            let pastedImage = false;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const blob = items[i].getAsFile();
+                    if (blob) {
+                        const ts = Date.now();
+                        const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+                        _notePastedFiles.push(new File([blob], `captura_${ts}.${ext}`, {type: blob.type}));
+                        pastedImage = true;
+                    }
+                }
+            }
+            if (pastedImage) {
+                e.preventDefault();
+                const cursor = input.selectionStart;
+                input.value = input.value.slice(0, cursor) + `[📎 Imagen ${_notePastedFiles.length} adjuntada a la subtarea]` + input.value.slice(input.selectionEnd);
+            }
+        });
+    });
+
     async function addNote() {
         const input = document.getElementById('noteInput');
         const btn = document.getElementById('btnSaveNote');
@@ -489,6 +519,10 @@
             const data = await res.json();
             if (data.success) {
                 input.value = '';
+                if (_notePastedFiles.length > 0) {
+                    try { await uploadSubAttachments(_notePastedFiles); } catch (err) { /* no bloquear el guardado por esto */ }
+                    _notePastedFiles = [];
+                }
                 loadNotes();
             } else {
                 alert('Error: ' + (data.error || 'no se pudo guardar'));

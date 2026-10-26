@@ -614,8 +614,8 @@
 
                 {% if ticket.status != 'resolved' %}
                     <div class="section-title" style="margin-top: 20px;">Enviar Mensaje</div>
-                    <form method="POST" action="/api/ticket/{{ ticket.id }}/message" style="display: grid; gap: 10px;">
-                        <textarea name="text" style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-family: inherit;" rows="3" placeholder="Tu mensaje al cliente..." required></textarea>
+                    <form id="sendMessageForm" style="display: grid; gap: 10px;">
+                        <textarea id="messageText" name="text" style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-family: inherit;" rows="3" placeholder="Tu mensaje al cliente... (podés pegar una imagen con Ctrl+V)" required></textarea>
                         <button type="submit" style="background: #7c3aed; color: white; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Enviar</button>
                     </form>
                 {% endif %}
@@ -2050,6 +2050,71 @@
             document.getElementById('ticketAttMsg').innerHTML = `<span style="color:#dc2626;">Error: ${e.message}</span>`;
         }
     }
+
+    // ========== ENVIAR MENSAJE (comentario del caso) — con pegado de imágenes ==========
+    let _messagePastedFiles = [];
+    document.addEventListener('DOMContentLoaded', () => {
+        const ta = document.getElementById('messageText');
+        if (ta) {
+            ta.addEventListener('paste', function(e) {
+                const items = (e.clipboardData || window.clipboardData).items;
+                if (!items) return;
+                let pastedImage = false;
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        const blob = items[i].getAsFile();
+                        if (blob) {
+                            const ts = Date.now();
+                            const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+                            _messagePastedFiles.push(new File([blob], `captura_${ts}.${ext}`, {type: blob.type}));
+                            pastedImage = true;
+                        }
+                    }
+                }
+                if (pastedImage) {
+                    e.preventDefault();
+                    const cursor = ta.selectionStart;
+                    ta.value = ta.value.slice(0, cursor) + `[📎 Imagen ${_messagePastedFiles.length} adjuntada al ticket]` + ta.value.slice(ta.selectionEnd);
+                }
+            });
+        }
+
+        const sendForm = document.getElementById('sendMessageForm');
+        if (sendForm) {
+            sendForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const text = (ta.value || '').trim();
+                if (!text) return;
+                const submitBtn = sendForm.querySelector('button[type="submit"]');
+                submitBtn.disabled = true;
+                submitBtn.textContent = '⏳ Enviando...';
+                try {
+                    const fd = new FormData();
+                    fd.append('text', text);
+                    const r = await fetch(`/api/ticket/${ticketId}/message`, {
+                        method: 'POST',
+                        headers: {'X-Requested-With': 'XMLHttpRequest'},
+                        body: fd,
+                    });
+                    const data = await r.json();
+                    if (data.success) {
+                        if (_messagePastedFiles.length > 0) {
+                            try { await uploadTicketAttachments(_messagePastedFiles); } catch (err) { /* no bloquear el envío por esto */ }
+                        }
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'no se pudo enviar el mensaje'));
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Enviar';
+                    }
+                } catch (err) {
+                    alert('Error de red: ' + err.message);
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Enviar';
+                }
+            });
+        }
+    });
 
     // Eventos técnicos/automáticos que se sacan de Historial y se muestran
     // solo en Log — generan ruido (sobre todo VIEW_TICKET, que se registra

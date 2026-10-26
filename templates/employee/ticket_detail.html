@@ -230,10 +230,86 @@
 
             {% if ticket.status != 'resolved' %}
                 <div class="section-title" style="margin-top: 20px;">Añadir Comentario</div>
-                <form method="POST" action="/api/ticket/{{ ticket.id }}/message" style="display: grid; gap: 10px;">
-                    <textarea name="text" style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-family: inherit;" rows="4" placeholder="Tu comentario..." required></textarea>
+                <form id="empCommentForm" style="display: grid; gap: 10px;">
+                    <textarea id="empCommentText" name="text" style="padding: 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-family: inherit;" rows="4" placeholder="Tu comentario... (podés pegar una imagen con Ctrl+V)" required></textarea>
                     <button type="submit" style="background: #2563eb; color: white; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Enviar</button>
                 </form>
+                <script>
+                    (function() {
+                        const EMP_TICKET_ID = {{ ticket.id }};
+                        let _empPastedFiles = [];
+
+                        async function _empUploadAttachments(files) {
+                            if (!files || files.length === 0) return;
+                            const fd = new FormData();
+                            for (const f of files) fd.append('files', f);
+                            try {
+                                await fetch(`/api/ticket/${EMP_TICKET_ID}/attachments`, {method: 'POST', body: fd});
+                            } catch (e) { /* no bloquear el envío del comentario por esto */ }
+                        }
+
+                        document.addEventListener('DOMContentLoaded', () => {
+                            const ta = document.getElementById('empCommentText');
+                            if (ta) {
+                                ta.addEventListener('paste', function(e) {
+                                    const items = (e.clipboardData || window.clipboardData).items;
+                                    if (!items) return;
+                                    let pastedImage = false;
+                                    for (let i = 0; i < items.length; i++) {
+                                        if (items[i].type.indexOf('image') !== -1) {
+                                            const blob = items[i].getAsFile();
+                                            if (blob) {
+                                                const ts = Date.now();
+                                                const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+                                                _empPastedFiles.push(new File([blob], `captura_${ts}.${ext}`, {type: blob.type}));
+                                                pastedImage = true;
+                                            }
+                                        }
+                                    }
+                                    if (pastedImage) {
+                                        e.preventDefault();
+                                        const cursor = ta.selectionStart;
+                                        ta.value = ta.value.slice(0, cursor) + `[📎 Imagen ${_empPastedFiles.length} adjuntada al ticket]` + ta.value.slice(ta.selectionEnd);
+                                    }
+                                });
+                            }
+
+                            const form = document.getElementById('empCommentForm');
+                            if (form) {
+                                form.addEventListener('submit', async function(e) {
+                                    e.preventDefault();
+                                    const text = (ta.value || '').trim();
+                                    if (!text) return;
+                                    const btn = form.querySelector('button[type="submit"]');
+                                    btn.disabled = true;
+                                    btn.textContent = 'Enviando...';
+                                    try {
+                                        const fd = new FormData();
+                                        fd.append('text', text);
+                                        const r = await fetch(`/api/ticket/${EMP_TICKET_ID}/message`, {
+                                            method: 'POST',
+                                            headers: {'X-Requested-With': 'XMLHttpRequest'},
+                                            body: fd,
+                                        });
+                                        const data = await r.json();
+                                        if (data.success) {
+                                            if (_empPastedFiles.length > 0) await _empUploadAttachments(_empPastedFiles);
+                                            location.reload();
+                                        } else {
+                                            alert('Error: ' + (data.error || 'no se pudo enviar'));
+                                            btn.disabled = false;
+                                            btn.textContent = 'Enviar';
+                                        }
+                                    } catch (err) {
+                                        alert('Error de red: ' + err.message);
+                                        btn.disabled = false;
+                                        btn.textContent = 'Enviar';
+                                    }
+                                });
+                            }
+                        });
+                    })();
+                </script>
             {% endif %}
 
             {% if ticket.status == 'resolved' %}
