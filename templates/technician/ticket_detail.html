@@ -519,7 +519,7 @@
                                 <div class="message">
                                     <div class="message-author">{{ msg.user.name if msg.user else 'Usuario' }}</div>
                                     <div class="message-text" style="white-space:normal;word-wrap:break-word;line-height:1.6;">{{ msg.text | ticket_md }}</div>
-                                    <div class="message-time">{{ msg.created_at.strftime('%H:%M') if msg.created_at else '' }}</div>
+                                    <div class="message-time">{{ msg.created_at.strftime('%Y-%m-%d %H:%M') if msg.created_at else '' }}</div>
                                 </div>
                             {% endfor %}
                         </div>
@@ -599,7 +599,7 @@
                                 <div class="message">
                                     <div class="message-author">{{ msg.user.name if msg.user else 'Sistema' }}</div>
                                     <div class="message-text" style="white-space:normal;word-wrap:break-word;line-height:1.6;">{{ msg.text | ticket_md }}</div>
-                                    <div class="message-time">{{ msg.created_at.strftime('%H:%M') if msg.created_at else '' }}</div>
+                                    <div class="message-time">{{ msg.created_at.strftime('%Y-%m-%d %H:%M') if msg.created_at else '' }}</div>
                                 </div>
                             {% endfor %}
                         </div>
