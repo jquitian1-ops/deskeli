@@ -14534,15 +14534,17 @@ def api_admin_delete_ticket(ticket_id):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# RESETEO DE DATOS DE PRUEBA — PASH (previo a salida en vivo)
+# RESETEO DE DATOS DE PRUEBA — ELIOT (previo a salida en vivo)
+# Nota: este mismo proceso se usó antes para Pash (ya en vivo, retirado del
+# panel a pedido explícito para que no se vuelva a ejecutar por error ahí).
 # ═════════════════════════════════════════════════════════════════════════════
-_PASH_RESET_CONFIRM_PHRASE = 'BORRAR DATOS DE PRUEBA PASH'
+_ELIOT_RESET_CONFIRM_PHRASE = 'BORRAR DATOS DE PRUEBA ELIOT'
 
 
-def _pash_reset_counts():
-    """Cuenta (solo lectura) todo lo que el reseteo de Pash borraría."""
-    ticket_ids = [t.id for t in Ticket.query.filter_by(company='pash').with_entities(Ticket.id).all()]
-    solicitud_ids = [s.id for s in SolicitudUsuario.query.filter_by(company='pash').with_entities(SolicitudUsuario.id).all()]
+def _eliot_reset_counts():
+    """Cuenta (solo lectura) todo lo que el reseteo de Eliot borraría."""
+    ticket_ids = [t.id for t in Ticket.query.filter_by(company='eliot').with_entities(Ticket.id).all()]
+    solicitud_ids = [s.id for s in SolicitudUsuario.query.filter_by(company='eliot').with_entities(SolicitudUsuario.id).all()]
     return {
         'tickets': len(ticket_ids),
         'subtasks': Subtask.query.filter(Subtask.ticket_id.in_(ticket_ids)).count() if ticket_ids else 0,
@@ -14560,39 +14562,39 @@ def _pash_reset_counts():
     }
 
 
-@app.route('/api/admin/pash/reset-preview', methods=['GET'])
-def api_admin_pash_reset_preview():
+@app.route('/api/admin/eliot/reset-preview', methods=['GET'])
+def api_admin_eliot_reset_preview():
     """Vista previa de solo lectura: cuántos tickets/subtareas/solicitudes de
-    Pash se borrarían con el reseteo previo a la salida en vivo. No borra nada."""
+    Eliot se borrarían con el reseteo previo a la salida en vivo. No borra nada."""
     if 'user_id' not in session or session.get('role') != 'admin':
         return jsonify({'success': False}), 401
-    if 'pash' not in admin_companies_scope():
+    if 'eliot' not in admin_companies_scope():
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
 
-    return jsonify({'success': True, 'counts': _pash_reset_counts(), 'confirm_phrase': _PASH_RESET_CONFIRM_PHRASE})
+    return jsonify({'success': True, 'counts': _eliot_reset_counts(), 'confirm_phrase': _ELIOT_RESET_CONFIRM_PHRASE})
 
 
-@app.route('/api/admin/pash/reset-confirm', methods=['POST'])
-def api_admin_pash_reset_confirm():
+@app.route('/api/admin/eliot/reset-confirm', methods=['POST'])
+def api_admin_eliot_reset_confirm():
     """Borra DEFINITIVAMENTE todos los tickets, subtareas y solicitudes de
-    usuario de Pash (datos de prueba), para que la numeración arranque de
+    usuario de Eliot (datos de prueba), para que la numeración arranque de
     nuevo en 00001 al salir en vivo. Requiere la frase de confirmación exacta
     — no hay vuelta atrás, no hay papelera."""
     if 'user_id' not in session or session.get('role') != 'admin':
         return jsonify({'success': False}), 401
-    if 'pash' not in admin_companies_scope():
+    if 'eliot' not in admin_companies_scope():
         return jsonify({'success': False, 'error': 'Sin acceso'}), 403
 
     data = request.get_json() or {}
-    if (data.get('confirm') or '').strip() != _PASH_RESET_CONFIRM_PHRASE:
+    if (data.get('confirm') or '').strip() != _ELIOT_RESET_CONFIRM_PHRASE:
         return jsonify({
             'success': False,
-            'error': f'Frase de confirmación incorrecta. Escribí exactamente: "{_PASH_RESET_CONFIRM_PHRASE}"'
+            'error': f'Frase de confirmación incorrecta. Escribí exactamente: "{_ELIOT_RESET_CONFIRM_PHRASE}"'
         }), 400
 
-    counts_before = _pash_reset_counts()
+    counts_before = _eliot_reset_counts()
 
-    tickets = Ticket.query.filter_by(company='pash').all()
+    tickets = Ticket.query.filter_by(company='eliot').all()
     ticket_ids = [t.id for t in tickets]
     if ticket_ids:
         # AgentAction y MailboxEmail no tienen cascada ORM definida en Ticket
@@ -14604,7 +14606,7 @@ def api_admin_pash_reset_confirm():
         for t in tickets:
             db.session.delete(t)
 
-    solicitudes = SolicitudUsuario.query.filter_by(company='pash').all()
+    solicitudes = SolicitudUsuario.query.filter_by(company='eliot').all()
     solicitud_ids = [s.id for s in solicitudes]
     if solicitud_ids:
         # SolicitudApprovalToken no tiene cascada ORM (a diferencia de
@@ -14615,8 +14617,8 @@ def api_admin_pash_reset_confirm():
 
     db.session.commit()
 
-    log_audit('pash_reset_test_data', session['user_id'], 'company', None,
-              f"Reseteo de datos de prueba Pash previo a salida en vivo: "
+    log_audit('eliot_reset_test_data', session['user_id'], 'company', None,
+              f"Reseteo de datos de prueba Eliot previo a salida en vivo: "
               f"{len(ticket_ids)} tickets, {len(solicitud_ids)} solicitudes eliminadas")
 
     return jsonify({'success': True, 'deleted': counts_before})
