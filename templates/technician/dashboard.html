@@ -2184,8 +2184,10 @@
                 }
             });
         });
-        // Cerrar si se hace scroll (el menú es fixed y dejaría de coincidir con el botón)
-        window.addEventListener('scroll', () => {
+        // Cerrar si se hace scroll (el menú es fixed y dejaría de coincidir con el botón) —
+        // pero no si el scroll es DENTRO del propio menú (ver mismo fix en admin/dashboard.html).
+        window.addEventListener('scroll', (e) => {
+            if (e.target && e.target.closest && e.target.closest('.status-ms-menu')) return;
             document.querySelectorAll('.status-ms-menu').forEach(m => m.style.display = 'none');
         }, true);
 

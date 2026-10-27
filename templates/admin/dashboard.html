@@ -4810,7 +4810,14 @@
                 }
             });
         });
-        window.addEventListener('scroll', () => {
+        window.addEventListener('scroll', (e) => {
+            // No cerrar si el scroll es DENTRO del propio menú (la lista de
+            // técnicos tiene su propio overflow-y:auto) — como este listener
+            // usa capture:true para detectar cuando la PÁGINA se mueve (y
+            // así cerrar el dropdown fixed que quedaría flotando), antes
+            // también capturaba el scroll interno del dropdown y lo cerraba
+            // apenas se tocaba la barra desplazadora.
+            if (e.target && e.target.closest && e.target.closest('.tix-ms-menu')) return;
             document.querySelectorAll('.tix-ms-menu').forEach(m => m.style.display = 'none');
         }, true);
 
