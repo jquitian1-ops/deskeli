@@ -17790,6 +17790,98 @@ def api_subtask_delete(subtask_id):
     return jsonify({'success': True})
 
 
+@app.route('/api/subtask/<int:subtask_id>/reassign', methods=['POST'])
+@require_technician_or_admin
+def api_reassign_subtask(subtask_id):
+    """Reasignar/devolver una subtarea a otro técnico (mismo patrón que
+    api_reassign_ticket, pero a nivel subtarea: hasta ahora el portal técnico
+    solo permitía reasignar el TICKET padre completo, sin forma de devolver
+    o mover una subtarea puntual a otro especialista del grupo)."""
+    subtask = Subtask.query.get_or_404(subtask_id)
+    ticket = Ticket.query.get(subtask.ticket_id)
+    actor = User.query.get(session['user_id'])
+    if not ticket or not can_user_access_subtask(actor, subtask):
+        return jsonify({'success': False, 'error': f'No tenés acceso a esta subtarea.'}), 403
+
+    if subtask.status in ('resolved', 'closed'):
+        status_label = 'cerrada' if subtask.status == 'closed' else 'resuelta'
+        return jsonify({
+            'success': False,
+            'error': f'No se puede reasignar una subtarea {status_label}.'
+        }), 400
+
+    data = request.json or {}
+    new_assignee_id = data.get('assignee_id')
+    reason = (data.get('reason') or 'Asignación directa').strip()
+
+    if not new_assignee_id:
+        return jsonify({'success': False, 'error': 'Debes seleccionar un técnico (assignee_id requerido)'}), 400
+
+    try:
+        new_assignee_id = int(new_assignee_id)
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'assignee_id inválido'}), 400
+
+    new_assignee = User.query.get(new_assignee_id)
+    if not new_assignee:
+        return jsonify({'success': False, 'error': f'Usuario con id={new_assignee_id} no existe'}), 404
+
+    # Mismo criterio que api_reassign_ticket: el nuevo asignado debe
+    # pertenecer a la empresa del TICKET padre, resolviendo identidades
+    # espejo si hace falta (ver comentario detallado en api_reassign_ticket).
+    if new_assignee.company != ticket.company:
+        same_company_match = User.query.filter(
+            User.id.in_(get_user_identity_ids(new_assignee)),
+            User.company == ticket.company,
+        ).first()
+        if same_company_match:
+            new_assignee = same_company_match
+            new_assignee_id = same_company_match.id
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'El técnico "{new_assignee.name}" es de la empresa "{new_assignee.company}" y este ticket es de "{ticket.company}". No se puede asignar entre empresas.'
+            }), 400
+
+    if new_assignee.role not in ('technician', 'admin'):
+        return jsonify({
+            'success': False,
+            'error': f'No se puede asignar a "{new_assignee.name}" — solo técnicos o admins (es rol "{new_assignee.role}").'
+        }), 400
+
+    if not new_assignee.is_active:
+        return jsonify({'success': False, 'error': f'El usuario "{new_assignee.name}" está inactivo.'}), 400
+
+    old_assignee = subtask.assignee.name if subtask.assignee else 'Sin asignar'
+    subtask.assignee_id = new_assignee_id
+    subtask.updated_at = datetime.now()
+    if subtask.status == 'open':
+        subtask.status = 'in_progress'
+    db.session.commit()
+
+    log_audit('reassign_subtask', session['user_id'], 'ticket', subtask.ticket_id,
+              f'Subtarea {subtask.subtask_number or subtask_id} reasignada de {old_assignee} a {new_assignee.name}: {reason}')
+
+    try:
+        emit_ticket_event(ticket.company, 'subtask_changed', {
+            'ticket_id': subtask.ticket_id, 'subtask_id': subtask.id, 'action': 'reassigned'
+        })
+    except Exception:
+        pass
+
+    try:
+        notify_subtask_assigned_async(subtask.id, new_assignee.id, assigned_by_name=session.get('name', 'Administrador'))
+    except Exception as e:
+        print(f'[WARN] No se pudo notificar asignación de subtarea por email: {e}')
+
+    return jsonify({
+        'success': True,
+        'message': f'Subtarea asignada a {new_assignee.name}',
+        'assignee_name': new_assignee.name,
+        'new_status': subtask.status
+    })
+
+
 # ============================================================
 # ADJUNTOS DE SUBTAREAS
 # ============================================================
